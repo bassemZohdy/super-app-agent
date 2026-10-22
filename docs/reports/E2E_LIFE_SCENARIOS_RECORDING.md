@@ -15,7 +15,7 @@
 | **Protocols Evaluated** | AG-UI v1.0.0 (Declarative Tree), A2-UI v1.0.0 (Event Streaming) |
 | **Cognitive Framework** | LangGraph StateGraph Supervisor + Domain Worker Subagents |
 | **Microservices Mesh** | `service-ride`, `service-food`, `service-wallet`, `service-catalog`, `service-profile`, `keycloak` |
-| **Report Generated At** | 2026-10-22T10:18:46.094Z |
+| **Report Generated At** | 2026-10-22T10:28:25.352Z |
 
 ---
 
@@ -23,14 +23,14 @@
 
 | Scenario ID | Title | Persona & Target Device | Duration | Outcome |
 |:---|:---|:---|:---:|:---:|
-| **SCENARIO-01** | Commuter Morning Rush (Ride Hailing & Real-Time Tracking) | Executive Commuter traveling to airport on iPhone (Mobile PWA) | 16ms | ✅ **PASSED** |
-| **SCENARIO-02** | Evening Dinner Delivery (Dining Discovery & Kitchen Prep) | Hungry professional ordering dinner from desktop web shell | 1ms | ✅ **PASSED** |
-| **SCENARIO-03** | Zero-Trust Wallet Management (Balance, Ledger & Top-Up) | Fintech-savvy user checking ledger and topping up balance | 1ms | ✅ **PASSED** |
-| **SCENARIO-04** | Composite Multi-Agent Orchestration (Ride + Food + Wallet HITL) | Power user requiring multi-modal coordination across mobility and dining | 1ms | ✅ **PASSED** |
+| **SCENARIO-01** | Commuter Morning Rush (Ride Hailing & Real-Time Tracking) | Executive Commuter traveling to airport on iPhone (Mobile PWA) | 15ms | ✅ **PASSED** |
+| **SCENARIO-02** | Evening Dinner Delivery (Dining Discovery & Kitchen Prep) | Hungry professional ordering dinner from desktop web shell | 2ms | ✅ **PASSED** |
+| **SCENARIO-03** | Zero-Trust Wallet Management (Balance, Ledger & Top-Up) | Fintech-savvy user checking ledger and topping up balance | 2ms | ✅ **PASSED** |
+| **SCENARIO-04** | Composite Multi-Agent Orchestration (Ride + Food + Wallet HITL) | Power user requiring multi-modal coordination across mobility and dining | 2ms | ✅ **PASSED** |
 | **SCENARIO-05** | Ecosystem Discovery (Mini-App Catalog & MCP Tools) | New user exploring SuperApp capabilities and installed domains | 1ms | ✅ **PASSED** |
-| **SCENARIO-06** | Financial Safety Guardrail (Zero-Trust Ledger Protection) | Budget-constrained user or fraudulent overcharge attempt | 1ms | ✅ **PASSED** |
+| **SCENARIO-06** | Financial Safety Guardrail (Zero-Trust Ledger Protection) | Budget-constrained user or fraudulent overcharge attempt | 0ms | ✅ **PASSED** |
 | **SCENARIO-07** | A2-UI Protocol Validation & Integrity Guardrails | Host Shell Network Client (React / Angular / Flutter) | 0ms | ✅ **PASSED** |
-| **SCENARIO-08** | User Profile Personalization & Adaptive AG-UI Surfaces | Bassem Zohdy (Gold VIP, Eco EV Preferred, Vegetarian/Spicy) | 1ms | ✅ **PASSED** |
+| **SCENARIO-08** | User Profile Personalization & Adaptive AG-UI Surfaces | Bassem Zohdy (Gold VIP, Eco EV Preferred, Vegetarian/Spicy) | 2ms | ✅ **PASSED** |
 | **SCENARIO-09** | Keycloak OIDC Token Authentication & Security Rejection | Enterprise IAM Security Validator | 1ms | ✅ **PASSED** |
 
 ---
@@ -98,7 +98,7 @@
 - **Generated AG-UI Surface**:
   - **Root Type**: `SurfaceCard` (ID: `food_card`)
   - **Rendered Primitives**: `Heading (food_heading)`, `Text (food_pref_note)`, `ChoiceGroup (food_choices)`, `Button (btn_order_food)`
-- **Latency**: 1ms | **Status**: ✅ PASSED
+- **Latency**: 2ms | **Status**: ✅ PASSED
 
 #### Step 2: Kitchen Order Dispatch & Tracking
 
@@ -135,7 +135,7 @@
 - **Generated AG-UI Surface**:
   - **Root Type**: `SurfaceCard` (ID: `wallet_card`)
   - **Rendered Primitives**: `Heading (wallet_heading)`, `Badge (vip_badge)`, `MetricWidget (metric_balance)`, `DataTable (tx_table)`, `Button (btn_topup_50)`
-- **Latency**: 1ms | **Status**: ✅ PASSED
+- **Latency**: 2ms | **Status**: ✅ PASSED
 
 #### Step 2: Top-Up Execution & Ledger Update
 
@@ -173,7 +173,7 @@
 - **Generated AG-UI Surface**:
   - **Root Type**: `SurfaceCard` (ID: `composite_orchestrator_card`)
   - **Rendered Primitives**: `Heading (comp_title)`, `Badge (vip_status_badge)`, `Text (comp_summary)`, `MetricWidget (metric_cab)`, `MetricWidget (metric_dinner)`, `MetricWidget (metric_wallet_status)`, `Button (btn_confirm_both)`
-- **Latency**: 1ms | **Status**: ✅ PASSED
+- **Latency**: 2ms | **Status**: ✅ PASSED
 
 #### Step 2: Atomic Multi-Service Settlement & Dual Confirmation
 
@@ -285,7 +285,7 @@
   - **Root Type**: `SurfaceCard` (ID: `ride_card`)
   - **Rendered Primitives**: `Heading (ride_heading)`, `Text (ride_pref_summary)`, `MapViewer (ride_overview_map)`, `ChoiceGroup (ride_choices)`, `Button (btn_confirm_ride)`
 - **Outcome**: User preferred EV vehicle prioritized at top of ChoiceGroup card.
-- **Latency**: 0ms | **Status**: ✅ PASSED
+- **Latency**: 1ms | **Status**: ✅ PASSED
 
 #### Step 3: Personalized VIP Wallet View
 
@@ -320,7 +320,7 @@
 - **Microservice Tool Invocations**:
   - 🔧 **`auth_verifyKeycloakToken`**: Authenticated: true, user: bassem (Gold VIP)
 - **Outcome**: Session authenticated and user security claims attached to LangGraph context.
-- **Latency**: 1ms | **Status**: ✅ PASSED
+- **Latency**: 0ms | **Status**: ✅ PASSED
 
 #### Step 2: Malformed Token Security Rejection (401)
 
@@ -342,7 +342,7 @@
 - **Microservice Tool Invocations**:
   - 🔧 **`auth_verifyKeycloakToken`**: REJECTED (401): Keycloak JWT token has expired
 - **Outcome**: Expired session rejected, client prompted to refresh token against Keycloak realm.
-- **Latency**: 0ms | **Status**: ✅ PASSED
+- **Latency**: 1ms | **Status**: ✅ PASSED
 
 ---
 
