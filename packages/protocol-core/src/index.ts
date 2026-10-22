@@ -1,2 +1,2 @@
-export * from './ag-ui.js';
-export * from './a2-ui.js';
+export * from './ag-ui.ts';
+export * from './a2-ui.ts';

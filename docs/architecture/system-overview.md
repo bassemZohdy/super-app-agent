@@ -107,7 +107,7 @@ flowchart TB
 ## 2. Structural Layering & Component Breakdown
 
 ### 2.1 Backend Layer (Agent Gateway, LangGraph Core & Microservices)
-1. **Agent Gateway (`services/agent-gateway`)**:
+1. **Agent Core (`services/agent-core`)**:
    - Acts as the single entry-point for frontend clients.
    - Handles the initial `A2UI_HANDSHAKE`, establishing device constraints (screen size, platform, supported components).
    - Manages stateful conversational sessions and translates client interactions into agent executions.
@@ -188,7 +188,7 @@ super-app-agent/
 │   └── angular-a2ui/                # Angular AG-UI renderer & directive library
 │
 ├── services/                        # Backend Microservices
-│   ├── agent-gateway/               # Main A2-UI Ingress & OpenRouter Agent Core (:4000)
+│   ├── agent-core/                  # Main A2-UI Ingress & OpenRouter Agent Core (:4000)
 │   ├── service-ride/                # Mobility Microservice (:4001)
 │   ├── service-food/                # Food & Dining Microservice (:4002)
 │   ├── service-wallet/              # Payments & Wallet Microservice (:4003)

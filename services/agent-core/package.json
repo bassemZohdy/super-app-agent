@@ -1,7 +1,8 @@
 {
-  "name": "@superapp/agent-gateway",
+  "name": "@superapp/agent-core",
   "version": "1.0.0",
-  "description": "A2-UI Protocol Broker and LangGraph Multi-Agent Orchestrator",
+  "type": "module",
+  "description": "Agent Core Cognitive Platform, A2-UI Protocol Broker, and LangGraph Multi-Agent Orchestrator",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",

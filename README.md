@@ -234,7 +234,7 @@ A vital design principle of this architecture is the strict decoupling of the **
   - Enables switching between models (`anthropic/claude-3.5-sonnet`, `google/gemini-2.0-flash-001`, `openai/gpt-4o`, `meta-llama/llama-3.3-70b-instruct`) with zero changes to agent graphs or tool definitions.
 
 ### 6.2 Security Guardrails
-- **Backend-Only Credentials**: The `OPENROUTER_API_KEY` is loaded exclusively inside `services/agent-gateway` and is **never** dispatched to frontend clients.
+- **Backend-Only Credentials**: The `OPENROUTER_API_KEY` is loaded exclusively inside `services/agent-core` and is **never** dispatched to frontend clients.
 - **Schema Validation**: All agent responses destined for client rendering pass through strict Zod / JSON schema validators.
 - **Zero-Trust Mini-App Storage**: Mini-apps run in scoped namespaces and cannot access unauthorized host cookies or cross-app tokens.
 
@@ -269,7 +269,7 @@ super-app-agent/
 │   └── angular-a2ui/                          # Angular AG-UI renderer library
 │
 ├── services/                                  # Backend Microservices
-│   ├── agent-gateway/                         # Agent Ingress & OpenRouter Orchestrator (:4000)
+│   ├── agent-core/                            # Agent Ingress & OpenRouter Orchestrator (:4000)
 │   ├── service-ride/                          # Ride & Mobility Microservice (:4001)
 │   ├── service-food/                          # Food & Dining Microservice (:4002)
 │   ├── service-wallet/                        # Payments & Wallet Microservice (:4003)

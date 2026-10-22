@@ -1,6 +1,7 @@
 {
   "name": "@superapp/service-wallet",
   "version": "1.0.0",
+  "type": "module",
   "description": "Payments, Ledger and Wallet Domain Microservice with MCP Server support",
   "main": "dist/index.js",
   "scripts": {

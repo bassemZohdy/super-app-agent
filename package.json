@@ -2,6 +2,7 @@
   "name": "super-app-agent-monorepo",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "description": "Next-Generation Agentic SuperApp Platform with AG-UI / A2-UI protocols and Polyglot Frontends",
   "workspaces": [
     "packages/*",
@@ -11,12 +12,13 @@
   ],
   "scripts": {
     "dev": "turbo run dev --parallel",
-    "dev:backend": "turbo run dev --filter=\"./services/*\"",
+    "dev:backend": "node --experimental-strip-types scripts/dev-backend.ts",
     "dev:react": "npm run dev --workspace=apps/shell-react",
     "dev:angular": "npm run dev --workspace=apps/shell-angular",
     "dev:flutter": "cd apps/shell-flutter && flutter run -d chrome",
     "build": "turbo run build",
-    "test": "turbo run test",
+    "test": "node --experimental-strip-types --test packages/protocol-core/test/*.ts services/test/*.ts test/*.ts",
+    "test:record": "node --experimental-strip-types scripts/record-e2e-scenarios.ts",
     "lint": "turbo run lint"
   },
   "devDependencies": {

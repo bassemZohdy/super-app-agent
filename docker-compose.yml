@@ -13,30 +13,33 @@ services:
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
     command: ["run", "--config", "/etc/agentgateway/config.yaml"]
     depends_on:
-      - agent-gateway
+      - agent-core
       - service-ride
       - service-food
       - service-wallet
+      - service-profile
 
-  # A2-UI Protocol Broker & LangGraph Agent Core
-  agent-gateway:
+  # Agent Core: A2-UI Protocol Broker & LangGraph Cognitive Engine
+  agent-core:
     build:
       context: .
-      dockerfile: services/agent-gateway/Dockerfile
-    container_name: superapp-agent-gateway
+      dockerfile: services/agent-core/Dockerfile
+    container_name: superapp-agent-core
     ports:
-      - "${PORT_GATEWAY:-4000}:4000"
+      - "${PORT_AGENT_CORE:-${PORT_GATEWAY:-4000}}:4000"
     environment:
       - PORT=4000
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - OPENROUTER_MODEL=${OPENROUTER_MODEL:-anthropic/claude-3.5-sonnet}
       - AGENTGATEWAY_URL=http://agentgateway:8080
+      - KEYCLOAK_URL=http://keycloak:8080
       - NODE_ENV=development
     depends_on:
       - service-ride
       - service-food
       - service-wallet
       - service-catalog
+      - service-profile
 
   # Domain Microservice: Ride & Mobility
   service-ride:
@@ -81,6 +84,30 @@ services:
       - "${PORT_SERVICE_CATALOG:-4004}:4004"
     environment:
       - PORT=4004
+
+  # Domain Microservice: User Profile & Preferences
+  service-profile:
+    build:
+      context: .
+      dockerfile: services/service-profile/Dockerfile
+    container_name: superapp-service-profile
+    ports:
+      - "${PORT_SERVICE_PROFILE:-4005}:4005"
+    environment:
+      - PORT=4005
+
+  # Identity & Access Management: Keycloak OIDC Auth Server
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0.5
+    container_name: superapp-keycloak
+    command: ["start-dev", "--import-realm"]
+    ports:
+      - "${PORT_KEYCLOAK:-8085}:8080"
+    environment:
+      - KEYCLOAK_ADMIN=${KEYCLOAK_ADMIN:-admin}
+      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD:-admin}
+    volumes:
+      - ./services/keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
 
   # Frontend Shell: React 18 Host
   shell-react:

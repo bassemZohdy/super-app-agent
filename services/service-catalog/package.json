@@ -1,6 +1,7 @@
 {
   "name": "@superapp/service-catalog",
   "version": "1.0.0",
+  "type": "module",
   "description": "Mini-App Registry and Service Discovery Microservice",
   "main": "dist/index.js",
   "scripts": {

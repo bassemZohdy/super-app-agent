@@ -3,8 +3,9 @@ WORKDIR /app
 
 COPY package*.json ./
 COPY packages/ ./packages/
-COPY services/agent-gateway/ ./services/agent-gateway/
+COPY services/service-profile/ ./services/service-profile/
 
-WORKDIR /app/services/agent-gateway
-EXPOSE 4000
+WORKDIR /app/services/service-profile
+EXPOSE 4005
 CMD ["npm", "run", "dev"]
+

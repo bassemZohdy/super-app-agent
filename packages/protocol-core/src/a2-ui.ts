@@ -1,7 +1,11 @@
-import { z } from 'zod';
-import { AGUISurfaceSchema, AGUISurfacePayload } from './ag-ui.js';
+/**
+ * A2-UI (Agent-to-User Interface Protocol)
+ * Bi-directional wire streaming protocol definitions, envelopes, and validators.
+ */
 
-export const A2UIMessageTypeSchema = z.enum([
+import { validateAGUISurface, type AGUISurfacePayload, type ValidationResult } from './ag-ui.ts';
+
+export const SUPPORTED_MESSAGE_TYPES = [
   'A2UI_HANDSHAKE',
   'A2UI_HANDSHAKE_ACK',
   'A2UI_USER_INTENT',
@@ -10,62 +14,73 @@ export const A2UIMessageTypeSchema = z.enum([
   'A2UI_EVENT_TRIGGER',
   'A2UI_LAUNCH_MINIAPP',
   'A2UI_CLIENT_ERROR',
-]);
+] as const;
 
-export type A2UIMessageType = z.infer<typeof A2UIMessageTypeSchema>;
+export type A2UIMessageType = (typeof SUPPORTED_MESSAGE_TYPES)[number];
 
-export const A2UIHandshakePayloadSchema = z.object({
-  platform: z.enum(['react', 'angular', 'flutter', 'web_responsive']),
-  viewport: z.object({
-    width: z.number(),
-    height: z.number(),
-    category: z.enum(['mobile', 'tablet', 'desktop']),
-  }),
-  supportedComponents: z.array(z.string()),
-  locale: z.string().default('en-US'),
-});
+export interface A2UIHandshakePayload {
+  platform: 'react' | 'angular' | 'flutter' | 'web_responsive';
+  viewport: {
+    width: number;
+    height: number;
+    category: 'mobile' | 'tablet' | 'desktop';
+  };
+  supportedComponents: string[];
+  locale?: string;
+}
 
-export type A2UIHandshakePayload = z.infer<typeof A2UIHandshakePayloadSchema>;
+export interface A2UIHandshakeAckPayload {
+  status: 'connected';
+  supportedProtocols: string[];
+  sessionId: string;
+}
 
-export const A2UIStreamDeltaPayloadSchema = z.object({
-  phase: z.enum(['REASONING', 'TOOL_EXECUTION', 'FINALIZING']),
-  text: z.string(),
-  activeTool: z.string().optional(),
-});
+export interface A2UIUserIntentPayload {
+  sessionId: string;
+  text: string;
+  handshake?: A2UIHandshakePayload;
+}
 
-export type A2UIStreamDeltaPayload = z.infer<typeof A2UIStreamDeltaPayloadSchema>;
+export interface A2UIStreamDeltaPayload {
+  phase: 'REASONING' | 'TOOL_EXECUTION' | 'FINALIZING';
+  text: string;
+  activeTool?: string;
+}
 
-export const A2UIRenderSurfacePayloadSchema = z.object({
-  mode: z.enum(['REPLACE', 'PATCH', 'APPEND']),
-  surface: AGUISurfaceSchema,
-});
+export interface A2UIRenderSurfacePayload {
+  mode: 'REPLACE' | 'PATCH' | 'APPEND';
+  surface: AGUISurfacePayload;
+}
 
-export type A2UIRenderSurfacePayload = z.infer<typeof A2UIRenderSurfacePayloadSchema>;
+export interface A2UIEventTriggerPayload {
+  originComponentId: string;
+  action: string;
+  payload: Record<string, any>;
+}
 
-export const A2UIEventTriggerPayloadSchema = z.object({
-  originComponentId: z.string(),
-  action: z.string(),
-  payload: z.record(z.any()),
-});
+export interface A2UILaunchMiniAppPayload {
+  miniAppId: string;
+  entryRoute?: string;
+  params?: Record<string, any>;
+}
 
-export type A2UIEventTriggerPayload = z.infer<typeof A2UIEventTriggerPayloadSchema>;
+export interface A2UIClientErrorPayload {
+  code: string;
+  message: string;
+  details?: Record<string, any>;
+}
 
-export const A2UIMessageEnvelopeSchema = z.object({
-  id: z.string(),
-  type: A2UIMessageTypeSchema,
-  sessionId: z.string(),
-  timestamp: z.number(),
-  data: z.any(),
-});
-
-export type A2UIMessageEnvelope<T = any> = {
+export interface A2UIMessageEnvelope<T = any> {
   id: string;
   type: A2UIMessageType;
   sessionId: string;
   timestamp: number;
   data: T;
-};
+}
 
+/**
+ * Create a strongly-typed A2-UI envelope
+ */
 export function createA2UIMessage<T>(
   type: A2UIMessageType,
   sessionId: string,
@@ -78,4 +93,51 @@ export function createA2UIMessage<T>(
     timestamp: Date.now(),
     data,
   };
+}
+
+/**
+ * Validate an incoming A2-UI envelope
+ */
+export function validateA2UIMessage(envelope: unknown): ValidationResult<A2UIMessageEnvelope> {
+  const errors: string[] = [];
+
+  if (!envelope || typeof envelope !== 'object') {
+    return { success: false, errors: ['Envelope must be an object'] };
+  }
+
+  const env = envelope as Record<string, any>;
+
+  if (typeof env.id !== 'string' || !env.id.trim()) {
+    errors.push("Missing or invalid 'id' string");
+  }
+
+  if (!SUPPORTED_MESSAGE_TYPES.includes(env.type)) {
+    errors.push(
+      `Invalid message type '${env.type}'. Expected one of: ${SUPPORTED_MESSAGE_TYPES.join(', ')}`
+    );
+  }
+
+  if (typeof env.sessionId !== 'string' || !env.sessionId.trim()) {
+    errors.push("Missing or invalid 'sessionId'");
+  }
+
+  if (typeof env.timestamp !== 'number') {
+    errors.push("Missing or invalid 'timestamp' number");
+  }
+
+  if (env.data === undefined) {
+    errors.push("Missing 'data' payload");
+  } else if (env.type === 'A2UI_RENDER_SURFACE') {
+    const surface = env.data.surface;
+    const surfaceValidation = validateAGUISurface(surface);
+    if (!surfaceValidation.success && surfaceValidation.errors) {
+      errors.push(...surfaceValidation.errors);
+    }
+  }
+
+  if (errors.length > 0) {
+    return { success: false, errors };
+  }
+
+  return { success: true, data: env as A2UIMessageEnvelope };
 }

@@ -1,4 +1,4 @@
-import { AGUISurfacePayload } from '@superapp/protocol-core';
+import type { AGUISurfacePayload } from '../../../../packages/protocol-core/src/index.ts';
 
 export type DomainCategory = 'concierge' | 'ride' | 'food' | 'wallet' | 'composite';
 
@@ -19,4 +19,5 @@ export interface SuperAppAgentState {
     payload: Record<string, any>;
   };
   threadCheckpointId?: string;
+  metadata?: Record<string, any>;
 }

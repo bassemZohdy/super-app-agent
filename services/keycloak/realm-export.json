@@ -1,0 +1,104 @@
+{
+  "realm": "superapp",
+  "displayName": "SuperApp Agent Realm",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": true,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "roles": {
+    "realm": [
+      {
+        "name": "superapp-user",
+        "description": "Standard SuperApp user role"
+      },
+      {
+        "name": "superapp-vip",
+        "description": "Gold VIP member with premium concierge access"
+      },
+      {
+        "name": "admin",
+        "description": "Platform administrator"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "superapp-shell",
+      "name": "SuperApp Frontend Shell",
+      "description": "Polyglot Frontend Hosts (React, Angular, Flutter)",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://localhost:3000/*",
+        "http://localhost:3001/*",
+        "http://localhost:3002/*",
+        "http://localhost:8080/*"
+      ],
+      "webOrigins": ["*"]
+    },
+    {
+      "clientId": "agent-core",
+      "name": "Agent Core Backend Service",
+      "enabled": true,
+      "bearerOnly": true,
+      "protocol": "openid-connect"
+    }
+  ],
+  "users": [
+    {
+      "username": "bassem",
+      "enabled": true,
+      "email": "bassem.zohdy@gmail.com",
+      "firstName": "Bassem",
+      "lastName": "Zohdy",
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "superapp-user",
+        "superapp-vip"
+      ],
+      "attributes": {
+        "vipTier": ["Gold VIP"],
+        "dietaryPreferences": ["Vegetarian", "Spicy Lover"],
+        "mobilityPreferences": ["EV Preferred"]
+      }
+    },
+    {
+      "username": "demo-commuter",
+      "enabled": true,
+      "email": "commuter@superapp.internal",
+      "firstName": "Alex",
+      "lastName": "Commuter",
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "superapp-user"
+      ],
+      "attributes": {
+        "vipTier": ["Standard"]
+      }
+    }
+  ]
+}
+

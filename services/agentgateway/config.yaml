@@ -61,6 +61,18 @@ mcp:
           description: "Fetch current user balance and currency"
         - name: "wallet_authorizePayment"
           description: "Authorize payment transaction with user consent"
+    - name: service-profile
+      transport: sse
+      url: "http://service-profile:4005/mcp"
+      tools:
+        - name: "profile_getProfile"
+          description: "Fetch authenticated user profile and VIP tier"
+        - name: "profile_getPreferences"
+          description: "Fetch dietary, mobility, and UI preferences"
+        - name: "profile_updatePreferences"
+          description: "Update user preferences dynamically"
+        - name: "profile_getPromptContext"
+          description: "Fetch personalized system prompt instructions"
 
 # Observability & Tracing
 observability:
