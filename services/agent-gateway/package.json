@@ -1,0 +1,21 @@
+{
+  "name": "@superapp/agent-gateway",
+  "version": "1.0.0",
+  "description": "A2-UI Protocol Broker and LangGraph Multi-Agent Orchestrator",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "node --watch src/index.ts"
+  },
+  "dependencies": {
+    "@superapp/protocol-core": "*",
+    "fastify": "^5.2.0",
+    "@fastify/cors": "^10.0.0",
+    "dotenv": "^16.4.7",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "@types/node": "^22.10.0"
+  }
+}

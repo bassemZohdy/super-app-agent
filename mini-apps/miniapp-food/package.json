@@ -1,0 +1,12 @@
+{
+  "name": "@superapp/miniapp-food",
+  "version": "1.0.0",
+  "description": "Food & Dining Federated Mini-App Remote",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}

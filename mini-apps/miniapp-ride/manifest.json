@@ -1,0 +1,15 @@
+{
+  "id": "org.superapp.ride",
+  "name": "Ride & Mobility",
+  "version": "1.0.0",
+  "entryRoute": "/ride",
+  "permissions": [
+    "geolocation:read",
+    "payment:request"
+  ],
+  "supportedIntents": [
+    "book_ride",
+    "track_driver",
+    "estimate_fare"
+  ]
+}

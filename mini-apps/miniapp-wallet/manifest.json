@@ -1,0 +1,15 @@
+{
+  "id": "org.superapp.wallet",
+  "name": "Wallet & Payments",
+  "version": "1.0.0",
+  "entryRoute": "/wallet",
+  "permissions": [
+    "payment:authorize",
+    "ledger:read"
+  ],
+  "supportedIntents": [
+    "check_balance",
+    "top_up",
+    "view_transactions"
+  ]
+}

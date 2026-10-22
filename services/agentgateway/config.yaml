@@ -1,0 +1,70 @@
+# ==============================================================================
+# agentgateway.dev Configuration
+# Unified Data Plane for LLMs, Multi-Agent Routing, and MCP Tool Federation
+# ==============================================================================
+
+version: "v1alpha1"
+
+listeners:
+  - name: edge-listener
+    address: "0.0.0.0"
+    port: 8080
+    cors:
+      allow_origins: ["*"]
+      allow_methods: ["GET", "POST", "OPTIONS"]
+      allow_headers: ["Content-Type", "Authorization", "X-Session-Id", "X-Client-Platform"]
+
+# Model Gateway & LLM Inference Proxies
+llm:
+  providers:
+    - name: openrouter
+      type: openai_compatible
+      base_url: "https://openrouter.ai/api/v1"
+      api_key: "${OPENROUTER_API_KEY}"
+      default_model: "anthropic/claude-3.5-sonnet"
+      models:
+        - "anthropic/claude-3.5-sonnet"
+        - "google/gemini-2.0-flash-001"
+        - "openai/gpt-4o"
+      failover:
+        - from: "anthropic/claude-3.5-sonnet"
+          to: "google/gemini-2.0-flash-001"
+          on_status: [429, 500, 503]
+      budget:
+        monthly_limit_usd: 100.00
+        rate_limit_per_minute: 60
+
+# Model Context Protocol (MCP) Tool Federation
+mcp:
+  servers:
+    - name: service-ride
+      transport: sse
+      url: "http://service-ride:4001/mcp"
+      tools:
+        - name: "ride_getOptions"
+          description: "Get cab options, arrival ETAs, and fares"
+        - name: "ride_bookCab"
+          description: "Book an active ride"
+    - name: service-food
+      transport: sse
+      url: "http://service-food:4002/mcp"
+      tools:
+        - name: "food_searchRestaurants"
+          description: "Search restaurant listings and food menus"
+        - name: "food_createOrder"
+          description: "Create and dispatch kitchen food order"
+    - name: service-wallet
+      transport: sse
+      url: "http://service-wallet:4003/mcp"
+      tools:
+        - name: "wallet_getBalance"
+          description: "Fetch current user balance and currency"
+        - name: "wallet_authorizePayment"
+          description: "Authorize payment transaction with user consent"
+
+# Observability & Tracing
+observability:
+  telemetry:
+    tracing:
+      provider: opentelemetry
+      sampler: always_on

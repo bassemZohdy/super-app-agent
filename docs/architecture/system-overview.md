@@ -39,13 +39,21 @@ flowchart TB
 
     Clients <--> Network
 
-    subgraph BackendGateway ["Agent Gateway & Ingress (:4000)"]
-        Ingress["Fastify / Node.js Gateway"]
-        AuthSandbox["JWT & Session Validator"]
-        A2UIProtocolEngine["A2-UI Protocol Engine & SSE Broker"]
+    subgraph EdgeGateway ["Edge Ingress: agentgateway.dev (Rust Data Plane)"]
+        EdgeAuth["Edge JWT / OAuth Validator"]
+        EdgeRateLimit["Token Bucket Rate Limiting (CEL)"]
+        OTelIngress["Distributed Tracing & Metrics"]
     end
 
-    Network <--> BackendGateway
+    Network <--> EdgeGateway
+
+    subgraph BackendGateway ["A2-UI Protocol Broker & BFF (:4000)"]
+        Ingress["Fastify / Node.js BFF"]
+        A2UIProtocolEngine["A2-UI Protocol Engine & SSE Broker"]
+        HITLCoordinator["Human-In-The-Loop Coordinator"]
+    end
+
+    EdgeGateway <--> BackendGateway
 
     subgraph AgentPlatform ["AgentCore: LangGraph Agentic Platform"]
         SupervisorRouter["Supervisor Concierge Agent\n(LangGraph StateGraph Root)"]
@@ -66,24 +74,32 @@ flowchart TB
 
     BackendGateway <--> AgentPlatform
 
+    subgraph AgentMesh ["agentgateway.dev (Agent Data Plane & MCP Federation)"]
+        MCPHub["MCP Tool Federation\n(Model Context Protocol)"]
+        ModelProxy["OpenRouter Proxy & Failover"]
+        SpendGovernor["Token Budgeting & Spend Guard"]
+    end
+
+    AgentPlatform <--> AgentMesh
+
     subgraph LLMGateway ["Model Inference Gateway"]
         OpenRouterClient["OpenRouter API Gateway Client\n(Claude 3.5 Sonnet / GPT-4o / Gemini)"]
     end
 
-    AgentPlatform <-->|Model Inference Calls| LLMGateway
+    AgentMesh <-->|Filtered & Budgeted Calls| LLMGateway
 
-    subgraph MicroservicesCluster ["Domain Microservices Ecosystem"]
-        RideService["Ride Service (:4001)\n(Drivers, Booking, Geolocation)"]
-        FoodService["Food Service (:4002)\n(Menus, Orders, Kitchens)"]
-        WalletService["Wallet Service (:4003)\n(Balance, Ledger, Checkout)"]
+    subgraph MicroservicesCluster ["Domain Microservices Ecosystem (MCP Servers)"]
+        RideService["Ride Service (:4001)\n(MCP: drivers, booking, tracking)"]
+        FoodService["Food Service (:4002)\n(MCP: menus, orders, kitchens)"]
+        WalletService["Wallet Service (:4003)\n(MCP: balance, ledger, checkout)"]
         CatalogService["Mini-App Catalog (:4004)\n(Manifests, Versioning, Tool Specs)"]
     end
 
-    RideAgent -->|LangChain Structured Tools| RideService
-    FoodAgent -->|LangChain Structured Tools| FoodService
-    WalletAgent -->|LangChain Structured Tools| WalletService
-    SupervisorRouter -->|Manifest Discovery| CatalogService
-    AGUIReducer -->|Emit A2-UI Packets| A2UIProtocolEngine
+    AgentMesh --> RideService
+    AgentMesh --> FoodService
+    AgentMesh --> WalletService
+    SupervisorRouter --> CatalogService
+    AGUIReducer --> A2UIProtocolEngine
 ```
 
 ---

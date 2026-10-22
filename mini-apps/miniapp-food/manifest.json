@@ -1,0 +1,15 @@
+{
+  "id": "org.superapp.food",
+  "name": "Food & Dining",
+  "version": "1.0.0",
+  "entryRoute": "/food",
+  "permissions": [
+    "geolocation:read",
+    "payment:request"
+  ],
+  "supportedIntents": [
+    "search_restaurants",
+    "view_menu",
+    "create_order"
+  ]
+}

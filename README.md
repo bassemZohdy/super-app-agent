@@ -109,12 +109,21 @@ flowchart TD
 
     Clients <--> A2UIProtocol
 
-    subgraph BackendGateway ["Agent Ingress & Gateway (:4000)"]
-        GatewayRouter["Fastify Gateway Router"]
-        A2UIBroker["A2-UI Protocol Broker & SSE Streamer"]
+    subgraph EdgePlane ["Edge Gateway: agentgateway.dev (Rust Data Plane)"]
+        EdgeAuth["Edge JWT / OAuth Validator"]
+        EdgeRateLimit["Token Bucket Rate Limiting (CEL)"]
+        OTelIngress["Distributed Tracing & Metrics"]
     end
 
-    A2UIProtocol <--> GatewayRouter
+    A2UIProtocol <--> EdgePlane
+
+    subgraph BackendGateway ["A2-UI Protocol Broker & BFF (:4000)"]
+        GatewayRouter["Fastify Gateway Router"]
+        A2UIBroker["A2-UI Protocol Broker & SSE Streamer"]
+        HITLManager["HITL Interrupt Coordinator"]
+    end
+
+    EdgePlane <--> GatewayRouter
 
     subgraph AgentPlatform ["AgentCore: LangGraph Cognitive Platform"]
         Supervisor["Supervisor Concierge Agent\n(StateGraph Root)"]
@@ -136,23 +145,31 @@ flowchart TD
     GatewayRouter <--> AgentPlatform
     AGUIReducer --> A2UIBroker
 
+    subgraph AgentMesh ["Internal Mesh: agentgateway.dev (MCP & Model Data Plane)"]
+        MCPFederation["MCP Tool Federation\n(Model Context Protocol)"]
+        ModelProxy["OpenRouter Proxy & Fallback Engine"]
+        TokenBudgeting["Token Spend & Budget Governor"]
+    end
+
+    AgentPlatform <--> AgentMesh
+
     subgraph ModelGateway ["Model Inference Gateway"]
         OpenRouterClient["OpenRouter API Client\n(Claude 3.5 Sonnet / GPT-4o / Gemini)"]
     end
 
-    AgentPlatform <-->|Model Inference| ModelGateway
+    AgentMesh <-->|Budgeted Inference Calls| ModelGateway
 
-    subgraph DomainMicroservices ["Domain Microservices Cluster"]
-        RideMicroservice["Ride Microservice (:4001)\n- Driver Matching\n- Route Estimation\n- Cab Booking"]
-        FoodMicroservice["Food Microservice (:4002)\n- Restaurant Search\n- Menu Item Selection\n- Kitchen Order Dispatch"]
-        WalletMicroservice["Wallet Microservice (:4003)\n- Balance Verification\n- Payment Authorization\n- Transaction Ledger"]
-        CatalogMicroservice["Catalog Microservice (:4004)\n- Mini-App Manifests\n- Tool Schema Registry"]
+    subgraph DomainMicroservices ["Domain Microservices (MCP Servers)"]
+        RideMicroservice["Ride Microservice (:4001)\n[MCP: drivers, rides, routes]"]
+        FoodMicroservice["Food Microservice (:4002)\n[MCP: restaurants, menus, orders]"]
+        WalletMicroservice["Wallet Microservice (:4003)\n[MCP: balances, payments, receipts]"]
+        CatalogMicroservice["Catalog Microservice (:4004)\n[Manifests, Versioning, Tool Specs]"]
     end
 
-    WorkerRide -->|LangChain Tools| RideMicroservice
-    WorkerFood -->|LangChain Tools| FoodMicroservice
-    WorkerWallet -->|LangChain Tools| WalletMicroservice
-    Supervisor -->|Manifest Ingestion| CatalogMicroservice
+    AgentMesh --> RideMicroservice
+    AgentMesh --> FoodMicroservice
+    AgentMesh --> WalletMicroservice
+    Supervisor --> CatalogMicroservice
 ```
 
 ---
@@ -282,6 +299,7 @@ super-app-agent/
 | [ADR-0005](docs/adr/ADR-0005-multi-flavor-frontend-adapters-react-angular-flutter.md) | Multi-Flavor Frontend Adapters & Responsive Split-Screen | Tri-flavor component registries; dual-pane desktop / stacked mobile. |
 | [ADR-0006](docs/adr/ADR-0006-state-security-and-event-bus.md) | State Management, Sandboxing, and Security | Zero-trust host sandbox, server-side OpenRouter keys, typed event bus. |
 | [ADR-0007](docs/adr/ADR-0007-agentic-platform-langgraph-and-llm-gateway.md) | Agentic Platform Architecture: LangGraph & OpenRouter | Decouples cognitive agent framework (LangGraph) from LLM inference provider (OpenRouter). |
+| [ADR-0008](docs/adr/ADR-0008-adoption-of-agentgateway-dev.md) | Adoption of agentgateway.dev | Edge proxy, MCP tool federation, and model data plane. |
 
 ---
 

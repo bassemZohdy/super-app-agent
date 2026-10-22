@@ -1,0 +1,17 @@
+{
+  "name": "@superapp/protocol-core",
+  "version": "1.0.0",
+  "description": "AG-UI and A2-UI protocol schemas, TypeScript contracts, and Zod runtime validators",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}
