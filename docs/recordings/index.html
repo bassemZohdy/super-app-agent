@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SuperApp Agent • End-to-End Life Scenarios Video Recording</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --border: #334155;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      padding: 32px 20px;
+      line-height: 1.6;
+    }
+    .container {
+      max-width: 1040px;
+      margin: 0 auto;
+    }
+    header {
+      margin-bottom: 24px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      background: #064e3b;
+      color: #6ee7b7;
+      font-size: 12px;
+      font-weight: 700;
+      border-radius: 12px;
+      margin-bottom: 12px;
+    }
+    h1 {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      margin-bottom: 6px;
+    }
+    p.lead {
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+    .video-wrapper {
+      background: #000;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5);
+      margin-bottom: 24px;
+    }
+    video {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+    .timeline-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .timeline-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .timeline-item {
+      display: flex;
+      gap: 14px;
+      padding: 12px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .timeline-item:last-child {
+      border-bottom: none;
+    }
+    .timecode {
+      font-family: monospace;
+      font-weight: 700;
+      color: var(--accent);
+      background: rgba(59, 130, 246, 0.15);
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-size: 13px;
+      height: fit-content;
+      white-space: nowrap;
+    }
+    .timeline-content h4 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+    .timeline-content p {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+    .specs-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      margin-top: 16px;
+    }
+    .spec-item {
+      background: rgba(15, 23, 42, 0.6);
+      padding: 12px 16px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+    .spec-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+    }
+    .spec-value {
+      font-size: 14px;
+      font-weight: 700;
+      margin-top: 2px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="badge">● LIVE RECORDING VERIFIED</div>
+      <h1>SuperApp Agent: End-to-End Life Scenarios Flight Video</h1>
+      <p class="lead">Actual screen recording of the SuperApp React Host Shell executing multi-agent workflows, generative AG-UI surfaces, Keycloak authentication, and microfrontend mini-apps.</p>
+    </header>
+
+    <div class="video-wrapper">
+      <video controls autoplay muted loop>
+        <source src="videos/superapp-e2e-scenarios.webm" type="video/webm">
+        Your browser does not support the video tag.
+      </video>
+    </div>
+
+    <div class="timeline-card">
+      <div class="timeline-title">🎬 Video Recording Timeline & Scenario Chapters</div>
+      
+      <div class="timeline-item">
+        <span class="timecode">00:00</span>
+        <div class="timeline-content">
+          <h4>Host Shell Init & Commuter Morning Rush (Scenario 1)</h4>
+          <p>User queries "I need a cab to SFO Airport", agent reasons via LangGraph supervisor, queries Ride service, selects Tesla Model Y EV, and live GPS map telemetry displays driver Alex M. in transit.</p>
+        </div>
+      </div>
+
+      <div class="timeline-item">
+        <span class="timecode">00:10</span>
+        <div class="timeline-content">
+          <h4>Evening Dinner Delivery (Scenario 2)</h4>
+          <p>User clicks suggestion chip for woodfired pizza; Food service returns restaurant menu tailored to user dietary tags; order is confirmed with real-time kitchen preparation countdown.</p>
+        </div>
+      </div>
+
+      <div class="timeline-item">
+        <span class="timecode">00:18</span>
+        <div class="timeline-content">
+          <h4>Digital Wallet & Zero-Trust Reload (Scenario 3)</h4>
+          <p>User inspects balance, verifies Gold VIP 5% instant cashback loyalty badge and ledger; clicks Quick Top-Up (+$50.00) with instant balance recalculation.</p>
+        </div>
+      </div>
+
+      <div class="timeline-item">
+        <span class="timecode">00:26</span>
+        <div class="timeline-content">
+          <h4>Composite Multi-Domain Orchestration (Scenario 4)</h4>
+          <p>User requests cab and pizza combo; agent parallelizes Ride and Food tool execution, renders unified Human-In-The-Loop review card, and executes checkout deducting $40 from wallet.</p>
+        </div>
+      </div>
+
+      <div class="timeline-item">
+        <span class="timecode">00:33</span>
+        <div class="timeline-content">
+          <h4>User Profile & Adaptive Preferences (Scenario 8)</h4>
+          <p>Inspects Bassem Zohdy (Gold VIP) preferences with mobility EV priority and Vegetarian / Spicy tags driving downstream AG-UI rendering.</p>
+        </div>
+      </div>
+
+      <div class="timeline-item">
+        <span class="timecode">00:39</span>
+        <div class="timeline-content">
+          <h4>Microfrontend Direct Mini-App Workspaces (Scenario 5 & 6)</h4>
+          <p>Direct tab switching demonstrating isolated microfrontends: RIDE (route selection), FOOD (restaurant ordering), and WALLET (Platinum Card & ledger).</p>
+        </div>
+      </div>
+
+      <div class="specs-grid">
+        <div class="spec-item">
+          <div class="spec-label">File Name</div>
+          <div class="spec-value">superapp-e2e-scenarios.webm</div>
+        </div>
+        <div class="spec-item">
+          <div class="spec-label">Resolution</div>
+          <div class="spec-value">1280 x 720 (720p HD)</div>
+        </div>
+        <div class="spec-item">
+          <div class="spec-label">File Size</div>
+          <div class="spec-value">3.96 MB (4,151,255 bytes)</div>
+        </div>
+        <div class="spec-item">
+          <div class="spec-label">Browser Engine</div>
+          <div class="spec-value">Google Chrome Headless via Playwright</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

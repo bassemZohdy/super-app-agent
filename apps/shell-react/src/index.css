@@ -1,4 +1,4 @@
-@import '../../packages/ui-tokens/src/theme.css';
+@import '../../../packages/ui-tokens/src/theme.css';
 
 * {
   box-sizing: border-box;
