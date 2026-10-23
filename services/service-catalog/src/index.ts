@@ -10,7 +10,9 @@ export interface MiniAppManifest {
   icon: string;
   version: string;
   entryRoute: string;
-  remoteUrl: string;
+  runtime: 'bundled-surface';
+  compatibility: 'cityside-ui/1.0.0';
+  trust: 'repository';
   description: string;
   permissions: string[];
   mcpEndpoint: string;
@@ -23,11 +25,13 @@ export const miniApps: MiniAppManifest[] = [
     category: 'mobility',
     icon: 'car',
     version: '2.0.0',
-    entryRoute: '/mobility',
-    remoteUrl: 'http://localhost:3010/remoteEntry.js',
+    entryRoute: '/services/parking',
+    runtime: 'bundled-surface',
+    compatibility: 'cityside-ui/1.0.0',
+    trust: 'repository',
     description: 'RTA & Mawaqif smart parking meters, Salik toll management, and DEWA EV green chargers',
-    permissions: ['geolocation', 'notifications'],
-    mcpEndpoint: 'http://localhost:4001/mcp',
+    permissions: [],
+    mcpEndpoint: 'http://localhost:4000/mcp',
   },
   {
     id: 'gov.smartcity.utilities',
@@ -35,11 +39,13 @@ export const miniApps: MiniAppManifest[] = [
     category: 'utilities',
     icon: 'zap',
     version: '2.0.0',
-    entryRoute: '/utilities',
-    remoteUrl: 'http://localhost:3011/remoteEntry.js',
+    entryRoute: '/services/utilities',
+    runtime: 'bundled-surface',
+    compatibility: 'cityside-ui/1.0.0',
+    trust: 'repository',
     description: 'Electricity & water smart meter telemetry, billing, and Green Slab eco-tariffs',
-    permissions: ['notifications'],
-    mcpEndpoint: 'http://localhost:4002/mcp',
+    permissions: [],
+    mcpEndpoint: 'http://localhost:4000/mcp',
   },
   {
     id: 'gov.smartcity.citizenpay',
@@ -47,11 +53,13 @@ export const miniApps: MiniAppManifest[] = [
     category: 'fintech',
     icon: 'shield',
     version: '2.0.0',
-    entryRoute: '/citizenpay',
-    remoteUrl: 'http://localhost:3012/remoteEntry.js',
+    entryRoute: '/services/wallet',
+    runtime: 'bundled-surface',
+    compatibility: 'cityside-ui/1.0.0',
+    trust: 'repository',
     description: 'Unified civic payments and fines settlement, and digital wallet',
-    permissions: ['biometrics', 'secure_storage'],
-    mcpEndpoint: 'http://localhost:4003/mcp',
+    permissions: [],
+    mcpEndpoint: 'http://localhost:4000/mcp',
   },
   {
     id: 'gov.smartcity.housing',
@@ -59,11 +67,13 @@ export const miniApps: MiniAppManifest[] = [
     category: 'housing',
     icon: 'home',
     version: '2.0.0',
-    entryRoute: '/housing',
-    remoteUrl: 'http://localhost:3013/remoteEntry.js',
+    entryRoute: '/services/housing',
+    runtime: 'bundled-surface',
+    compatibility: 'cityside-ui/1.0.0',
+    trust: 'repository',
     description: 'Tenancy contract management, automated DEWA connection, and residential parking permits',
-    permissions: ['secure_storage'],
-    mcpEndpoint: 'http://localhost:4004/mcp',
+    permissions: [],
+    mcpEndpoint: 'http://localhost:4000/mcp',
   },
   // Backward compatibility alias for legacy tests
   {
@@ -72,11 +82,13 @@ export const miniApps: MiniAppManifest[] = [
     category: 'mobility',
     icon: 'car',
     version: '1.0.0',
-    entryRoute: '/ride',
-    remoteUrl: 'http://localhost:3010/remoteEntry.js',
+    entryRoute: '/services/ride',
+    runtime: 'bundled-surface',
+    compatibility: 'cityside-ui/1.0.0',
+    trust: 'repository',
     description: 'Legacy ride hailing alias',
-    permissions: ['geolocation'],
-    mcpEndpoint: 'http://localhost:4001/mcp',
+    permissions: [],
+    mcpEndpoint: 'http://localhost:4000/mcp',
   },
 ];
 

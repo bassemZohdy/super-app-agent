@@ -83,7 +83,7 @@ test('provider HTTP endpoints verify signed service roles, ownership, schemas an
   t.after(() => { for (const [key,value] of Object.entries(previous)) { if(value === undefined) delete process.env[key]; else process.env[key]=value; } });
   const mint = (claims: any = {}) => {
     const a=Buffer.from(JSON.stringify({alg:'RS256',kid:jwk.kid})).toString('base64url');
-    const b=Buffer.from(JSON.stringify({iss:'http://test-issuer',sub:'machine',aud:'provider-api',azp:'service-wallet',realm_access:{roles:['provider:payments']},exp:Math.floor(Date.now()/1000)+300,...claims})).toString('base64url');
+    const b=Buffer.from(JSON.stringify({iss:'http://test-issuer',sub:'machine',typ:'Bearer',aud:'provider-api',azp:'service-wallet',realm_access:{roles:['provider:payments']},exp:Math.floor(Date.now()/1000)+300,...claims})).toString('base64url');
     return `${a}.${b}.${sign('RSA-SHA256',Buffer.from(`${a}.${b}`),privateKey).toString('base64url')}`;
   };
   const { server, store } = createProviderServer('payments', ':memory:'); server.listen(0,'127.0.0.1'); await once(server,'listening'); t.after(() => { server.close(); store.close(); });

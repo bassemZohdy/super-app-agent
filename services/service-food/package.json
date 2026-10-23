@@ -2,7 +2,7 @@
   "name": "@superapp/service-food",
   "version": "1.0.0",
   "type": "module",
-  "description": "Food and Dining Domain Microservice with MCP Server support",
+  "description": "Authenticated demo dining/utilities application API and DEWA provider adapter",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",

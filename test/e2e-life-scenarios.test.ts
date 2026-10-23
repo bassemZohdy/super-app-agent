@@ -56,10 +56,12 @@ test('E2E Life Scenario 1: Commuter Morning Rush - Ride Hailing & Tracking', asy
   assert.strictEqual(confirmAction.data.surface.view.id, 'ride_confirmed_card');
 
   // 5. Verify driver telemetry tracking via Ride Microservice
-  const trackingRes = executeRideRequest('GET', '/rides/track/active');
+  assert.equal(executeRideRequest('GET', '/rides/track/active').status, 404);
+  const bookingId = confirmAction.data.surface.view.children.find((node: any) => node.id === 'booking_id').properties.value;
+  const trackingRes = executeRideRequest('GET', `/rides/track/${bookingId}`);
   assert.strictEqual(trackingRes.status, 200);
   assert.strictEqual(trackingRes.data.success, true);
-  assert.strictEqual(trackingRes.data.status, 'IN_TRANSIT');
+  assert.strictEqual(trackingRes.data.booking.status, 'DISPATCHED');
   assert.ok(trackingRes.data.currentLocation.lat);
   assert.ok(trackingRes.data.currentLocation.lng);
 });
@@ -103,10 +105,12 @@ test('E2E Life Scenario 2: Evening Dinner - Food Discovery & Kitchen Prep', asyn
   assert.strictEqual(orderAction.data.surface.view.id, 'food_confirmed_card');
 
   // 5. Verify kitchen tracking via Food Microservice
-  const kitchenTracking = executeFoodRequest('GET', '/orders/track/active');
+  assert.equal(executeFoodRequest('GET', '/orders/track/active').status, 404);
+  const orderId = orderAction.data.surface.view.children.find((node: any) => node.id === 'order_id').properties.value;
+  const kitchenTracking = executeFoodRequest('GET', `/orders/track/${orderId}`);
   assert.strictEqual(kitchenTracking.status, 200);
-  assert.strictEqual(kitchenTracking.data.status, 'PREPARING');
-  assert.strictEqual(kitchenTracking.data.restaurantName, 'Pizza Napoli & Trattoria');
+  assert.strictEqual(kitchenTracking.data.order.status, 'ACCEPTED_BY_KITCHEN');
+  assert.strictEqual(kitchenTracking.data.order.restaurantName, 'Pizza Napoli & Trattoria');
 });
 
 // ==============================================================================
@@ -332,8 +336,7 @@ test('E2E Life Scenario 8: User Profile Personalization & Adaptive AG-UI Surface
     sessionId, surfaceRevision: getOrCreateSession(sessionId).currentSurface?.revision,
     action: 'update_preferences',
     payload: {
-      mobility: { preferredTier: 'drv_1', preferredTierName: 'Comfort Sedan', ecoFriendlyOnly: false },
-      dietary: ['Vegetarian', 'Gluten-Free'],
+      dietary: ['Vegan', 'Gluten-Free'],
     },
   });
   assert.strictEqual(updateActionRes.status, 200);
@@ -432,7 +435,7 @@ test('E2E Life Scenario 10: Smart Mobility - RTA Parking Meter Activation & Exte
   const activateRes = await executeCoreRequest('POST', '/api/a2ui/action', {}, {
     sessionId, surfaceRevision: getOrCreateSession(sessionId).currentSurface?.revision,
     action: 'activate_parking',
-    payload: { zoneId: 'zone_302a', durationHours: 2, plateNumber: 'Dubai B-74892' },
+    payload: { selectedChoice: 'zone_302a', zoneId: 'zone_302a', durationHours: 2, plateNumber: 'Dubai B-74892' },
   });
   assert.strictEqual(activateRes.status, 200);
   const activeSurface = activateRes.data.surface;

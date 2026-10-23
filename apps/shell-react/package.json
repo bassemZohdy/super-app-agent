@@ -2,7 +2,7 @@
   "name": "@superapp/shell-react",
   "version": "1.0.0",
   "private": true,
-  "description": "React 18 Host Shell for SuperApp with AG-UI / A2-UI Dynamic Renderer",
+  "description": "Cityside React reference shell with Keycloak login and a custom UI renderer",
   "scripts": {
     "dev": "vite --port 3000",
     "build": "tsc && vite build",

@@ -1,9 +1,9 @@
 # ADR-0003 — Backend domain boundaries and Concierge API
 
-> Current demo implementation update (23 October 2026): see [ADR-0010](ADR-0010-provider-simulators-and-redis-demo.md) and the [provider guide](../demo/provider-backends.md). Earlier implementation descriptions below record the prior fixture baseline. The integrated demo now has REST provider adapters, Keycloak browser/service authentication and Redis sessions; LangGraph, production consent and standards migration remain targets.
+> Current demo implementation update (24 October 2026): see [ADR-0010](ADR-0010-provider-simulators-and-redis-demo.md) and the [provider guide](../demo/provider-backends.md). The implementation sections below describe the retained fixture path and integrated path where applicable. The integrated demo now has REST provider adapters, Keycloak browser/service authentication and Redis sessions. A real LangGraph approval graph with Redis checkpoints and authenticated core MCP now run; model-selected planning, production consent and UI standards migration remain targets.
 
-**Status:** **Logical separation demonstrated; distributed boundary/protocol target not implemented.**
-**Reviewed:** 2026-10-23.
+**Status:** **Authenticated REST application/provider boundaries implemented for the demo; production delegation remains open.**
+**Reviewed:** 2026-10-24.
 
 ## Context
 
@@ -19,7 +19,7 @@ A Super App can aggregate domains without requiring all services to be remote mi
 
 ## As-built architecture
 
-`services/agent-core/src/index.ts` runs HTTP + SSE; `services/agent-core/src/langgraph/graph.ts` imports `executeRideRequest`, `executeFoodRequest`, `executeWalletRequest`, `executeCatalogRequest` and `executeProfileRequest` and calls them **directly**. Standalone HTTP servers also exist but the graph does not route its operations through them.
+`services/agent-core/src/index.ts` runs HTTP + SSE. With `DOMAIN_TRANSPORT=http`, checked domain operations call six application APIs with verified user/account context; those APIs obtain client credentials and invoke seven independent SQLite provider simulators. Legacy mode retains imported fixture handlers for offline tests. Production cryptographic delegation, quotas, HA and durable workflow execution remain open.
 
 Current demo data boundaries are deliberately imperfect: `service-food` also serves utility bills; `service-wallet` also handles fines; `service-catalog` handles housing. These are not proposed bounded contexts.
 

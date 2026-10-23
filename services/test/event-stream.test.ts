@@ -74,7 +74,7 @@ test('real HTTP stream verifies signed bearer, user ownership, origin, replay an
     String(input) === issuer + '/certs' ? Promise.resolve(Response.json({ keys: [jwk] })) : originalFetch(input, init));
   const mint = (sub: string, seconds = 60) => {
     const h = Buffer.from(JSON.stringify({ alg: 'RS256', kid: 'stream-key' })).toString('base64url');
-    const p = Buffer.from(JSON.stringify({ iss: issuer, aud: 'agent-core', sub,
+    const p = Buffer.from(JSON.stringify({ iss: issuer, aud: 'agent-core', typ: 'Bearer', sub,
       exp: Math.floor(Date.now() / 1000) + seconds })).toString('base64url');
     return h + '.' + p + '.' + sign('RSA-SHA256', Buffer.from(h + '.' + p), privateKey).toString('base64url');
   };

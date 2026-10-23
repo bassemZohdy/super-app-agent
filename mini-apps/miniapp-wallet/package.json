@@ -1,7 +1,7 @@
 {
   "name": "@superapp/miniapp-wallet",
   "version": "1.0.0",
-  "description": "Wallet & Payments Federated Mini-App Remote",
+  "description": "Wallet & Payments Legacy Embedded Mini-App Example",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc"

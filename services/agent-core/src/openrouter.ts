@@ -1,3 +1,4 @@
+import { acquireModelBudget, boundedMessages } from './model-budget.ts';
 /**
  * Server-side inference. No API key: explicit local demo mode.
  * A paid model must be explicitly allowed; free model outages never cause
@@ -45,13 +46,11 @@ export async function invokeOpenRouterTTS(
   options: { voice?: string; language?: string } = {}
 ): Promise<TTSResult | null> {
   const config = getOpenRouterTTSConfig();
-  if (!config.apiKey || !input || !input.trim()) {
+  if (!config.apiKey || process.env.ENABLE_OPENROUTER_TTS !== 'true' || !input || !input.trim()) {
     return null;
   }
   const base = new URL(config.baseUrl);
-  if (base.protocol !== 'https:' && process.env.NODE_ENV === 'production') {
-    throw new Error('Production OpenRouter endpoint must use HTTPS');
-  }
+  if (base.hostname !== 'openrouter.ai' || base.protocol !== 'https:' || base.username || base.password) throw new Error('Only the official HTTPS OpenRouter endpoint is allowed');
   const url = new URL(config.baseUrl.replace(/\/$/, '') + '/audio/speech');
   const selectedVoice = options.voice || config.voice;
   const response = await fetch(url, {
@@ -71,8 +70,7 @@ export async function invokeOpenRouterTTS(
     }),
   });
   if (!response.ok) {
-    const errorText = await response.text().catch(() => '');
-    throw new Error(`OpenRouter TTS failed: HTTP ${response.status} ${errorText.slice(0, 200)}`);
+    throw new Error(`OpenRouter TTS failed: HTTP ${response.status}`);
   }
   const arrayBuffer = await response.arrayBuffer();
   const audioBase64 = Buffer.from(arrayBuffer).toString('base64');
@@ -108,39 +106,42 @@ export async function invokeOpenRouterChat(messages: Array<{ role: string; conte
     throw new Error('Paid model blocked. Choose openrouter/free or a :free model, or explicitly allow paid models.');
   }
   const base = new URL(config.baseUrl);
-  if (base.protocol !== 'https:' && process.env.NODE_ENV === 'production') {
-    throw new Error('Production OpenRouter endpoint must use HTTPS');
-  }
+  if (base.hostname !== 'openrouter.ai' || base.protocol !== 'https:' || base.username || base.password) throw new Error('Only the official HTTPS OpenRouter endpoint is allowed');
   const url = new URL(config.baseUrl.replace(/\/$/, '') + '/chat/completions');
-  const response = await fetch(url, {
-    method: 'POST',
-    signal: AbortSignal.timeout(60_000),
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${config.apiKey}`,
-      'HTTP-Referer': 'https://superapp-agent.internal',
-      'X-Title': 'SuperApp Agent Platform',
-    },
-    body: JSON.stringify({
-      model: config.model, messages,
-      temperature: 0.3, max_tokens: 1200,
-      reasoning: { effort: 'none' },
-    }),
-  });
-  if (!response.ok) {
-    const messages: Record<number, string> = {
-      401: 'OpenRouter rejected the API key. Check OPENROUTER_API_KEY on the server.',
-      402: 'OpenRouter has insufficient credits for this model. Check your account or choose a free model.',
-      429: 'OpenRouter is rate limited. Wait a moment and send your message again.',
-      404: 'The configured OpenRouter model is unavailable. Choose an available model.',
-    };
-    throw new OpenRouterError(`OPENROUTER_HTTP_${response.status}`, messages[response.status] ||
-      'OpenRouter is temporarily unavailable. Send your message again in a moment.');
-  }
-  const data: any = await response.json();
-  const content = data?.choices?.[0]?.message?.content;
-  if (data?.error || typeof content !== 'string' || !content.trim()) {
-    throw new OpenRouterError('OPENROUTER_EMPTY_RESPONSE', 'OpenRouter returned no reply. Try again or choose another model.');
-  }
-  return content.trim();
+  const release = acquireModelBudget();
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      signal: AbortSignal.timeout(60_000),
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${config.apiKey}`,
+        'HTTP-Referer': 'https://superapp-agent.internal',
+        'X-Title': 'SuperApp Agent Platform',
+      },
+      body: JSON.stringify({
+        model: config.model, messages: boundedMessages(messages),
+        provider: { max_price: { prompt: 0, completion: 0 } },
+        temperature: 0.3, max_tokens: 1200,
+        reasoning: { effort: 'none' },
+      }),
+    });
+    if (!response.ok) {
+      const messages: Record<number, string> = {
+        401: 'OpenRouter rejected the API key. Check OPENROUTER_API_KEY on the server.',
+        402: 'OpenRouter has insufficient credits for this model. Check your account or choose a free model.',
+        429: 'OpenRouter is rate limited. Wait a moment and send your message again.',
+        404: 'The configured OpenRouter model is unavailable. Choose an available model.',
+      };
+      throw new OpenRouterError(`OPENROUTER_HTTP_${response.status}`, messages[response.status] ||
+        'OpenRouter is temporarily unavailable. Send your message again in a moment.');
+    }
+    const data: any = await response.json();
+    const content = data?.choices?.[0]?.message?.content;
+    if (data?.error || typeof content !== 'string' || !content.trim()) {
+      throw new OpenRouterError('OPENROUTER_EMPTY_RESPONSE', 'OpenRouter returned no reply. Try again or choose another model.');
+    }
+    if (content.length > 4000) throw new OpenRouterError('OPENROUTER_OUTPUT_LIMIT', 'The generated reply exceeded the display limit. Request a shorter reply.');
+    return content.trim();
+  } finally { release(); }
 }

@@ -1,9 +1,9 @@
 # ADR-0002 — UI and agent-interaction protocol strategy
 
-> Current demo implementation update (23 October 2026): see [ADR-0010](ADR-0010-provider-simulators-and-redis-demo.md) and the [provider guide](../demo/provider-backends.md). Earlier implementation descriptions below record the prior fixture baseline. The integrated demo now has REST provider adapters, Keycloak browser/service authentication and Redis sessions; LangGraph, production consent and standards migration remain targets.
+> Current demo implementation update (24 October 2026): see [ADR-0010](ADR-0010-provider-simulators-and-redis-demo.md) and the [provider guide](../demo/provider-backends.md). The implementation sections below describe the retained fixture path and integrated path where applicable. The integrated demo now has REST provider adapters, Keycloak browser/service authentication and Redis sessions. A real LangGraph approval graph with Redis checkpoints and authenticated core MCP now run; model-selected planning, production consent and UI standards migration remain targets.
 
 **Status:** **Legacy demo contract implemented; standards-aligned target proposed.**
-**Reviewed:** 2026-10-23. The original naming in this repository does **not** correspond to public specifications.
+**Reviewed:** 2026-10-24. The original naming in this repository does **not** correspond to public specifications.
 
 ## Context
 

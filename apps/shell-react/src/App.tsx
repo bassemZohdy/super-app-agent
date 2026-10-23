@@ -26,7 +26,7 @@ export function App() {
   const [authReady, setAuthReady] = useState(false);
   const [loginRequired, setLoginRequired] = useState(false);
   const [authError, setAuthError] = useState('');
-  const [userName, setUserName] = useState('Bassem Zohdy');
+  const [userName, setUserName] = useState('Demo citizen');
   const [accountId, setAccountId] = useState('');
   const [accounts, setAccounts] = useState<Array<{id: string; label: string}>>([]);
   const [recentSessions, setRecentSessions] = useState<Array<{sessionId: string; accountId: string; title: string}>>([]);
@@ -63,7 +63,8 @@ export function App() {
     revision.current = undefined; setMessages([]); setSurface(null); setDraft(''); setInference(null);
     const sid = `sess_${crypto.randomUUID()}`;
     sessionStorage.setItem(`cityside.session.${nextAccount}`, sid);
-    setSessionId(sid); setMenuOpen(false); setMobilePanel(false);
+    setSessionId(sid); sessionRef.current = sid; setMenuOpen(false); setMobilePanel(false);
+    return sid;
   };
   const restoreConversation = async (sid: string, selectedAccount: string) => {
     const response = await fetch(`${GATEWAY_URL}/api/sessions/${encodeURIComponent(sid)}`, { headers: { Authorization: `Bearer ${await getToken()}` } });
@@ -74,6 +75,7 @@ export function App() {
     sessionStorage.setItem(`cityside.session.${selectedAccount}`, sid);
     revision.current = data.surface?.revision;
     setSurface(data.surface || null);
+    setInference(data.inference?.status === 'error' ? 'error' : data.inference?.status === 'connected' ? 'connected' : null);
     setMessages((data.messages || []).filter((m: any) => ['user','assistant'].includes(m.role)).map((m: any) => ({ id: m.id, role: m.role, text: m.content })));
     setHistoryOpen(false);
   };
@@ -180,12 +182,12 @@ export function App() {
   }, [sessionId, accountId, authReady, loginRequired]);
   useEffect(() => { messagesEnd.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'end' }); }, [messages, pending]);
 
-  const request = async (path: string, body: Record<string, unknown>, retry?: string) => {
+  const request = async (path: string, body: Record<string, unknown>, retry?: string, targetSession = sessionId) => {
     if (busy.current) return;
     busy.current = true; setPending(true); setProgress('Preparing your request…'); voice.current?.cancel();
-    const requestedSession = sessionId;
+    const requestedSession = targetSession;
     try {
-      const response = await fetch(`${GATEWAY_URL}/api/a2ui/${path}`, {
+      const response = await fetch(path.startsWith('manual/') ? `${GATEWAY_URL}/api/${path}` : `${GATEWAY_URL}/api/a2ui/${path}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getToken()}` },
         body: JSON.stringify({ sessionId: requestedSession, ...(accountId ? { accountId } : {}), ...body }),
       });
@@ -209,6 +211,20 @@ export function App() {
       if (error instanceof TypeError) setConnection('offline');
     } finally { busy.current = false; setPending(false); setProgress(''); input.current?.focus(); }
   };
+  const openService = (service: string) => {
+    if (busy.current || !authReady || loginRequired) return;
+    const route = ({ mobility: 'parking', citizenpay: 'wallet', telecom: 'etisalat' } as Record<string,string>)[service] || service;
+    const sid = resetConversation(accountId);
+    history.replaceState(null, '', `/services/${route}`);
+    void request('manual/prepare', { serviceId: route }, undefined, sid);
+  };
+  const initialRoute = useRef(false);
+  useEffect(() => {
+    if (!authReady || loginRequired || !accountId || initialRoute.current) return;
+    initialRoute.current = true;
+    const route = /^\/services\/([a-z]+)$/.exec(location.pathname)?.[1];
+    if (route) openService(route);
+  }, [authReady, loginRequired, accountId]);
   const send = (text = draft) => {
     if (!text.trim() || busy.current || !authReady || loginRequired) return;
     const query = text.trim();
@@ -218,15 +234,15 @@ export function App() {
   const dispatch = (action: string, payload: Record<string, unknown>) => {
     if (action === 'CLIENT_ERROR') { append({ role: 'assistant', text: String(payload.error || 'Choose an option before continuing.'), error: true }); return; }
     if (action === 'LAUNCH_MINIAPP') {
-      const service = services.find(s => String(payload.miniAppId).includes(s.id) || String(payload.miniAppId).includes(s.id === 'citizenpay' ? 'wallet' : s.id === 'mobility' ? 'ride' : s.id === 'utilities' ? 'food' : s.id));
-      if (service) send(service.prompt);
+      const route = ({ 'org.superapp.ride': 'ride', 'org.superapp.food': 'food', 'org.superapp.wallet': 'wallet', 'org.superapp.housing': 'housing', 'gov.smartcity.mobility': 'parking', 'gov.smartcity.utilities': 'utilities', 'gov.smartcity.citizenpay': 'wallet', 'gov.smartcity.housing': 'housing' } as Record<string,string>)[String(payload.miniAppId)];
+      if (route) openService(route);
       return;
     }
     void request('action', { surfaceRevision: surface?.revision, action, payload });
   };
   const newConversation = () => {
     if (busy.current) return;
-    voice.current?.cancel(); resetConversation(); input.current?.focus();
+    voice.current?.cancel(); resetConversation(); history.replaceState(null, '', '/'); input.current?.focus();
   };
   const statusLabel = connection === 'offline' ? 'Gateway offline' : connection === 'checking' ? 'Connecting…'
     : inference === 'error' ? 'Model needs attention' : model?.enabled ? inference === 'connected' ? 'OpenRouter connected' : 'OpenRouter ready' : 'Demo mode';
@@ -244,7 +260,7 @@ export function App() {
         <button className="nav-item active" onClick={() => { setMobilePanel(false); setMenuOpen(false); input.current?.focus(); }}><Sparkles size={18} /> Your concierge <span className="nav-dot" /></button>
         <button className="nav-item" disabled={pending} onClick={() => void loadHistory()}><MessageSquare size={18} /> Conversations</button>
         <div className="nav-label services-label">Explore services</div>
-        <nav>{services.map(service => <button key={service.id} className="nav-item" disabled={pending} onClick={() => send(service.prompt)}><service.icon size={18} /> {service.short}<ArrowUpRight size={13} className="nav-arrow" /></button>)}</nav>
+        <nav>{services.map(service => <button key={service.id} className="nav-item" disabled={pending} onClick={() => openService(service.id)}><service.icon size={18} /> {service.short}<ArrowUpRight size={13} className="nav-arrow" /></button>)}</nav>
         <button className="nav-item" disabled={pending} onClick={() => send('Show my citizen profile and registered vehicles and premises')}><ShieldCheck size={18} /> My profile</button>
         <div className="sidebar-bottom">
           {accounts.length > 0 && <label className="account-selector">Current account<select aria-label="Current account" disabled={pending} value={accountId} onChange={e => void switchAccount(e.target.value)}>{accounts.map(account => <option key={account.id} value={account.id}>{account.label}</option>)}</select></label>}
@@ -271,9 +287,9 @@ export function App() {
                 <p className="welcome-description">I’m Rashid, your city concierge. From your morning commute to your next move, let’s take care of it.</p>
                 <div className="suggestion-grid">
                   <button disabled={pending} onClick={() => send('Find parking in Downtown Dubai')}><span className="suggestion-icon blue"><CarFront size={20} /></span><span>Find a parking spot<small>A smoother arrival in Downtown</small></span><ArrowUpRight size={16} /></button>
-                  <button disabled={pending} onClick={() => send('Check my DEWA electricity and water bill')}><span className="suggestion-icon amber"><Zap size={20} /></span><span>Take care of my bills<small>Your electricity & water, together</small></span><ArrowUpRight size={16} /></button>
-                  <button disabled={pending} onClick={() => send('Show my wallet balance and recent transactions')}><span className="suggestion-icon violet"><CreditCard size={20} /></span><span>Check my wallet<small>Keep an eye on your everyday</small></span><ArrowUpRight size={16} /></button>
-                  <button disabled={pending} onClick={() => send('I just signed my Ejari lease, help me move in')}><span className="suggestion-icon teal"><House size={20} /></span><span>Make my move easier<small>Settle into your new home</small></span><ArrowUpRight size={16} /></button>
+                  <button disabled={pending} onClick={() => openService('utilities')}><span className="suggestion-icon amber"><Zap size={20} /></span><span>Take care of my bills<small>Your electricity & water, together</small></span><ArrowUpRight size={16} /></button>
+                  <button disabled={pending} onClick={() => openService('wallet')}><span className="suggestion-icon violet"><CreditCard size={20} /></span><span>Check my wallet<small>Keep an eye on your everyday</small></span><ArrowUpRight size={16} /></button>
+                  <button disabled={pending} onClick={() => openService('housing')}><span className="suggestion-icon teal"><House size={20} /></span><span>Make my move easier<small>Settle into your new home</small></span><ArrowUpRight size={16} /></button>
                 </div>
                 <button className="browse-services" onClick={() => send('Show all available city services')}><Compass size={15} /> Explore all city services <ArrowUpRight size={14} /></button>
               </div> : <div className="message-list" aria-live="polite" aria-relevant="additions">{messages.map(message => <article key={message.id} className={`message ${message.role} ${message.error ? 'message-error' : ''}`}><div className="message-avatar">{message.role === 'assistant' ? <Sparkles size={17} /> : initials}</div><div className="message-body"><span className="message-author">{message.role === 'assistant' ? 'Rashid' : 'You'}</span><p dir="auto">{message.text}</p>{message.retry && <button className="text-button" disabled={pending} onClick={() => send(message.retry)}>Try again</button>}</div></article>)}</div>}
@@ -291,11 +307,11 @@ export function App() {
             </div>
           </section>
           <aside className={`service-panel ${mobilePanel ? 'mobile-visible' : ''}`} aria-label="Service details">
-            <div className="service-panel-heading"><span><Compass size={18} /> {surface ? 'Your service workspace' : 'A city within reach'}</span><button className="icon-button mobile-close" aria-label="Back to conversation" onClick={() => setMobilePanel(false)}><X size={18} /></button><span className="preview-pill">Preview</span></div>
+            <div className="service-panel-heading"><span><Compass size={18} /> {surface ? 'Your service workspace' : 'A city within reach'}</span><button className="icon-button mobile-close" aria-label="Back to conversation" onClick={() => setMobilePanel(false)}><X size={18} /></button><span className="preview-pill">Demo</span>{surface?.revision && JSON.stringify(surface.view).includes('AGENT_ACTION_DISPATCH') && <button className="text-button" disabled={pending} onClick={() => void request('cancel', { surfaceRevision: surface.revision })}>Cancel approval</button>}</div>
             {surface ? <div className="surface-content"><div className="surface-context"><span className="context-dot" /> Prepared for you <span>Review the details below</span></div><A2UIRenderer key={surface.revision} node={surface.view} isPending={pending} onDispatchAction={dispatch} /><p className="demo-note">City services use simulated data. No real bookings or payments are made.</p></div> : <>
               <div className="city-scene" aria-hidden="true"><div className="scene-sun" /><div className="scene-cloud cloud-one" /><div className="scene-cloud cloud-two" /><div className="skyline"><div className="building b1" /><div className="building b2" /><div className="building b3" /><div className="burj"><i /><b /><span /></div><div className="building b4" /><div className="building b5" /><div className="frame-building" /></div><div className="scene-ground" /><div className="scene-caption"><MapPin size={13} /> Dubai, United Arab Emirates</div></div>
               <div className="panel-intro"><h2>More living.<br />Less life admin.</h2><p>Everything you need for the everyday, in one place. Start with a conversation.</p></div>
-              <div className="service-directory">{services.map(service => <button key={service.id} disabled={pending} onClick={() => send(service.prompt)}><span className={`directory-icon ${service.color}`}><service.icon size={19} /></span><span>{service.short}<small>{service.detail}</small></span><ArrowUpRight size={15} /></button>)}</div>
+              <div className="service-directory">{services.map(service => <button key={service.id} disabled={pending} onClick={() => openService(service.id)}><span className={`directory-icon ${service.color}`}><service.icon size={19} /></span><span>{service.short}<small>{service.detail}</small></span><ArrowUpRight size={15} /></button>)}</div>
               <div className="workspace-tip"><MessageSquare size={19} /><div>One request. A few things, sorted.<p>Try “Help me move in and set up my utilities.” I’ll bring the steps together.</p></div></div>
               <p className="demo-note">A working preview with simulated city services.<br />{model?.enabled ? 'Conversations powered by OpenRouter.' : 'Local demo conversations.'}</p>
             </>}

@@ -2,7 +2,7 @@
   "name": "@superapp/protocol-core",
   "version": "1.0.0",
   "type": "module",
-  "description": "AG-UI and A2-UI protocol schemas, TypeScript contracts, and runtime validators",
+  "description": "Project-specific UI/event contracts, authentication clients and runtime validators",
   "main": "src/index.ts",
   "types": "src/index.ts",
   "exports": {

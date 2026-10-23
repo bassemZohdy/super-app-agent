@@ -55,4 +55,8 @@ test('live provider failure is visible, retains service results and never masque
   assert.match(result.data.surface.assistantMessage.text, /rate limited/);
   assert.ok(result.data.surface.view.children.some((node: any) => node.type === 'MetricWidget'));
   assert.equal(JSON.stringify(result.data).includes('private provider details'), false);
+  const restored = await core('GET', '/api/sessions/live_failure_session', {}, {}, headers);
+  assert.equal(restored.status, 200);
+  assert.equal(restored.data.inference?.status, 'error');
+  assert.equal(restored.data.inference?.code, 'OPENROUTER_HTTP_429');
 });

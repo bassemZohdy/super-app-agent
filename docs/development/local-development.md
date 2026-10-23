@@ -11,9 +11,9 @@ npm run demo:up
 npm run dev:react
 ```
 
-Open http://localhost:3000. Keycloak initializes its demo realm on first startup; allow about 30 seconds. Browser login uses authorization code + S256 PKCE. Demo users are `bassem` and `demo-commuter`, password `demo123`. Each has separate personal/household accounts. Select an account in the sidebar; account changes start or restore that account's conversation. Saved conversations can be restored/deleted through the React history control.
+Open http://localhost:3000. `demo:up` waits for Keycloak realm discovery and all six application, seven provider and concierge health endpoints. First startup includes realm/database initialization and can take over a minute. The readiness deadline defaults to 180 seconds; override `DEMO_READY_TIMEOUT_MS` (1000–600000) for slower machines. `npm run demo:wait` repeats this check without changing containers. Readiness does not replace authenticated acceptance checks or Redis verification. Browser login uses authorization code + S256 PKCE. Demo users are `bassem` and `demo-commuter`, password `demo123`. Each has separate personal/household accounts. Select an account in the sidebar; account changes start or restore that account's conversation. Saved conversations can be restored/deleted through the React history control.
 
-`npm run dev:angular` serves http://localhost:3001 with Keycloak login and account selection. Flutter requires its SDK; `npm run dev:flutter` uses Chrome. Its sign-in uses a local-demo password grant with seeded accounts and tokens held in memory; native PKCE and SSE parity remain pending. For another backend host, pass `--dart-define=GATEWAY_URL=http://your-host:4000`.
+`npm run dev:angular` serves http://localhost:3001 with Keycloak login and account selection. Flutter requires Flutter 3.47+ / Dart 3.13+; run `cd apps/shell-flutter && flutter pub get` first. `npm run dev:flutter` uses Chrome at port 3002. The checked-in web bootstrap supports web builds; native platform projects and device execution remain open. Its sign-in uses a local-demo password grant with seeded accounts and tokens held in memory; native PKCE/device validation remains pending; authenticated Dart SSE now has parser/reconnect/lifecycle tests. For another backend host, pass `--dart-define=GATEWAY_URL=http://your-host:4000`.
 
 ## Processes and ports
 
@@ -28,8 +28,11 @@ The Compose demo mounts the checkout read-only into Node 24 containers, includin
 npm run demo:logs
 npm run demo:verify
 npm run test:redis
-npm test
-npm run build -- --concurrency=2
+npm run demo:verify:manual
+npm run demo:verify:security
+npm run demo:verify:restart # restarts core, Redis and payments; then verifies resume
+npm run demo:check:openrouter
+npm run check
 npm run demo:down  # preserves named volumes
 ```
 
@@ -42,7 +45,10 @@ npm run demo:down  # preserves named volumes
 | OPENROUTER_API_KEY | Optional server-side key; never exposed through Vite |
 | OPENROUTER_MODEL | `openrouter/free` by default |
 | ENABLE_LIVE_LLM | false for deterministic replies; true enables a configured key |
-| OPENROUTER_ALLOW_PAID_MODELS | paid inference requires explicit true |
+| OPENROUTER_ALLOW_PAID_MODELS | legacy model-ID opt-in; demo provider ceiling still permits zero-price routing only |
+| ENABLE_OPENROUTER_TTS | false by default; opt-in for remote audio |
+| KEYCLOAK_INTROSPECTION_URL / CLIENT_ID / CLIENT_SECRET | authenticated per-request active-token verification; Compose uses cityside-verifier |
+| HTTP_MAX_CONCURRENT / HTTP_REQUESTS_PER_MINUTE | bounded per-process admission defaults: 64 / 300 |
 | KEYCLOAK_ISSUER / PUBLIC_ISSUER | exact token issuer / public browser issuer |
 | KEYCLOAK_JWKS_URL / TOKEN_URL | reachable container or host certificate/token endpoints |
 | SERVICE_CLIENT_SECRET | a single application process's confidential client secret |
@@ -53,9 +59,9 @@ npm run demo:down  # preserves named volumes
 | APP_DATA_DIR | application-owned profile/order SQLite storage |
 | REDIS_URL / SESSION_TTL_SECONDS | Redis endpoint and idle retention, 60–86400 seconds |
 
-Known demo service secrets and grants are documented in the [provider guide](../demo/provider-backends.md). They are intentionally local-only. Preserve existing `.env` keys; do not copy secrets into source control. Restart affected containers after editing source or environment; backend containers do not run a source watcher.
+Known demo service secrets and grants are documented in the [provider guide](../demo/provider-backends.md). They are intentionally local-only. Preserve existing `.env` keys; do not copy secrets into source control. Restart affected containers after source edits; recreate them with `docker compose -f docker-compose.demo.yml up -d --force-recreate SERVICE_NAME` after environment edits; backend containers do not run a source watcher.
 
-Keycloak imports `services/keycloak/realm-export.json` only when the realm does not exist. Changes to that file do not overwrite an existing realm. Reconcile an existing local realm with `npm run demo:realm`; this updates demo clients/roles without deleting databases. Password grants remain enabled only to support local verifier/Flutter demo flows.
+Keycloak imports `services/keycloak/realm-export.json` only when the realm does not exist. Changes to that file do not overwrite an existing realm. Reconcile an existing local realm with `npm run demo:realm`; this updates demo clients/roles without deleting databases. Keycloak 26.6.4 introspection requires the verifying client in the token audience. The demo realm maps `cityside-verifier` into user/service access tokens; run `demo:realm` after updating an existing realm, then sign in again. [Upgrade documentation](https://www.keycloak.org/docs/26.6.4/upgrading/index.html). Password grants remain enabled only to support local verifier/Flutter demo flows.
 
 ## Lightweight fixture runner
 
@@ -71,6 +77,6 @@ The older `docker-compose.yml` and agentgateway YAML are compatibility/reference
 - Session store unavailable: check Redis; the application does not create a replacement memory session.
 - Payment decline: check the simulated wallet or choose a permitted demo funding source through the provider API. Never submit real card data.
 - Partial/unknown settlement: inspect the provider payment/bill status and reconcile; do not blindly repeat a charge with a new key.
-- OpenRouter network failure: check machine HTTPS and provider availability; the app shows the failure. Disable live replies explicitly for a deterministic demo.
+- OpenRouter 401: the configured key was rejected in the current validation. Set a valid key privately in the ignored `.env`, then run `docker compose -f docker-compose.demo.yml up -d --force-recreate agent-core` to apply it. A shell environment variable overrides the same variable in Compose’s `.env` interpolation. `/health` only reports configuration; it does not authenticate to OpenRouter. For network failures, check HTTPS/provider reachability. Set `ENABLE_LIVE_LLM=false` and recreate agent-core for deterministic replies.
 - Angular build worker killed in a restricted environment: allow local build workers and use build concurrency 2.
-- Flutter: install the SDK. Flutter compilation/native execution is not covered by the latest verification.
+- Flutter: use the documented SDK and run pub get before analyze/test/build. Web compilation and widget checks pass in the current report; native platform/device execution remains open.

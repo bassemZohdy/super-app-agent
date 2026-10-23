@@ -2,7 +2,7 @@
   "name": "@superapp/service-profile",
   "version": "1.0.0",
   "type": "module",
-  "description": "User Profile, Preferences and Personalization Microservice with MCP Server support",
+  "description": "Authenticated demo profile/preferences application API with legacy tool descriptors",
   "main": "src/index.ts",
   "scripts": {
     "build": "tsc",

@@ -424,20 +424,7 @@ function handleRideRequest(
     const bookingId = pathname.replace('/rides/track/', '');
     const booking = activeRides.get(bookingId);
 
-    if (!booking) {
-      return {
-        status: 200,
-        data: {
-          success: true,
-          bookingId,
-          status: 'IN_TRANSIT',
-          etaMinutes: 3,
-          driver: drivers[0],
-          currentLocation: { lat: 37.7755, lng: -122.4180 },
-          routeProgress: '65%',
-        },
-      };
-    }
+    if (!booking) return { status: 404, data: { success: false, error: 'Booking not found', code: 'NOT_FOUND' } };
 
     return {
       status: 200,

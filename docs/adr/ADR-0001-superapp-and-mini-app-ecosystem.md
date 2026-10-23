@@ -1,9 +1,9 @@
 # ADR-0001 — Super App ecosystem with an agent-first Concierge
 
-> Current demo implementation update (23 October 2026): see [ADR-0010](ADR-0010-provider-simulators-and-redis-demo.md) and the [provider guide](../demo/provider-backends.md). Earlier implementation descriptions below record the prior fixture baseline. The integrated demo now has REST provider adapters, Keycloak browser/service authentication and Redis sessions; LangGraph, production consent and standards migration remain targets.
+> Current demo implementation update (24 October 2026): see [ADR-0010](ADR-0010-provider-simulators-and-redis-demo.md) and the [provider guide](../demo/provider-backends.md). The implementation sections below describe the retained fixture path and integrated path where applicable. The integrated demo now has REST provider adapters, Keycloak browser/service authentication and Redis sessions. A real LangGraph approval graph with Redis checkpoints and authenticated core MCP now run; model-selected planning, production consent and UI standards migration remain targets.
 
 **Status:** Accepted as **product direction**, **partially demonstrated**; production implementation pending.
-**Reviewed:** 2026-10-23. See [ADR-0009](ADR-0009-agent-first-with-bounded-authority.md) for the refined autonomy boundary.
+**Reviewed:** 2026-10-24. See [ADR-0009](ADR-0009-agent-first-with-bounded-authority.md) for the refined autonomy boundary.
 
 ## Context
 
@@ -19,7 +19,7 @@ Conventional Super Apps expose catalogs of separate mini-apps. This project expe
 
 ## Current evidence
 
-`apps/shell-react` contains chat plus mini-app tabs; `services/agent-core/src/langgraph/graph.ts` composes example actions and screens using keywords and direct calls to simulators. `services/service-catalog` lists apps and example remote URLs. These are not independent provider integrations, real agent discovery or production MFE deployments.
+`apps/shell-react` contains a conversational workspace, authenticated service surfaces, account selection and saved conversations. The graph composes journeys deterministically; integrated mode uses authenticated REST application/provider adapters and Redis. Catalog bundled routes bypass model execution; legacy mount modules do not establish independent MFE deployment or model-driven discovery. All named providers remain simulators.
 
 ## Consequences and trade-offs
 

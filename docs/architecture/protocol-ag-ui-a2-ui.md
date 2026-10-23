@@ -4,9 +4,9 @@
 
 | Name | Public standard | This repository today |
 | --- | --- | --- |
-| **AG-UI (Agent–User Interaction)** | Standardized event/run/state/message flow between agent and application; [AG-UI 1.0](https://github.com/ag-ui-protocol/ag-ui), [overview](https://www.copilotkit.ai/ag-ui) | No standard AG-UI SDK or event envelopes. Custom events named `A2UI_*` instead |
-| **A2UI (Agent-to-User Interface)** | Structured/declarative UI surface language. [A2UI spec](https://a2ui.org/) (v0.9.1 current, v1.0 candidate as checked October 2026) | Custom `UIComponentNode` tree inside file `ag-ui.ts`; **not** A2UI-schema compliant |
-| **MCP** | Standard protocol for tools/resources/prompts | Service `GET /mcp` returns a simple tool list/descriptor; no proven MCP server transport/session or tool invocation |
+| **AG-UI (Agent–User Interaction)** | Standardized event/run/state/message flow between agent and application; [AG-UI project](https://github.com/ag-ui-protocol/ag-ui), [overview](https://www.copilotkit.ai/ag-ui) | No standard AG-UI SDK or event envelopes. Custom events named `A2UI_*` instead |
+| **A2UI (Agent-to-User Interface)** | Structured/declarative UI surface language. [A2UI spec](https://a2ui.org/) (pin a supported version before implementing the proposed adapter) | Custom `UIComponentNode` tree inside file `ag-ui.ts`; **not** A2UI-schema compliant |
+| **MCP** | Standard protocol for tools/resources/prompts | Core `/mcp` implements authenticated Streamable HTTP with the official SDK/reference-client tests; application `GET /mcp` remains descriptor metadata |
 | **A2A** | Inter-agent communication and delegation | Not implemented in agent-core |
 
 **Rule:** Say “custom UI/event contract” for existing code; use “AG-UI” and “A2UI” without qualifiers only when referring to the external standards.
@@ -56,9 +56,11 @@ Backend routes:
 | Endpoint | Expected use | Important notes |
 | --- | --- | --- |
 | `GET /health` | Runtime metadata | Public |
-| `GET /api/a2ui/stream?sessionId=...` | Server-Sent Events | Needs valid auth; `&demo=1` works **only** when local demo auth enabled |
-| `POST /api/a2ui/intent` | `{ sessionId, text, handshake? }` | Handshake in request is currently not used to negotiate renderer components |
-| `POST /api/a2ui/action` | `{ sessionId, surfaceRevision, action, payload }` | Requires existing session, matching server-issued surface revision and action offered on active surface |
+| `GET /api/a2ui/stream?sessionId=...` | Server-Sent Events | Bearer Authorization header required in integrated mode; include the selected `accountId` reference, never a token in the URL |
+| `POST /api/a2ui/intent` | `{ sessionId, accountId?, text, handshake? }` | Handshake in request is currently not used to negotiate renderer components |
+| `POST /api/manual/prepare` | `{ sessionId, accountId?, serviceId }` | Fixed bundled route; bypasses model execution |
+| `POST /api/a2ui/cancel` | `{ sessionId, accountId?, surfaceRevision }` | Cancels the pending proposal and saved continuation |
+| `POST /api/a2ui/action` | `{ sessionId, accountId?, surfaceRevision, action, payload }` | Requires existing session, matching server-issued surface revision and action offered on active surface |
 
 Declared custom envelope: `{ id, type, sessionId, timestamp, data }`.
 
@@ -98,9 +100,9 @@ Actual HTTP/SSE handler emits handshake ACK, stream deltas and render surface me
 
 ## Security and correctness limitations
 
-- **No client-trust transfer:** UI-rendered buttons do not authorize a payment. The code checks current-surface events and a small list of protected payload fields; authoritative service-side authorization, quote validation and consent are missing.
-- **Replay/backpressure:** the [bounded process-local journal](event-stream.md) supports cursor replay and slow-consumer limits. Restart loses history. Actions require the UUID revision of the current surface; timestamps are display metadata. Per-session coordination rejects concurrent transitions. Partial/unknown writes require reconciliation before more requests in that session.
-- **Schema:** recursive type/property limits are partial and all three renderers need parity, accessibility and malicious payload tests.
+- **No client-trust transfer:** UI-rendered buttons do not authorize a payment. Core checks a subject/account/revision-bound approval, five-minute expiry, canonical view digest, every advertised payload field and scoped choice. Providers independently enforce resource/account ownership. Production quote attestation and delegated consent remain open.
+- **Replay/backpressure:** the [stream implementation](event-stream.md) uses persistent Redis replay in integrated mode and a bounded process-local journal in fixture mode. Only fixture state is lost on ordinary process restart. Actions require the UUID revision of the current surface; timestamps are display metadata. Per-session coordination rejects concurrent transitions. Partial/unknown writes require reconciliation before more requests in that session.
+- **Schema:** envelopes reject null/scalar/array data, non-finite or negative timestamps, oversized IDs, invalid render modes and surface/envelope session mismatches without throwing. Validation now includes required event payloads, a 256 KiB UI byte budget, 500 total nodes, unique component/choice IDs, depth and collection limits, map coordinates and table row/column shapes. Full property semantics and renderer conformance remain partial.
 - **Reasoning exposure:** current phase names may say “REASONING”; do not stream sensitive hidden model reasoning. Use progress/status descriptions only.
 - **Navigation:** `LAUNCH_MINIAPP` is named, but shell capabilities and available manifests should be verified before any transition.
 
@@ -118,10 +120,10 @@ See [ADR-0002](../adr/ADR-0002-ag-ui-and-a2-ui-declarative-protocols.md) and [fr
 
 ## Current stream recovery
 
-The authenticated web/backend stream now has event IDs, bounded replay, snapshots, expiry and slow-consumer bounds. See the [wire contract](event-stream.md). This remains the custom envelope above; React/Angular now have end-user OIDC login; Redis mode provides persistent cross-process replay. Flutter SSE parity remains open. See the current provider demo guide for the two runtime modes.
+The authenticated web/backend stream now has event IDs, bounded replay, snapshots, expiry and slow-consumer bounds. See the [wire contract](event-stream.md). This remains the custom envelope above; React/Angular now have end-user OIDC login; Redis mode provides persistent cross-process replay. Flutter has an authenticated SSE parser/reconnect/lifecycle client with unit coverage; native device/proxy execution remains open. See the current provider demo guide for the two runtime modes.
 
 ## Action revision migration (P0-10)
 
 Core-issued surfaces include an opaque `revision` UUID. Echo that exact value as the required `surfaceRevision` in `POST /api/a2ui/action`; omission or malformed values return 400. Protocol example fixtures may omit a revision, but they cannot be used as core action approvals. React, Angular, Flutter and the flight recorder now echo it. HTTP and SSE carry the same committed revision.
 
-`SESSION_BUSY` (409) means wait for the running request; do not automatically replay a mutation. `STALE_SURFACE` (409) returns the current surface for user review. Definitive failed execution replaces the approval with a fresh warning revision; start a new intent after correcting the cause. `RECONCILIATION_REQUIRED` (409) blocks both intents and actions after partial/unknown effects and preserves their step summary. There is no public unblock operation: an authenticated provider/status reconciliation workflow remains P0-06. Coordination and reconciliation state disappear on restart and do not protect a different session or another instance.
+`SESSION_BUSY` (409) means wait for the running request; do not automatically replay a mutation. `STALE_SURFACE` (409) returns the current surface for user review. Definitive failed execution replaces the approval with a fresh warning revision; start a new intent after correcting the cause. `RECONCILIATION_REQUIRED` (409) blocks both intents and actions after partial/unknown effects and preserves their step summary. There is no public unblock operation: an authenticated provider/status reconciliation workflow remains P0-06. Redis mode persists reconciliation and uses shared session leases with fenced saves across instances. Fixture mode loses coordination/reconciliation on restart. Neither mode establishes cross-session business atomicity or a production reconciliation workflow.

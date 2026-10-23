@@ -10,4 +10,4 @@ Use Redis for expiring owner/account-bound conversation state, per-session renew
 
 Payment capture and entity settlement remain separate transactions with proof verification and conservative unknown-outcome handling. Avoid legacy unified double debits and artificial residential meter activation. The trade-off is explicit reconciliation for partial results; no distributed atomicity, production on-behalf-of delegation, HA or workflow engine is implied.
 
-Evidence: provider contract/HTTP/SQLite/payment tests, real Redis integration, real local Keycloak and REST stack verifier, browser sign-in/account/restore checks. Exact results and limitations: [verification report](../reports/2026-10-23-provider-demo.md).
+Evidence: provider contract/HTTP/SQLite/payment tests, real Redis integration, real local Keycloak and REST stack verifier, browser sign-in/account/restore checks. Exact results and limitations: [latest verification report](../reports/2026-10-24-demo-completion.md).

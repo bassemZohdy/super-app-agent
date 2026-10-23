@@ -43,9 +43,12 @@ test('capability catalog exposes unique versioned contracts and conservative ris
 
 test('all capability JSON Schemas compile and accept the corresponding simulator response', () => {
   let activeTicket: string | undefined;
+  let activeBooking: string | undefined, activeOrder: string | undefined;
   executeWalletRequest('POST', '/wallet/topup', {}, { amount: 1000 });
   for (const capability of capabilities) {
     const input = structuredClone(capability.exampleInput);
+    if (capability.id === 'mobility.ride.track') input.bookingId = activeBooking;
+    if (capability.id === 'dining.order.track') input.orderId = activeOrder;
     if (capability.id === 'mobility.parking.extend') input.ticketId = activeTicket;
     const validateInput = ajv.compile(capability.inputSchema);
     const validateOutput = ajv.compile(capability.outputSchema);
@@ -57,6 +60,8 @@ test('all capability JSON Schemas compile and accept the corresponding simulator
       inputLocation === 'body' ? input : {});
     assert.equal(result.status, 200, capability.id + ': declared example must succeed');
     assert.equal(result.data.success, true, capability.id + ': successful effect/read required');
+    if (capability.id === 'mobility.ride.book') activeBooking = result.data.booking.bookingId;
+    if (capability.id === 'dining.order.create') activeOrder = result.data.order.orderId;
     if (capability.id === 'mobility.parking.activate') activeTicket = result.data.meter.ticketId;
     assert.ok(validateOutput(result.data), capability.id + ': ' + ajv.errorsText(validateOutput.errors));
     assert.equal(validateInput({ ...capability.exampleInput, undeclaredField: 'unsafe' }), false);

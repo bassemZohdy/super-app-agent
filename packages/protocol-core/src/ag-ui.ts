@@ -159,14 +159,23 @@ export interface ValidationResult<T> {
  * Validate a UIComponentNode recursively
  */
 export function validateUIComponentNode(
-  node: unknown, path = 'root', depth = 0,
+  node: unknown, path = 'root', depth = 0, budget = { nodes: 0, ids: new Set<string>() },
 ): ValidationResult<UIComponentNode> {
   const errors: string[] = [];
   if (!node || typeof node !== 'object' || Array.isArray(node)) {
     return { success: false, errors: [`${path}: Node must be an object`] };
   }
   if (depth > 20) return { success: false, errors: [`${path}: Maximum UI depth exceeded`] };
+  if (++budget.nodes > 500) return { success: false, errors: [`${path}: Maximum total UI nodes exceeded`] };
+  if (depth === 0) {
+    try { if (new TextEncoder().encode(JSON.stringify(node)).byteLength > 262144) return { success: false, errors: ['UI byte budget exceeded'] }; }
+    catch { return { success: false, errors: ['UI must be serializable JSON'] }; }
+  }
   const n = node as Record<string, any>;
+  if (typeof n.id === 'string') {
+    if (budget.ids.has(n.id)) errors.push(`${path}: Duplicate component ID`);
+    budget.ids.add(n.id);
+  }
   if (typeof n.id !== 'string' || !n.id.trim() || n.id.length > 128) {
     errors.push(`${path}: Missing or invalid 'id' string`);
   }
@@ -195,8 +204,16 @@ export function validateUIComponentNode(
       errors.push(`${path}.properties.options: Invalid choices`);
     }
   }
+  if (n.type === 'MetricWidget' && (typeof props.label !== 'string' || !['string','number'].includes(typeof props.value) || (typeof props.value === 'number' && !Number.isFinite(props.value)))) errors.push(`${path}: Invalid metric`);
+  if (n.type === 'MapViewer') {
+    const coordinate = (p: any) => p && typeof p === 'object' && Number.isFinite(p.lat) && p.lat >= -90 && p.lat <= 90 && Number.isFinite(p.lng) && p.lng >= -180 && p.lng <= 180;
+    if ((props.center !== undefined && !coordinate(props.center)) || (props.zoom !== undefined && (!Number.isFinite(props.zoom) || props.zoom < 0 || props.zoom > 22)) ||
+      (props.markers !== undefined && (!Array.isArray(props.markers) || props.markers.length > 100 || props.markers.some((p: any) => !coordinate(p) || typeof p.id !== 'string'))) ||
+      (props.routePolyline !== undefined && (!Array.isArray(props.routePolyline) || props.routePolyline.length > 1000 || props.routePolyline.some((p: any) => !coordinate(p))))) errors.push(`${path}: Invalid map coordinates`);
+  }
+  if (n.type === 'ChoiceGroup' && Array.isArray(props.options) && new Set(props.options.map((o: any) => o?.id)).size !== props.options.length) errors.push(`${path}: Duplicate choice IDs`);
   if (n.type === 'DataTable' && (!Array.isArray(props.columns) || !Array.isArray(props.rows) ||
-      props.columns.length > 100 || props.rows.length > 500)) {
+      props.columns.length > 100 || props.rows.length > 500 || props.columns.some((column: any) => !column || typeof column.key !== 'string' || !column.key || typeof column.title !== 'string') || props.rows.some((row: any) => !row || typeof row !== 'object' || Array.isArray(row)))) {
     errors.push(`${path}.properties: Invalid or oversized DataTable`);
   }
   if (n.type === 'MiniAppEmbed' && typeof props.miniAppId !== 'string') {
@@ -210,7 +227,7 @@ export function validateUIComponentNode(
       errors.push(`${path}.children: Must be an array (max 100 nodes)`);
     } else {
       n.children.forEach((child: unknown, index: number) => {
-        const result = validateUIComponentNode(child, `${path}.children[${index}]`, depth + 1);
+        const result = validateUIComponentNode(child, `${path}.children[${index}]`, depth + 1, budget);
         if (result.errors) errors.push(...result.errors);
       });
     }
@@ -247,7 +264,7 @@ export function validateUIComponentNode(
 export function validateAGUISurface(data: unknown): ValidationResult<AGUISurfacePayload> {
   const errors: string[] = [];
 
-  if (!data || typeof data !== 'object') {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
     return { success: false, errors: ['Payload must be an object'] };
   }
 
@@ -257,11 +274,11 @@ export function validateAGUISurface(data: unknown): ValidationResult<AGUISurface
     errors.push(`Invalid version '${payload.version}'. Expected '1.0.0'`);
   }
 
-  if (typeof payload.sessionId !== 'string' || !payload.sessionId.trim()) {
+  if (typeof payload.sessionId !== 'string' || !payload.sessionId.trim() || payload.sessionId.length > 128) {
     errors.push("Missing or invalid 'sessionId'");
   }
 
-  if (payload.timestamp === undefined || (typeof payload.timestamp !== 'number' && typeof payload.timestamp !== 'string')) {
+  if ((typeof payload.timestamp === 'number' && (!Number.isFinite(payload.timestamp) || payload.timestamp < 0)) || (typeof payload.timestamp === 'string' && (!payload.timestamp || !Number.isFinite(Date.parse(payload.timestamp)))) || !['number','string'].includes(typeof payload.timestamp)) {
     errors.push("Missing or invalid 'timestamp' (number or string)");
   }
 

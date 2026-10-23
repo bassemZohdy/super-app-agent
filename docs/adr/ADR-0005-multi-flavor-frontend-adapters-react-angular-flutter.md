@@ -1,9 +1,9 @@
 # ADR-0005 — React, Angular and Flutter reference shells
 
-> Current demo implementation update (23 October 2026): see [ADR-0010](ADR-0010-provider-simulators-and-redis-demo.md) and the [provider guide](../demo/provider-backends.md). Earlier implementation descriptions below record the prior fixture baseline. The integrated demo now has REST provider adapters, Keycloak browser/service authentication and Redis sessions; LangGraph, production consent and standards migration remain targets.
+> Current demo implementation update (24 October 2026): see [ADR-0010](ADR-0010-provider-simulators-and-redis-demo.md) and the [provider guide](../demo/provider-backends.md). The implementation sections below describe the retained fixture path and integrated path where applicable. The integrated demo now has REST provider adapters, Keycloak browser/service authentication and Redis sessions. A real LangGraph approval graph with Redis checkpoints and authenticated core MCP now run; model-selected planning, production consent and UI standards migration remain targets.
 
-**Status:** **Sample shells exist; parity and full build validation pending.**
-**Reviewed:** 2026-10-23.
+**Status:** **Browser login/builds and scoped Flutter web/widget checks exist; complete/native parity remains open.**
+**Reviewed:** 2026-10-24.
 
 ## Context
 
@@ -19,7 +19,7 @@ The intended Super App supports a web shell and native mobile experience while a
 
 ## Current evidence
 
-React has `A2UIRenderer.tsx` and in-process mini-app imports; Angular has a separate component renderer; Flutter manually maps the custom UI tree to widgets. All use local demo identity markers. There is no cross-platform conformance suite, real OIDC/PKCE or production client capability handshake.
+React has `A2UIRenderer.tsx`, Angular a separate renderer, and Flutter a native widget mapping for a subset. React/Angular use Keycloak PKCE and account selection; Flutter uses a local-demo password grant. Redis stores owner/account-bound conversations. Flutter web bootstrap, strict analysis and account-switch widget tests now exist. Complete component conformance, native PKCE/speech and production handshake remain open. See the [current evidence](../reports/2026-10-24-demo-completion.md).
 
 ## Consequences
 

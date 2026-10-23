@@ -132,7 +132,7 @@
   {
     "id": "mobility.ride.track",
     "name": "ride_trackStatus",
-    "version": "2.0.0",
+    "version": "3.0.0",
     "owner": "service-ride",
     "description": "ride trackStatus (simulated domain contract)",
     "availability": "simulation-only",
@@ -145,22 +145,45 @@
               "const": true
             },
             "booking": {
-              "type": "object"
-            },
-            "bookingId": {
-              "type": "string",
-              "minLength": 1
-            },
-            "status": {
-              "type": "string",
-              "minLength": 1
+              "type": "object",
+              "required": [
+                "bookingId",
+                "driver",
+                "status"
+              ],
+              "properties": {
+                "bookingId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "driver": {
+                  "type": "object"
+                },
+                "status": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
             },
             "currentLocation": {
-              "type": "object"
+              "type": "object",
+              "properties": {
+                "lat": {
+                  "type": "number"
+                },
+                "lng": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "lat",
+                "lng"
+              ]
             }
           },
           "required": [
             "success",
+            "booking",
             "currentLocation"
           ],
           "additionalProperties": true
@@ -338,7 +361,7 @@
   {
     "id": "dining.order.track",
     "name": "food_trackOrder",
-    "version": "2.0.0",
+    "version": "3.0.0",
     "owner": "service-food",
     "description": "food trackOrder (simulated domain contract)",
     "availability": "simulation-only",
@@ -351,19 +374,36 @@
               "const": true
             },
             "order": {
-              "type": "object"
-            },
-            "orderId": {
-              "type": "string",
-              "minLength": 1
-            },
-            "status": {
-              "type": "string",
-              "minLength": 1
+              "type": "object",
+              "required": [
+                "orderId",
+                "restaurantId",
+                "status",
+                "items"
+              ],
+              "properties": {
+                "orderId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "restaurantId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "status": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "items": {
+                  "type": "array",
+                  "minItems": 1
+                }
+              }
             }
           },
           "required": [
-            "success"
+            "success",
+            "order"
           ],
           "additionalProperties": true
         },

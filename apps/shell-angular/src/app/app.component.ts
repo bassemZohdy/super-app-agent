@@ -181,7 +181,7 @@ export class AppComponent implements OnInit, OnDestroy {
   setReadReplies(value: boolean) { this.readReplies = value; if (!value) this.voice?.cancel(); }
   private streamController = new AbortController();
   messages = signal<Array<{ role: string; text: string }>>([
-    { role: 'assistant', text: 'Marhaba, Bassem. I’m Rashid, your city concierge. Ask me about getting around, home essentials, payments or moving in.' }
+    { role: 'assistant', text: 'Marhaba. I’m Rashid, your city concierge. Ask me about getting around, home essentials, payments or moving in.' }
   ]);
   delta = signal<string | null>(null);
   surface = signal<AGUISurfacePayload | null>(null);

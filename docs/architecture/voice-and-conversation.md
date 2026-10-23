@@ -1,29 +1,29 @@
 # Voice and conversational chat
 
-> Current scope: browser dictation drafts and opt-in speech playback remain available after Keycloak login. React no longer auto-sends dictated messages. Server TTS remains an optional API; browser playback does not prove remote neural voice availability. Session storage and identity are described in the [provider guide](../demo/provider-backends.md).
-
-React and Angular now offer microphone dictation and optional spoken replies alongside typed chat and interactive surfaces. Flutter displays the same assistant text, with native speech support still a backlog item.
+React and Angular offer microphone drafts and opt-in browser speech after sign-in. Flutter displays assistant text; native speech remains open. Typed messages and submitted transcripts use the same selected-account session and provider-backed service path.
 
 ## Using the chat
 
-1. Select **Use microphone**, allow browser microphone access, and speak. English and Arabic recognition locales are offered where the browser supports them. Current service routing mainly understands English; Arabic greetings/assent are recognized, but full Arabic service conversations are not implemented.
-2. Review or edit the transcript in the normal message field, then press **Send**. Recognition never sends a request automatically.
-3. Read the assistant response in the transcript and inspect the matching surface. Ask “explain this,” “what happens next,” or “show me the options.” Explicitly naming another service changes the topic.
-4. Enable **Read replies aloud** to speak future assistant replies. **Cancel voice** stops listening/playback. Editing, sending a new request, hiding the tab or unmounting also cancels audio. Spoken replies default off.
-5. Bookings/payments still require the surface button and matching revision. Saying “yes,” “book it” or “pay it” only asks the user to review that button. “Cancel that” clears the current approval; it does not undo completed provider operations.
+1. Choose **Use microphone** and grant browser access. English and Arabic recognition locales depend on the browser; service routing mainly understands English.
+2. Review or edit the transcript, then press **Send**. The current React interface does not automatically submit dictation.
+3. Read the reply and inspect the service surface. Follow-ups such as “explain this” retain the current proposal; explicit service names can change the topic.
+4. Enable **Read replies aloud** for browser speech synthesis. Spoken replies default off. Cancel voice, editing, a new request, tab hiding and teardown cancel audio.
+5. Execute service effects through the offered confirmation button. Chat assent does not book/pay. Cancellation clears an outstanding proposal and cannot undo a completed provider operation.
 
-## Contracts and implementation
+## Replies and persistence
 
-Committed custom surfaces may include `assistantMessage: { id, text }`, where the ID is the committed revision. HTTP and SSE share the same message. Web shells validate the surface/session/revision and append/speak the message once for the current revision; they never speak progress deltas. Failure replies use the sanitized execution-outcome message. Existing surface-only clients remain compatible.
+Committed custom surfaces carry `assistantMessage: { id, text }` with the current revision. HTTP and SSE carry the same reply; web clients deduplicate the revision and do not speak progress events. Domain failures use sanitized outcome messages.
 
-The core already records turns in its process-local session. `conversation.ts` handles bounded greetings/help/thanks, current-proposal explanation, safe textual assent, cancellation and simple topic-preserving follow-ups. It is deterministic and does not add a general LLM conversation engine, model planning, durable history or parameter extraction. A response explaining the surface is a snapshot, not a fresh provider status check. P1-03 and P0-05 track those remaining boundaries.
+`conversation.ts` supplies bounded deterministic greetings, help, explanations, assent handling, cancellation and follow-ups. With a configured key and live inference enabled, the graph also calls OpenRouter with the last 12 turns and bounded current service surface. Generated text reaches clients. Routing, capability execution and approval checks remain deterministic; generated prose does not authorize a mutation. A model failure remains visible alongside available service results.
 
-`voice-client.ts` wraps standard/prefixed browser recognition and speech synthesis without new dependencies, provider keys, audio uploads to our backend or automatic resubmission. Missing APIs, denied permission, no microphone/speech, network/language/start/playback errors expose a text fallback. Recognition and synthesis cancel each other; disposal detaches callbacks and aborts capture. Transcripts are capped at the existing 4,000-character input limit; playback is capped at 3,000 characters while the full reply remains visible.
+Redis integration persists the last 100 turns, surface and reconciliation state under a subject/account binding. The fixture runner keeps conversation state in memory. Explanations describe a surface snapshot rather than a fresh provider check. Neither mode implements a versioned durable workflow engine or model-selected tool planning.
 
-## Browser, privacy and validation boundaries
+## Audio and privacy
 
-Speech recognition availability varies by browser, device, security context and language. Use a supported browser on localhost or HTTPS. Some browsers send audio to their recognition service, so this feature is not an offline/on-device guarantee. The UI discloses that processing before activation; this app stores no raw audio. Submitted transcripts are handled like typed messages in the selected account-bound session (Redis in integrated mode, memory in the fixture runner). Browser/OS speech services may have their own processing policies.
+`voice-client.ts` wraps browser recognition and speech synthesis. Missing APIs, permission/network/language/playback failures leave text input available. Recognition and synthesis cancel each other; disposal detaches callbacks. Transcript input is limited to 4,000 characters and spoken playback to 3,000 characters.
 
-Primary references: [SpeechRecognition](https://developer.mozilla.org/en-US/docs/Web/API/SpeechRecognition), [Web Speech usage](https://developer.mozilla.org/en-US/docs/Web/API/Web_Speech_API/Using_the_Web_Speech_API), [recognition errors](https://developer.mozilla.org/en-US/docs/Web/API/SpeechRecognitionErrorEvent/error).
+Browser speech recognition may process audio remotely. The app stores no raw microphone audio; submitted transcripts follow normal session retention and may be sent to OpenRouter when enabled. The authenticated `/api/a2ui/tts` endpoint remains an optional server adapter with fallback information. Its existence does not prove a working OpenRouter neural voice or browser integration with that endpoint; current React playback uses browser synthesis.
 
-84 Node tests and 14 JS workspace builds pass. Fake speech-engine tests verify lifecycle, bounded final drafts, permission/network failures, unsupported APIs, cancellation, stale callbacks and playback errors. Conversation regressions verify topic isolation, shared HTTP/SSE replies, no effects from explanations/assent and invalidation on cancellation. Actual browser microphone/speaker, browser permissions and native speech execution have not been verified in this environment. Native Flutter speech and real device validation remain open in TODO.md.
+## Evidence and limits
+
+Node tests use fake speech engines to check drafts, cancellation, lifecycle/errors, and HTTP/SSE conversation consistency. Controlled model tests cover generated replies, retained context and visible provider errors. The [current report](../reports/2026-10-24-demo-completion.md) records the real provider/key result. Actual microphone/speaker permissions, recognition quality, neural TTS and native speech/device execution remain unverified. Full Arabic service understanding and production audio/egress consent remain in [TODO](../../TODO.md).

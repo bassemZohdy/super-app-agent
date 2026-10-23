@@ -18,3 +18,9 @@ Provider routes are versioned under `/v1/accounts/{accountId}`. Each operation v
 Private application records come from verified user claims and selected membership, rather than a shared singleton. Client-selected user IDs are not accepted. The core only accepts the user's personal or household account references and binds a conversation to one of them.
 
 The capability catalog and custom UI metadata do not themselves implement consent, production delegated authority, independent mini-app deployment, or official MCP/AG-UI/A2UI conformance. Legacy direct handlers are preserved for offline fixture tests and have different durability/isolation guarantees.
+
+## Concierge entry points
+
+The authenticated core `/mcp` transport exposes account/capability/conversation discovery and the normal guarded intent/action operations. Its schemas reuse the HTTP request contracts. Application `GET /mcp` descriptors remain compatibility metadata; see [the MCP guide](../development/mcp.md).
+
+Manual `/api/manual/prepare` selects one of eleven server-owned bundled service IDs. It bypasses model calls but uses the same session ownership, approval, effect and result path as concierge proposals. Unknown service IDs cannot load remote code. `POST /api/a2ui/cancel` invalidates the current one-time proposal; it does not reverse completed provider effects.

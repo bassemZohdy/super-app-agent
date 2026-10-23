@@ -1,3 +1,7 @@
+import { manualServices } from './manual-services.ts';
+import { HttpPolicy, HttpError, readJsonBody } from '../../../packages/backend-kit/src/http-policy.ts';
+import { handleMcp } from './mcp.ts';
+import { issueApproval, actionIsApproved, recordApproval } from './approvals.ts';
 import { actorContext, actorFor, accountIdFor } from '../../../packages/backend-kit/src/context.ts';
 import { redisSessions, SessionError } from './session-store.ts';
 import { randomUUID } from 'node:crypto';
@@ -11,7 +15,7 @@ import {
   type A2UIMessageEnvelope,
 } from '../../../packages/protocol-core/src/index.ts';
 import type { SuperAppAgentState } from './langgraph/state.ts';
-import { SuperAppAgentGraph } from './langgraph/graph.ts';
+import { executeRuntimeIntent, executeRuntimeAction, discardRuntime } from './langgraph/runtime.ts';
 import { verifyKeycloakToken, isDemoAuthEnabled } from './auth.ts';
 import { invokeOpenRouterTTS, getModelStatus } from './openrouter.ts';
 
@@ -32,30 +36,6 @@ function ownsSession(sessionId: string, sub: string): boolean {
   sessionOwners.set(sessionId, sub);
   return true;
 }
-// An allowed action is not permission to change financial or resource values.
-function isSurfaceActionAllowed(state: SuperAppAgentState, action: string, payload: Record<string, any>): boolean {
-  if (!state.currentSurface) return false;
-  const bindings: Array<Record<string, any>> = [];
-  const choices = new Set<string>();
-  const walk = (node: any) => {
-    if (node.type === 'ChoiceGroup') {
-      for (const option of node.properties?.options || []) choices.add(option.id);
-    }
-    for (const event of node.onEvents || []) {
-      if (event.actionType === 'AGENT_ACTION_DISPATCH' && event.payload?.action === action) {
-        bindings.push(event.payload);
-      }
-    }
-    for (const child of node.children || []) walk(child);
-  };
-  walk(state.currentSurface.view);
-  if (payload.selectedChoice !== undefined && !choices.has(payload.selectedChoice)) return false;
-  const protectedFields = ['amount', 'durationHours', 'zoneId', 'plateNumber', 'ticketId', 'provider', 'billId', 'subscriptionId', 'planId'];
-  return bindings.some(binding => protectedFields.every(field =>
-    payload[field] === undefined || (binding[field] !== undefined &&
-      JSON.stringify(payload[field]) === JSON.stringify(binding[field]))
-  ));
-}
 const activeTransitions = new Set<string>();
 type RequestContext = { session?: SuperAppAgentState; release?: () => void | Promise<void>; save?: () => Promise<void>; assertLease?: () => Promise<void> };
 
@@ -63,6 +43,7 @@ function commitSurface(session: SuperAppAgentState) {
   const surface = session.currentSurface;
   if (!surface) return;
   surface.revision = randomUUID();
+  issueApproval(session);
   const latest = session.messages.at(-1);
   if (latest?.role === 'assistant') {
     surface.assistantMessage = { id: surface.revision, text: latest.content.slice(0, 4000) };
@@ -103,8 +84,8 @@ async function handleGatewayRequest(
         status: 'ok',
         service: 'agent-core',
         llm: getModelStatus(),
-        agentCore: 'deterministic-demo-router',
-        edgeProxy: 'agentgateway.dev',
+        agentCore: 'langgraph-bounded-demo',
+        edgeProxy: 'direct-http',
         activeSessions: process.env.SESSION_STORE === 'redis' ? undefined : sessions.size,
         sessions: { store: process.env.SESSION_STORE || 'memory', ttlSeconds: Number(process.env.SESSION_TTL_SECONDS || 3600) },
         integration: process.env.PROVIDER_INTEGRATION === 'true' ? 'rest-providers' : 'legacy-fixtures',
@@ -137,6 +118,7 @@ async function handleGatewayRequest(
     return { status: 403, data: { success: false, code: 'ACCOUNT_FORBIDDEN', error: 'This account does not belong to the signed-in user.' } };
   }
   const actor = actorFor(authResult.user!, accountId, authHeader);
+  if (normMethod === 'GET' && pathname === '/api/services') return { status: 200, data: { success: true, services: manualServices.map(({ id, name }) => ({ id, name, route: `/services/${id}`, version: '1.0.0', runtime: 'bundled-surface' })) } };
   if (normMethod === 'GET' && pathname === '/api/accounts') {
     const accounts = process.env.PROVIDER_INTEGRATION === 'true'
       ? (await actorContext.run(actor, () => callDomainAsync('profile', 'GET', '/accounts'))).data.accounts
@@ -151,30 +133,30 @@ async function handleGatewayRequest(
   if (sessionPath && (normMethod === 'GET' || normMethod === 'DELETE')) {
     const sid = sessionPath[1], persistent = redisSessions();
     if (persistent) {
-      if (normMethod === 'DELETE') { await persistent.remove(sid, actor.sub); return { status: 200, data: { success: true } }; }
+      if (normMethod === 'DELETE') { const record = await persistent.read(sid, actor.sub); await persistent.remove(sid, actor.sub); await discardRuntime(record.state); return { status: 200, data: { success: true } }; }
       const record = await persistent.read(sid, actor.sub);
-      return { status: 200, data: { success: true, sessionId: sid, accountId: record.accountId, messages: record.state.messages, surface: record.state.currentSurface } };
+      return { status: 200, data: { success: true, sessionId: sid, accountId: record.accountId, messages: record.state.messages, surface: record.state.currentSurface, inference: record.state.metadata?.inference, runtime: record.state.metadata?.runtime, approval: record.state.approval, approvalHistory: record.state.approvalHistory } };
     }
     if (!sessions.has(sid)) return { status: 404, data: { error: 'Session not found' } };
     if (sessionOwners.get(sid) !== actor.sub) return { status: 403, data: { error: 'Session belongs to a different user' } };
-    if (normMethod === 'DELETE') { if (activeTransitions.has(sid)) return { status: 409, data: { error: 'Session busy' } }; sessions.delete(sid); sessionOwners.delete(sid); return { status: 200, data: { success: true } }; }
+    if (normMethod === 'DELETE') { if (activeTransitions.has(sid)) return { status: 409, data: { error: 'Session busy' } }; await discardRuntime(sessions.get(sid)!); sessions.delete(sid); sessionOwners.delete(sid); return { status: 200, data: { success: true } }; }
     const state = sessions.get(sid)!;
-    return { status: 200, data: { success: true, sessionId: sid, accountId: state.metadata?.accountId, messages: state.messages, surface: state.currentSurface } };
+    return { status: 200, data: { success: true, sessionId: sid, accountId: state.metadata?.accountId, messages: state.messages, surface: state.currentSurface, inference: state.metadata?.inference, runtime: state.metadata?.runtime, approval: state.approval, approvalHistory: state.approvalHistory } };
   }
   // Hold ownership and coordination through persistence and the final event.
-  if (normMethod === 'POST' && ['/api/a2ui/intent', '/api/a2ui/action'].includes(pathname)) {
+  if (normMethod === 'POST' && ['/api/a2ui/intent', '/api/a2ui/action', '/api/a2ui/cancel', '/api/manual/prepare'].includes(pathname)) {
     const persistent = redisSessions();
     let session: SuperAppAgentState;
     if (persistent) {
       // Claim ownership before acquiring; load authoritative state again under the lock.
-      await persistent.claim(body.sessionId, actor.sub, accountId, pathname.endsWith('/intent'));
+      await persistent.claim(body.sessionId, actor.sub, accountId, pathname.endsWith('/intent') || pathname.endsWith('/prepare'));
       const lock = await persistent.acquire(body.sessionId);
       requestContext.release = lock.release;
       session = await persistent.claim(body.sessionId, actor.sub, accountId, false);
       requestContext.save = () => lock.save(session);
       requestContext.assertLease = lock.assert;
     } else {
-      if (pathname.endsWith('/action') && !sessions.has(body.sessionId)) return { status: 404, data: { error: 'Session not found' } };
+      if ((pathname.endsWith('/action') || pathname.endsWith('/cancel')) && !sessions.has(body.sessionId)) return { status: 404, data: { error: 'Session not found' } };
       if (!ownsSession(body.sessionId, actor.sub)) return { status: 403, data: { error: 'Session belongs to a different user' } };
       if (activeTransitions.has(body.sessionId)) return { status: 409, data: { success: false, code: 'SESSION_BUSY', error: 'A request is already running. Wait for its result before retrying.', retry: { allowed: false, next: 'wait' } } };
       activeTransitions.add(body.sessionId);
@@ -190,7 +172,7 @@ async function handleGatewayRequest(
   }
 
   // 2. User Intent Ingestion
-  if (normMethod === 'POST' && pathname === '/api/a2ui/intent') {
+  if (normMethod === 'POST' && ['/api/a2ui/intent','/api/manual/prepare'].includes(pathname)) {
     const session = requestContext.session!;
     if (authResult.user) {
       (session as any).user = authResult.user;
@@ -200,7 +182,7 @@ async function handleGatewayRequest(
         phase: 'TOOL_EXECUTION', text,
       })).catch(() => {});
 
-    const updatedState = await actorContext.run(actor, () => SuperAppAgentGraph.executeIntent(session, body.text, onDelta));
+    const updatedState = await actorContext.run(actor, () => executeRuntimeIntent(session, body.text || 'Open service', onDelta, pathname === '/api/manual/prepare' ? body.serviceId : undefined));
 
     if (updatedState.currentSurface) {
       commitSurface(updatedState);
@@ -220,6 +202,21 @@ async function handleGatewayRequest(
     };
   }
 
+  if (normMethod === 'POST' && pathname === '/api/a2ui/cancel') {
+    const state = requestContext.session!;
+    if (!state.approval || state.currentSurface?.revision !== body.surfaceRevision) return { status: 409, data: { error: 'Approval is no longer pending', code: 'STALE_SURFACE' } };
+    recordApproval(state, 'cancelled');
+    await discardRuntime(state);
+    state.metadata = { ...state.metadata, runtime: { version: 1, status: 'cancelled' } };
+    state.currentSurface = { version: '1.0.0', sessionId: state.sessionId, timestamp: Date.now(), view: {
+      type: 'Text', id: 'approval_cancelled', properties: { text: 'Approval cancelled. No service action was started.' },
+    } };
+    state.messages.push({ id: randomUUID(), role: 'assistant', content: 'Approval cancelled. No service action was started.', timestamp: Date.now() });
+    commitSurface(state);
+    await broadcast(state.sessionId, createA2UIMessage('A2UI_RENDER_SURFACE', state.sessionId, { mode: 'REPLACE', surface: state.currentSurface }));
+    return { status: 200, data: { success: true, surface: state.currentSurface } };
+  }
+
   // 3. Interactive Action Dispatch
   if (normMethod === 'POST' && pathname === '/api/a2ui/action') {
     const session = requestContext.session!;
@@ -228,7 +225,7 @@ async function handleGatewayRequest(
         error: 'This surface has been replaced. Review the current surface before acting.',
         retry: { allowed: false, next: 'refresh_surface' }, surface: session.currentSurface } };
     }
-    if (!isSurfaceActionAllowed(session, body.action, body.payload || {})) {
+    if (!actionIsApproved(session, body.action, body.payload || {}, actor.sub, accountId)) {
       return { status: 403, data: { error: 'Action is not authorized for the current UI surface' } };
     }
     if (authResult.user) {
@@ -239,7 +236,8 @@ async function handleGatewayRequest(
         phase: 'TOOL_EXECUTION', text,
       })).catch(() => {});
 
-    const updatedState = await actorContext.run(actor, () => SuperAppAgentGraph.resumeWithAction(
+    recordApproval(session, 'confirmed', body.action);
+    const updatedState = await actorContext.run(actor, () => executeRuntimeAction(
       session,
       body.action,
       body.payload || {},
@@ -375,8 +373,12 @@ function sendJson(req: http.IncomingMessage, res: http.ServerResponse, statusCod
   res.end(JSON.stringify(data));
 }
 
-export const server = http.createServer(async (req, res) => {
+const httpPolicy = new HttpPolicy();
+export const server = http.createServer({ maxHeaderSize: 16384 }, async (req, res) => {
   try {
+  const release = httpPolicy.admit(req.socket.remoteAddress || 'unknown');
+  res.once('close', release); res.once('finish', release);
+  if ((req.url?.length || 0) > 4096) throw new HttpError(414, 'Request URL too long');
   const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
   const method = req.method || 'GET';
 
@@ -394,6 +396,8 @@ export const server = http.createServer(async (req, res) => {
     });
     return res.end();
   }
+
+  if (url.pathname === '/mcp') { await handleMcp(req, res, executeGatewayRequest); return; }
 
   // SSE Stream Endpoint
   if (method === 'GET' && url.pathname === '/api/a2ui/stream') {
@@ -483,29 +487,20 @@ export const server = http.createServer(async (req, res) => {
 
   const headers = req.headers as Record<string, string | undefined>;
 
-  if (method === 'POST') {
-    let bodyText = '';
-    req.on('data', (chunk) => {
-      bodyText += chunk;
-      if (bodyText.length > 1_000_000) req.destroy();
-    });
-    req.on('end', async () => {
-      try {
-        const body = bodyText ? JSON.parse(bodyText) : {};
-        const result = await executeGatewayRequest(method, url.pathname, query, body, headers);
-        sendJson(req, res, result.status, result.data);
-      } catch (e: any) {
-        sendJson(req, res, e instanceof SyntaxError ? 400 : 500, {
-          error: e instanceof SyntaxError ? 'Invalid JSON body' : 'Request processing failed',
-        });
-      }
-    });
-  } else {
-    const result = await executeGatewayRequest(method, url.pathname, query, {}, headers);
-    sendJson(req, res, result.status, result.data);
+  const body = method === 'POST' ? await readJsonBody(req) : {};
+  const result = await executeGatewayRequest(method, url.pathname, query, body, headers);
+  sendJson(req, res, result.status, result.data);
+  } catch (error) {
+    if (res.headersSent) res.end();
+    else {
+      res.setHeader('Connection', 'close');
+      sendJson(req, res, error instanceof HttpError ? error.status : 503,
+        { success: false, error: error instanceof HttpError ? error.message : 'Session or request service unavailable.' });
+    }
   }
-  } catch { if (res.headersSent) res.end(); else sendJson(req, res, 503, { success: false, error: 'Session or request service unavailable.' }); }
 });
+
+server.headersTimeout = 10000; server.requestTimeout = 15000; server.keepAliveTimeout = 5000;
 
 export const executeCoreRequest = executeGatewayRequest;
 

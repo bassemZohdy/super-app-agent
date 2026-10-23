@@ -1,9 +1,9 @@
 # ADR-0004 — Mini-app presentation and deployment strategy
 
-> Current demo implementation update (23 October 2026): see [ADR-0010](ADR-0010-provider-simulators-and-redis-demo.md) and the [provider guide](../demo/provider-backends.md). Earlier implementation descriptions below record the prior fixture baseline. The integrated demo now has REST provider adapters, Keycloak browser/service authentication and Redis sessions; LangGraph, production consent and standards migration remain targets.
+> Current demo implementation update (24 October 2026): see [ADR-0010](ADR-0010-provider-simulators-and-redis-demo.md) and the [provider guide](../demo/provider-backends.md). The implementation sections below describe the retained fixture path and integrated path where applicable. The integrated demo now has REST provider adapters, Keycloak browser/service authentication and Redis sessions. A real LangGraph approval graph with Redis checkpoints and authenticated core MCP now run; model-selected planning, production consent and UI standards migration remain targets.
 
 **Status:** **Embedded mini-app demonstration implemented; independent MFE runtime proposed.**
-**Reviewed:** 2026-10-23.
+**Reviewed:** 2026-10-24.
 
 ## Context
 
@@ -19,7 +19,7 @@ The Super App needs both reusable native surfaces and specialized domain experie
 
 ## Current evidence
 
-The React shell directly imports ride, food, wallet and housing mini-app `mount*` functions. The catalog contains metadata and sample remote entry URLs. Real runtime module federation, signed/isolated remote bundles, marketplace approval and native dynamic code delivery are **not demonstrated**.
+The primary React demo opens server-allowlisted bundled surfaces through `/api/manual/prepare` and stable `/services/{id}` routes, bypassing model calls. Ride, food, wallet and housing `mount*` modules remain legacy workspace examples and are not mounted by this shell. The catalog declares bundled compatibility/trust and no device permissions; unused remote entry URLs were removed. Real runtime module federation, signed/isolated remote bundles, marketplace approval and native dynamic code delivery are **not demonstrated**.
 
 ## Consequences
 
