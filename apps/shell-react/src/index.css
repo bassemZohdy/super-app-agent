@@ -86,24 +86,83 @@ body {
 }
 
 .ag-choice-item {
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  padding: 12px 16px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 16px;
   margin-bottom: 10px;
   cursor: pointer;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  transition: all 0.15s ease;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
 }
 
-.ag-choice-item:hover, .ag-choice-item.selected {
-  border-color: #3b82f6;
-  background-color: #eff6ff;
+.ag-choice-item:hover {
+  border-color: #10b981;
+  background-color: #f0fdf4;
+  transform: translateY(-1.5px);
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.08);
+}
+
+.ag-choice-item:active {
+  transform: scale(0.99);
+}
+
+.ag-choice-item.selected {
+  border-color: #059669;
+  background-color: #ecfdf5;
+  box-shadow: 0 2px 8px rgba(5, 150, 105, 0.12);
+}
+
+.ag-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+  font-family: inherit;
+}
+
+.ag-btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+  transform: translateY(-1.5px);
+  box-shadow: 0 4px 14px rgba(5, 150, 105, 0.28);
+}
+
+.ag-btn:active:not(:disabled) {
+  transform: scale(0.98);
+  box-shadow: 0 1px 4px rgba(5, 150, 105, 0.2);
+}
+
+.ag-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.ag-interactive-widget {
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+  user-select: none;
+}
+
+.ag-interactive-widget:hover {
+  border-color: #10b981 !important;
+  background-color: #f0fdf4 !important;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.12);
+}
+
+.ag-interactive-widget:active {
+  transform: scale(0.99);
 }
 
 .ag-btn-primary {
-  background-color: #2563eb;
+  background-color: #059669;
   color: #ffffff;
   border: none;
   border-radius: 10px;
@@ -112,11 +171,21 @@ body {
   cursor: pointer;
   width: 100%;
   font-size: 15px;
-  transition: background-color 0.2s;
+  transition: all 0.2s;
 }
 
 .ag-btn-primary:hover {
-  background-color: #1d4ed8;
+  background-color: #047857;
+  transform: translateY(-1px);
+}
+
+@keyframes spinLoader {
+  to { transform: rotate(360deg); }
+}
+
+.spin-loader {
+  display: inline-block;
+  animation: spinLoader 0.9s linear infinite;
 }
 
 /* ==============================================================================

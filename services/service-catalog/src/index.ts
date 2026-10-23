@@ -48,7 +48,7 @@ export const miniApps: MiniAppManifest[] = [
     version: '2.0.0',
     entryRoute: '/citizenpay',
     remoteUrl: 'http://localhost:3012/remoteEntry.js',
-    description: 'DubaiPay & TAMM Pay unified government checkout, Dubai Police fines settlement, and digital wallet',
+    description: 'Unified civic payments and fines settlement, and digital wallet',
     permissions: ['biometrics', 'secure_storage'],
     mcpEndpoint: 'http://localhost:4003/mcp',
   },

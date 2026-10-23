@@ -85,7 +85,7 @@ export class SuperAppAgentGraph {
       onProgress?.(`⚡ Calling optional OpenRouter preview (${openRouterConfig.model}); deterministic demo controls service routing...`);
       try {
         await invokeOpenRouterChat([
-          { role: 'system', content: `You are Rashid, the Autonomous Smart City Concierge for DubaiNow & TAMM platforms.\n${profileRes.data.promptContext}` },
+          { role: 'system', content: `You are Rashid, the Autonomous Smart City Citizen Concierge.\n${profileRes.data.promptContext}` },
           { role: 'user', content: prompt },
         ]);
       } catch (err: any) {
@@ -240,7 +240,7 @@ export class SuperAppAgentGraph {
       state.messages.push({
         id: `msg_${Date.now() + 1}`,
         role: 'assistant',
-        content: `Marhaba ${profile.displayName}! I am Rashid, your Smart City Citizen Concierge (DubaiNow / TAMM). You can ask me to pay DEWA bills, park your car, check traffic fines, or manage your Ejari lease.`,
+        content: `Marhaba ${profile.displayName}! I am Rashid, your Autonomous Smart City Citizen Concierge. You can ask me to pay DEWA bills, park your car, check traffic fines, or manage your Ejari lease.`,
         timestamp: Date.now(),
       });
     }
@@ -353,7 +353,7 @@ export class SuperAppAgentGraph {
           ],
         },
       };
-    } else if (action === 'pay_utilities_bill') {
+    } else if (action === 'pay_utilities_bill' || action === 'pay_dewa_bill') {
       onProgress?.('⚡ Settling DEWA electricity & water bill via DubaiPay...');
       const res = executeFoodRequest('POST', '/utilities/pay', {}, { billId: executeFoodRequest('GET', '/utilities/bill').data.bill.billId });
       const rcpt = res.data.receipt;
@@ -1675,13 +1675,13 @@ export class SuperAppAgentGraph {
           {
             type: 'Badge',
             id: 'civic_badge',
-            properties: { text: `🛡️ Powered by DubaiNow & TAMM Architecture`, variant: 'success' },
+            properties: { text: `🛡️ Unified Smart City Citizen Architecture`, variant: 'success' },
           },
           {
             type: 'Text',
             id: 'cat_desc',
             properties: {
-              text: 'Autonomous civic concierge powered by UAE PASS digital identity. Ask in natural language or tap any municipal service:',
+              text: 'Autonomous civic concierge powered by UAE PASS digital identity. Ask in natural language or tap any municipal service to open its microfrontend:',
             },
           },
           ...miniApps.map((app: any) => ({
@@ -1690,8 +1690,15 @@ export class SuperAppAgentGraph {
             properties: {
               label: `${app.name} (${app.category})`,
               value: `v${app.version}`,
-              subtext: app.description,
+              subtext: `${app.description} • Tap to launch mini-app`,
             },
+            onEvents: [
+              {
+                event: 'onPress',
+                actionType: 'LAUNCH_MINIAPP',
+                payload: { miniAppId: app.id },
+              },
+            ],
           })),
         ],
       },

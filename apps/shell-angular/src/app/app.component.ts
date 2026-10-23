@@ -16,7 +16,7 @@ import type { AGUISurfacePayload, A2UIMessageEnvelope, UIComponentNode } from '.
           <div class="logo" style="background: #059669;">DXB</div>
           <div>
             <div style="font-weight: 700; font-size: 15px;">SmartCity Now • Angular 18</div>
-            <div style="font-size: 11px; color: #94a3b8;">DubaiNow & TAMM Reference • A2-UI Protocol Engine</div>
+            <div style="font-size: 11px; color: #94a3b8;">Unified Citizen Platform • A2-UI Protocol Engine</div>
           </div>
         </div>
         <div style="display: flex; align-items: center; gap: 8px; background: #064e3b; border: 1px solid #059669; border-radius: 20px; padding: 4px 12px; font-size: 12px; color: #f8fafc;">

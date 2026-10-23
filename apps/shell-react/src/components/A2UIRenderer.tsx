@@ -1,5 +1,5 @@
 import { choiceDefaults, surfaceActionPayload } from '../../../../packages/protocol-core/src/surface-client.ts';
-import React, { useState, useContext, createContext } from 'react';
+import React, { useState, useEffect, useContext, createContext } from 'react';
 import type { UIComponentNode } from '../../../../packages/protocol-core/src/index.ts';
 
 interface SurfaceFormState {
@@ -8,6 +8,9 @@ interface SurfaceFormState {
   view?: UIComponentNode;
   formValues: Record<string, any>;
   setFormValue: (key: string, value: any) => void;
+  submittingAction: string | null;
+  setSubmittingAction: (action: string | null) => void;
+  isPending?: boolean;
 }
 
 const SurfaceFormContext = createContext<SurfaceFormState>({
@@ -15,23 +18,36 @@ const SurfaceFormContext = createContext<SurfaceFormState>({
   setChoice: () => {},
   formValues: {},
   setFormValue: () => {},
+  submittingAction: null,
+  setSubmittingAction: () => {},
+  isPending: false,
 });
 
 interface A2UIRendererProps {
   node: UIComponentNode;
   onDispatchAction: (action: string, payload: Record<string, any>) => void;
+  isPending?: boolean;
 }
 
 function SurfaceCardWrapper({
   node,
   onDispatchAction,
+  isPending,
 }: {
   node: UIComponentNode;
   onDispatchAction: (action: string, payload: Record<string, any>) => void;
+  isPending?: boolean;
 }) {
   const [choices, setChoices] = useState(() => choiceDefaults(node));
   const setChoice = (group: string, choice: string) => setChoices(prev => ({ ...prev, [group]: choice }));
   const [formValues, setFormValues] = useState<Record<string, any>>({});
+  const [submittingAction, setSubmittingAction] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isPending) {
+      setSubmittingAction(null);
+    }
+  }, [isPending]);
 
   const setFormValue = (key: string, value: any) => {
     setFormValues((prev) => ({ ...prev, [key]: value }));
@@ -44,7 +60,7 @@ function SurfaceCardWrapper({
 
   return (
     <SurfaceFormContext.Provider
-      value={{ choices, setChoice, view: node, formValues, setFormValue }}
+      value={{ choices, setChoice, view: node, formValues, setFormValue, submittingAction, setSubmittingAction, isPending }}
     >
       <div
         className="ag-surface-card"
@@ -64,20 +80,20 @@ function SurfaceCardWrapper({
         }}
       >
         {node.children?.map((child) => (
-          <A2UIRenderer key={child.id} node={child} onDispatchAction={onDispatchAction} />
+          <A2UIRenderer key={child.id} node={child} onDispatchAction={onDispatchAction} isPending={isPending} />
         ))}
       </div>
     </SurfaceFormContext.Provider>
   );
 }
 
-export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchAction }) => {
-  const { choices, setChoice, view, formValues, setFormValue } =
+export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchAction, isPending }) => {
+  const { choices, setChoice, view, formValues, setFormValue, submittingAction, setSubmittingAction } =
     useContext(SurfaceFormContext);
 
   switch (node.type) {
     case 'SurfaceCard':
-      return <SurfaceCardWrapper node={node} onDispatchAction={onDispatchAction} />;
+      return <SurfaceCardWrapper node={node} onDispatchAction={onDispatchAction} isPending={isPending} />;
 
     case 'Heading': {
       const level = node.properties?.level || 2;
@@ -145,31 +161,55 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
             return (
               <div
                 key={opt.id}
+                role="radio"
+                aria-checked={isSelected}
+                tabIndex={0}
                 className={`ag-choice-item ${isSelected ? 'selected' : ''}`}
                 onClick={() => setChoice(node.id, opt.id)}
+                onKeyDown={(e) => {
+                  if (e.key === ' ' || e.key === 'Enter') {
+                    e.preventDefault();
+                    setChoice(node.id, opt.id);
+                  }
+                }}
                 style={{
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
-                  padding: '12px 16px',
-                  borderRadius: '10px',
-                  border: isSelected ? '2px solid #059669' : '1px solid #e2e8f0',
+                  padding: '13px 16px',
+                  borderRadius: '12px',
+                  border: isSelected ? '2px solid #059669' : '1.5px solid #e2e8f0',
                   background: isSelected ? '#ecfdf5' : '#ffffff',
                   cursor: 'pointer',
-                  transition: 'all 0.15s ease',
+                  transition: 'all 0.18s ease',
                 }}
               >
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: '14px', color: '#0f172a' }}>
-                    {opt.title}
-                  </div>
-                  {opt.subtitle && (
-                    <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
-                      {opt.subtitle}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  {/* Visual Radio Circle */}
+                  <div
+                    style={{
+                      width: '20px',
+                      height: '20px',
+                      borderRadius: '50%',
+                      border: isSelected ? '6px solid #059669' : '2px solid #cbd5e1',
+                      background: '#ffffff',
+                      flexShrink: 0,
+                      transition: 'all 0.15s ease',
+                      boxShadow: isSelected ? '0 0 0 2px rgba(5, 150, 105, 0.25)' : 'none',
+                    }}
+                  />
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: '14px', color: '#0f172a' }}>
+                      {opt.title}
                     </div>
-                  )}
+                    {opt.subtitle && (
+                      <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                        {opt.subtitle}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div style={{ textAlign: 'right' }}>
+                <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
                   {opt.price && (
                     <div style={{ fontWeight: 700, fontSize: '15px', color: '#0f172a' }}>
                       {opt.price}
@@ -185,10 +225,23 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
                         borderRadius: '4px',
                         fontWeight: 600,
                         display: 'inline-block',
-                        marginTop: '4px',
                       }}
                     >
                       {opt.badge}
+                    </span>
+                  )}
+                  {isSelected && (
+                    <span
+                      style={{
+                        fontSize: '10px',
+                        background: '#dcfce7',
+                        color: '#166534',
+                        padding: '1px 6px',
+                        borderRadius: '4px',
+                        fontWeight: 700,
+                      }}
+                    >
+                      ✓ Selected
                     </span>
                   )}
                 </div>
@@ -200,30 +253,53 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
     }
 
     case 'MetricWidget': {
+      const onPressEvent = node.onEvents?.find((e) => e.event === 'onPress');
+      const isInteractive = !!onPressEvent;
+
       return (
         <div
+          className={isInteractive ? 'ag-interactive-widget' : ''}
+          onClick={() => {
+            if (onPressEvent) {
+              if (onPressEvent.actionType === 'LAUNCH_MINIAPP') {
+                onDispatchAction('LAUNCH_MINIAPP', onPressEvent.payload);
+              } else {
+                onDispatchAction(onPressEvent.payload.action || 'submit', onPressEvent.payload);
+              }
+            }
+          }}
           style={{
-            background: '#f8fafc',
-            border: '1px solid #e2e8f0',
+            background: isInteractive ? '#ffffff' : '#f8fafc',
+            border: isInteractive ? '1.5px solid #a7f3d0' : '1px solid #e2e8f0',
             padding: '14px 18px',
             borderRadius: '12px',
             marginBottom: '12px',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
+            cursor: isInteractive ? 'pointer' : 'default',
+            transition: 'all 0.18s ease',
           }}
         >
           <div>
             <div
               style={{
-                color: '#64748b',
+                color: isInteractive ? '#065f46' : '#64748b',
                 fontSize: '12px',
                 fontWeight: 600,
                 textTransform: 'uppercase',
                 letterSpacing: '0.5px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
               }}
             >
               {node.properties?.label}
+              {isInteractive && (
+                <span style={{ fontSize: '10px', background: '#ecfdf5', color: '#047857', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>
+                  TAP TO OPEN ↗
+                </span>
+              )}
             </div>
             {node.properties?.subtext && (
               <div style={{ color: '#94a3b8', fontSize: '11px', marginTop: '2px' }}>
@@ -446,24 +522,31 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
       const isOutline = variant === 'outline';
       const bg = isOutline ? '#ffffff' : '#059669';
       const textCol = isOutline ? '#059669' : '#ffffff';
-      const border = isOutline ? '1px solid #059669' : 'none';
+      const border = isOutline ? '1.5px solid #059669' : 'none';
+
+      const eventBinding = node.onEvents?.find((e) => e.event === 'onPress');
+      const actionKey = eventBinding?.payload?.action || eventBinding?.actionType || 'action';
+      const isSubmitting = submittingAction === actionKey || isPending;
 
       return (
         <button
+          type="button"
           className="ag-btn"
-          disabled={node.properties?.disabled === true}
+          disabled={node.properties?.disabled === true || isSubmitting}
           onClick={() => {
-            const eventBinding = node.onEvents?.find((e) => e.event === 'onPress');
+            if (isSubmitting) return;
             if (eventBinding) {
               if (eventBinding.actionType === 'LAUNCH_MINIAPP') {
                 onDispatchAction('LAUNCH_MINIAPP', eventBinding.payload);
               } else {
                 const action = eventBinding.payload.action || 'submit';
+                setSubmittingAction(action);
                 try {
                   if (!view) throw new Error('No active surface.');
                   const payload = surfaceActionPayload(view, eventBinding, choices, formValues);
                   onDispatchAction(action, payload);
                 } catch (error) {
+                  setSubmittingAction(null);
                   onDispatchAction('CLIENT_ERROR', { error: (error as Error).message });
                 }
               }
@@ -471,18 +554,24 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
           }}
           style={{
             width: node.properties?.fullWidth ? '100%' : 'auto',
-            padding: '12px 18px',
-            borderRadius: '10px',
+            padding: '13px 20px',
+            borderRadius: '12px',
             fontWeight: 700,
-            fontSize: '14px',
+            fontSize: '14.5px',
             background: bg,
             color: textCol,
             border,
-            cursor: 'pointer',
-            transition: 'all 0.15s ease',
+            boxShadow: isOutline ? 'none' : '0 2px 6px rgba(5, 150, 105, 0.25)',
           }}
         >
-          {node.properties?.label}
+          {isSubmitting ? (
+            <>
+              <span className="spin-loader">⏳</span>
+              <span>Processing with Smart City Grid...</span>
+            </>
+          ) : (
+            node.properties?.label
+          )}
         </button>
       );
     }
