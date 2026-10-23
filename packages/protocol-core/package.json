@@ -8,10 +8,14 @@
   "exports": {
     ".": "./src/index.ts",
     "./ag-ui": "./src/ag-ui.ts",
-    "./a2-ui": "./src/a2-ui.ts"
+    "./a2-ui": "./src/a2-ui.ts",
+    "./request-validation": "./src/request-validation.ts"
   },
   "scripts": {
     "test": "node --experimental-strip-types test/protocol.test.ts",
     "build": "tsc --noEmit"
+  },
+  "dependencies": {
+    "ajv": "8.17.1"
   }
 }

@@ -1,3 +1,4 @@
+import { validateRequest, toolSchema, invalidInput, toMinor, fromMinor, MAX_MONEY, MAX_DURATION_HOURS } from '../../../packages/protocol-core/src/request-validation.ts';
 import http from 'node:http';
 
 export interface Driver {
@@ -172,7 +173,7 @@ export const evChargerStations: EVChargerStation[] = [
   },
 ];
 
-export function executeRideRequest(
+function handleRideRequest(
   method: string,
   pathname: string,
   query: Record<string, string> = {},
@@ -211,12 +212,13 @@ export function executeRideRequest(
   }
 
   if (normMethod === 'POST' && (pathname === '/mobility/parking/activate' || pathname === '/parking/activate')) {
-    const zoneId = body.zoneId || 'zone_302a';
-    const zone = parkingZones.find((z) => z.id === zoneId) || parkingZones[0];
-    const durationHours = parseInt(body.durationHours || '2', 10);
-    const plateNumber = body.plateNumber || 'Dubai B-74892';
+    const zoneId = body.zoneId;
+    const zone = parkingZones.find(z => z.id === zoneId);
+    if (!zone) return { status: 404, data: { error: 'Parking zone not found' } };
+    const durationHours = body.durationHours;
+    const plateNumber = body.plateNumber;
     const ticketId = `TKT-DXB-${Date.now()}-${Math.floor(Math.random() * 9000 + 1000)}`;
-    const totalFee = zone.tariffPerHour * durationHours;
+    const totalFee = fromMinor(toMinor(zone.tariffPerHour) * durationHours);
 
     const meter: ParkingMeterSession = {
       ticketId,
@@ -243,13 +245,17 @@ export function executeRideRequest(
   }
 
   if (normMethod === 'POST' && (pathname === '/mobility/parking/extend' || pathname === '/parking/extend')) {
-    const ticketId = body.ticketId || Array.from(activeParkingMeters.keys())[0];
-    const meter = activeParkingMeters.get(ticketId) || Array.from(activeParkingMeters.values())[0];
-    const additionalHours = parseInt(body.additionalHours || '1', 10);
+    const ticketId = body.ticketId;
+    const meter = activeParkingMeters.get(ticketId);
+    const additionalHours = body.additionalHours;
 
     if (meter) {
+      if (meter.durationHours + additionalHours > MAX_DURATION_HOURS) return invalidInput('Parking duration exceeds demo limit');
+      const zone = parkingZones.find(zone => zone.id === meter.zoneId)!;
+      const nextFee = toMinor(meter.totalFee) + toMinor(zone.tariffPerHour) * additionalHours;
+      if (nextFee > MAX_MONEY * 100) return invalidInput('Parking fee exceeds demo limit');
       meter.durationHours += additionalHours;
-      meter.totalFee += additionalHours * 4.0;
+      meter.totalFee = fromMinor(nextFee);
       meter.expiresAt += additionalHours * 3600 * 1000;
       return {
         status: 200,
@@ -306,8 +312,10 @@ export function executeRideRequest(
   }
 
   if (normMethod === 'POST' && (pathname === '/mobility/salik/recharge' || pathname === '/salik/recharge')) {
-    const amount = parseFloat(body.amount || '100');
-    salikBalance += amount;
+    const amount = body.amount;
+    const nextBalance = toMinor(salikBalance) + toMinor(amount);
+    if (nextBalance > MAX_MONEY * 100) return invalidInput('Toll balance exceeds demo limit');
+    salikBalance = fromMinor(nextBalance);
     return {
       status: 200,
       data: {
@@ -351,8 +359,9 @@ export function executeRideRequest(
   }
 
   if (normMethod === 'POST' && (pathname === '/mobility/ev/start' || pathname === '/ev/start')) {
-    const chargerId = body.chargerId || 'chg_1';
-    const charger = evChargerStations.find((c) => c.id === chargerId) || evChargerStations[0];
+    const chargerId = body.chargerId;
+    const charger = evChargerStations.find(c => c.id === chargerId);
+    if (!charger) return { status: 404, data: { error: 'Charger not found' } };
     return {
       status: 200,
       data: {
@@ -361,7 +370,7 @@ export function executeRideRequest(
         station: charger.name,
         plugType: charger.plugTypes[0],
         pricePerKWh: `${charger.pricePerKWh} AED`,
-        plateNumber: body.plateNumber || 'Dubai B-74892 (Tesla Model Y EV)',
+        plateNumber: body.plateNumber,
         status: 'CHARGING_ACTIVE',
         startTime: new Date().toISOString(),
       },
@@ -383,8 +392,9 @@ export function executeRideRequest(
 
   // 3. Book a cab
   if (normMethod === 'POST' && pathname === '/rides/book') {
-    const driverId = body.driverId || drivers[0].id;
-    const selectedDriver = drivers.find((d) => d.id === driverId) || drivers[0];
+    const driverId = body.driverId;
+    const selectedDriver = drivers.find(d => d.id === driverId);
+    if (!selectedDriver) return { status: 404, data: { error: 'Driver not found' } };
     const bookingId = `bk_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
 
     const booking: RideBooking = {
@@ -486,6 +496,18 @@ export function executeRideRequest(
   }
 
   return { status: 404, data: { error: 'Not found', path: pathname } };
+}
+
+// All transports and in-process callers pass through the same request contract.
+export function executeRideRequest(method: string, pathname: string, query: Record<string, string> = {}, body: any = {}): { status: number; data: any } {
+  const invalid = validateRequest('service-ride', method.toUpperCase(), pathname, query, body);
+  if (invalid) return invalid;
+  const result = handleRideRequest(method, pathname, query, body);
+  if (pathname === '/mcp' && result.data.tools) {
+    result.data.tools = result.data.tools.map((tool: any) => ({ ...tool,
+      parameters: toolSchema('service-ride', tool.name) || tool.parameters }));
+  }
+  return result;
 }
 
 function sendJson(res: http.ServerResponse, statusCode: number, data: any) {

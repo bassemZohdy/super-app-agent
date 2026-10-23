@@ -1,3 +1,4 @@
+import { validateRequest, toolSchema, invalidInput, toMinor, fromMinor, MAX_MONEY } from '../../../packages/protocol-core/src/request-validation.ts';
 import http from 'node:http';
 
 export interface MenuItem {
@@ -183,7 +184,7 @@ export let activeUtilityBill: UtilityBill = {
   },
 };
 
-export function executeFoodRequest(
+function handleFoodRequest(
   method: string,
   pathname: string,
   query: Record<string, string> = {},
@@ -232,6 +233,7 @@ export function executeFoodRequest(
   }
 
   if (normMethod === 'POST' && (pathname === '/utilities/pay' || pathname === '/bill/pay')) {
+    if (body.billId !== activeUtilityBill.billId) return { status: 404, data: { error: 'Utility bill not found' } };
     activeUtilityBill.status = 'PAID';
     activeUtilityBill.receiptNumber = `REC-DEWA-${Date.now()}`;
     activeUtilityBill.paidAt = new Date().toISOString();
@@ -289,27 +291,27 @@ export function executeFoodRequest(
 
   // 3. Create food order
   if (normMethod === 'POST' && pathname === '/orders/create') {
-    const restaurantId = body.restaurantId || restaurants[0].id;
-    const targetRestaurant = restaurants.find((r) => r.id === restaurantId) || restaurants[0];
+    const restaurantId = body.restaurantId;
+    const targetRestaurant = restaurants.find(r => r.id === restaurantId);
+    if (!targetRestaurant) return { status: 404, data: { error: 'Restaurant not found' } };
+    if (body.items.some((id: string) => !targetRestaurant.items.some(item => item.id === id))) {
+      return { status: 404, data: { error: 'Menu item not found for this restaurant' } };
+    }
 
-    const itemIds: string[] = body.items || [targetRestaurant.items[0].id];
+    const itemIds: string[] = body.items;
     const orderItems: Array<{ item: MenuItem; quantity: number }> = [];
-    let total = 0;
+    let totalMinor = 0;
 
     for (const itemId of itemIds) {
       const found = targetRestaurant.items.find((i) => i.id === itemId);
       if (found) {
         orderItems.push({ item: found, quantity: 1 });
-        total += found.price;
+        totalMinor += toMinor(found.price);
       }
     }
 
-    if (orderItems.length === 0) {
-      orderItems.push({ item: targetRestaurant.items[0], quantity: 1 });
-      total += targetRestaurant.items[0].price;
-    }
-
-    total += targetRestaurant.deliveryFee;
+    totalMinor += toMinor(targetRestaurant.deliveryFee);
+    if (totalMinor > MAX_MONEY * 100) return invalidInput('Order total exceeds demo limit');
     const orderId = `ord_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
 
     const order: FoodOrder = {
@@ -317,7 +319,7 @@ export function executeFoodRequest(
       restaurantId: targetRestaurant.id,
       restaurantName: targetRestaurant.name,
       items: orderItems,
-      totalAmount: Math.round(total * 100) / 100,
+      totalAmount: fromMinor(totalMinor),
       deliveryAddress: body.deliveryAddress || '100 Market St, Apt 4B',
       status: 'ACCEPTED_BY_KITCHEN',
       estimatedDeliveryTime: '25 mins',
@@ -398,6 +400,18 @@ export function executeFoodRequest(
   }
 
   return { status: 404, data: { error: 'Not found', path: pathname } };
+}
+
+// All transports and in-process callers pass through the same request contract.
+export function executeFoodRequest(method: string, pathname: string, query: Record<string, string> = {}, body: any = {}): { status: number; data: any } {
+  const invalid = validateRequest('service-food', method.toUpperCase(), pathname, query, body);
+  if (invalid) return invalid;
+  const result = handleFoodRequest(method, pathname, query, body);
+  if (pathname === '/mcp' && result.data.tools) {
+    result.data.tools = result.data.tools.map((tool: any) => ({ ...tool,
+      parameters: toolSchema('service-food', tool.name) || tool.parameters }));
+  }
+  return result;
 }
 
 function sendJson(res: http.ServerResponse, statusCode: number, data: any) {
