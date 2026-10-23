@@ -34,7 +34,7 @@ export function App() {
     let eventSource: EventSource | null = null;
     try {
       eventSource = new EventSource(
-        `${GATEWAY_URL}/api/a2ui/stream?sessionId=${sessionId}&token=${DEMO_KEYCLOAK_TOKEN}`
+        `${GATEWAY_URL}/api/a2ui/stream?sessionId=${sessionId}&demo=1`
       );
 
       eventSource.onmessage = (event) => {
