@@ -237,6 +237,7 @@ export class AppComponent implements OnInit, OnDestroy {
         body: JSON.stringify({
           sessionId: this.sessionId,
           action,
+          surfaceRevision: this.surface()?.revision,
           payload: { selectedChoice: this.selectedChoice() }
         })
       });

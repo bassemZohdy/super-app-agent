@@ -9,7 +9,7 @@ import { readEventStream } from '../../packages/protocol-core/src/sse-client.ts'
 
 const composite = 'Book a ride downtown and order pizza, pay with my wallet';
 const intent = (sid: string, text = composite) => core('POST', '/api/a2ui/intent', {}, { sessionId: sid, text });
-const action = (sid: string, action = 'confirm_composite_checkout') => core('POST', '/api/a2ui/action', {}, { sessionId: sid, action, payload: {} });
+const action = (sid: string, action = 'confirm_composite_checkout') => core('POST', '/api/a2ui/action', {}, { sessionId: sid, surfaceRevision: getOrCreateSession(sid).currentSurface?.revision, action, payload: {} });
 function ensureFunds() { if (balance < 50) assert.equal(wallet('POST', '/wallet/topup', {}, { amount: 100 }).status, 200); }
 
 test('P0-12: insufficient funds returns failure JSON and failure SSE surface without clearing fines', async () => {
@@ -58,6 +58,8 @@ test('P0-12: composite stops at rejected second effect and records exact partial
   assert.equal(activeRides.size, rides); assert.equal(activeOrders.size, orders); assert.equal(foodEffects, 0);
   assert.deepEqual(result.data.retry, { allowed: false, next: 'reconcile' });
   assert.equal(result.data.surface.view.style.variant, 'warning');
+  assert.equal((await intent(sid)).data.code, 'RECONCILIATION_REQUIRED');
+  assert.equal(balance, Math.round((before - 40) * 100) / 100);
 });
 
 test('P0-12: effect applied then exception yields UNKNOWN; no later effect or unsafe retry', async t => {
@@ -80,7 +82,7 @@ test('P0-12: effect applied then exception yields UNKNOWN; no later effect or un
   assert.equal(activeRides.size, rides); assert.equal(activeOrders.size, orders);
   assert.ok(!JSON.stringify(result).includes('never-expose'));
   assert.deepEqual(result.data.retry, { allowed: false, next: 'reconcile' });
-  assert.equal((await action(sid)).status, 403);
+  assert.equal((await action(sid)).data.code, 'RECONCILIATION_REQUIRED');
   assert.equal(balance, Math.round((before - 40) * 100) / 100);
 });
 
@@ -144,7 +146,7 @@ test('P0-12: actual HTTP action and SSE render expose the same failed outcome', 
   const response = await fetch(base + '/api/a2ui/stream?sessionId=' + sid, { signal: AbortSignal.any([abort.signal, AbortSignal.timeout(5000)]) });
   const stream = readEventStream(response);
   await stream.next(); await stream.next(); // handshake + snapshot
-  const actionResponse = await post('/api/a2ui/action', { sessionId: sid, action: 'pay_police_fines', payload: {} });
+  const actionResponse = await post('/api/a2ui/action', { sessionId: sid, surfaceRevision: getOrCreateSession(sid).currentSurface?.revision, action: 'pay_police_fines', payload: {} });
   assert.equal(actionResponse.status, 400);
   const result = await actionResponse.json();
   while (true) {

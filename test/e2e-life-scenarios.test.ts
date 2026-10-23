@@ -48,7 +48,7 @@ test('E2E Life Scenario 1: Commuter Morning Rush - Ride Hailing & Tracking', asy
 
   // 4. User selects Comfort Sedan and confirms ride
   const confirmAction = await executeCoreRequest('POST', '/api/a2ui/action', {}, {
-    sessionId,
+    sessionId, surfaceRevision: getOrCreateSession(sessionId).currentSurface?.revision,
     action: 'book_ride',
     payload: { selectedChoice: 'drv_1' },
   });
@@ -95,7 +95,7 @@ test('E2E Life Scenario 2: Evening Dinner - Food Discovery & Kitchen Prep', asyn
 
   // 4. User confirms food order
   const orderAction = await executeCoreRequest('POST', '/api/a2ui/action', {}, {
-    sessionId,
+    sessionId, surfaceRevision: getOrCreateSession(sessionId).currentSurface?.revision,
     action: 'order_food',
     payload: { selectedChoice: 'item_diavola' },
   });
@@ -133,7 +133,7 @@ test('E2E Life Scenario 3: Wallet Management - Balance, Ledger & Top-Up', async 
 
   // 3. User performs quick top-up of $50
   const topupRes = await executeCoreRequest('POST', '/api/a2ui/action', {}, {
-    sessionId,
+    sessionId, surfaceRevision: getOrCreateSession(sessionId).currentSurface?.revision,
     action: 'topup_wallet',
     payload: { amount: 50.0 },
   });
@@ -180,7 +180,7 @@ test('E2E Life Scenario 4: Composite Multi-Agent Orchestration with HITL Checkou
 
   // 3. Human-In-The-Loop: User reviews combined card and taps authorize
   const checkoutRes = await executeCoreRequest('POST', '/api/a2ui/action', {}, {
-    sessionId,
+    sessionId, surfaceRevision: getOrCreateSession(sessionId).currentSurface?.revision,
     action: 'confirm_composite_checkout',
     payload: {},
   });
@@ -329,7 +329,7 @@ test('E2E Life Scenario 8: User Profile Personalization & Adaptive AG-UI Surface
 
   // User updates preferences via action
   const updateActionRes = await executeCoreRequest('POST', '/api/a2ui/action', {}, {
-    sessionId,
+    sessionId, surfaceRevision: getOrCreateSession(sessionId).currentSurface?.revision,
     action: 'update_preferences',
     payload: {
       mobility: { preferredTier: 'drv_1', preferredTierName: 'Comfort Sedan', ecoFriendlyOnly: false },
@@ -430,7 +430,7 @@ test('E2E Life Scenario 10: Smart Mobility - RTA Parking Meter Activation & Exte
 
   // 2. Citizen taps "Activate Smart Parking Meter"
   const activateRes = await executeCoreRequest('POST', '/api/a2ui/action', {}, {
-    sessionId,
+    sessionId, surfaceRevision: getOrCreateSession(sessionId).currentSurface?.revision,
     action: 'activate_parking',
     payload: { zoneId: 'zone_302a', durationHours: 2, plateNumber: 'Dubai B-74892' },
   });
@@ -442,7 +442,7 @@ test('E2E Life Scenario 10: Smart Mobility - RTA Parking Meter Activation & Exte
 
   // 3. Citizen extends meter duration
   const extendRes = await executeCoreRequest('POST', '/api/a2ui/action', {}, {
-    sessionId,
+    sessionId, surfaceRevision: getOrCreateSession(sessionId).currentSurface?.revision,
     action: 'extend_parking',
     payload: { ticketId: ticketWidget.properties.value, additionalHours: 1 },
   });
@@ -495,7 +495,7 @@ test('E2E Life Scenario 12: Smart Utilities - DEWA Telemetry & Bill Settlement',
 
   // 2. Citizen pays the bill via DubaiPay
   const payRes = await executeCoreRequest('POST', '/api/a2ui/action', {}, {
-    sessionId,
+    sessionId, surfaceRevision: getOrCreateSession(sessionId).currentSurface?.revision,
     action: 'pay_utilities_bill',
     payload: {},
   });
@@ -532,7 +532,7 @@ test('E2E Life Scenario 13: Citizen Safety - Dubai Police Traffic Fines Clearanc
 
   // 2. Citizen clears fines
   const settleRes = await executeCoreRequest('POST', '/api/a2ui/action', {}, {
-    sessionId,
+    sessionId, surfaceRevision: getOrCreateSession(sessionId).currentSurface?.revision,
     action: 'pay_police_fines',
     payload: {},
   });
@@ -563,7 +563,7 @@ test('E2E Life Scenario 14: Smart Housing - Ejari Move-In Autonomous Onboarding'
 
   // 2. Citizen confirms move-in package
   const confirmRes = await executeCoreRequest('POST', '/api/a2ui/action', {}, {
-    sessionId,
+    sessionId, surfaceRevision: getOrCreateSession(sessionId).currentSurface?.revision,
     action: 'confirm_movein',
     payload: {},
   });
@@ -593,7 +593,7 @@ test('E2E Life Scenario 15: Unified Municipal Settlement across DEWA, Police & S
 
   // 2. Citizen executes unified payment
   const checkoutRes = await executeCoreRequest('POST', '/api/a2ui/action', {}, {
-    sessionId,
+    sessionId, surfaceRevision: getOrCreateSession(sessionId).currentSurface?.revision,
     action: 'confirm_smartcity_checkout',
     payload: {},
   });

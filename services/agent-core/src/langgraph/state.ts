@@ -18,6 +18,8 @@ export interface SuperAppAgentState {
     action: string;
     payload: Record<string, any>;
   };
+  reconciliation?: { outcome: 'UNKNOWN' | 'PARTIALLY_COMPLETED'; steps: import('../domain-operations.ts').Step[] };
   threadCheckpointId?: string;
   metadata?: Record<string, any>;
 }
+
