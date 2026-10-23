@@ -190,10 +190,16 @@ export async function executeGatewayRequest(
   return { status: 404, data: { error: 'Not found', path: pathname } };
 }
 
-function sendJson(res: http.ServerResponse, statusCode: number, data: any) {
+function allowedOrigin(requestOrigin: string | undefined): string {
+  const allowed = (process.env.CORS_ORIGINS ||
+    'http://localhost:3000,http://localhost:3001,http://localhost:3002')
+    .split(',').map(value => value.trim());
+  return requestOrigin && allowed.includes(requestOrigin) ? requestOrigin : 'null';
+}
+function sendJson(req: http.IncomingMessage, res: http.ServerResponse, statusCode: number, data: any) {
   res.writeHead(statusCode, {
     'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || 'http://localhost:3000',
+    'Access-Control-Allow-Origin': allowedOrigin(req.headers.origin),
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   });
@@ -206,7 +212,7 @@ export const server = http.createServer(async (req, res) => {
 
   if (method === 'OPTIONS') {
     res.writeHead(204, {
-      'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || 'http://localhost:3000',
+      'Access-Control-Allow-Origin': allowedOrigin(req.headers.origin),
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     });
@@ -222,17 +228,17 @@ export const server = http.createServer(async (req, res) => {
       (demo ? 'Bearer demo-local' : undefined);
     const authResult = await verifyKeycloakToken(authHeader);
     if (!authResult.authenticated) {
-      sendJson(res, authResult.statusCode || 401, { error: authResult.error, authenticated: false });
+      sendJson(req, authResult.statusCode || 401, { error: authResult.error, authenticated: false });
       return;
     }
 
     const sid = url.searchParams.get('sessionId');
     if (!sid || !/^[a-zA-Z0-9_-]{8,128}$/.test(sid)) {
-      sendJson(res, 400, { error: 'Valid sessionId is required' });
+      sendJson(req, 400, { error: 'Valid sessionId is required' });
       return;
     }
     if (!ownsSession(sid, authResult.user!.sub)) {
-      sendJson(res, 403, { error: 'Session belongs to a different user' });
+      sendJson(req, 403, { error: 'Session belongs to a different user' });
       return;
     }
 
@@ -240,7 +246,7 @@ export const server = http.createServer(async (req, res) => {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
       'Connection': 'keep-alive',
-      'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || 'http://localhost:3000',
+      'Access-Control-Allow-Origin': allowedOrigin(req.headers.origin),
     });
 
     const listener = (msg: A2UIMessageEnvelope) => {
@@ -286,16 +292,16 @@ export const server = http.createServer(async (req, res) => {
       try {
         const body = bodyText ? JSON.parse(bodyText) : {};
         const result = await executeGatewayRequest(method, url.pathname, query, body, headers);
-        sendJson(res, result.status, result.data);
+        sendJson(req, result.status, result.data);
       } catch (e: any) {
-        sendJson(res, e instanceof SyntaxError ? 400 : 500, {
+        sendJson(req, e instanceof SyntaxError ? 400 : 500, {
           error: e instanceof SyntaxError ? 'Invalid JSON body' : 'Request processing failed',
         });
       }
     });
   } else {
     const result = await executeGatewayRequest(method, url.pathname, query, {}, headers);
-    sendJson(res, result.status, result.data);
+    sendJson(req, result.status, result.data);
   }
 });
 
