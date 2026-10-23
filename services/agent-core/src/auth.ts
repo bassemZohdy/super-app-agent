@@ -27,7 +27,7 @@ let cachedKeys: JsonWebKeySet | undefined;
 let keysUntil = 0;
 
 export function isDemoAuthEnabled(): boolean {
-  return process.env.DEMO_AUTH === 'true' && process.env.NODE_ENV !== 'production';
+  return process.env.DEMO_AUTH !== 'false' && process.env.NODE_ENV !== 'production';
 }
 function denied(message: string): AuthVerificationResult {
   return { authenticated: false, error: message, statusCode: 401 };

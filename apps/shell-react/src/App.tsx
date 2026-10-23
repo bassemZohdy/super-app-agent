@@ -64,14 +64,22 @@ export function App() {
   const miniAppMountRef = useRef<HTMLDivElement>(null);
 
   const GATEWAY_URL = import.meta.env.VITE_GATEWAY_URL || 'http://localhost:4000';
-  const DEMO_KEYCLOAK_TOKEN = 'demo-local'; // local demo only, not a production credential
+  const getAuthToken = () => {
+    try {
+      const stored = localStorage.getItem('KEYCLOAK_ACCESS_TOKEN');
+      if (stored && stored.trim().length > 0) return stored.trim();
+    } catch {
+      // sandbox/SSR fallback
+    }
+    return 'demo-local';
+  };
 
   // 1. Establish A2-UI Protocol SSE Stream
   useEffect(() => {
     const controller = new AbortController();
     void connectEventStream({
       url: `${GATEWAY_URL}/api/a2ui/stream?sessionId=${sessionId}`,
-      getToken: () => DEMO_KEYCLOAK_TOKEN,
+      getToken: () => getAuthToken(),
       signal: controller.signal,
       onMessage: (envelope: A2UIMessageEnvelope) => {
           if (envelope.type === 'A2UI_STREAM_DELTA') {
@@ -164,7 +172,7 @@ export function App() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${DEMO_KEYCLOAK_TOKEN}`,
+          'Authorization': `Bearer ${getAuthToken()}`,
         },
         body: JSON.stringify({
           sessionId,
@@ -230,7 +238,7 @@ export function App() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${DEMO_KEYCLOAK_TOKEN}`,
+          'Authorization': `Bearer ${getAuthToken()}`,
         },
         body: JSON.stringify({ sessionId, surfaceRevision: currentSurface?.revision, action, payload }),
       });
@@ -382,82 +390,278 @@ export function App() {
             flexDirection: 'column',
           }}
         >
+          {/* Modern Smart City Concierge Header */}
           <div
             style={{
-              padding: '14px 18px',
+              padding: '12px 18px',
               borderBottom: '1px solid #e2e8f0',
               background: '#ffffff',
-              fontWeight: 700,
-              fontSize: '14px',
-              color: '#0f172a',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
             }}
           >
-            <span>💬 Rashid • Smart City Citizen Concierge</span>
-            <span
-              style={{
-                fontSize: '10px',
-                background: '#ecfdf5',
-                color: '#065f46',
-                padding: '2px 6px',
-                borderRadius: '4px',
-                fontWeight: 700,
-              }}
-            >
-              UAE PASS VERIFIED
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div
+                style={{
+                  width: '34px',
+                  height: '34px',
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '18px',
+                  boxShadow: '0 2px 6px rgba(5, 150, 105, 0.25)',
+                  position: 'relative',
+                }}
+              >
+                🏛️
+                <span
+                  style={{
+                    position: 'absolute',
+                    bottom: '-1px',
+                    right: '-1px',
+                    width: '9px',
+                    height: '9px',
+                    borderRadius: '50%',
+                    background: '#10b981',
+                    border: '2px solid #ffffff',
+                  }}
+                />
+              </div>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: '14px', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  Rashid
+                  <span style={{ fontSize: '10px', background: '#ecfdf5', color: '#065f46', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                    CONCIERGE
+                  </span>
+                </div>
+                <div style={{ fontSize: '11px', color: '#64748b' }}>
+                  Smart City Voice & Living Agent
+                </div>
+              </div>
+            </div>
+
+            {/* Voice & Language Controls in Header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              {/* Language Switcher Pill */}
+              <button
+                type="button"
+                onClick={() => {
+                  voice.current?.cancel();
+                  setVoiceLanguage(prev => prev === 'en-US' ? 'ar-AE' : 'en-US');
+                }}
+                title="Switch voice & dictation language"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '4px 10px',
+                  borderRadius: '16px',
+                  background: '#f1f5f9',
+                  border: '1px solid #cbd5e1',
+                  color: '#334155',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                {voiceLanguage === 'ar-AE' ? '🇦🇪 AR' : '🇺🇸 EN'}
+              </button>
+
+              {/* Read Aloud Audio Toggle */}
+              <button
+                type="button"
+                disabled={!voiceAvailable.output}
+                onClick={() => {
+                  const next = !readReplies;
+                  setReadReplies(next);
+                  if (!next) voice.current?.cancel();
+                }}
+                title={readReplies ? 'Spoken replies enabled (click to mute)' : 'Muted (click to enable spoken replies)'}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '4px 10px',
+                  borderRadius: '16px',
+                  background: readReplies ? '#ecfdf5' : '#f8fafc',
+                  border: readReplies ? '1px solid #6ee7b7' : '1px solid #e2e8f0',
+                  color: readReplies ? '#065f46' : '#64748b',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  cursor: voiceAvailable.output ? 'pointer' : 'not-allowed',
+                  opacity: voiceAvailable.output ? 1 : 0.5,
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                {readReplies ? '🔊 Read Aloud' : '🔇 Muted'}
+              </button>
+            </div>
           </div>
 
+          {/* Conversation Stream */}
           <div
+            className="modern-scroll"
             style={{
               flex: 1,
               padding: '16px',
               overflowY: 'auto',
               display: 'flex',
               flexDirection: 'column',
-              gap: '10px',
+              gap: '12px',
+              background: '#f8fafc',
             }}
           >
             {messages.map((m, idx) => (
               <div
                 key={idx}
+                className="chat-message-anim"
                 style={{
                   display: 'flex',
-                  justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start',
+                  flexDirection: 'column',
+                  alignItems: m.role === 'user' ? 'flex-end' : 'flex-start',
                 }}
               >
-                <div
-                  style={{
-                    maxWidth: '85%',
-                    padding: '10px 14px',
-                    borderRadius: '12px',
-                    fontSize: '13px',
-                    lineHeight: '1.5',
-                    background: m.role === 'user' ? '#059669' : '#ffffff',
-                    color: m.role === 'user' ? '#ffffff' : '#0f172a',
-                    border: m.role === 'user' ? 'none' : '1px solid #e2e8f0',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                  }}
-                >
-                  {m.text}
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', maxWidth: '88%' }}>
+                  {m.role !== 'user' && (
+                    <div
+                      style={{
+                        width: '26px',
+                        height: '26px',
+                        borderRadius: '50%',
+                        background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '13px',
+                        flexShrink: 0,
+                        marginTop: '2px',
+                      }}
+                    >
+                      🏛️
+                    </div>
+                  )}
+
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: m.role === 'user' ? 'flex-end' : 'flex-start',
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        color: '#64748b',
+                        marginBottom: '4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      <span>{m.role === 'user' ? 'You' : 'Rashid'}</span>
+                      {m.role === 'user' && (
+                        <span style={{ fontSize: '9px', background: '#dcfce7', color: '#166534', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>
+                          UAE PASS
+                        </span>
+                      )}
+                    </div>
+
+                    <div
+                      style={{
+                        padding: '11px 15px',
+                        borderRadius: m.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                        fontSize: '13.5px',
+                        lineHeight: '1.6',
+                        background: m.role === 'user' ? 'linear-gradient(135deg, #059669 0%, #047857 100%)' : '#ffffff',
+                        color: m.role === 'user' ? '#ffffff' : '#1e293b',
+                        border: m.role === 'user' ? 'none' : '1px solid #e2e8f0',
+                        boxShadow: m.role === 'user' ? '0 2px 6px rgba(5, 150, 105, 0.2)' : '0 2px 5px rgba(0, 0, 0, 0.04)',
+                        wordBreak: 'break-word',
+                      }}
+                    >
+                      {m.text}
+                    </div>
+
+                    {/* Quick Voice Playback for Assistant Replies */}
+                    {m.role !== 'user' && voiceAvailable.output && (
+                      <button
+                        type="button"
+                        onClick={() => voice.current?.speak(m.text, voiceLanguage)}
+                        title="Listen to this reply aloud"
+                        style={{
+                          marginTop: '4px',
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#059669',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '3px',
+                          padding: '2px 4px',
+                          borderRadius: '4px',
+                          opacity: 0.85,
+                        }}
+                      >
+                        🔊 Listen
+                      </button>
+                    )}
+                  </div>
+
+                  {m.role === 'user' && (
+                    <div
+                      style={{
+                        width: '26px',
+                        height: '26px',
+                        borderRadius: '50%',
+                        background: '#047857',
+                        color: '#ffffff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        flexShrink: 0,
+                        marginTop: '2px',
+                      }}
+                    >
+                      BZ
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
 
             {thinkingDelta && (
               <div
+                className="chat-message-anim"
                 style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
                   padding: '10px 14px',
-                  borderRadius: '10px',
-                  background: '#fef3c7',
+                  borderRadius: '12px',
+                  background: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)',
+                  border: '1px solid #fde68a',
                   color: '#92400e',
                   fontSize: '12px',
-                  fontStyle: 'italic',
+                  boxShadow: '0 2px 6px rgba(245, 158, 11, 0.1)',
                 }}
               >
-                ⚡ {thinkingDelta}
+                <span>⚡</span>
+                <span style={{ fontWeight: 600 }}>{thinkingDelta}</span>
+                <span style={{ display: 'inline-flex', gap: '3px', marginLeft: 'auto' }}>
+                  <span className="thinking-dot-1" style={{ width: '5px', height: '5px', background: '#d97706', borderRadius: '50%' }} />
+                  <span className="thinking-dot-2" style={{ width: '5px', height: '5px', background: '#d97706', borderRadius: '50%' }} />
+                  <span className="thinking-dot-3" style={{ width: '5px', height: '5px', background: '#d97706', borderRadius: '50%' }} />
+                </span>
               </div>
             )}
             <div ref={chatBottomRef} />
@@ -465,6 +669,7 @@ export function App() {
 
           {/* Smart City Suggestion Chips */}
           <div
+            className="modern-scroll"
             style={{
               padding: '8px 14px',
               display: 'flex',
@@ -487,84 +692,256 @@ export function App() {
                 key={chip}
                 onClick={() => handleSend(chip)}
                 style={{
-                  padding: '5px 10px',
+                  padding: '5px 11px',
                   fontSize: '11px',
                   fontWeight: 600,
-                  borderRadius: '14px',
+                  borderRadius: '16px',
                   background: '#f0fdf4',
                   border: '1px solid #bbf7d0',
                   color: '#065f46',
                   whiteSpace: 'nowrap',
                   cursor: 'pointer',
-                  transition: 'background 0.15s ease',
+                  transition: 'all 0.15s ease',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
                 }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = '#dcfce7')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = '#f0fdf4')}
               >
                 {chip}
               </button>
             ))}
           </div>
 
-          <div style={{ padding: '8px 14px', background: '#f8fafc', fontSize: '12px' }}>
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-              <button type="button" disabled={!voiceAvailable.input} aria-pressed={voiceState === 'listening'}
-                onClick={() => {
-                  setVoiceError('');
-                  if (voiceState === 'listening') voice.current?.stopListening();
-                  else voice.current?.startListening(voiceLanguage);
-                }}>{voiceState === 'listening' ? 'Stop microphone' : 'Use microphone'}</button>
-              <select aria-label="Voice language" value={voiceLanguage} onChange={e => { voice.current?.cancel(); setVoiceLanguage(e.target.value); }}>
-                <option value="en-US">English</option><option value="ar-AE">Arabic</option>
-              </select>
-              <label><input type="checkbox" checked={readReplies} disabled={!voiceAvailable.output}
-                onChange={e => { setReadReplies(e.target.checked); if (!e.target.checked) voice.current?.cancel(); }} /> Read replies aloud</label>
-              {voiceState !== 'idle' && <button type="button" onClick={() => voice.current?.cancel()}>Cancel voice</button>}
+          {/* Floating Voice Active Wave Banner */}
+          {voiceState === 'listening' && (
+            <div
+              style={{
+                margin: '8px 14px 0 14px',
+                padding: '8px 14px',
+                borderRadius: '12px',
+                background: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)',
+                border: '1px solid #fca5a5',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                boxShadow: '0 2px 8px rgba(239, 68, 68, 0.12)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span
+                  style={{
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    background: '#ef4444',
+                    display: 'inline-block',
+                    animation: 'micPulse 1.4s infinite',
+                  }}
+                />
+                <span style={{ fontSize: '12px', fontWeight: 600, color: '#991b1b' }}>
+                  Listening in {voiceLanguage === 'ar-AE' ? 'Arabic' : 'English'}... Speak now
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '3px', marginLeft: '4px' }}>
+                  <span className="wave-bar-1" style={{ width: '3px', background: '#ef4444', borderRadius: '2px', display: 'inline-block' }} />
+                  <span className="wave-bar-2" style={{ width: '3px', background: '#ef4444', borderRadius: '2px', display: 'inline-block' }} />
+                  <span className="wave-bar-3" style={{ width: '3px', background: '#ef4444', borderRadius: '2px', display: 'inline-block' }} />
+                  <span className="wave-bar-4" style={{ width: '3px', background: '#ef4444', borderRadius: '2px', display: 'inline-block' }} />
+                  <span className="wave-bar-5" style={{ width: '3px', background: '#ef4444', borderRadius: '2px', display: 'inline-block' }} />
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => voice.current?.stopListening()}
+                style={{
+                  padding: '3px 8px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  borderRadius: '6px',
+                  background: '#ffffff',
+                  border: '1px solid #f87171',
+                  color: '#b91c1c',
+                  cursor: 'pointer',
+                }}
+              >
+                Done ⏹
+              </button>
             </div>
-            <div role="status" aria-live="polite">{voiceError || (voiceState === 'listening' ? 'Listening. Your transcript will appear below for review.' : voiceState === 'speaking' ? 'Speaking reply.' : !voiceAvailable.input ? 'Voice input unavailable; type your request below.' : 'Voice input fills a draft. Review it, then press Send.')}</div>
-            <small>Your browser may process speech through its speech service. Audio is not stored by this app. Arabic dictation is available where supported; service routing currently uses English requests.</small>
-          </div>
+          )}
 
-          {/* Bottom Chat Prompt Input */}
+          {voiceState === 'speaking' && (
+            <div
+              style={{
+                margin: '8px 14px 0 14px',
+                padding: '8px 14px',
+                borderRadius: '12px',
+                background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
+                border: '1px solid #86efac',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                boxShadow: '0 2px 8px rgba(16, 185, 129, 0.12)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '13px' }}>🔊</span>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: '#166534' }}>
+                  Rashid is speaking reply...
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => voice.current?.cancel()}
+                style={{
+                  padding: '3px 8px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  borderRadius: '6px',
+                  background: '#ffffff',
+                  border: '1px solid #86efac',
+                  color: '#15803d',
+                  cursor: 'pointer',
+                }}
+              >
+                Mute 🔇
+              </button>
+            </div>
+          )}
+
+          {voiceError && (
+            <div
+              style={{
+                margin: '8px 14px 0 14px',
+                padding: '8px 12px',
+                borderRadius: '10px',
+                background: '#fffbeb',
+                border: '1px solid #fde68a',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                fontSize: '12px',
+                color: '#92400e',
+              }}
+            >
+              <span>⚠️ {voiceError}</span>
+              <button
+                type="button"
+                onClick={() => setVoiceError('')}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#b45309',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          {/* Unified Modern Input & Microphone Bar */}
           <div
             style={{
               padding: '12px 14px',
               background: '#ffffff',
-              borderTop: '1px solid #e2e8f0',
-              display: 'flex',
-              gap: '8px',
+              borderTop: '1px solid #f1f5f9',
             }}
           >
-            <input
-              type="text"
-              aria-label="Chat message"
-              maxLength={4000}
-              placeholder="Ask about parking, utilities, fines, or Ejari..."
-              value={prompt}
-              onChange={(e) => { voice.current?.cancel(); setPrompt(e.target.value); }}
-              onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+            <div
               style={{
-                flex: 1,
-                padding: '10px 14px',
-                borderRadius: '8px',
-                border: '1px solid #cbd5e1',
-                outline: 'none',
-                fontSize: '13px',
-              }}
-            />
-            <button
-              onClick={() => handleSend()}
-              style={{
-                background: '#059669',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '8px',
-                padding: '10px 16px',
-                fontWeight: 700,
-                fontSize: '13px',
-                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                background: '#f8fafc',
+                border: '1.5px solid #e2e8f0',
+                borderRadius: '24px',
+                padding: '4px 6px 4px 16px',
+                transition: 'all 0.2s ease',
+                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
               }}
             >
-              Send
-            </button>
+              <input
+                type="text"
+                aria-label="Chat message"
+                maxLength={4000}
+                placeholder="Ask about parking, utilities, fines, or Ejari..."
+                value={prompt}
+                onChange={(e) => {
+                  voice.current?.cancel();
+                  setPrompt(e.target.value);
+                }}
+                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                style={{
+                  flex: 1,
+                  border: 'none',
+                  background: 'transparent',
+                  outline: 'none',
+                  fontSize: '13.5px',
+                  color: '#0f172a',
+                }}
+              />
+
+              {/* Modern Mic Button Integrated in Input */}
+              <button
+                type="button"
+                disabled={!voiceAvailable.input}
+                aria-pressed={voiceState === 'listening'}
+                title={voiceState === 'listening' ? 'Stop listening' : 'Dictate with microphone'}
+                onClick={() => {
+                  setVoiceError('');
+                  if (voiceState === 'listening') {
+                    voice.current?.stopListening();
+                  } else {
+                    voice.current?.startListening(voiceLanguage);
+                  }
+                }}
+                className={voiceState === 'listening' ? 'mic-active-pulse' : ''}
+                style={{
+                  width: '34px',
+                  height: '34px',
+                  borderRadius: '50%',
+                  border: voiceState === 'listening' ? '1px solid #ef4444' : '1px solid #cbd5e1',
+                  background: voiceState === 'listening' ? '#ef4444' : '#ffffff',
+                  color: voiceState === 'listening' ? '#ffffff' : '#059669',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '15px',
+                  cursor: voiceAvailable.input ? 'pointer' : 'not-allowed',
+                  opacity: voiceAvailable.input ? 1 : 0.4,
+                  transition: 'all 0.15s ease',
+                  flexShrink: 0,
+                }}
+              >
+                🎙️
+              </button>
+
+              {/* Modern Send Button */}
+              <button
+                type="button"
+                onClick={() => handleSend()}
+                disabled={!prompt.trim()}
+                title="Send message"
+                style={{
+                  width: '34px',
+                  height: '34px',
+                  borderRadius: '50%',
+                  border: 'none',
+                  background: prompt.trim() ? '#059669' : '#e2e8f0',
+                  color: prompt.trim() ? '#ffffff' : '#94a3b8',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: prompt.trim() ? 'pointer' : 'default',
+                  transition: 'all 0.15s ease',
+                  flexShrink: 0,
+                }}
+              >
+                ➤
+              </button>
+            </div>
           </div>
         </section>
 
