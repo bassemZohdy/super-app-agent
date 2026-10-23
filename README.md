@@ -104,6 +104,12 @@ sequenceDiagram
 
 The demo can run without the separate agentgateway container; direct service imports mean this request path does not validate remote MCP federation.
 
+## Voice and conversation
+
+React/Angular chat supports **Use microphone** to draft a message and **Read replies aloud** for optional speech playback. Review the transcript before pressing Send. Text replies appear alongside the current interactive surface; follow-ups such as “explain this” and “show me the options” retain the current topic. A booking/payment still requires its surface confirmation button.
+
+Voice availability depends on the browser; typing remains available. Browser speech services may process audio remotely. Flutter receives assistant text; native speech is pending. See [usage, architecture and validation limits](docs/architecture/voice-and-conversation.md).
+
 ## Scope and operating constraints
 
 - **Mock services and fixtures:** names such as DubaiNow, TAMM, UAE PASS, DEWA, Salik and Dubai Police are *scenario references*, not evidence of connectivity, authorization or official endorsement.
