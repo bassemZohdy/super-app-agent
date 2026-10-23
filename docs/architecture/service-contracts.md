@@ -52,6 +52,23 @@ Several services expose `GET /mcp` to return JSON tool listings, and the catalog
 
 Not every action is available on every UI surface. The backend rejects actions absent from the active surface and rejects some altered values, but **a UI offer does not replace an authoritative permission check**. Domain actions need subject binding, server-derived quotes, idempotency keys, status/reconciliation and consent enforcement before any real mutations.
 
+## Execution failures and partial outcomes (P0-12)
+
+The graph uses checked in-process domain calls. Each mutation starts PENDING in request-local tracking and becomes SUCCEEDED, FAILED (a definitive 4xx rejection), or UNKNOWN (write exception, 5xx, contradictory/incomplete receipt). A rejection throws out of the current journey before any later effect executes. The core handles it as:
+
+| Outcome | HTTP / code | Client guidance |
+| --- | --- | --- |
+| FAILED with no completed effect | Domain 4xx + DOMAIN_REJECTED/VALIDATION_ERROR; read outage 503 + DOMAIN_UNAVAILABLE | Review request/funds; start a fresh intent. Current consumed approval is not automatically retried |
+| PARTIALLY_COMPLETED | 409 + PARTIAL_EXECUTION | Inspect succeeded/failed steps and reconcile before retrying |
+| UNKNOWN | 502 + DOMAIN_OUTCOME_UNKNOWN | Confirm the actual provider outcome; do not blindly retry |
+| SUCCEEDED | Existing 200 envelope + outcome and steps | All invoked operations returned acceptable simulator results |
+
+Failure responses contain `success: false`, `error`, `code`, `outcome`, `steps`, `retry` and a warning surface. The same outcome/code/steps/retry accompany the failure SSE render. Raw upstream exception messages, payloads and credentials are not returned. Minimal write receipt fields are checked; full output-schema conformance remains P1-14.
+
+Tracking is process-local and synchronous to the current simulator. It is not an external workflow checkpoint, compensating transaction, durable audit or concurrency lock. The fixture card fallback and mixed-currency/aggregate settlement behavior remain P0-06/P1-13; the core can validate reported outcomes but cannot certify actual provider settlement. Browser/native non-2xx UX remains P1-12.
+
+See [execution evidence](../reports/2026-10-23-p0-12-domain-failures.md).
+
 ## Scenarios supported as simulations
 
 - Parking activation and extension; Salik balance/recharge; EV charger discovery.

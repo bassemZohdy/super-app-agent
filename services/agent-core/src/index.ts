@@ -1,3 +1,4 @@
+import { trackDomainOperations, executionOutcome, DomainOperationError, type Step } from './domain-operations.ts';
 import { validateRequest } from '../../../packages/protocol-core/src/request-validation.ts';
 import http from 'node:http';
 import { EventJournal, StreamWriter, eventFrame } from './event-stream.ts';
@@ -62,12 +63,13 @@ export function getOrCreateSession(sessionId: string): SuperAppAgentState {
   return sessions.get(sessionId)!;
 }
 
-export async function executeGatewayRequest(
+async function handleGatewayRequest(
   method: string,
   pathname: string,
   query: Record<string, string> = {},
   body: any = {},
-  headers: Record<string, string | undefined> = {}
+  headers: Record<string, string | undefined> = {},
+  requestContext: { session?: SuperAppAgentState } = {}
 ): Promise<{ status: number; data: any }> {
   const normMethod = method.toUpperCase();
   const invalid = validateRequest('agent-core', normMethod, pathname, query, body);
@@ -114,6 +116,7 @@ export async function executeGatewayRequest(
       return { status: 403, data: { error: 'Session belongs to a different user' } };
     }
     const session = getOrCreateSession(body.sessionId);
+    requestContext.session = session;
     if (authResult.user) {
       (session as any).user = authResult.user;
     }
@@ -126,7 +129,7 @@ export async function executeGatewayRequest(
 
     if (updatedState.currentSurface) {
       broadcast(body.sessionId, createA2UIMessage('A2UI_RENDER_SURFACE', body.sessionId, {
-        mode: 'REPLACE', surface: updatedState.currentSurface,
+        mode: 'REPLACE', surface: updatedState.currentSurface, outcome: 'SUCCEEDED',
       }));
     }
 
@@ -153,6 +156,7 @@ export async function executeGatewayRequest(
       return { status: 403, data: { error: 'Session belongs to a different user' } };
     }
     const session = getOrCreateSession(body.sessionId);
+    requestContext.session = session;
     if (!isSurfaceActionAllowed(session, body.action, body.payload || {})) {
       return { status: 403, data: { error: 'Action is not authorized for the current UI surface' } };
     }
@@ -183,7 +187,7 @@ export async function executeGatewayRequest(
 
     if (updatedState.currentSurface) {
       broadcast(body.sessionId, createA2UIMessage('A2UI_RENDER_SURFACE', body.sessionId, {
-        mode: 'REPLACE', surface: updatedState.currentSurface,
+        mode: 'REPLACE', surface: updatedState.currentSurface, outcome: 'SUCCEEDED',
       }));
     }
 
@@ -197,6 +201,48 @@ export async function executeGatewayRequest(
   }
 
   return { status: 404, data: { error: 'Not found', path: pathname } };
+}
+
+/** Domain failures become truthful HTTP/SSE outcomes, never successful receipts. */
+export async function executeGatewayRequest(method: string, pathname: string,
+  query: Record<string, string> = {}, body: any = {}, headers: Record<string, string | undefined> = {}): Promise<{ status: number; data: any }> {
+  const steps: Step[] = [];
+  const requestContext: { session?: SuperAppAgentState } = {};
+  try {
+    const result = await trackDomainOperations(steps, () => handleGatewayRequest(method, pathname, query, body, headers, requestContext));
+    return result.data.success === true ? { ...result, data: { ...result.data, outcome: 'SUCCEEDED', steps } } : result;
+  }
+  catch (error) {
+    const outcome = executionOutcome(steps);
+    const domainError = error instanceof DomainOperationError;
+    const code = outcome === 'UNKNOWN' ? 'DOMAIN_OUTCOME_UNKNOWN'
+      : outcome === 'PARTIALLY_COMPLETED' ? 'PARTIAL_EXECUTION'
+      : domainError ? error.code : 'EXECUTION_FAILED';
+    const status = outcome === 'UNKNOWN' ? 502 : outcome === 'PARTIALLY_COMPLETED' ? 409
+      : domainError ? error.statusCode : 500;
+    const message = outcome === 'UNKNOWN' ? 'An operation outcome is unknown. Check its status before any retry.'
+      : outcome === 'PARTIALLY_COMPLETED' ? 'Some operations completed before the journey stopped. Reconcile them before retrying.'
+      : 'The request could not be completed. Review the request or available funds and start a new request.';
+    // Deliberately do not return upstream exception strings, payloads or credentials.
+    const retry = { allowed: outcome === 'FAILED' && pathname.endsWith('/intent'),
+      next: outcome === 'FAILED' ? 'refresh_intent' : 'reconcile' };
+    const session = requestContext.session;
+    let surface;
+    if (session) {
+      session.currentSurface = {
+        version: '1.0.0', sessionId: session.sessionId, timestamp: Date.now(),
+        view: { type: 'SurfaceCard', id: 'execution_outcome_card', style: { variant: 'warning' }, children: [
+          { type: 'Heading', id: 'outcome_heading', properties: { text: outcome === 'FAILED' ? 'Request failed' : 'Journey needs attention' } },
+          { type: 'Badge', id: 'outcome_badge', properties: { text: outcome, variant: 'warning' } },
+          { type: 'Text', id: 'outcome_message', properties: { text: message } },
+        ] },
+      };
+      surface = session.currentSurface;
+      session.messages.push({ id: `failure_${Date.now()}`, role: 'assistant', content: message, timestamp: Date.now() });
+      broadcast(session.sessionId, createA2UIMessage('A2UI_RENDER_SURFACE', session.sessionId, { mode: 'REPLACE', surface, outcome, code, steps, retry }));
+    }
+    return { status, data: { success: false, error: message, code, outcome, steps, retry, surface } };
+  }
 }
 
 function allowedOrigin(requestOrigin: string | undefined): string {
