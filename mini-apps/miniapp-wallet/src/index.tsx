@@ -27,7 +27,7 @@ export function mountWalletMiniApp(context: MiniAppBootstrapContext) {
           <span style="background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700;">🌟 Golden Visa</span>
         </div>
         <div style="font-size: 11px; opacity: 0.8; margin-bottom: 4px;">ACTIVE STORED BALANCE</div>
-        <div style="font-size: 28px; font-weight: 800; letter-spacing: -0.5px;">250.00 AED</div>
+        <div id="wallet_stored_balance_display" style="font-size: 28px; font-weight: 800; letter-spacing: -0.5px;">250.00 AED</div>
         <div style="display: flex; justify-content: space-between; margin-top: 16px; font-size: 12px; opacity: 0.85;">
           <span>Bassem Zohdy (784-1988-1234567-1)</span>
           <span>Verified Citizen</span>
@@ -35,15 +35,15 @@ export function mountWalletMiniApp(context: MiniAppBootstrapContext) {
       </div>
 
       <!-- Quick Reload -->
-      <div style="font-size: 13px; font-weight: 700; color: #334155; margin-bottom: 8px;">QUICK TOP-UP</div>
+      <div style="font-size: 13px; font-weight: 700; color: #334155; margin-bottom: 8px;">QUICK TOP-UP (INSTANT RELOAD)</div>
       <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 20px;">
-        <button id="btn_topup_50" style="padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; background: #f8fafc; font-weight: 700; font-size: 13px; color: #0f172a; cursor: pointer;">
+        <button id="btn_topup_50" style="padding: 11px; border: 1.5px solid #cbd5e1; border-radius: 8px; background: #f8fafc; font-weight: 700; font-size: 13px; color: #0f172a; cursor: pointer; transition: all 0.15s ease;">
           +50 AED
         </button>
-        <button id="btn_topup_100" style="padding: 10px; border: 2px solid #059669; border-radius: 8px; background: #ecfdf5; font-weight: 700; font-size: 13px; color: #065f46; cursor: pointer;">
+        <button id="btn_topup_100" style="padding: 11px; border: 2px solid #059669; border-radius: 8px; background: #ecfdf5; font-weight: 700; font-size: 13px; color: #065f46; cursor: pointer; transition: all 0.15s ease;">
           +100 AED
         </button>
-        <button id="btn_topup_200" style="padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; background: #f8fafc; font-weight: 700; font-size: 13px; color: #0f172a; cursor: pointer;">
+        <button id="btn_topup_200" style="padding: 11px; border: 1.5px solid #cbd5e1; border-radius: 8px; background: #f8fafc; font-weight: 700; font-size: 13px; color: #0f172a; cursor: pointer; transition: all 0.15s ease;">
           +200 AED
         </button>
       </div>
@@ -71,36 +71,62 @@ export function mountWalletMiniApp(context: MiniAppBootstrapContext) {
           </div>
         </div>
 
-        <button id="btn_miniapp_pay_fines" style="width: 100%; padding: 10px; border-radius: 8px; background: #0f172a; color: #ffffff; font-weight: 700; border: none; font-size: 13px; cursor: pointer;">
+        <button id="btn_miniapp_pay_fines" style="width: 100%; padding: 12px; border-radius: 8px; background: #0f172a; color: #ffffff; font-weight: 700; border: none; font-size: 13.5px; cursor: pointer; transition: all 0.15s ease;">
           🛡️ Settle Fines with Dubai Police (420.00 AED • 0 Black Points)
         </button>
       </div>
 
       <!-- Unified Checkout Link -->
-      <button id="btn_miniapp_pay_unified" style="width: 100%; padding: 12px; border-radius: 10px; background: #059669; color: #ffffff; font-weight: 700; border: none; font-size: 14px; cursor: pointer;">
+      <button id="btn_miniapp_pay_unified" style="width: 100%; padding: 13px; border-radius: 10px; background: #059669; color: #ffffff; font-weight: 700; border: none; font-size: 14px; cursor: pointer; transition: all 0.15s ease; box-shadow: 0 2px 6px rgba(5,150,105,0.25);">
         🏛️ Unified Living Settlement (DEWA + Police + Salik • 940.40 AED)
       </button>
     </div>
   `;
 
+  let currentLocalBal = 250.0;
+  const balDisplay = context.container.querySelector('#wallet_stored_balance_display') as HTMLElement | null;
+  const applyTopupAnim = (amount: number, btnId: string) => {
+    currentLocalBal += amount;
+    if (balDisplay) balDisplay.textContent = `${currentLocalBal.toFixed(2)} AED`;
+    const btn = context.container.querySelector(btnId) as HTMLButtonElement | null;
+    if (btn) {
+      const orig = btn.innerHTML;
+      btn.innerHTML = '✓ Added!';
+      setTimeout(() => { if (btn) btn.innerHTML = orig; }, 1200);
+    }
+  };
+
   context.container.querySelector('#btn_topup_50')?.addEventListener('click', () => {
+    applyTopupAnim(50.0, '#btn_topup_50');
     context.onDispatchEvent('WALLET_TOPPED_UP', { amount: 50.0 });
   });
   context.container.querySelector('#btn_topup_100')?.addEventListener('click', () => {
+    applyTopupAnim(100.0, '#btn_topup_100');
     context.onDispatchEvent('WALLET_TOPPED_UP', { amount: 100.0 });
   });
   context.container.querySelector('#btn_topup_200')?.addEventListener('click', () => {
+    applyTopupAnim(200.0, '#btn_topup_200');
     context.onDispatchEvent('WALLET_TOPPED_UP', { amount: 200.0 });
   });
 
-  context.container.querySelector('#btn_miniapp_pay_fines')?.addEventListener('click', () => {
+  const finesBtn = context.container.querySelector('#btn_miniapp_pay_fines') as HTMLButtonElement | null;
+  finesBtn?.addEventListener('click', () => {
+    if (finesBtn) {
+      finesBtn.disabled = true;
+      finesBtn.innerHTML = '⏳ Settling Fines with Dubai Police HQ...';
+    }
     context.onDispatchEvent('POLICE_FINES_PAID', {
       plateNumber: 'Dubai B-74892',
       amount: 420.0,
     });
   });
 
-  context.container.querySelector('#btn_miniapp_pay_unified')?.addEventListener('click', () => {
+  const unifiedBtn = context.container.querySelector('#btn_miniapp_pay_unified') as HTMLButtonElement | null;
+  unifiedBtn?.addEventListener('click', () => {
+    if (unifiedBtn) {
+      unifiedBtn.disabled = true;
+      unifiedBtn.innerHTML = '⏳ Reconciling Municipal Settlement across DEWA, Police & Salik...';
+    }
     context.onDispatchEvent('UNIFIED_PAY_SETTLED', {
       total: 940.4,
     });

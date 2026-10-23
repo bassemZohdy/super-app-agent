@@ -56,13 +56,18 @@ export function mountHousingMiniApp(context: MiniAppBootstrapContext) {
         </div>
       </div>
 
-      <button id="btn_miniapp_confirm_movein" style="width: 100%; padding: 12px; border-radius: 10px; background: #059669; color: #ffffff; font-weight: 700; border: none; font-size: 14px; cursor: pointer; transition: background 0.15s ease;">
+      <button id="btn_miniapp_confirm_movein" style="width: 100%; padding: 13px; border-radius: 10px; background: #059669; color: #ffffff; font-weight: 700; border: none; font-size: 14px; cursor: pointer; transition: all 0.15s ease; box-shadow: 0 2px 6px rgba(5,150,105,0.25);">
         🎉 Activate Move-In Golden Path Services
       </button>
     </div>
   `;
 
-  context.container.querySelector('#btn_miniapp_confirm_movein')?.addEventListener('click', () => {
+  const moveinBtn = context.container.querySelector('#btn_miniapp_confirm_movein') as HTMLButtonElement | null;
+  moveinBtn?.addEventListener('click', () => {
+    if (moveinBtn) {
+      moveinBtn.disabled = true;
+      moveinBtn.innerHTML = '⏳ Issuing Ejari, Connecting DEWA & RTA Permit...';
+    }
     context.onDispatchEvent('MOVEIN_CONFIRMED', {
       contractNumber: 'EJR-2026-948102',
       unit: 'Unit 1402, Downtown Residences 1',

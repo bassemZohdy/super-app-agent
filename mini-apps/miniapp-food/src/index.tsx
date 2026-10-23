@@ -73,13 +73,18 @@ export function mountFoodMiniApp(context: MiniAppBootstrapContext) {
         </div>
       </div>
 
-      <button id="btn_miniapp_pay_dewa" style="width: 100%; padding: 12px; border-radius: 10px; background: #059669; color: #ffffff; font-weight: 700; border: none; font-size: 14px; cursor: pointer; transition: background 0.15s ease;">
+      <button id="btn_miniapp_pay_dewa" style="width: 100%; padding: 13px; border-radius: 10px; background: #059669; color: #ffffff; font-weight: 700; border: none; font-size: 14px; cursor: pointer; transition: all 0.15s ease; box-shadow: 0 2px 6px rgba(5,150,105,0.25);">
         ⚡ Settle DEWA Bill via DubaiPay (420.40 AED)
       </button>
     </div>
   `;
 
-  context.container.querySelector('#btn_miniapp_pay_dewa')?.addEventListener('click', () => {
+  const payBtn = context.container.querySelector('#btn_miniapp_pay_dewa') as HTMLButtonElement | null;
+  payBtn?.addEventListener('click', () => {
+    if (payBtn) {
+      payBtn.disabled = true;
+      payBtn.innerHTML = '⏳ Settling DEWA Smart Grid Bill via DubaiPay...';
+    }
     context.onDispatchEvent('DEWA_BILL_PAID', {
       billId: 'DEWA-2026-10-8492',
       premiseId: 'DEWA-201948201',
