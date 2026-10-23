@@ -80,6 +80,7 @@ console.log('🎥 [3/4] Launching Google Chrome with 1280x720 video recording...
 const browser = await chromium.launch({
   headless: true,
   executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-web-security'],
 });
 
 const context = await browser.newContext({
@@ -99,130 +100,161 @@ try {
   console.log('🎬 [4/4] Executing and recording user life journeys in the browser...');
 
   // Navigate to Host Shell
-  await page.goto('http://localhost:3000', { waitUntil: 'networkidle' });
+  await page.goto('http://127.0.0.1:3000', { waitUntil: 'networkidle' });
   await pause(1500);
 
   // ---------------------------------------------------------------------------
-  // SCENARIO 1: Commuter Morning Rush (Ride Booking with EV Personalization & Telemetry)
+  // SCENARIO 1: Smart Mobility - RTA Smart Parking Meter Activation & Extension
   // ---------------------------------------------------------------------------
-  console.log('   ▶ Recording Scenario 1: Commuter Morning Rush (Ride to SFO Airport)');
+  console.log('   ▶ Recording Scenario 1: Smart Mobility (RTA Parking in Downtown Zone 302A)');
+  const parkChip = page.locator('button:has-text("Park in Zone 302A & Find EV Charger")');
+  await parkChip.click();
+
+  // Wait for LangGraph reasoning & AG-UI Parking Selection Card
+  await page.waitForSelector('.ag-surface-card#parking_selection_card', { timeout: 8000 });
+  await pause(2000);
+
+  // Activate parking meter
+  const activateParkingBtn = page.locator('button:has-text("Activate Smart Parking Meter")');
+  await activateParkingBtn.click();
+
+  // Wait for Active Parking Meter Card
+  await page.waitForSelector('.ag-surface-card#parking_active_card', { timeout: 8000 });
+  await pause(2000);
+
+  // Extend parking meter
+  const extendParkingBtn = page.locator('button:has-text("Extend Parking")');
+  if (await extendParkingBtn.count() > 0) {
+    await extendParkingBtn.first().click();
+    await page.waitForSelector('.ag-surface-card#parking_extended_card', { timeout: 8000 });
+    await pause(2000);
+  }
+
+  // ---------------------------------------------------------------------------
+  // SCENARIO 2: Smart Utilities - DEWA Telemetry & Bill Settlement
+  // ---------------------------------------------------------------------------
+  console.log('   ▶ Recording Scenario 2: Smart Utilities (DEWA Electricity & Water Settlement)');
   const promptInput = page.locator('input[placeholder="Ask the concierge..."]');
   await promptInput.click();
-  await promptInput.fill('I need a cab to SFO Airport Terminal 2');
-  await pause(800);
+  await promptInput.fill('Check my DEWA electricity and water bill for premise DEWA-201948201');
+  await pause(600);
 
   const sendBtn = page.locator('button:has-text("Send")');
   await sendBtn.click();
 
-  // Wait for LangGraph reasoning & AG-UI Ride Card
-  await page.waitForSelector('.ag-surface-card#ride_card', { timeout: 8000 });
+  await page.waitForSelector('.ag-surface-card#utilities_overview_card', { timeout: 8000 });
   await pause(2000);
 
-  // Select Tesla Model Y EV Option
-  const teslaChoice = page.locator('.ag-choice-item:has-text("Tesla Model Y")');
-  if (await teslaChoice.count() > 0) {
-    await teslaChoice.first().click();
-    await pause(1000);
-  }
-
-  // Click "Confirm & Dispatch Driver"
-  const confirmRideBtn = page.locator('button:has-text("Confirm & Dispatch Driver")');
-  await confirmRideBtn.click();
-
-  // Wait for Driver Dispatched Confirmation Card with MapViewer & Telemetry
-  await page.waitForSelector('.ag-surface-card#ride_confirmed_card', { timeout: 8000 });
-  await pause(2500);
-
-  // ---------------------------------------------------------------------------
-  // SCENARIO 2: Evening Dinner Delivery (Food Discovery with Dietary Badges)
-  // ---------------------------------------------------------------------------
-  console.log('   ▶ Recording Scenario 2: Evening Dinner Delivery (Pizza Dining)');
-  const foodChip = page.locator('button:has-text("Order woodfired pizza for dinner")');
-  await foodChip.click();
-
-  await page.waitForSelector('.ag-surface-card#food_card', { timeout: 8000 });
-  await pause(2000);
-
-  // Confirm Food Order
-  const orderFoodBtn = page.locator('button:has-text("Order Dish & Dispatch to Kitchen")');
-  if (await orderFoodBtn.count() > 0) {
-    await orderFoodBtn.first().click();
-    await page.waitForSelector('.ag-surface-card#food_confirmed_card', { timeout: 8000 });
-    await pause(2500);
+  // Settle DEWA Bill
+  const payDewaBtn = page.locator('button:has-text("Settle DEWA Bill via DubaiPay")');
+  if (await payDewaBtn.count() > 0) {
+    await payDewaBtn.first().click();
+    await page.waitForSelector('.ag-surface-card#utilities_paid_card', { timeout: 8000 });
+    await pause(2000);
   }
 
   // ---------------------------------------------------------------------------
-  // SCENARIO 3: Zero-Trust Wallet Management (Balance, Gold VIP Badge & Top-Up)
+  // SCENARIO 3: Citizen Safety - Dubai Police Traffic Fines Clearance
   // ---------------------------------------------------------------------------
-  console.log('   ▶ Recording Scenario 3: Digital Wallet Management & Instant Reload');
-  const walletChip = page.locator('button:has-text("Check wallet balance")');
-  await walletChip.click();
+  console.log('   ▶ Recording Scenario 3: Citizen Safety (Dubai Police Fines Settlement)');
+  await promptInput.click();
+  await promptInput.fill('Check my Dubai Police traffic radar fines for plate Dubai B-74892');
+  await pause(600);
+  await sendBtn.click();
 
-  await page.waitForSelector('.ag-surface-card#wallet_card', { timeout: 8000 });
+  await page.waitForSelector('.ag-surface-card#police_fines_card', { timeout: 8000 });
   await pause(2000);
 
-  // Click "+$50 Quick Top Up"
-  const topupBtn = page.locator('button:has-text("Quick Top-Up")');
-  if (await topupBtn.count() > 0) {
-    await topupBtn.first().click();
-    await page.waitForSelector('.ag-surface-card#wallet_topup_card', { timeout: 8000 });
-    await pause(2500);
+  // Settle Police Fines with 10% Early Discount
+  const settleFinesBtn = page.locator('button:has-text("Settle Fines via DubaiPay")');
+  if (await settleFinesBtn.count() > 0) {
+    await settleFinesBtn.first().click();
+    await page.waitForSelector('.ag-surface-card#police_fines_settled_card', { timeout: 8000 });
+    await pause(2000);
   }
 
   // ---------------------------------------------------------------------------
-  // SCENARIO 4: Composite Multi-Agent Orchestration (Ride + Food + Wallet HITL)
+  // SCENARIO 4: Smart Housing - Ejari Move-In Autonomous Golden Path
   // ---------------------------------------------------------------------------
-  console.log('   ▶ Recording Scenario 4: Composite Multi-Domain Orchestration');
-  const compositeChip = page.locator('button:has-text("Book ride to Downtown and order pizza")');
-  await compositeChip.click();
+  console.log('   ▶ Recording Scenario 4: Smart Housing (Ejari Move-In Golden Path)');
+  const moveinChip = page.locator('button:has-text("Connect Ejari & Utilities for Unit 1402")');
+  await moveinChip.click();
 
-  await page.waitForSelector('.ag-surface-card#composite_orchestrator_card', { timeout: 8000 });
-  await pause(2500);
+  await page.waitForSelector('.ag-surface-card#movein_card', { timeout: 8000 });
+  await pause(2000);
 
-  // Click Human-In-The-Loop Confirmation Button
-  const hitlBtn = page.locator('button:has-text("Authorize Both & Pay")');
-  if (await hitlBtn.count() > 0) {
-    await hitlBtn.first().click();
+  // Confirm Move-In Golden Path
+  const confirmMoveInBtn = page.locator('button:has-text("Activate Smart Meter & Move-In Golden Path")');
+  if (await confirmMoveInBtn.count() > 0) {
+    await confirmMoveInBtn.first().click();
+    await page.waitForSelector('.ag-surface-card#movein_confirmed_card', { timeout: 8000 });
+    await pause(2000);
+  }
+
+  // ---------------------------------------------------------------------------
+  // SCENARIO 5: Unified Living - Multi-Agency Reconciliation (DubaiPay)
+  // ---------------------------------------------------------------------------
+  console.log('   ▶ Recording Scenario 5: Unified Living Settlement (DEWA + Police + Salik)');
+  await promptInput.click();
+  await promptInput.fill('Pay my DEWA electricity bill, settle my police radar fines, and recharge my Salik tag');
+  await pause(600);
+  await sendBtn.click();
+
+  await page.waitForSelector('.ag-surface-card#smartcity_composite_card', { timeout: 8000 });
+  await pause(2000);
+
+  // Authorize Unified DubaiPay Settlement
+  const confirmUnifiedBtn = page.locator('button:has-text("Authorize Unified DubaiPay Settlement")');
+  if (await confirmUnifiedBtn.count() > 0) {
+    await confirmUnifiedBtn.first().click();
     await page.waitForSelector('.ag-surface-card#composite_success_card', { timeout: 8000 });
-    await pause(2500);
+    await pause(2000);
   }
 
   // ---------------------------------------------------------------------------
-  // SCENARIO 5: User Profile & Preferences Overview
+  // SCENARIO 6: UAE PASS Citizen Identity & Asset Vault
   // ---------------------------------------------------------------------------
-  console.log('   ▶ Recording Scenario 5: User Profile & Dynamic Preferences');
-  const profileChip = page.locator('button:has-text("My Profile & Preferences")');
+  console.log('   ▶ Recording Scenario 6: UAE PASS National Identity & Digital Asset Vault');
+  const profileChip = page.locator('button:has-text("My UAE PASS Citizen Profile")');
   if (await profileChip.count() > 0) {
     await profileChip.first().click();
     await page.waitForSelector('.ag-surface-card#profile_card', { timeout: 8000 });
-    await pause(2500);
+    await pause(2000);
   }
 
   // ---------------------------------------------------------------------------
-  // SCENARIO 6: Federated Microfrontend Mini-Apps Switching
+  // SCENARIO 7: Federated Microfrontend Mini-Apps Switching
   // ---------------------------------------------------------------------------
-  console.log('   ▶ Recording Scenario 6: Microfrontend Mini-App Workspaces');
-  // Switch to Ride Mini-App Tab
-  const rideTab = page.locator('header button:has-text("RIDE")');
-  await rideTab.click();
-  await pause(1500);
+  console.log('   ▶ Recording Scenario 7: Smart City Polyglot Mini-App Workspaces');
+  // Switch to Mobility Mini-App Tab
+  const rideTab = page.locator('header button:has-text("SMART MOBILITY")');
+  if (await rideTab.count() > 0) {
+    await rideTab.click();
+    await pause(1500);
+  }
 
-  // Switch to Food Mini-App Tab
-  const foodTab = page.locator('header button:has-text("FOOD")');
-  await foodTab.click();
-  await pause(1500);
+  // Switch to Utilities Mini-App Tab
+  const foodTab = page.locator('header button:has-text("UTILITIES (DEWA)")');
+  if (await foodTab.count() > 0) {
+    await foodTab.click();
+    await pause(1500);
+  }
 
-  // Switch to Wallet Mini-App Tab
-  const walletTab = page.locator('header button:has-text("WALLET")');
-  await walletTab.click();
-  await pause(1500);
+  // Switch to Citizen Pay Mini-App Tab
+  const walletTab = page.locator('header button:has-text("CITIZEN PAY")');
+  if (await walletTab.count() > 0) {
+    await walletTab.click();
+    await pause(1500);
+  }
 
-  // Return to Autonomous Concierge
-  const conciergeTab = page.locator('header button:has-text("CONCIERGE")');
-  await conciergeTab.click();
-  await pause(2000);
+  // Return to Autonomous AI Concierge
+  const conciergeTab = page.locator('header button:has-text("AI CONCIERGE")');
+  if (await conciergeTab.count() > 0) {
+    await conciergeTab.click();
+    await pause(2000);
+  }
 
-  console.log('✅ All visual life scenarios successfully enacted in browser!');
+  console.log('✅ All visual smart city life scenarios successfully enacted in browser!');
 } finally {
   const videoObj = page.video();
   await page.close();

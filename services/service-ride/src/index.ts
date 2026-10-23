@@ -57,6 +57,121 @@ export interface RideBooking {
 
 export const activeRides = new Map<string, RideBooking>();
 
+// -----------------------------------------------------------------------------
+// Smart City Mobility Models: Smart Parking (RTA/Mawaqif), Salik & EV Chargers
+// -----------------------------------------------------------------------------
+export interface ParkingZone {
+  id: string;
+  name: string;
+  code: string;
+  tariffPerHour: number;
+  hourlyRate?: number;
+  availableSpots: number;
+  occupancy: string;
+  lat: number;
+  lng: number;
+}
+
+export const parkingZones: ParkingZone[] = [
+  {
+    id: 'zone_302a',
+    name: 'Downtown Commercial (Burj Khalifa / Dubai Mall)',
+    code: '302A',
+    tariffPerHour: 4.0,
+    hourlyRate: 4.0,
+    availableSpots: 42,
+    occupancy: '68%',
+    lat: 25.1972,
+    lng: 55.2744,
+  },
+  {
+    id: 'zone_101b',
+    name: 'Business Bay Waterfront (Executive Towers)',
+    code: '101B',
+    tariffPerHour: 3.0,
+    hourlyRate: 3.0,
+    availableSpots: 85,
+    occupancy: '42%',
+    lat: 25.1850,
+    lng: 55.2650,
+  },
+  {
+    id: 'zone_204c',
+    name: 'Dubai Marina Promenade',
+    code: '204C',
+    tariffPerHour: 4.0,
+    hourlyRate: 4.0,
+    availableSpots: 15,
+    occupancy: '85%',
+    lat: 25.0805,
+    lng: 55.1403,
+  },
+];
+
+export interface ParkingMeterSession {
+  ticketId: string;
+  zoneId: string;
+  zoneName: string;
+  zoneCode: string;
+  plateNumber: string;
+  durationHours: number;
+  totalFee: number;
+  status: 'ACTIVE' | 'EXPIRED';
+  expiresAt: number;
+  createdAt: number;
+}
+
+export const activeParkingMeters = new Map<string, ParkingMeterSession>();
+export let salikBalance = 14.0; // Low balance alert triggered if < 20 AED
+
+export interface EVChargerStation {
+  id: string;
+  name: string;
+  operator: 'DEWA Green Charger' | 'ADDC EV Hub' | 'RTA Express';
+  plugTypes: string[];
+  powerKW: number;
+  status: 'AVAILABLE' | 'OCCUPIED';
+  pricePerKWh: number;
+  lat: number;
+  lng: number;
+}
+
+export const evChargerStations: EVChargerStation[] = [
+  {
+    id: 'chg_1',
+    name: 'DEWA Green Charger - Dubai Mall P3',
+    operator: 'DEWA Green Charger',
+    plugTypes: ['CCS2 Combo (DC)', 'Type 2 Mennekes (AC)'],
+    powerKW: 50,
+    status: 'AVAILABLE',
+    pricePerKWh: 0.29,
+    lat: 25.1975,
+    lng: 55.2750,
+  },
+  {
+    id: 'chg_2',
+    name: 'RTA City Walk Ultra-Fast Hub',
+    operator: 'RTA Express',
+    plugTypes: ['CCS2 Combo (DC)', 'CHAdeMO'],
+    powerKW: 150,
+    status: 'AVAILABLE',
+    pricePerKWh: 0.35,
+    lat: 25.2085,
+    lng: 55.2620,
+  },
+  {
+    id: 'chg_3',
+    name: 'DIFC Gate Avenue EV Station',
+    operator: 'DEWA Green Charger',
+    plugTypes: ['Type 2 Mennekes (AC)'],
+    powerKW: 22,
+    status: 'AVAILABLE',
+    pricePerKWh: 0.29,
+    lat: 25.2160,
+    lng: 55.2810,
+  },
+];
+
 export function executeRideRequest(
   method: string,
   pathname: string,
@@ -71,9 +186,184 @@ export function executeRideRequest(
       status: 200,
       data: {
         status: 'ok',
-        service: 'service-ride',
+        service: 'service-mobility',
+        domain: 'Smart Mobility & Transport (RTA/Salik/EV)',
         port: 4001,
+        activeParkingMeters: activeParkingMeters.size,
+        salikBalance,
         timestamp: new Date().toISOString(),
+      },
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Smart Parking Endpoints (RTA Dubai / Mawaqif Abu Dhabi)
+  // ---------------------------------------------------------------------------
+  if (normMethod === 'GET' && (pathname === '/mobility/parking/zones' || pathname === '/parking/zones')) {
+    return {
+      status: 200,
+      data: {
+        success: true,
+        count: parkingZones.length,
+        zones: parkingZones,
+      },
+    };
+  }
+
+  if (normMethod === 'POST' && (pathname === '/mobility/parking/activate' || pathname === '/parking/activate')) {
+    const zoneId = body.zoneId || 'zone_302a';
+    const zone = parkingZones.find((z) => z.id === zoneId) || parkingZones[0];
+    const durationHours = parseInt(body.durationHours || '2', 10);
+    const plateNumber = body.plateNumber || 'Dubai B-74892';
+    const ticketId = `TKT-DXB-${Date.now()}-${Math.floor(Math.random() * 9000 + 1000)}`;
+    const totalFee = zone.tariffPerHour * durationHours;
+
+    const meter: ParkingMeterSession = {
+      ticketId,
+      zoneId: zone.id,
+      zoneName: zone.name,
+      zoneCode: zone.code,
+      plateNumber,
+      durationHours,
+      totalFee,
+      status: 'ACTIVE',
+      expiresAt: Date.now() + durationHours * 3600 * 1000,
+      createdAt: Date.now(),
+    };
+
+    activeParkingMeters.set(ticketId, meter);
+    return {
+      status: 200,
+      data: {
+        success: true,
+        message: `Smart Parking meter activated for ${plateNumber} in Zone ${zone.code}`,
+        meter,
+      },
+    };
+  }
+
+  if (normMethod === 'POST' && (pathname === '/mobility/parking/extend' || pathname === '/parking/extend')) {
+    const ticketId = body.ticketId || Array.from(activeParkingMeters.keys())[0];
+    const meter = activeParkingMeters.get(ticketId) || Array.from(activeParkingMeters.values())[0];
+    const additionalHours = parseInt(body.additionalHours || '1', 10);
+
+    if (meter) {
+      meter.durationHours += additionalHours;
+      meter.totalFee += additionalHours * 4.0;
+      meter.expiresAt += additionalHours * 3600 * 1000;
+      return {
+        status: 200,
+        data: {
+          success: true,
+          message: `Parking extended by ${additionalHours} hour(s)`,
+          meter,
+        },
+      };
+    }
+    return { status: 404, data: { error: 'No active parking meter found to extend' } };
+  }
+
+  if (normMethod === 'GET' && (pathname === '/mobility/parking/active' || pathname === '/parking/active')) {
+    const active = Array.from(activeParkingMeters.values())[0] || {
+      ticketId: 'PRK-2026-98124',
+      zoneId: 'zone_302a',
+      zoneName: 'Downtown Commercial (Burj Khalifa / Dubai Mall)',
+      zoneCode: '302A',
+      plateNumber: 'Dubai B-74892',
+      durationHours: 2,
+      totalFee: 8.0,
+      status: 'ACTIVE',
+      expiresAt: Date.now() + 7140 * 1000, // ~1 hr 59 mins
+      createdAt: Date.now() - 60 * 1000,
+    };
+    return {
+      status: 200,
+      data: {
+        success: true,
+        meter: active,
+      },
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Salik & Darb Toll Roads Endpoints
+  // ---------------------------------------------------------------------------
+  if (normMethod === 'GET' && (pathname === '/mobility/salik/balance' || pathname === '/salik/balance')) {
+    return {
+      status: 200,
+      data: {
+        success: true,
+        tagId: 'SLK-8492019',
+        tagNumber: 'SLK-8492019',
+        accountNumber: 'ACC-DXB-948190',
+        plateNumber: 'Dubai B-74892',
+        balance: salikBalance,
+        currency: 'AED',
+        lowBalanceAlert: salikBalance < 20.0,
+        status: 'ACTIVE',
+      },
+    };
+  }
+
+  if (normMethod === 'POST' && (pathname === '/mobility/salik/recharge' || pathname === '/salik/recharge')) {
+    const amount = parseFloat(body.amount || '100');
+    salikBalance += amount;
+    return {
+      status: 200,
+      data: {
+        success: true,
+        rechargedAmount: amount,
+        newBalance: salikBalance,
+        tagId: 'SLK-8492019',
+        transactionId: `SLK-TX-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+      },
+    };
+  }
+
+  if (normMethod === 'GET' && (pathname === '/mobility/salik/passings' || pathname === '/salik/passings')) {
+    return {
+      status: 200,
+      data: {
+        success: true,
+        tagId: 'SLK-8492019',
+        passings: [
+          { id: 'pass_1', gate: 'Al Safa Toll Gate', fee: 4.0, time: 'Today, 08:24 AM', direction: 'Southbound (Jebel Ali)' },
+          { id: 'pass_2', gate: 'Al Barsha Toll Gate', fee: 4.0, time: 'Yesterday, 06:15 PM', direction: 'Northbound (Deira)' },
+          { id: 'pass_3', gate: 'Al Maktoum Toll Gate', fee: 4.0, time: '2 days ago, 09:10 AM', direction: 'Bur Dubai' },
+        ],
+      },
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // DEWA EV Green Charger Network Endpoints
+  // ---------------------------------------------------------------------------
+  if (normMethod === 'GET' && (pathname === '/mobility/ev/chargers' || pathname === '/ev/chargers')) {
+    return {
+      status: 200,
+      data: {
+        success: true,
+        count: evChargerStations.length,
+        chargers: evChargerStations,
+      },
+    };
+  }
+
+  if (normMethod === 'POST' && (pathname === '/mobility/ev/start' || pathname === '/ev/start')) {
+    const chargerId = body.chargerId || 'chg_1';
+    const charger = evChargerStations.find((c) => c.id === chargerId) || evChargerStations[0];
+    return {
+      status: 200,
+      data: {
+        success: true,
+        sessionId: `EV-SES-${Date.now()}`,
+        station: charger.name,
+        plugType: charger.plugTypes[0],
+        pricePerKWh: `${charger.pricePerKWh} AED`,
+        plateNumber: body.plateNumber || 'Dubai B-74892 (Tesla Model Y EV)',
+        status: 'CHARGING_ACTIVE',
+        startTime: new Date().toISOString(),
       },
     };
   }
@@ -244,10 +534,12 @@ export const server = http.createServer((req, res) => {
   }
 });
 
+export const executeMobilityRequest = executeRideRequest;
+
 const PORT = parseInt(process.env.PORT || '4001', 10);
 // Only bind port if not running in pure module import mode
 if (process.argv[1]?.endsWith('service-ride/src/index.ts')) {
   server.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚖 Ride Microservice listening on port ${PORT}`);
+    console.log(`🚖 Smart Mobility (RTA/Salik/EV) Microservice listening on port ${PORT}`);
   });
 }

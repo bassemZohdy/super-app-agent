@@ -43,6 +43,54 @@ export const transactions: Transaction[] = [
   },
 ];
 
+// -----------------------------------------------------------------------------
+// Smart City Citizen Pay: Dubai Police & Abu Dhabi Police Traffic Fines
+// -----------------------------------------------------------------------------
+export interface PoliceTrafficFine {
+  fineId: string;
+  agency: 'Dubai Police' | 'Abu Dhabi Police' | 'RTA Traffic';
+  plateNumber: string;
+  violation: string;
+  location: string;
+  date: string;
+  originalAmount: number;
+  discountAmount: number;
+  payableAmount: number;
+  blackPoints: number;
+  status: 'UNPAID' | 'PAID';
+  receiptNumber?: string;
+  paidAt?: string;
+}
+
+export const policeFines: PoliceTrafficFine[] = [
+  {
+    fineId: 'DP-2026-894102',
+    agency: 'Dubai Police',
+    plateNumber: 'Dubai B-74892',
+    violation: 'Radar Speeding (+20 km/h threshold)',
+    location: 'Sheikh Zayed Road near Financial Centre',
+    date: '2026-10-18 11:42 AM',
+    originalAmount: 300.0,
+    discountAmount: 30.0, // 10% early payment discount
+    payableAmount: 270.0,
+    blackPoints: 0,
+    status: 'UNPAID',
+  },
+  {
+    fineId: 'RTA-2026-449102',
+    agency: 'RTA Traffic',
+    plateNumber: 'Dubai B-74892',
+    violation: 'Public Parking Meter Overstay (Zone 302A)',
+    location: 'Downtown Boulevard',
+    date: '2026-10-15 04:30 PM',
+    originalAmount: 150.0,
+    discountAmount: 0.0,
+    payableAmount: 150.0,
+    blackPoints: 0,
+    status: 'UNPAID',
+  },
+];
+
 export function executeWalletRequest(
   method: string,
   pathname: string,
@@ -57,9 +105,131 @@ export function executeWalletRequest(
       status: 200,
       data: {
         status: 'ok',
-        service: 'service-wallet',
+        service: 'service-citizenpay',
+        domain: 'Unified Citizen Pay & Police Fines (DubaiPay / TAMM Pay)',
         port: 4003,
         balance,
+        unpaidFines: policeFines.filter((f) => f.status === 'UNPAID').length,
+        timestamp: new Date().toISOString(),
+      },
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Traffic Fines Endpoints (Dubai Police & Abu Dhabi Police)
+  // ---------------------------------------------------------------------------
+  if (normMethod === 'GET' && (pathname === '/fines/check' || pathname === '/fines')) {
+    const plate = query.plateNumber || 'Dubai B-74892';
+    const activeFines = policeFines.filter((f) => f.status === 'UNPAID');
+    const totalOriginal = activeFines.reduce((acc, f) => acc + f.originalAmount, 0);
+    const totalPayable = activeFines.reduce((acc, f) => acc + f.payableAmount, 0);
+
+    return {
+      status: 200,
+      data: {
+        success: true,
+        plateNumber: plate,
+        agency: 'Dubai Police General HQ',
+        count: activeFines.length,
+        fines: activeFines,
+        totalOriginal,
+        totalPayable,
+        discountApplied: totalOriginal - totalPayable,
+        earlyDiscountAED: totalOriginal - totalPayable,
+      },
+    };
+  }
+
+  if (normMethod === 'POST' && (pathname === '/fines/pay' || pathname === '/fines/settle')) {
+    const activeFines = policeFines.filter((f) => f.status === 'UNPAID');
+    const totalDue = activeFines.reduce((acc, f) => acc + f.payableAmount, 0);
+
+    if (balance < totalDue) {
+      return {
+        status: 400,
+        data: {
+          error: 'Insufficient citizen wallet balance to settle police fines',
+          currentBalance: balance,
+          requiredAmount: totalDue,
+        },
+      };
+    }
+
+    balance -= totalDue;
+    const txId = `DP-PAY-${Date.now()}`;
+    const paidAt = new Date().toISOString();
+
+    activeFines.forEach((f) => {
+      f.status = 'PAID';
+      f.receiptNumber = txId;
+      f.paidAt = paidAt;
+    });
+
+    transactions.push({
+      id: txId,
+      type: 'PAYMENT',
+      amount: totalDue,
+      currency: 'AED',
+      purpose: `Settlement of ${activeFines.length} Police Traffic Fines`,
+      status: 'SETTLED',
+      timestamp: Date.now(),
+    });
+
+    return {
+      status: 200,
+      data: {
+        success: true,
+        receiptNumber: txId,
+        amountPaid: totalDue,
+        finesCleared: activeFines.length,
+        remainingBalance: balance,
+        message: 'All traffic fines settled with Dubai Police. Zero black points added.',
+      },
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Unified Multi-Agency Government Settlement (DubaiPay / TAMM Pay)
+  // ---------------------------------------------------------------------------
+  if (normMethod === 'POST' && (pathname === '/pay/unified' || pathname === '/pay/multi-agency')) {
+    const items: Array<{ agency: string; purpose: string; amount: number }> = body.items || [
+      { agency: 'DEWA', purpose: 'Premise DEWA-201948201 Electricity & Water', amount: 420.4 },
+      { agency: 'Dubai Police', purpose: 'Traffic Violations (Radar + Overstay)', amount: 420.0 },
+      { agency: 'RTA Salik', purpose: 'Toll Tag SLK-8492019 Auto-Topup', amount: 100.0 },
+    ];
+
+    const grandTotal = items.reduce((acc, it) => acc + it.amount, 0);
+
+    // DubaiPay / TAMM Unified Gateway supports direct card backing / Apple Pay when wallet is below grand total
+    if (balance >= grandTotal) {
+      balance = Math.round((balance - grandTotal) * 100) / 100;
+    } else {
+      // Settled via DubaiPay registered card (Visa **** 4242)
+      balance = 250.0; // Wallet topped up / kept positive
+    }
+
+    const govTxHash = `GOV-TX-DXB-${Date.now()}-${Math.floor(Math.random() * 90000 + 10000)}`;
+
+    transactions.push({
+      id: govTxHash,
+      type: 'PAYMENT',
+      amount: grandTotal,
+      currency: 'AED',
+      purpose: 'Unified Civic Living Reconciliation (DEWA + Police + Salik)',
+      status: 'SETTLED',
+      timestamp: Date.now(),
+      referenceId: govTxHash,
+    });
+
+    return {
+      status: 200,
+      data: {
+        success: true,
+        govTransactionHash: govTxHash,
+        settlementPlatform: 'DubaiPay / TAMM Unified Gateway',
+        grandTotal,
+        remainingBalance: balance,
+        breakdown: items,
         timestamp: new Date().toISOString(),
       },
     };
@@ -252,9 +422,11 @@ export const server = http.createServer((req, res) => {
   }
 });
 
+export const executeCitizenPayRequest = executeWalletRequest;
+
 const PORT = parseInt(process.env.PORT || '4003', 10);
 if (process.argv[1]?.endsWith('service-wallet/src/index.ts')) {
   server.listen(PORT, '0.0.0.0', () => {
-    console.log(`💳 Wallet Microservice listening on port ${PORT}`);
+    console.log(`💳 Citizen Pay & Government Wallet Microservice listening on port ${PORT}`);
   });
 }

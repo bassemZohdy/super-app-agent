@@ -8,13 +8,13 @@ import { mountWalletMiniApp, unmountWalletMiniApp } from '../../../mini-apps/min
 export function App() {
   const [sessionId] = useState(() => `sess_${Math.random().toString(36).substring(2, 9)}`);
   const [messages, setMessages] = useState<Array<{ role: string; text: string }>>([
-    { role: 'assistant', text: 'Hello! I am your SuperApp Concierge. Ask me to book a ride, order food, or check your wallet.' },
+    { role: 'assistant', text: 'Marhaba Bassem! I am your Smart City Citizen Concierge (DubaiNow / TAMM). You can ask me to park your car in Downtown, pay DEWA electricity bills, clear police traffic fines, or manage your Ejari tenancy.' },
   ]);
   const [prompt, setPrompt] = useState('');
   const [thinkingDelta, setThinkingDelta] = useState<string | null>(null);
   const [currentSurface, setCurrentSurface] = useState<AGUISurfacePayload | null>(null);
   const [activeTab, setActiveTab] = useState<'agent' | 'ride' | 'food' | 'wallet'>('agent');
-  const [walletBalance, setWalletBalance] = useState<number>(142.5);
+  const [walletBalance, setWalletBalance] = useState<number>(250.0);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
 
   const chatBottomRef = useRef<HTMLDivElement>(null);
@@ -205,47 +205,52 @@ export function App() {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ background: '#2563eb', color: '#fff', borderRadius: '8px', padding: '6px 10px', fontWeight: 800, fontSize: '14px' }}>
-            SA
+          <div style={{ background: '#059669', color: '#fff', borderRadius: '8px', padding: '6px 10px', fontWeight: 800, fontSize: '14px' }}>
+            DXB
           </div>
           <div>
-            <div style={{ fontWeight: 700, fontSize: '15px' }}>SuperApp Agent</div>
-            <div style={{ fontSize: '11px', color: '#94a3b8' }}>React 18 Host • AG-UI / A2-UI Protocol</div>
+            <div style={{ fontWeight: 700, fontSize: '15px' }}>SmartCity Now • Unified Citizen Agent</div>
+            <div style={{ fontSize: '11px', color: '#94a3b8' }}>DubaiNow & TAMM Reference Architecture • UAE PASS Sovereign IAM</div>
           </div>
         </div>
 
         {/* Mini-App Quick Switcher */}
         <div style={{ display: 'flex', gap: '6px' }}>
-          {(['agent', 'ride', 'food', 'wallet'] as const).map((tab) => (
+          {[
+            { id: 'agent', label: '🤖 AI CONCIERGE' },
+            { id: 'ride', label: '🚗 SMART MOBILITY' },
+            { id: 'food', label: '⚡ UTILITIES (DEWA)' },
+            { id: 'wallet', label: '💳 CITIZEN PAY' },
+          ].map((tab) => (
             <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
               style={{
                 padding: '6px 12px',
                 borderRadius: '8px',
-                border: activeTab === tab ? '1px solid #3b82f6' : '1px solid #334155',
-                background: activeTab === tab ? '#1e3a8a' : '#1e293b',
-                color: activeTab === tab ? '#93c5fd' : '#cbd5e1',
+                border: activeTab === tab.id ? '1px solid #10b981' : '1px solid #334155',
+                background: activeTab === tab.id ? '#064e3b' : '#1e293b',
+                color: activeTab === tab.id ? '#6ee7b7' : '#cbd5e1',
                 fontWeight: 600,
                 fontSize: '12px',
                 cursor: 'pointer',
               }}
             >
-              {tab === 'agent' ? '🤖 CONCIERGE' : tab.toUpperCase()}
+              {tab.label}
             </button>
           ))}
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          {/* Keycloak Authenticated User Profile */}
+          {/* UAE PASS Authenticated Citizen Profile */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '20px', padding: '4px 12px' }}>
             <span style={{ fontSize: '13px' }}>🛡️</span>
             <span style={{ fontSize: '12px', fontWeight: 600, color: '#f8fafc' }}>Bassem Zohdy</span>
-            <span style={{ background: '#f59e0b', color: '#78350f', fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '10px' }}>Gold VIP</span>
+            <span style={{ background: '#f59e0b', color: '#78350f', fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '10px' }}>🌟 Golden Visa</span>
           </div>
 
           <div style={{ background: '#064e3b', color: '#6ee7b7', padding: '6px 14px', borderRadius: '20px', fontWeight: 700, fontSize: '13px' }}>
-            💳 ${walletBalance.toFixed(2)}
+            💳 {walletBalance.toFixed(2)} AED
           </div>
         </div>
       </header>
@@ -264,7 +269,7 @@ export function App() {
           }}
         >
           <div style={{ padding: '14px 18px', borderBottom: '1px solid #e2e8f0', background: '#ffffff', fontWeight: 700, fontSize: '14px', color: '#0f172a' }}>
-            💬 Autonomous Concierge (LangGraph)
+            💬 Rashid • Smart City Citizen Concierge (LangGraph)
           </div>
 
           <div style={{ flex: 1, padding: '16px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -305,11 +310,12 @@ export function App() {
           {/* Quick-Prompt Suggestion Chips */}
           <div style={{ padding: '8px 14px', display: 'flex', gap: '6px', overflowX: 'auto', background: '#ffffff', borderTop: '1px solid #f1f5f9' }}>
             {[
-              'Book ride to Downtown and order pizza',
-              '👤 My Profile & Preferences',
-              'Book a comfort cab to airport',
-              'Order woodfired pizza for dinner',
-              'Check wallet balance',
+              '🅿️ Park in Zone 302A & Find EV Charger',
+              '⚡ Pay DEWA Bill & Police Fines',
+              '🛣️ Check Salik Balance & Recharge',
+              '🏠 Connect Ejari & Utilities for Unit 1402',
+              '🛡️ My UAE PASS Citizen Profile',
+              '🚗 Book Ride to Airport',
             ].map((chip) => (
               <button
                 key={chip}

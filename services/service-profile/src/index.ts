@@ -7,6 +7,13 @@ export interface UserProfile {
   email: string;
   avatarUrl: string;
   vipTier: 'Standard' | 'Silver' | 'Gold VIP' | 'Platinum';
+  emiratesId?: string;
+  uaePassVerified?: boolean;
+  residencyStatus?: string;
+  smartCityAssets?: {
+    vehicles: Array<{ plate: string; model: string; salikTag: string }>;
+    premises: Array<{ premiseId: string; ejariNumber: string; community: string; unit: string }>;
+  };
   createdAt: number;
 }
 
@@ -33,6 +40,17 @@ export let currentProfile: UserProfile = {
   email: 'bassem.zohdy@gmail.com',
   avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Bassem',
   vipTier: 'Gold VIP',
+  emiratesId: '784-1988-1234567-1',
+  uaePassVerified: true,
+  residencyStatus: 'Golden Visa Resident',
+  smartCityAssets: {
+    vehicles: [
+      { plate: 'Dubai B-74892', model: 'Tesla Model Y (EV)', salikTag: 'SLK-8492019' },
+    ],
+    premises: [
+      { premiseId: 'DEWA-201948201', ejariNumber: 'EJR-2026-948102', community: 'Downtown Dubai', unit: 'Residences 1, Unit 1402' },
+    ],
+  },
   createdAt: Date.now() - 86400000 * 30,
 };
 
@@ -54,15 +72,24 @@ export let currentPreferences: UserPreferences = {
 
 export function generatePromptContext(profile: UserProfile, prefs: UserPreferences): string {
   const dietaryStr = prefs.dietary.length > 0 ? prefs.dietary.join(', ') : 'None';
-  return `USER PROFILE CONTEXT:
-- Name: ${profile.displayName} (${profile.vipTier} Member)
+  const vehicle = profile.smartCityAssets?.vehicles[0]?.plate || 'Dubai B-74892';
+  const premise = profile.smartCityAssets?.premises[0]?.premiseId || 'DEWA-201948201';
+  const ejari = profile.smartCityAssets?.premises[0]?.ejariNumber || 'EJR-2026-948102';
+
+  return `USER PROFILE CONTEXT & SMART CITY CITIZEN IDENTITY (UAE PASS):
+- Citizen: ${profile.displayName} (Emirates ID: ${profile.emiratesId || '784-1988-1234567-1'})
+- Residency & Status: ${profile.residencyStatus || 'Golden Visa Resident'} (${profile.vipTier} Member)
+- Registered Smart Vehicle: Plate ${vehicle} (${prefs.mobility.preferredTierName})
+- Registered Home Premise: ${profile.smartCityAssets?.premises[0]?.community || 'Downtown Dubai'}, Unit ${profile.smartCityAssets?.premises[0]?.unit || '1402'} (Premise ID: ${premise}, Ejari: ${ejari})
+- Mobility Preference: ${prefs.mobility.preferredTierName} (Eco EV: ${prefs.mobility.ecoFriendlyOnly ? 'Yes' : 'No'})
 - Dietary Restrictions: ${dietaryStr}
-- Mobility Preference: ${prefs.mobility.preferredTierName} (Eco-friendly: ${prefs.mobility.ecoFriendlyOnly ? 'Yes' : 'No'})
-- Tone: ${prefs.conciergeTone.toUpperCase()} Concierge
-INSTRUCTIONS:
-1. When generating food options, prioritize and prominently badge dishes matching the user's dietary preferences (${dietaryStr}).
-2. When generating ride options, highlight the user's preferred vehicle (${prefs.mobility.preferredTierName}).
-3. Acknowledge the user's ${profile.vipTier} status in greetings.`;
+- Concierge Tone: ${prefs.conciergeTone.toUpperCase()} Smart City Concierge (DubaiNow / TAMM style)
+CIVIC INSTRUCTIONS:
+1. For Smart Parking & Traffic: prefill plate ${vehicle}, highlight Zone 302A Downtown, and check Salik balance on request.
+2. For Utilities: query premise ${premise} for DEWA/ADDC smart meter telemetry and electricity/water bills.
+3. For Housing & Move-in: reference Ejari contract ${ejari} for automated DEWA connection & residential parking.
+4. For Payments: support unified multi-agency checkout via DubaiPay / TAMM Pay.
+5. Acknowledge ${profile.residencyStatus || 'Golden Visa Resident'} & ${profile.vipTier} status with VIP civic priority.`;
 }
 
 export function executeProfileRequest(

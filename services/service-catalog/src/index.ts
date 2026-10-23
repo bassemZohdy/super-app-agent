@@ -3,7 +3,7 @@ import http from 'node:http';
 export interface MiniAppManifest {
   id: string;
   name: string;
-  category: 'mobility' | 'food' | 'fintech';
+  category: 'mobility' | 'food' | 'fintech' | 'housing' | 'utilities';
   icon: string;
   version: string;
   entryRoute: string;
@@ -15,6 +15,55 @@ export interface MiniAppManifest {
 
 export const miniApps: MiniAppManifest[] = [
   {
+    id: 'gov.smartcity.mobility',
+    name: 'Smart Mobility & Parking',
+    category: 'mobility',
+    icon: 'car',
+    version: '2.0.0',
+    entryRoute: '/mobility',
+    remoteUrl: 'http://localhost:3010/remoteEntry.js',
+    description: 'RTA & Mawaqif smart parking meters, Salik toll management, and DEWA EV green chargers',
+    permissions: ['geolocation', 'notifications'],
+    mcpEndpoint: 'http://localhost:4001/mcp',
+  },
+  {
+    id: 'gov.smartcity.utilities',
+    name: 'Smart Utilities (DEWA / ADDC)',
+    category: 'utilities',
+    icon: 'zap',
+    version: '2.0.0',
+    entryRoute: '/utilities',
+    remoteUrl: 'http://localhost:3011/remoteEntry.js',
+    description: 'Electricity & water smart meter telemetry, billing, and Green Slab eco-tariffs',
+    permissions: ['notifications'],
+    mcpEndpoint: 'http://localhost:4002/mcp',
+  },
+  {
+    id: 'gov.smartcity.citizenpay',
+    name: 'Citizen Pay & Police Fines',
+    category: 'fintech',
+    icon: 'shield',
+    version: '2.0.0',
+    entryRoute: '/citizenpay',
+    remoteUrl: 'http://localhost:3012/remoteEntry.js',
+    description: 'DubaiPay & TAMM Pay unified government checkout, Dubai Police fines settlement, and digital wallet',
+    permissions: ['biometrics', 'secure_storage'],
+    mcpEndpoint: 'http://localhost:4003/mcp',
+  },
+  {
+    id: 'gov.smartcity.housing',
+    name: 'Housing & Tenancy (Ejari)',
+    category: 'housing',
+    icon: 'home',
+    version: '2.0.0',
+    entryRoute: '/housing',
+    remoteUrl: 'http://localhost:3013/remoteEntry.js',
+    description: 'Tenancy contract management, automated DEWA connection, and residential parking permits',
+    permissions: ['secure_storage'],
+    mcpEndpoint: 'http://localhost:4004/mcp',
+  },
+  // Backward compatibility alias for legacy tests
+  {
     id: 'org.superapp.ride',
     name: 'Ride & Mobility',
     category: 'mobility',
@@ -22,35 +71,47 @@ export const miniApps: MiniAppManifest[] = [
     version: '1.0.0',
     entryRoute: '/ride',
     remoteUrl: 'http://localhost:3010/remoteEntry.js',
-    description: 'Book rides, schedule pickups, and track drivers in real-time',
-    permissions: ['geolocation', 'notifications'],
+    description: 'Legacy ride hailing alias',
+    permissions: ['geolocation'],
     mcpEndpoint: 'http://localhost:4001/mcp',
   },
-  {
-    id: 'org.superapp.food',
-    name: 'Food & Dining',
-    category: 'food',
-    icon: 'utensils',
-    version: '1.0.0',
-    entryRoute: '/food',
-    remoteUrl: 'http://localhost:3011/remoteEntry.js',
-    description: 'Order from local restaurants and grocery delivery with live prep tracking',
-    permissions: ['notifications', 'camera'],
-    mcpEndpoint: 'http://localhost:4002/mcp',
-  },
-  {
-    id: 'org.superapp.wallet',
-    name: 'Wallet & Payments',
-    category: 'fintech',
-    icon: 'wallet',
-    version: '1.0.0',
-    entryRoute: '/wallet',
-    remoteUrl: 'http://localhost:3012/remoteEntry.js',
-    description: 'Manage digital cards, top-up funds, and view receipts with zero-trust isolation',
-    permissions: ['biometrics', 'secure_storage'],
-    mcpEndpoint: 'http://localhost:4003/mcp',
-  },
 ];
+
+export interface EjariContract {
+  contractNumber: string;
+  tenantName: string;
+  emiratesId: string;
+  landlordName: string;
+  property: {
+    community: string;
+    building: string;
+    unitNumber: string;
+    premiseId: string;
+  };
+  annualRent: number;
+  annualRentAED?: number;
+  startDate: string;
+  endDate: string;
+  status: 'ACTIVE_REGISTERED' | 'DRAFT' | 'EXPIRED';
+}
+
+export const defaultEjariContract: EjariContract = {
+  contractNumber: 'EJR-2026-948102',
+  tenantName: 'Bassem Zohdy',
+  emiratesId: '784-1988-1234567-1',
+  landlordName: 'Emaar Properties PJSC',
+  property: {
+    community: 'Downtown Dubai',
+    building: 'Downtown Residences 1',
+    unitNumber: 'Unit 1402',
+    premiseId: 'DEWA-201948201',
+  },
+  annualRent: 96000.0,
+  annualRentAED: 96000.0,
+  startDate: '2026-11-01',
+  endDate: '2027-10-31',
+  status: 'ACTIVE_REGISTERED',
+};
 
 export function executeCatalogRequest(
   method: string,
@@ -67,8 +128,47 @@ export function executeCatalogRequest(
       data: {
         status: 'ok',
         service: 'service-catalog',
+        domain: 'Smart City Ecosystem & Housing Services',
         port: 4004,
         totalMiniApps: miniApps.length,
+        timestamp: new Date().toISOString(),
+      },
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Housing & Ejari Endpoints
+  // ---------------------------------------------------------------------------
+  if (normMethod === 'GET' && (pathname === '/housing/ejari' || pathname === '/ejari')) {
+    return {
+      status: 200,
+      data: {
+        success: true,
+        contract: defaultEjariContract,
+        verifiedAgency: 'Dubai Land Department (DLD) / RERA',
+      },
+    };
+  }
+
+  if (normMethod === 'POST' && (pathname === '/housing/move-in' || pathname === '/move-in')) {
+    return {
+      status: 200,
+      data: {
+        success: true,
+        journey: 'Move-in Golden Path Onboarding',
+        ejariContract: defaultEjariContract.contractNumber,
+        unit: `${defaultEjariContract.property.building}, ${defaultEjariContract.property.unitNumber}`,
+        dewaConnected: {
+          premiseId: defaultEjariContract.property.premiseId,
+          status: 'CONNECTED_ACTIVE',
+          depositWaived: true, // Waived for Golden Visa holders
+          message: 'Smart meter activated with zero security deposit.',
+        },
+        residentialParking: {
+          zone: 'Zone 302A (Downtown Residential)',
+          permitNumber: `PRM-${Date.now()}`,
+          status: 'ISSUED',
+        },
         timestamp: new Date().toISOString(),
       },
     };

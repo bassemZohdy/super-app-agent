@@ -16,6 +16,7 @@
 | **Phase 6** | Composite Agent Workflows & Cross-Domain Orchestration | ✅ Completed | 100% |
 | **Phase 7** | Verification, Automated Testing & Documentation Polish | ✅ Completed | 100% |
 | **Phase 8** | User Profile, UI Personalization & Keycloak Auth Security | ✅ Completed | 100% |
+| **Phase 9** | Smart City Transformation (DubaiNow & TAMM Integration) | ✅ Completed | 100% |
 
 ---
 
@@ -225,3 +226,47 @@
   - [x] Add E2E Life Scenario 9: Keycloak OIDC Token Authentication & Security Rejection
   - [x] Update `scripts/dev-backend.ts` to boot `service-profile` alongside other microservices
   - [x] Re-run all automated tests and flight recorder (`npm test` & `npm run test:record`)
+
+---
+
+### Phase 9: Smart City Platform Transformation (DubaiNow & TAMM Integration)
+
+- [x] **9.1 Architectural & Domain Specification (DubaiNow & TAMM Reference)**
+  - [x] Transform generic consumer services into authentic Smart City pillars: Smart Mobility (RTA/Mawaqif/Salik), Smart Utilities (DEWA/ADDC), Citizen Payments & Police Fines (DubaiPay/TAMM Pay & Dubai Police), and Housing & Tenancy (Ejari/Tawtheeq)
+  - [x] Update ADR-0001 and ADR-0003 with Smart City Civic Services specifications
+  - [x] Update MCP tool definitions in `services/agentgateway/config.yaml` for smart city tools
+- [x] **9.2 Smart Mobility Microservice (`service-mobility` / `service-ride` :4001)**
+  - [x] Smart Parking management (RTA Dubai & Mawaqif Abu Dhabi): zone discovery (Zone 302A Downtown, Zone 101B Business Bay), tariff calculation, meter activation (`/mobility/parking/activate`), live meter countdown, and extension (`/mobility/parking/extend`)
+  - [x] Road toll system (Salik / Darb): balance check (`/mobility/salik/balance`), recent toll gate trips (`/mobility/salik/passings` Al Safa, Al Barsha), and instant auto-recharge (`/mobility/salik/recharge`)
+  - [x] EV Green Charger network: GPS coordinates finder for DEWA EV chargers (`/mobility/ev/chargers`), plug availability (Type 2, 50kW DC Fast), and charging session initiation (`/mobility/ev/start`)
+- [x] **9.3 Smart Utilities Microservice (`service-utilities` / `service-food` :4002)**
+  - [x] Electricity and water smart premise telemetry (DEWA / ADDC): consumption breakdown in kWh and imperial gallons (`/utilities/consumption`)
+  - [x] Monthly utility bill calculation with housing municipality fee and sewerage (`/utilities/bill`)
+  - [x] Bill settlement endpoint with green energy credit allocation (`/utilities/pay`)
+  - [x] Green Living Eco-Advice advisor calculating rooftop solar credits and off-peak savings (`/utilities/eco-advice`)
+- [x] **9.4 Citizen Pay & Government Wallet (`service-citizenpay` / `service-wallet` :4003)**
+  - [x] Smart City digital citizen wallet (DubaiPay / TAMM Pay) stored-value ledger & instant top-up
+  - [x] Dubai Police & Abu Dhabi Police traffic fine management: radar speeding & parking overstay query (`/fines/check`) and instant settlement with early discount (`/fines/pay`)
+  - [x] Unified multi-agency settlement checkout with cryptographic transaction receipt (`/pay/unified`)
+- [x] **9.5 UAE PASS Digital Identity & Housing (`service-profile` :4005 & `service-catalog` :4004)**
+  - [x] UAE PASS citizen profile model: Emirates ID (`784-1988-1234567-1`), Golden Visa residency status, registered vehicle plates (`Dubai B-74892` Tesla Model Y EV), registered premises (`DEWA 201948201`, Ejari `EJR-2026-948102`)
+  - [x] Ejari / Tawtheeq tenancy contract verification and renewal simulation
+  - [x] Dynamic LLM prompt context generator tailored for the autonomous Smart City Citizen Concierge
+- [x] **9.6 Cognitive Smart City Orchestrator (`agent-core` :4000)**
+  - [x] Smart city intent classifier: Parking, Salik, DEWA, Police Fines, Ejari Tenancy, Civic Incidents
+  - [x] Composite Multi-Agency Life Journeys:
+    - *Journey 1: Monthly Civic Living Reconciliation (DEWA utility bill + Dubai Police fine + DubaiPay unified checkout)*
+    - *Journey 2: Moving-In Golden Path (Ejari contract validation + DEWA smart meter activation + RTA residential parking)*
+    - *Journey 3: Smart Commute & Green EV Session (Salik balance check + EV charger reservation + Zone 302A parking)*
+    - *Journey 4: Civic Incident Reporting (Street defect / leak reporting with MapViewer coordinates and municipality ticket dispatch)*
+  - [x] AG-UI Surface builders for Parking Meters with live countdown, DEWA consumption widgets, fine data tables, and UAE PASS Golden Visa badges
+- [x] **9.7 Polyglot Smart City Frontends (React, Angular, Flutter)**
+  - [x] Transform frontend shells into **SmartCity Now • Unified Citizen Agent** (DubaiNow / TAMM aesthetic)
+  - [x] Display verified UAE PASS digital citizen badge (`🛡️ UAE PASS • Bassem Zohdy • 🌟 Golden Visa`) in headers
+  - [x] Smart City suggestion chips, active parking meter countdown badges, and microfrontend tabs (`MOBILITY`, `UTILITIES`, `CITIZEN PAY`)
+- [x] **9.8 Verification, Automated Testing & Flight Recording**
+  - [x] Update unit tests for Smart City microservices (`npm test`)
+  - [x] Update realistic Smart City E2E life scenarios in `test/e2e-life-scenarios.test.ts`
+  - [x] Execute flight recorder and generate `docs/reports/E2E_LIFE_SCENARIOS_RECORDING.md`
+  - [x] Record fresh HD screen recording video (`docs/recordings/videos/superapp-e2e-scenarios.webm`) with Playwright & Google Chrome
+  - [x] Commit and push all changes to GitHub

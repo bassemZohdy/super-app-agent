@@ -72,6 +72,117 @@ export interface FoodOrder {
 
 export const activeOrders = new Map<string, FoodOrder>();
 
+// -----------------------------------------------------------------------------
+// Smart City Utilities Models: DEWA & ADDC Electricity, Water & Green Living
+// -----------------------------------------------------------------------------
+export interface UtilityAccount {
+  premiseId: string;
+  accountNumber: string;
+  consumerName: string;
+  community: string;
+  unit: string;
+  activeContract: string;
+  smartMeterId: string;
+  electricity: {
+    currentKWh: number;
+    slabTariff: string;
+    ratePerKWh: number;
+    cost: number;
+  };
+  water: {
+    currentGallons: number;
+    slabTariff: string;
+    ratePerGallon: number;
+    cost: number;
+  };
+  housingMunicipalityFee: number;
+  sewerageFee: number;
+  carbonOffsetKg: number;
+  rooftopSolarCreditKWh: number;
+  telemetry?: {
+    electricityKwh: number;
+    waterGallons: number;
+    tariffSlab: string;
+    carbonSavedKg: number;
+  };
+}
+
+export let defaultUtilityAccount: UtilityAccount = {
+  premiseId: 'DEWA-201948201',
+  accountNumber: 'ACC-DEWA-94812',
+  consumerName: 'Bassem Zohdy',
+  community: 'Downtown Dubai',
+  unit: 'Residences 1, Unit 1402',
+  activeContract: 'EJR-2026-948102',
+  smartMeterId: 'SM-DXB-99824',
+  electricity: {
+    currentKWh: 480,
+    slabTariff: 'Green Slab (<=2000 kWh/mo)',
+    ratePerKWh: 0.23,
+    cost: 110.4,
+  },
+  water: {
+    currentGallons: 1200,
+    slabTariff: 'Standard Slab (<=6000 gal/mo)',
+    ratePerGallon: 0.035,
+    cost: 42.0,
+  },
+  housingMunicipalityFee: 240.0, // 5% annual rent installment
+  sewerageFee: 28.0,
+  carbonOffsetKg: 142.0,
+  rooftopSolarCreditKWh: 95.0,
+  telemetry: {
+    electricityKwh: 480,
+    waterGallons: 1200,
+    tariffSlab: 'Green Slab (<=2000 kWh/mo)',
+    carbonSavedKg: 142.0,
+  },
+};
+
+export interface UtilityBill {
+  billId: string;
+  premiseId: string;
+  accountNumber: string;
+  billingMonth: string;
+  electricityCost: number;
+  waterCost: number;
+  housingFee: number;
+  sewerageFee: number;
+  totalAmount: number;
+  currency: string;
+  status: 'UNPAID' | 'PAID';
+  dueDate: string;
+  receiptNumber?: string;
+  paidAt?: string;
+  breakdown?: {
+    electricity: number;
+    water: number;
+    housingFee: number;
+    sewerage: number;
+  };
+}
+
+export let activeUtilityBill: UtilityBill = {
+  billId: 'DEWA-2026-10-8492',
+  premiseId: 'DEWA-201948201',
+  accountNumber: 'ACC-DEWA-94812',
+  billingMonth: 'October 2026',
+  electricityCost: 110.4,
+  waterCost: 42.0,
+  housingFee: 240.0,
+  sewerageFee: 28.0,
+  totalAmount: 420.4,
+  currency: 'AED',
+  status: 'UNPAID',
+  dueDate: '2026-10-31',
+  breakdown: {
+    electricity: 110.4,
+    water: 42.0,
+    housingFee: 240.0,
+    sewerage: 28.0,
+  },
+};
+
 export function executeFoodRequest(
   method: string,
   pathname: string,
@@ -86,9 +197,73 @@ export function executeFoodRequest(
       status: 200,
       data: {
         status: 'ok',
-        service: 'service-food',
+        service: 'service-utilities',
+        domain: 'Smart Utilities & Energy (DEWA/ADDC)',
         port: 4002,
+        activeBillStatus: activeUtilityBill.status,
         timestamp: new Date().toISOString(),
+      },
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Smart Utilities Endpoints (DEWA / ADDC)
+  // ---------------------------------------------------------------------------
+  if (normMethod === 'GET' && (pathname === '/utilities/consumption' || pathname === '/consumption')) {
+    return {
+      status: 200,
+      data: {
+        success: true,
+        account: defaultUtilityAccount,
+        ecoStatus: 'Excellent (Green Efficiency Zone)',
+        carbonOffsetSavings: `${defaultUtilityAccount.carbonOffsetKg} kg CO2 saved this cycle`,
+      },
+    };
+  }
+
+  if (normMethod === 'GET' && (pathname === '/utilities/bill' || pathname === '/bill')) {
+    return {
+      status: 200,
+      data: {
+        success: true,
+        bill: activeUtilityBill,
+      },
+    };
+  }
+
+  if (normMethod === 'POST' && (pathname === '/utilities/pay' || pathname === '/bill/pay')) {
+    activeUtilityBill.status = 'PAID';
+    activeUtilityBill.receiptNumber = `REC-DEWA-${Date.now()}`;
+    activeUtilityBill.paidAt = new Date().toISOString();
+
+    return {
+      status: 200,
+      data: {
+        success: true,
+        message: `Utility bill ${activeUtilityBill.billId} paid in full`,
+        receipt: {
+          billId: activeUtilityBill.billId,
+          receiptNumber: activeUtilityBill.receiptNumber,
+          amountPaid: `${activeUtilityBill.totalAmount} ${activeUtilityBill.currency}`,
+          premiseId: activeUtilityBill.premiseId,
+          paidAt: activeUtilityBill.paidAt,
+          greenPointsAwarded: 50,
+        },
+      },
+    };
+  }
+
+  if (normMethod === 'GET' && (pathname === '/utilities/eco-advice' || pathname === '/eco-advice')) {
+    return {
+      status: 200,
+      data: {
+        success: true,
+        premiseId: defaultUtilityAccount.premiseId,
+        advice: [
+          '⚡ Peak hours are between 12:00 PM and 06:00 PM. Run washing machines & high-load devices in the morning.',
+          '🌱 You are currently in the Green Slab (0.23 AED/kWh). Keeping below 2,000 kWh saves 28% monthly.',
+          '☀️ Rooftop solar integration credited 95 kWh back to your grid account this month.',
+        ],
       },
     };
   }
@@ -271,9 +446,11 @@ export const server = http.createServer((req, res) => {
   }
 });
 
+export const executeUtilitiesRequest = executeFoodRequest;
+
 const PORT = parseInt(process.env.PORT || '4002', 10);
 if (process.argv[1]?.endsWith('service-food/src/index.ts')) {
   server.listen(PORT, '0.0.0.0', () => {
-    console.log(`🍕 Food Microservice listening on port ${PORT}`);
+    console.log(`⚡ Smart Utilities (DEWA/ADDC) Microservice listening on port ${PORT}`);
   });
 }
