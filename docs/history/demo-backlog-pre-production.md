@@ -299,4 +299,4 @@ The preceding phases track the **demo acceptance scope only**. The following ite
 - [ ] Container/version pinning, security scanning, Keycloak integration, production load testing
 - [ ] Run full `npm test`, `npm run build`, and real Keycloak end-to-end tests before merge
 
-See [SECURITY.md](SECURITY.md).
+See [SECURITY.md](../../SECURITY.md).
