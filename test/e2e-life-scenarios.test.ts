@@ -527,6 +527,9 @@ test('E2E Life Scenario 13: Citizen Safety - Dubai Police Traffic Fines Clearanc
   const discountBadge = surface.view.children.find((c: any) => c.id === 'fines_discount_badge');
   assert.ok(discountBadge.properties.text.includes('10% Early Settlement Discount'));
 
+  // A successful payment requires actual sufficient fixture funds.
+  assert.strictEqual(executeWalletRequest('POST', '/wallet/topup', {}, { amount: 1000 }).status, 200);
+
   // 2. Citizen clears fines
   const settleRes = await executeCoreRequest('POST', '/api/a2ui/action', {}, {
     sessionId,
@@ -536,6 +539,7 @@ test('E2E Life Scenario 13: Citizen Safety - Dubai Police Traffic Fines Clearanc
   assert.strictEqual(settleRes.status, 200);
   const clearedSurface = settleRes.data.surface;
   assert.strictEqual(clearedSurface.view.id, 'police_fines_settled_card');
+  assert.strictEqual(executeWalletRequest('GET', '/fines/check').data.fines.length, 0);
   const pointsBadge = clearedSurface.view.children.find((c: any) => c.id === 'zero_points');
   assert.ok(pointsBadge.properties.text.includes('0 Black Points'));
 });
