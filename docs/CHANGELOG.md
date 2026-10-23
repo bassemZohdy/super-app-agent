@@ -1,5 +1,12 @@
 # Documentation changelog
 
+## 2026-10-23 — P0-10 session coordination
+
+- Merge P0-09/P0-12 into main; refresh backlog baseline.
+- Reject overlapping session transitions and stale action revisions; rotate UUID revisions on success/failure and remove timestamp-based consumed-action history.
+- Preserve approvals on input rejection, allow refresh after definitive failure, and block partial/unknown sessions pending reconciliation. Update every action caller.
+- 72 tests pass; 14 forced JS build tasks pass. [Evidence](reports/2026-10-23-p0-10-session-transitions.md). Distributed durability and provider reconciliation remain open.
+
 ## 2026-10-23 — P0-12 domain failure and partial-outcome propagation
 
 - Route graph domain calls through checked result handling with per-request effect tracking; do not render success for rejected operations, thrown writes or incomplete receipts.

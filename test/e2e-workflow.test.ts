@@ -64,7 +64,7 @@ test('E2E SuperApp Agent Journey: Complete Composite Multi-Service User Flow', a
 
   // User taps confirmation button in AG-UI
   const actionRes = await executeCoreRequest('POST', '/api/a2ui/action', {}, {
-    sessionId,
+    sessionId, surfaceRevision: getOrCreateSession(sessionId).currentSurface?.revision,
     action: actionName,
     payload: {},
   });

@@ -17,7 +17,7 @@ Agent-first civic journeys span identity, conversation, UI actions and potential
 
 ## Implemented after PR #1
 
-`auth.ts` verifies RS256 tokens using configured JWKS, exact issuer, audience and expiration. `DEMO_AUTH=true` admits a synthetic identity only outside `NODE_ENV=production`. `index.ts` stores process-local session owner, SSE subscriber sets and consumed-action keys; guards selected action payload fields and limits some inputs; allows configured CORS origins. React/Angular/Flutter hardcoded forged JWTs were replaced with a local demo marker.
+`auth.ts` verifies RS256 tokens using configured JWKS, exact issuer, audience and expiration. `DEMO_AUTH=true` admits a synthetic identity only outside `NODE_ENV=production`. `index.ts` stores process-local session owner, SSE subscriber sets, active transition coordination and surface UUID revisions; guards selected action payload fields and limits some inputs; allows configured CORS origins. React/Angular/Flutter hardcoded forged JWTs were replaced with a local demo marker.
 
 ## Unresolved
 
@@ -29,3 +29,4 @@ Agent-first civic journeys span identity, conversation, UI actions and potential
 - Agentgateway config allows wildcard CORS and uses a floating image tag.
 
 This ADR is **not** a security certification. See [SECURITY.md](../../SECURITY.md).
+

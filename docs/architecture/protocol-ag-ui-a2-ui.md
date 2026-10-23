@@ -58,7 +58,7 @@ Backend routes:
 | `GET /health` | Runtime metadata | Public |
 | `GET /api/a2ui/stream?sessionId=...` | Server-Sent Events | Needs valid auth; `&demo=1` works **only** when local demo auth enabled |
 | `POST /api/a2ui/intent` | `{ sessionId, text, handshake? }` | Handshake in request is currently not used to negotiate renderer components |
-| `POST /api/a2ui/action` | `{ sessionId, action, payload }` | Requires existing session and action offered on active surface |
+| `POST /api/a2ui/action` | `{ sessionId, surfaceRevision, action, payload }` | Requires existing session, matching server-issued surface revision and action offered on active surface |
 
 Declared custom envelope: `{ id, type, sessionId, timestamp, data }`.
 
@@ -99,7 +99,7 @@ Actual HTTP/SSE handler emits handshake ACK, stream deltas and render surface me
 ## Security and correctness limitations
 
 - **No client-trust transfer:** UI-rendered buttons do not authorize a payment. The code checks current-surface events and a small list of protected payload fields; authoritative service-side authorization, quote validation and consent are missing.
-- **Replay/backpressure:** messages get a timestamp/random ID; they are not durably ordered or replayed after reconnect. Subscribers are a process-local Set.
+- **Replay/backpressure:** the [bounded process-local journal](event-stream.md) supports cursor replay and slow-consumer limits. Restart loses history. Actions require the UUID revision of the current surface; timestamps are display metadata. Per-session coordination rejects concurrent transitions. Partial/unknown writes require reconciliation before more requests in that session.
 - **Schema:** recursive type/property limits are partial and all three renderers need parity, accessibility and malicious payload tests.
 - **Reasoning exposure:** current phase names may say “REASONING”; do not stream sensitive hidden model reasoning. Use progress/status descriptions only.
 - **Navigation:** `LAUNCH_MINIAPP` is named, but shell capabilities and available manifests should be verified before any transition.
@@ -119,3 +119,9 @@ See [ADR-0002](../adr/ADR-0002-ag-ui-and-a2-ui-declarative-protocols.md) and [fr
 ## Current stream recovery
 
 The authenticated web/backend stream now has event IDs, bounded replay, snapshots, expiry and slow-consumer bounds. See the [wire contract](event-stream.md). This remains the custom envelope above; Flutter parity, end-user OIDC login and durable/multi-instance replay remain open.
+
+## Action revision migration (P0-10)
+
+Core-issued surfaces include an opaque `revision` UUID. Echo that exact value as the required `surfaceRevision` in `POST /api/a2ui/action`; omission or malformed values return 400. Protocol example fixtures may omit a revision, but they cannot be used as core action approvals. React, Angular, Flutter and the flight recorder now echo it. HTTP and SSE carry the same committed revision.
+
+`SESSION_BUSY` (409) means wait for the running request; do not automatically replay a mutation. `STALE_SURFACE` (409) returns the current surface for user review. Definitive failed execution replaces the approval with a fresh warning revision; start a new intent after correcting the cause. `RECONCILIATION_REQUIRED` (409) blocks both intents and actions after partial/unknown effects and preserves their step summary. There is no public unblock operation: an authenticated provider/status reconciliation workflow remains P0-06. Coordination and reconciliation state disappear on restart and do not protect a different session or another instance.

@@ -141,6 +141,8 @@ export interface UIComponentNode {
 
 export interface AGUISurfacePayload {
   version: '1.0.0';
+  /** Opaque revision issued by core; action requests must echo it. */
+  revision?: string;
   sessionId: string;
   timestamp: number | string;
   view: UIComponentNode;
@@ -262,6 +264,9 @@ export function validateAGUISurface(data: unknown): ValidationResult<AGUISurface
     errors.push("Missing or invalid 'timestamp' (number or string)");
   }
 
+  if (payload.revision !== undefined && (typeof payload.revision !== 'string' || !/^[0-9a-f-]{36}$/.test(payload.revision))) {
+    errors.push('Invalid surface revision');
+  }
   const viewValidation = validateUIComponentNode(payload.view, 'view');
   if (!viewValidation.success && viewValidation.errors) {
     errors.push(...viewValidation.errors);
@@ -335,3 +340,4 @@ export function createButton(
     ],
   };
 }
+
