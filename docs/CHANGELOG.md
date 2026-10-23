@@ -1,5 +1,14 @@
 # Documentation changelog
 
+## 2026-10-23 — P0-09 runtime validation and money invariants
+
+- Merged PR #2 to main, including PR #3 and the remaining-task review backlog.
+- Added shared non-coercing runtime schemas across core/domain HTTP and in-process handlers; capability/tool inputs use the same source (capability versions 2.0.0).
+- Reject malformed roots, undeclared/nested fields, numeric strings, non-finite/over-precision/negative/excessive amounts and missing mutation resource IDs before state changes.
+- Use integer minor units for wallet, toll, order and parking amounts; enforce aggregate ceilings and validate exact selected mutation resources.
+- Strengthened catalog success tests and added nine regression groups covering financial attacks, nested validation, resource selection and real HTTP boundaries. Clean install, 58 tests and 14 forced build tasks pass; [evidence](reports/2026-10-23-p0-09-validation.md).
+- Domain authorization/quotes, false success, transaction durability, real Keycloak/browser/native validation remain open tasks.
+
 ## 2026-10-23 — Backlog implementation: capabilities, streams and build gates
 
 - Completed P1-01 discovery: 32 stable capability IDs, version/owner, JSON Schemas, risk and consent metadata; catalog/list/detail/tool discovery endpoints and contract tests.

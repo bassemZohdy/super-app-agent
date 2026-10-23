@@ -1,3 +1,4 @@
+import { validateRequest, toolSchema } from '../../../packages/protocol-core/src/request-validation.ts';
 import http from 'node:http';
 import { capabilities } from './capabilities.ts';
 
@@ -114,7 +115,7 @@ export const defaultEjariContract: EjariContract = {
   status: 'ACTIVE_REGISTERED',
 };
 
-export function executeCatalogRequest(
+function handleCatalogRequest(
   method: string,
   pathname: string,
   query: Record<string, string> = {},
@@ -152,6 +153,7 @@ export function executeCatalogRequest(
   }
 
   if (normMethod === 'POST' && (pathname === '/housing/move-in' || pathname === '/move-in')) {
+    if (body.contractNumber !== defaultEjariContract.contractNumber) return { status: 404, data: { error: 'Tenancy contract not found' } };
     return {
       status: 200,
       data: {
@@ -231,6 +233,18 @@ export function executeCatalogRequest(
   }
 
   return { status: 404, data: { error: 'Not found', path: pathname } };
+}
+
+// All transports and in-process callers pass through the same request contract.
+export function executeCatalogRequest(method: string, pathname: string, query: Record<string, string> = {}, body: any = {}): { status: number; data: any } {
+  const invalid = validateRequest('service-catalog', method.toUpperCase(), pathname, query, body);
+  if (invalid) return invalid;
+  const result = handleCatalogRequest(method, pathname, query, body);
+  if (pathname === '/mcp' && result.data.tools) {
+    result.data.tools = result.data.tools.map((tool: any) => ({ ...tool,
+      parameters: toolSchema('service-catalog', tool.name) || tool.parameters }));
+  }
+  return result;
 }
 
 function sendJson(res: http.ServerResponse, statusCode: number, data: any) {
