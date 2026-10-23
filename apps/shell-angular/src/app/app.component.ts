@@ -1,3 +1,4 @@
+import { VoiceClient, type VoiceState } from '../../../../packages/protocol-core/src/voice-client.ts';
 import { checkedSurface, choiceDefaults, readCoreResponse, surfaceActionPayload } from '../../../../packages/protocol-core/src/surface-client.ts';
 import { connectEventStream } from '../../../../packages/protocol-core/src/sse-client.ts';
 import { Component, signal, OnInit, OnDestroy } from '@angular/core';
@@ -48,9 +49,19 @@ import type { AGUISurfacePayload, A2UIMessageEnvelope, UIComponentNode } from '.
             <button (click)="sendIntent('Show my UAE PASS citizen profile and registered vehicles and premises')">🛡️ UAE PASS Profile</button>
           </div>
 
+          <div style="padding: 10px; font-size: 12px;">
+            <button [disabled]="!voice?.canListen" [attr.aria-pressed]="voiceState() === 'listening'" (click)="toggleMicrophone()">{{ voiceState() === 'listening' ? 'Stop microphone' : 'Use microphone' }}</button>
+            <select aria-label="Voice language" [value]="voiceLanguage" (change)="setVoiceLanguage($any($event.target).value)">
+              <option value="en-US">English</option><option value="ar-AE">Arabic</option>
+            </select>
+            <label><input type="checkbox" [checked]="readReplies" [disabled]="!voice?.canSpeak" (change)="setReadReplies($any($event.target).checked)" /> Read replies aloud</label>
+            <button *ngIf="voiceState() !== 'idle'" (click)="voice?.cancel()">Cancel voice</button>
+            <div role="status" aria-live="polite">{{ voiceError() || (voiceState() === 'listening' ? 'Listening. Review the transcript, then press Send.' : voiceState() === 'speaking' ? 'Speaking reply.' : !voice?.canListen ? 'Voice input unavailable; type your request.' : 'Voice input fills a draft. Review it, then press Send.') }}</div>
+            <small>Your browser may use its speech service. This app does not store audio. Arabic dictation depends on browser support; service requests currently use English.</small>
+          </div>
           <div class="input-row">
-            <input #promptInput type="text" placeholder="Ask the concierge..." (keydown.enter)="sendIntent(promptInput.value); promptInput.value = ''" />
-            <button (click)="sendIntent(promptInput.value); promptInput.value = ''">Send</button>
+            <input type="text" aria-label="Chat message" maxlength="4000" placeholder="Ask the concierge..." [value]="draft()" (input)="voice?.cancel(); draft.set($any($event.target).value)" (keydown.enter)="sendIntent(draft()); draft.set('')" />
+            <button [disabled]="pending" (click)="sendIntent(draft()); draft.set('')">Send</button>
           </div>
         </aside>
 
@@ -163,6 +174,20 @@ import type { AGUISurfacePayload, A2UIMessageEnvelope, UIComponentNode } from '.
   `]
 })
 export class AppComponent implements OnInit, OnDestroy {
+  voice?: VoiceClient;
+  voiceState = signal<VoiceState>('idle');
+  voiceError = signal('');
+  draft = signal('');
+  readReplies = false;
+  voiceLanguage = 'en-US';
+  private visibilityHandler = () => { if (document.hidden) this.voice?.cancel(); };
+  toggleMicrophone() {
+    this.voiceError.set('');
+    if (this.voiceState() === 'listening') this.voice?.stopListening();
+    else this.voice?.startListening(this.voiceLanguage);
+  }
+  setVoiceLanguage(value: string) { this.voice?.cancel(); this.voiceLanguage = value; }
+  setReadReplies(value: boolean) { this.readReplies = value; if (!value) this.voice?.cancel(); }
   private streamController = new AbortController();
   messages = signal<Array<{ role: string; text: string }>>([
     { role: 'assistant', text: 'Welcome to SuperApp Angular Shell! Ask me to book a ride, order food, or check your wallet.' }
@@ -177,17 +202,23 @@ export class AppComponent implements OnInit, OnDestroy {
     if (this.surface()?.revision === surface.revision) return;
     this.choices.set(choiceDefaults(surface.view));
     this.surface.set(surface);
+    if (surface.assistantMessage) {
+      this.messages.update(prev => [...prev, { role: 'assistant', text: surface.assistantMessage!.text }]);
+      if (this.readReplies) this.voice?.speak(surface.assistantMessage.text, this.voiceLanguage);
+    }
   }
   showError(text: string) { this.messages.update(prev => [...prev, { role: 'assistant', text }]); }
   async applyResponse(res: Response) {
     const result = await readCoreResponse(res, this.sessionId);
     if (result.surface) this.applySurface(result.surface);
-    if (result.error) this.showError(result.error);
+    if (result.error && result.error !== result.surface?.assistantMessage?.text) this.showError(result.error);
   }
   sessionId = `ng_${Date.now()}`;
   keycloakToken = 'demo-local'; // local demo only
 
   ngOnInit() {
+    this.voice = new VoiceClient({ onTranscript: text => this.draft.set(text), onState: state => this.voiceState.set(state), onError: error => this.voiceError.set(error) });
+    document.addEventListener('visibilitychange', this.visibilityHandler);
     void connectEventStream({
       url: `http://localhost:4000/api/a2ui/stream?sessionId=${this.sessionId}`,
       getToken: () => this.keycloakToken,
@@ -204,13 +235,14 @@ export class AppComponent implements OnInit, OnDestroy {
     });
   }
 
-  ngOnDestroy() { this.streamController.abort(); }
+  ngOnDestroy() { this.streamController.abort(); this.voice?.dispose(); document.removeEventListener('visibilitychange', this.visibilityHandler); }
 
   async sendIntent(text: string) {
     if (!text.trim() || this.pending) return;
     this.pending = true;
+    this.voice?.cancel();
     this.messages.update((m) => [...m, { role: 'user', text }]);
-    this.delta.set('🧠 Supervisor reasoning with LangGraph...');
+    this.delta.set('Preparing your request...');
 
     try {
       const res = await fetch('http://localhost:4000/api/a2ui/intent', {
@@ -245,6 +277,7 @@ export class AppComponent implements OnInit, OnDestroy {
     catch (error) { this.showError((error as Error).message); return; }
     const action = binding.payload.action;
     this.pending = true;
+    this.voice?.cancel();
     this.delta.set(`⚡ Executing action: ${action}...`);
     try {
       const res = await fetch('http://localhost:4000/api/a2ui/action', {

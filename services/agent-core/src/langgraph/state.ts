@@ -14,6 +14,7 @@ export interface SuperAppAgentState {
   messages: AgentMessage[];
   activeDomain: DomainCategory;
   currentSurface?: AGUISurfacePayload;
+  conversationTopic?: string;
   pendingAction?: {
     action: string;
     payload: Record<string, any>;

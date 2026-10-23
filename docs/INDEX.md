@@ -38,3 +38,5 @@ Updated **23 October 2026** following security-hardening PR #1 on `main`.
 - Old detailed demo backlog retained at [historical backlog](history/demo-backlog-pre-production.md); current work is [TODO.md](../TODO.md).
 - External specifications: [AG-UI](https://github.com/ag-ui-protocol/ag-ui), [A2UI](https://a2ui.org/), [MCP](https://modelcontextprotocol.io/) and [A2A](https://a2a-protocol.org/). Do not infer conformance from the use of names.
 
+
+- [Voice and conversational chat](architecture/voice-and-conversation.md) — microphone drafts, spoken replies, contextual follow-ups and verification limits.

@@ -1,5 +1,12 @@
 # Documentation changelog
 
+## 2026-10-23 — Voice and conversational chat
+
+- Add React/Angular microphone drafts, English/Arabic recognition locale controls, optional spoken replies, visible errors/text fallback and audio cancellation on editing, sending, tab hide and teardown.
+- Carry committed assistant messages with surfaces over HTTP/SSE; display replies in all shells. Add bounded deterministic context follow-ups, proposal explanations, greetings/help and approval cancellation. Chat assent never dispatches a mutation.
+- Merge #6/#7; refresh backlog, document native/multilingual/runtime boundaries under P1-16/P1-03/P0-05.
+- 84 tests and 14 forced JS builds pass. Actual microphone/speaker/browser/native verification remains open. [Voice guide](architecture/voice-and-conversation.md).
+
 ## 2026-10-23 — P1-12 dispatch and response handling (partial)
 
 - Omit absent selections, initialize choices from the active surface, reset on revision replacement and reject ambiguous multi-group dispatch. Preserve advertised action parameters in Angular/Flutter.

@@ -1,3 +1,4 @@
+import { handleConversation, contextualPrompt } from '../conversation.ts';
 import type { AGUISurfacePayload, UIComponentNode } from '../../../../packages/protocol-core/src/index.ts';
 import type { SuperAppAgentState, DomainCategory } from './state.ts';
 import { invokeOpenRouterChat, getOpenRouterConfig } from '../openrouter.ts';
@@ -27,7 +28,9 @@ export class SuperAppAgentGraph {
       timestamp: Date.now(),
     });
 
-    onProgress?.('🧠 Concierge Supervisor analyzing user request...');
+    if (handleConversation(state, prompt)) return state;
+    const routingPrompt = contextualPrompt(state, prompt);
+    onProgress?.('Preparing your request...');
 
     // 2. Fetch User Profile and Personalization Context
     const profileRes = executeProfileRequest('GET', '/profile/prompt-context');
@@ -37,7 +40,7 @@ export class SuperAppAgentGraph {
     onProgress?.(`👤 Applying personalization for ${profile.displayName} (${profile.vipTier}) • Dietary: ${preferences.dietary.join(', ')}...`);
 
     // 3. Classify smart city domain intent
-    const lower = prompt.toLowerCase();
+    const lower = routingPrompt.toLowerCase();
     let targetDomain: DomainCategory = 'concierge';
 
     // Smart Mobility Intent (RTA / Mawaqif Parking, Salik / Darb Toll, DEWA EV Chargers, Ride)
