@@ -42,7 +42,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen> {
   double _walletBalance = 142.50;
   final String _sessionId = 'flutter_${DateTime.now().millisecondsSinceEpoch}';
   final String _gatewayUrl = 'http://localhost:4000';
-  final String _keycloakToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImtleWNsb2FrLXN1cGVyYXBwLWtleS0xIn0.eyJleHAiOjE5OTk5OTk5OTksInN1YiI6InVzcl9iYXNzZW1fb2lkYyIsInByZWZlcnJlZF91c2VybmFtZSI6ImJhc3NlbSIsImVtYWlsIjoiYmFzc2VtQHN1cGVyYXBwLmludGVybmFsIiwibmFtZSI6IkJhc3NlbSBab2hkeSIsInZpcFRpZXIiOiJHb2xkIFZJUCIsInJvbGVzIjpbInN1cGVyYXBwLXVzZXIiLCJzdXBlcmFwcC12aXAiXX0.sig_keycloak_verified';
+  final String _keycloakToken = 'demo-local'; // local demo only
   final TextEditingController _promptController = TextEditingController();
 
   Future<void> _sendIntent(String text) async {
