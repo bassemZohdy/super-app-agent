@@ -11,6 +11,7 @@ import {
 import type { SuperAppAgentState } from './langgraph/state.ts';
 import { SuperAppAgentGraph } from './langgraph/graph.ts';
 import { verifyKeycloakToken, isDemoAuthEnabled } from './auth.ts';
+import { invokeOpenRouterTTS } from './openrouter.ts';
 
 // In-Memory Session and SSE Subscriber Registry
 export const sessions = new Map<string, SuperAppAgentState>();
@@ -212,6 +213,51 @@ async function handleGatewayRequest(
         surface: updatedState.currentSurface,
       },
     };
+  }
+
+  // 4. OpenRouter Text-to-Speech (Neural Voice Synthesis)
+  if (normMethod === 'POST' && pathname === '/api/a2ui/tts') {
+    try {
+      const audioResult = await invokeOpenRouterTTS(body.text, {
+        voice: body.voice,
+        language: body.language,
+      });
+      if (audioResult) {
+        return {
+          status: 200,
+          data: {
+            success: true,
+            available: true,
+            provider: 'openrouter',
+            audioBase64: audioResult.audioBase64,
+            format: audioResult.format,
+            model: audioResult.model,
+            voice: audioResult.voice,
+          },
+        };
+      }
+      return {
+        status: 200,
+        data: {
+          success: true,
+          available: false,
+          provider: 'browser_speech_synthesis',
+          fallback: true,
+          message: 'OpenRouter API key not configured or neural TTS unavailable; using browser speech synthesis.',
+        },
+      };
+    } catch (err: any) {
+      return {
+        status: 200,
+        data: {
+          success: true,
+          available: false,
+          provider: 'browser_speech_synthesis',
+          fallback: true,
+          error: err?.message || 'Neural TTS failed',
+        },
+      };
+    }
   }
 
   return { status: 404, data: { error: 'Not found', path: pathname } };

@@ -41,6 +41,7 @@ for (const [action, schema] of Object.entries(actionSchemas)) {
 }
 const coreIntent = object({ sessionId, text: text(4000), handshake }, ['sessionId', 'text']);
 const coreAction = object({ sessionId, surfaceRevision: { type: 'string', pattern: '^[0-9a-f-]{36}$' }, action: text(128), payload: { type: 'object' } }, ['sessionId', 'surfaceRevision', 'action', 'payload']);
+const coreTts = object({ text: text(4000), voice: { type: 'string', minLength: 1, maxLength: 64 }, language: { type: 'string', minLength: 1, maxLength: 32 } }, ['text']);
 
 type Route = { owner: string; method: string; path: string; aliases?: string[]; schema: Schema; tool?: string };
 const routes: Route[] = [];
@@ -52,6 +53,7 @@ for (const owner of ['service-ride', 'service-food', 'service-wallet', 'service-
 }
 route('agent-core', 'POST', '/api/a2ui/intent', coreIntent);
 route('agent-core', 'POST', '/api/a2ui/action', coreAction);
+route('agent-core', 'POST', '/api/a2ui/tts', coreTts);
 route('service-ride', 'GET', '/rides/options', object({ destination: text() }), [], 'ride_getOptions');
 route('service-ride', 'POST', '/rides/book', object({ driverId: id, pickup: text(), dropoff: text() }, ['driverId']), [], 'ride_bookCab');
 route('service-ride', 'GET', '/rides/track/{bookingId}', object({ bookingId: id }, ['bookingId']), [], 'ride_trackStatus');

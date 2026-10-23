@@ -11,14 +11,22 @@ export interface VoiceEnvironment {
   webkitSpeechRecognition?: new () => Recognition;
   speechSynthesis?: { speak(utterance: any): void; cancel(): void };
   SpeechSynthesisUtterance?: new (text: string) => any;
+  Audio?: new (src?: string) => any;
 }
 export type VoiceState = 'idle' | 'listening' | 'speaking';
-type VoiceCallbacks = { onTranscript(text: string): void; onState(state: VoiceState): void; onError(message: string): void };
+export type VoiceCallbacks = {
+  onTranscript(text: string): void;
+  onState(state: VoiceState): void;
+  onError(message: string): void;
+  fetchAudio?: (text: string, language: string) => Promise<{ audioBase64?: string; format?: string; available?: boolean } | null | undefined>;
+};
 export class VoiceClient {
   readonly canListen: boolean;
   readonly canSpeak: boolean;
   private recognition?: Recognition;
   private utterance?: any;
+  private currentAudio?: any;
+  private speechGeneration = 0;
   private disposed = false;
   private state: VoiceState = 'idle';
   private callbacks: VoiceCallbacks;
@@ -27,7 +35,7 @@ export class VoiceClient {
     this.callbacks = callbacks;
     this.environment = environment;
     this.canListen = !!(environment.SpeechRecognition || environment.webkitSpeechRecognition);
-    this.canSpeak = !!(environment.speechSynthesis && environment.SpeechSynthesisUtterance);
+    this.canSpeak = !!(environment.speechSynthesis && environment.SpeechSynthesisUtterance) || !!callbacks.fetchAudio;
   }
   private update(state: VoiceState) {
     this.state = state;
@@ -84,35 +92,127 @@ export class VoiceClient {
   }
   speak(text: string, language = 'en-US') {
     if (this.disposed) return;
-    if (!this.canSpeak) { this.callbacks.onError('Spoken replies are unavailable in this browser. Replies remain visible in chat.'); return; }
+    if (!this.canSpeak) {
+      this.callbacks.onError('Spoken replies are unavailable in this browser. Replies remain visible in chat.');
+      return;
+    }
     this.cancel();
+    const generation = ++this.speechGeneration;
+
+    if (this.callbacks.fetchAudio) {
+      this.update('speaking');
+      this.callbacks.fetchAudio(text, language)
+        .then(result => {
+          if (this.disposed || this.speechGeneration !== generation) return;
+          if (result && result.audioBase64) {
+            this.playNeuralAudio(result.audioBase64, result.format || 'audio/mpeg', generation, text, language);
+          } else {
+            this.speakBrowser(text, language, generation);
+          }
+        })
+        .catch(() => {
+          if (this.disposed || this.speechGeneration !== generation) return;
+          this.speakBrowser(text, language, generation);
+        });
+      return;
+    }
+
+    this.speakBrowser(text, language, generation);
+  }
+
+  private playNeuralAudio(audioBase64: string, format: string, generation: number, fallbackText: string, fallbackLang: string) {
+    const AudioConstructor = this.environment.Audio || (globalThis as any).Audio;
+    if (!AudioConstructor) {
+      this.speakBrowser(fallbackText, fallbackLang, generation);
+      return;
+    }
+    try {
+      const audio = new AudioConstructor(`data:${format};base64,${audioBase64}`);
+      this.currentAudio = audio;
+      const cleanup = () => {
+        if (this.currentAudio === audio) this.currentAudio = undefined;
+        if (!this.disposed && this.speechGeneration === generation) {
+          this.update('idle');
+        }
+      };
+      audio.onended = cleanup;
+      audio.onerror = () => {
+        if (this.currentAudio === audio) this.currentAudio = undefined;
+        if (!this.disposed && this.speechGeneration === generation) {
+          this.speakBrowser(fallbackText, fallbackLang, generation);
+        }
+      };
+      const playPromise = audio.play?.();
+      if (playPromise && typeof playPromise.catch === 'function') {
+        playPromise.catch(() => {
+          if (this.currentAudio === audio) this.currentAudio = undefined;
+          if (!this.disposed && this.speechGeneration === generation) {
+            this.speakBrowser(fallbackText, fallbackLang, generation);
+          }
+        });
+      }
+    } catch {
+      this.speakBrowser(fallbackText, fallbackLang, generation);
+    }
+  }
+
+  private speakBrowser(text: string, language: string, generation?: number) {
+    if (this.disposed) return;
+    if (generation !== undefined && this.speechGeneration !== generation) return;
+    if (!this.environment.speechSynthesis || !this.environment.SpeechSynthesisUtterance) {
+      this.update('idle');
+      this.callbacks.onError('The spoken reply could not play. You can read it in chat.');
+      return;
+    }
     let utterance: any;
-    try { utterance = new this.environment.SpeechSynthesisUtterance!(text.slice(0, 3000)); }
-    catch { this.callbacks.onError('Could not initialize speech playback. You can read the reply in chat.'); return; }
+    try {
+      utterance = new this.environment.SpeechSynthesisUtterance(text.slice(0, 3000));
+    } catch {
+      this.update('idle');
+      this.callbacks.onError('Could not initialize speech playback. You can read the reply in chat.');
+      return;
+    }
     utterance.lang = language;
     this.utterance = utterance;
+    const gen = generation ?? this.speechGeneration;
     const finished = () => {
-      if (this.utterance !== utterance || this.disposed) return;
+      if (this.utterance !== utterance || this.disposed || this.speechGeneration !== gen) return;
       this.utterance = undefined;
       this.update('idle');
     };
     utterance.onend = finished;
     utterance.onerror = () => {
-      if (this.utterance !== utterance || this.disposed) return;
-      finished(); this.callbacks.onError('The spoken reply could not play. You can read it in chat.');
+      if (this.utterance !== utterance || this.disposed || this.speechGeneration !== gen) return;
+      finished();
+      this.callbacks.onError('The spoken reply could not play. You can read it in chat.');
     };
-    try { this.update('speaking'); this.environment.speechSynthesis!.speak(utterance); }
-    catch { finished(); this.callbacks.onError('The spoken reply could not play. You can read it in chat.'); }
+    try {
+      this.update('speaking');
+      this.environment.speechSynthesis.speak(utterance);
+    } catch {
+      finished();
+      this.callbacks.onError('The spoken reply could not play. You can read it in chat.');
+    }
   }
+
   private detachRecognition(recognition: Recognition) {
     recognition.onresult = null; recognition.onerror = null; recognition.onend = null;
     if (this.recognition === recognition) this.recognition = undefined;
   }
   cancel() {
+    this.speechGeneration++;
     const recognition = this.recognition;
     if (recognition) {
       this.detachRecognition(recognition);
       try { recognition.abort(); } catch { /* Already ended. */ }
+    }
+    if (this.currentAudio) {
+      try {
+        this.currentAudio.pause();
+        this.currentAudio.currentTime = 0;
+        this.currentAudio.src = '';
+      } catch { /* Ignore cleanup errors */ }
+      this.currentAudio = undefined;
     }
     this.utterance = undefined;
     if (this.state === 'speaking') {

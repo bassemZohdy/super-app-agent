@@ -126,3 +126,20 @@ test('agent-core: action loop handles topup_wallet', async () => {
   assert.strictEqual(actionRes.data.surface.view.id, 'wallet_topup_card');
 });
 
+test('agent-core: /api/a2ui/tts validates input and provides graceful deterministic fallback', async () => {
+  // 1. Invalid input: empty string fails schema validation
+  const invalidRes = await executeCoreRequest('POST', '/api/a2ui/tts', {}, { text: '' });
+  assert.strictEqual(invalidRes.status, 400);
+
+  // 2. Valid input: when no key is set, returns deterministic fallback to browser speech synthesis
+  const validRes = await executeCoreRequest('POST', '/api/a2ui/tts', {}, {
+    text: 'Marhaba! Welcome to Dubai Smart City.',
+    voice: 'alloy',
+    language: 'en-US',
+  });
+  assert.strictEqual(validRes.status, 200);
+  assert.strictEqual(validRes.data.success, true);
+  assert.strictEqual(validRes.data.provider, 'browser_speech_synthesis');
+  assert.strictEqual(validRes.data.fallback, true);
+});
+

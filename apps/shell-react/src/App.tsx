@@ -63,8 +63,57 @@ export function App() {
   const voiceSettings = useRef({ readReplies, language: voiceLanguage });
   voiceSettings.current = { readReplies, language: voiceLanguage };
 
+  const [ttsVoice, setTtsVoice] = useState<'alloy' | 'echo' | 'nova' | 'heart'>('alloy');
+  const ttsVoiceRef = useRef(ttsVoice);
+  ttsVoiceRef.current = ttsVoice;
+  const [ttsEngine, setTtsEngine] = useState<'neural' | 'browser'>('neural');
+
+  const GATEWAY_URL = import.meta.env.VITE_GATEWAY_URL || 'http://localhost:4000';
+  const getAuthToken = () => {
+    try {
+      const stored = localStorage.getItem('KEYCLOAK_ACCESS_TOKEN');
+      if (stored && stored.trim().length > 0) return stored.trim();
+    } catch {
+      // sandbox/SSR fallback
+    }
+    return 'demo-local';
+  };
+
   useEffect(() => {
     const client = new VoiceClient({
+      fetchAudio: async (text: string, language: string) => {
+        try {
+          const res = await fetch(`${GATEWAY_URL}/api/a2ui/tts`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${getAuthToken()}`,
+            },
+            body: JSON.stringify({
+              text,
+              voice: ttsVoiceRef.current,
+              language,
+            }),
+          });
+          if (!res.ok) {
+            setTtsEngine('browser');
+            return null;
+          }
+          const data = await res.json();
+          if (data?.available && data?.audioBase64) {
+            setTtsEngine('neural');
+            return {
+              audioBase64: data.audioBase64,
+              format: data.format || 'audio/mpeg',
+            };
+          }
+          setTtsEngine('browser');
+          return null;
+        } catch {
+          setTtsEngine('browser');
+          return null;
+        }
+      },
       onTranscript: (text) => {
         const clean = text.trim();
         if (!clean) return;
@@ -257,17 +306,6 @@ export function App() {
 
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const miniAppMountRef = useRef<HTMLDivElement>(null);
-
-  const GATEWAY_URL = import.meta.env.VITE_GATEWAY_URL || 'http://localhost:4000';
-  const getAuthToken = () => {
-    try {
-      const stored = localStorage.getItem('KEYCLOAK_ACCESS_TOKEN');
-      if (stored && stored.trim().length > 0) return stored.trim();
-    } catch {
-      // sandbox/SSR fallback
-    }
-    return 'demo-local';
-  };
 
   // 1. Establish A2-UI Protocol SSE Stream
   useEffect(() => {
@@ -719,6 +757,57 @@ export function App() {
               >
                 {readReplies ? '🔊 Read Aloud' : '🔇 Muted'}
               </button>
+
+              {/* Neural TTS Voice Persona & Engine Selector */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '16px',
+                  padding: '2px 6px',
+                }}
+              >
+                <select
+                  value={ttsVoice}
+                  onChange={(e) => {
+                    const chosen = e.target.value as 'alloy' | 'echo' | 'nova' | 'heart';
+                    setTtsVoice(chosen);
+                    voice.current?.cancel();
+                  }}
+                  title="Choose Neural Voice Persona (OpenRouter TTS)"
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#0f172a',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    outline: 'none',
+                  }}
+                >
+                  <option value="alloy">🎙️ Alloy (Natural)</option>
+                  <option value="echo">🎙️ Echo (Crisp)</option>
+                  <option value="nova">🎙️ Nova (Warm)</option>
+                  <option value="heart">🎙️ Heart (Gentle)</option>
+                </select>
+                <span
+                  title={ttsEngine === 'neural' ? 'OpenRouter Neural TTS (Kokoro/OpenAI)' : 'Local Web Speech Fallback'}
+                  style={{
+                    fontSize: '9px',
+                    padding: '2px 5px',
+                    borderRadius: '8px',
+                    background: ttsEngine === 'neural' ? '#dbeafe' : '#f1f5f9',
+                    color: ttsEngine === 'neural' ? '#1e40af' : '#64748b',
+                    fontWeight: 700,
+                    letterSpacing: '0.04em',
+                  }}
+                >
+                  {ttsEngine === 'neural' ? 'AI Voice' : 'Browser'}
+                </span>
+              </div>
 
               {/* Hands-Free Voice Continuous Loop Toggle */}
               <button
