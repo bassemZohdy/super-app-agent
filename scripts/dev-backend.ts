@@ -7,6 +7,9 @@ console.log('===========================================================');
 console.log('🚀 SuperApp Agent Platform: Starting Backend Ecosystem...');
 console.log('===========================================================');
 
+process.env.DEMO_AUTH = process.env.DEMO_AUTH || 'true';
+process.env.NODE_ENV = process.env.NODE_ENV || 'development';
+
 process.env.PORT = '4001';
 const { server: rideServer } = await import('../services/service-ride/src/index.ts');
 rideServer.listen(4001, '0.0.0.0', () => {
