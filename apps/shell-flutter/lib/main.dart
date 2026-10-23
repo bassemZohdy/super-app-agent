@@ -38,15 +38,63 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen> {
   ];
   Map<String, dynamic>? _currentSurface;
   String? _thinkingDelta;
-  String? _selectedChoice;
+  final Map<String, String> _choices = {};
+  bool _requestPending = false;
   double _walletBalance = 142.50;
   final String _sessionId = 'flutter_${DateTime.now().millisecondsSinceEpoch}';
   final String _gatewayUrl = 'http://localhost:4000';
   final String _keycloakToken = 'demo-local'; // local demo only
   final TextEditingController _promptController = TextEditingController();
 
+  void _applySurface(dynamic value) {
+    if (value is! Map<String, dynamic> || value['version'] != '1.0.0' ||
+        value['sessionId'] != _sessionId || value['revision'] is! String ||
+        !RegExp(r'^[0-9a-f-]{36}$').hasMatch(value['revision']) || value['view'] is! Map<String, dynamic>) {
+      throw const FormatException('Invalid gateway surface');
+    }
+    final choices = <String, String>{};
+    void walk(dynamic node, int depth) {
+      if (depth > 20 || node is! Map<String, dynamic> || node['type'] is! String || node['id'] is! String) {
+        throw const FormatException('Invalid surface node');
+      }
+      final props = node['properties'];
+      if (props != null && props is! Map<String, dynamic>) throw const FormatException('Invalid properties');
+      if (node['type'] == 'ChoiceGroup') {
+        final options = props?['options'];
+        if (options is! List || options.length > 100 || options.any((o) => o is! Map || o['id'] is! String || o['title'] is! String)) {
+          throw const FormatException('Invalid options');
+        }
+        if (options.isNotEmpty) {
+          final selected = options.firstWhere((o) => o['id'] == props?['selectedId'], orElse: () => options.first);
+          choices[node['id']] = selected['id'];
+        }
+      }
+      final children = node['children'] ?? [];
+      if (children is! List || children.length > 100) throw const FormatException('Invalid children');
+      for (final child in children) { walk(child, depth + 1); }
+    }
+    walk(value['view'], 0);
+    if (_currentSurface?['revision'] == value['revision']) return;
+    _choices..clear()..addAll(choices);
+    _currentSurface = value;
+  }
+
+  void _readResponse(http.Response response) {
+    final data = jsonDecode(response.body);
+    if (data is! Map<String, dynamic>) throw const FormatException('Invalid response');
+    setState(() {
+      if (data['surface'] != null) _applySurface(data['surface']);
+      if (response.statusCode < 200 || response.statusCode >= 300 || data['success'] != true) {
+        _messages.add({'role': 'assistant', 'text': data['error'] is String ? data['error'] : 'Request failed (${response.statusCode}).'});
+      } else if (data['surface'] == null) {
+        throw const FormatException('Missing response surface');
+      }
+    });
+  }
+
   Future<void> _sendIntent(String text) async {
-    if (text.trim().isEmpty) return;
+    if (text.trim().isEmpty || _requestPending) return;
+    _requestPending = true;
     setState(() {
       _messages.add({'role': 'user', 'text': text});
       _thinkingDelta = '🧠 Supervisor evaluating intent via LangGraph...';
@@ -79,37 +127,32 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen> {
         }),
       );
 
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        setState(() {
-          _thinkingDelta = null;
-          if (data['surface'] != null) {
-            _currentSurface = data['surface'];
-            _messages.add({
-              'role': 'assistant',
-              'text': 'Prepared interactive surface for your request.'
-            });
-          }
-        });
-      }
+      if (!mounted) return;
+      _readResponse(res);
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _thinkingDelta = null;
         _messages.add({'role': 'assistant', 'text': 'Could not reach Gateway at $_gatewayUrl'});
       });
+    } finally {
+      _requestPending = false;
+      if (mounted) setState(() => _thinkingDelta = null);
     }
   }
 
   Future<void> _dispatchAction(String action, [Map<String, dynamic>? payload]) async {
+    if (_requestPending) return;
+    _requestPending = true;
     setState(() {
       _thinkingDelta = '⚡ Executing action: $action...';
     });
 
     try {
-      final bodyPayload = payload ?? {};
-      if (_selectedChoice != null) {
-        bodyPayload['selectedChoice'] = _selectedChoice;
-      }
+      if (_choices.length > 1) throw const FormatException('Ambiguous action choices');
+      final bodyPayload = Map<String, dynamic>.from(payload ?? {});
+      bodyPayload.remove('selectedChoice');
+      if (_choices.length == 1) bodyPayload['selectedChoice'] = _choices.values.first;
 
       final res = await http.post(
         Uri.parse('$_gatewayUrl/api/a2ui/action'),
@@ -125,19 +168,15 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen> {
         }),
       );
 
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        setState(() {
-          _thinkingDelta = null;
-          if (data['surface'] != null) {
-            _currentSurface = data['surface'];
-          }
-        });
-      }
+      if (!mounted) return;
+      _readResponse(res);
     } catch (e) {
-      setState(() {
-        _thinkingDelta = null;
+      if (mounted) setState(() {
+        _messages.add({'role': 'assistant', 'text': 'Could not confirm the action result. Check status before retrying.'});
       });
+    } finally {
+      _requestPending = false;
+      if (mounted) setState(() => _thinkingDelta = null);
     }
   }
 
@@ -445,9 +484,9 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen> {
           children: options.map((optMap) {
             final opt = optMap as Map<String, dynamic>;
             final id = opt['id'] as String;
-            final isSelected = _selectedChoice == id;
+            final isSelected = _choices[node['id']] == id;
             return InkWell(
-              onTap: () => setState(() => _selectedChoice = id),
+              onTap: () => setState(() => _choices[node['id']] = id),
               child: Container(
                 margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.all(12),
@@ -508,7 +547,13 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen> {
           child: SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: () => _dispatchAction(action),
+              onPressed: _requestPending || props['disabled'] == true ? null : () {
+                if (events.isEmpty || events[0]['actionType'] != 'AGENT_ACTION_DISPATCH') {
+                  setState(() => _messages.add({'role': 'assistant', 'text': 'This navigation action is not supported in this shell.'}));
+                  return;
+                }
+                _dispatchAction(action, Map<String, dynamic>.from(events[0]['payload'] ?? {}));
+              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF2563EB),
                 foregroundColor: Colors.white,
@@ -521,7 +566,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen> {
         );
 
       default:
-        return const SizedBox.shrink();
+        return Text('Unsupported component: ${node['type']}');
     }
   }
 }

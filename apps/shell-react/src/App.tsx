@@ -1,3 +1,4 @@
+import { checkedSurface, readCoreResponse } from '../../../packages/protocol-core/src/surface-client.ts';
 import { connectEventStream } from '../../../packages/protocol-core/src/sse-client.ts';
 import React, { useState, useEffect, useRef } from 'react';
 import type { AGUISurfacePayload, A2UIMessageEnvelope } from '../../../packages/protocol-core/src/index.ts';
@@ -20,6 +21,21 @@ export function App() {
   const [prompt, setPrompt] = useState('');
   const [thinkingDelta, setThinkingDelta] = useState<string | null>(null);
   const [currentSurface, setCurrentSurface] = useState<AGUISurfacePayload | null>(null);
+  const lastRevision = useRef<string>();
+  const requestPending = useRef(false);
+  const applySurface = (value: unknown) => {
+    const surface = checkedSurface(value, sessionId);
+    if (lastRevision.current === surface.revision) return;
+    lastRevision.current = surface.revision;
+    setCurrentSurface(surface);
+    setActiveTab('agent');
+  };
+  const showError = (text: string) => setMessages(prev => [...prev, { role: 'assistant', text }]);
+  const applyResponse = async (res: Response) => {
+    const result = await readCoreResponse(res, sessionId);
+    if (result.surface) applySurface(result.surface);
+    if (result.error) showError(result.error);
+  };
   const [activeTab, setActiveTab] = useState<SmartCityTab>('agent');
   const [walletBalance, setWalletBalance] = useState<number>(250.0);
 
@@ -41,12 +57,8 @@ export function App() {
             setThinkingDelta(envelope.data.text);
           } else if (envelope.type === 'A2UI_RENDER_SURFACE') {
             setThinkingDelta(null);
-            setCurrentSurface(envelope.data.surface);
-            setActiveTab('agent');
-            setMessages((prev) => [
-              ...prev,
-              { role: 'assistant', text: 'Prepared interactive Smart City surface for your request.' },
-            ]);
+            try { applySurface(envelope.data.surface); }
+            catch (error) { showError((error as Error).message); }
           } else if (envelope.type === 'A2UI_LAUNCH_MINIAPP') {
             const appId = envelope.data.miniAppId || '';
             if (appId.includes('mobility') || appId.includes('ride')) setActiveTab('mobility');
@@ -118,7 +130,8 @@ export function App() {
   // 3. Dispatch User Intent to Gateway
   const handleSend = async (textToSend?: string) => {
     const query = textToSend || prompt;
-    if (!query.trim()) return;
+    if (!query.trim() || requestPending.current) return;
+    requestPending.current = true;
 
     setMessages((prev) => [...prev, { role: 'user', text: query }]);
     setPrompt('');
@@ -158,14 +171,7 @@ export function App() {
         }),
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data.surface) {
-          setThinkingDelta(null);
-          setCurrentSurface(data.surface);
-          setActiveTab('agent');
-        }
-      }
+      await applyResponse(res);
     } catch (err) {
       setThinkingDelta(null);
       setMessages((prev) => [
@@ -175,11 +181,15 @@ export function App() {
           text: 'Error connecting to Agent Gateway. Please verify services are running on port 4000.',
         },
       ]);
+    } finally {
+      requestPending.current = false;
+      setThinkingDelta(null);
     }
   };
 
   // 4. Dispatch Interactive Action
   const handleDispatchAction = async (action: string, payload: Record<string, any>) => {
+    if (action === 'CLIENT_ERROR') { showError(payload.error); return; }
     if (action === 'LAUNCH_MINIAPP') {
       const miniAppId = payload.miniAppId || '';
       if (miniAppId.includes('mobility') || miniAppId.includes('ride')) setActiveTab('mobility');
@@ -189,6 +199,8 @@ export function App() {
       return;
     }
 
+    if (requestPending.current) return;
+    requestPending.current = true;
     setThinkingDelta(`⚡ Processing Smart City action: ${action}...`);
     try {
       const res = await fetch(`${GATEWAY_URL}/api/a2ui/action`, {
@@ -200,17 +212,13 @@ export function App() {
         body: JSON.stringify({ sessionId, surfaceRevision: currentSurface?.revision, action, payload }),
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        setThinkingDelta(null);
-        if (data.surface) {
-          setCurrentSurface(data.surface);
-          setActiveTab('agent');
-        }
-      }
+      await applyResponse(res);
     } catch (err) {
       setThinkingDelta(null);
-      console.error('Failed to dispatch action', err);
+      showError('Could not confirm the action result. Check status before retrying.');
+    } finally {
+      requestPending.current = false;
+      setThinkingDelta(null);
     }
   };
 
@@ -549,7 +557,7 @@ export function App() {
                 <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>
                   {activeTab === 'agent'
                     ? 'Generative civic UI cards compiled on-the-fly by Rashid (LangGraph Supervisor)'
-                    : 'Independently mounted microfrontend module verified under UAE PASS sovereign identity'}
+                    : 'Local demo mini-app; production identity integration is pending'}
                 </p>
               </div>
               <span
