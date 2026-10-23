@@ -96,6 +96,7 @@ test('agent-core: composite multi-domain intent orchestrates ride, food, and wal
 
 test('agent-core: action loop handles book_ride dispatch', async () => {
   const sid = `sess_action_ride_${Date.now()}`;
+  await executeCoreRequest('POST', '/api/a2ui/intent', {}, { sessionId: sid, text: 'Find a cab ride to Downtown' });
   const actionRes = await executeCoreRequest('POST', '/api/a2ui/action', {}, {
     sessionId: sid,
     action: 'book_ride',
@@ -111,6 +112,7 @@ test('agent-core: action loop handles book_ride dispatch', async () => {
 
 test('agent-core: action loop handles topup_wallet', async () => {
   const sid = `sess_action_wallet_${Date.now()}`;
+  await executeCoreRequest('POST', '/api/a2ui/intent', {}, { sessionId: sid, text: 'Show my wallet balance' });
   const actionRes = await executeCoreRequest('POST', '/api/a2ui/action', {}, {
     sessionId: sid,
     action: 'topup_wallet',
