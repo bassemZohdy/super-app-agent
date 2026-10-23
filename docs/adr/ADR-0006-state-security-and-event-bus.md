@@ -1,86 +1,31 @@
-# ADR-0006: State Management, Mini-App Sandboxing, and Security Architecture
+# ADR-0006 — Session state, UI events and security boundaries
 
-## Status
-Accepted / Under Review
+**Status:** **Partial protections implemented after PR #1; production security pending.**
+**Reviewed:** 2026-10-23.
 
 ## Context
-A SuperApp ecosystem combines heterogeneous mini-apps, third-party extensions, and an autonomous AI agent connected to external LLM providers (e.g., OpenRouter). This introduces critical architectural challenges:
-1. **API Key Security**: The `OPENROUTER_API_KEY` and proprietary backend secrets must never leak to client frontends.
-2. **Mini-App Sandboxing & Permissions**: Mini-apps should not tamper with the host shell, steal tokens of other mini-apps, or access device capabilities without explicit user/host consent.
-3. **Cross-App Communication & State Synchronization**: When a user selects a meal in the Food mini-app, the payment must transfer seamlessly to the Wallet mini-app under agent supervision.
+
+Agent-first civic journeys span identity, conversation, UI actions and potentially financial effects. No trust boundary may be inferred from a generated component or an agent plan.
 
 ## Decision
 
-We enforce a **Zero-Trust Host Sandboxing and Controlled Event Bus Architecture**:
+- Require a verified user identity for nonpublic agent ingress; the only exception is **explicit nonproduction local demo mode**.
+- Scope sessions to authenticated subject IDs and validate each action against the current UI surface as a *preliminary* control.
+- Keep API keys on the backend; do not place bearer tokens in SSE query strings.
+- Treat domain resource authorization, delegated consent, immutable transaction quotations, distributed idempotency, audit and revocation as separate mandatory controls.
+- Use a typed event contract; for production, support durable event ordering/replay and per-session/per-user access control.
 
-```mermaid
-flowchart TD
-    subgraph ClientHost ["SuperApp Host Shell"]
-        StateStore["Host Reactive State Store\n(Signals / Zustand / Riverpod)"]
-        EventBus["Secure Event Bus\n(PostMessage / CustomEvent Channel)"]
-        PermissionGuard["Mini-App Permission & Sandbox Guard"]
-        
-        subgraph SandboxedMiniApps ["Sandboxed Mini-Apps"]
-            MiniAppA["Ride Mini-App (Sandbox A)"]
-            MiniAppB["Food Mini-App (Sandbox B)"]
-        end
+## Implemented after PR #1
 
-        MiniAppA <-->|Scoped Event Dispatch| EventBus
-        MiniAppB <-->|Scoped Event Dispatch| EventBus
-        EventBus --> PermissionGuard
-        PermissionGuard --> StateStore
-    end
+`auth.ts` verifies RS256 tokens using configured JWKS, exact issuer, audience and expiration. `DEMO_AUTH=true` admits a synthetic identity only outside `NODE_ENV=production`. `index.ts` stores process-local session owner, SSE subscriber sets and consumed-action keys; guards selected action payload fields and limits some inputs; allows configured CORS origins. React/Angular/Flutter hardcoded forged JWTs were replaced with a local demo marker.
 
-    ClientHost <-->|A2-UI Protocol (JWT Auth / WSS)| AgentGateway["Backend Agent Gateway"]
+## Unresolved
 
-    subgraph BackendCluster ["Backend Microservices Cluster (Protected Network)"]
-        AgentGateway <--> Orchestrator["Agent Orchestration Core"]
-        Orchestrator --> KeyVault["Environment & Secret Store\n(OPENROUTER_API_KEY)"]
-        Orchestrator <--> Microservices["Ride, Food, Wallet Services"]
-    end
-```
+- No client OIDC/PKCE login or production authenticated streaming.
+- Global in-memory state with no TTL or multi-node durability.
+- No domain-level policy check or verifiable user-consent evidence.
+- No durable transaction idempotency, partial-failure recovery or audit.
+- Keycloak realm sample retains insecure development settings and seeded credentials.
+- Agentgateway config allows wildcard CORS and uses a floating image tag.
 
----
-
-### 1. Secret Management & LLM Protection
-- **Backend-Only Keys**: The `OPENROUTER_API_KEY` is loaded strictly on the server-side via environment variables (`.env`).
-- **No Client Exposure**: Clients only receive sanitized A2-UI and AG-UI event payloads. The LLM prompts, proprietary system instructions, and tool definitions stay encapsulated within the Agent Gateway.
-- **Rate-Limiting & Quotas**: The Agent Gateway enforces per-user rate limits and token budgets to prevent LLM abuse.
-
----
-
-### 2. Mini-App Sandboxing & Permission Model
-Every mini-app must declare a manifest specifying required permissions:
-```json
-{
-  "miniAppId": "org.superapp.food",
-  "version": "1.2.0",
-  "permissions": [
-    "geolocation:read",
-    "payment:request"
-  ],
-  "allowedDomains": [
-    "https://api.foodservice.internal"
-  ]
-}
-```
-- **Storage Isolation**: Mini-apps are partitioned using namespaced storage keys (e.g., `superapp:storage:org.superapp.food:*`). They cannot read host cookies or tokens from another mini-app.
-- **Hardware Access**: Access to camera, microphone, or precise GPS must be requested via the Host Shell Permission Broker.
-
----
-
-### 3. Cross-Mini-App Event Bus
-Mini-apps communicate through a typed, broker-governed Event Bus:
-- **`EVENT_REQUEST_PAYMENT`**: Dispatched by a commercial mini-app; intercepted by the Host Shell; delegates to the Wallet Mini-App modal or agent checkout flow.
-- **`EVENT_SESSION_CONTEXT`**: Allows the active mini-app to share contextual metadata back to the Agent (e.g. current cart total, chosen pickup location) so the Agent remains aware of what the user is doing.
-
-## Consequences
-
-### Positive
-- **Robust Security**: Protects LLM credentials and isolates third-party mini-app code from sensitive host storage.
-- **Auditable Transactions**: All inter-app actions pass through the Agent Gateway and Event Bus, providing complete audit trails.
-- **Extensible Governance**: Permission checks can be evaluated dynamically by policy engines.
-
-### Negative / Trade-offs
-- Slight serialization overhead when passing complex objects between mini-apps and host shell.
-- Requires strict typing of event payloads across microfrontend boundaries.
+This ADR is **not** a security certification. See [SECURITY.md](../../SECURITY.md).
