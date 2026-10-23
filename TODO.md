@@ -1,83 +1,135 @@
-# Super App Agent — current backlog
+# Super App Agent — remaining work backlog
 
-**As of 23 October 2026.** This is the **current implementation plan**, not a count of features already in production. Completed historical demo tasks and their original 100% checkmarks are preserved in [the archived demo backlog](docs/history/demo-backlog-pre-production.md).
+**Reviewed: 23 October 2026.** Scope: agent-core, five domain simulators, capability catalog, React/Angular/Flutter, four mini-apps, custom protocols, model client, identity/gateway configuration, containers, scripts, tests and architecture documentation.
 
-## Status legend
+**Reviewed code:** `254b4882719c4464395c9fb79e921837d5cde634` on `docs/full-project-refresh-20261023`. PR #3 was merged into that branch; PR #2 is still open against `main` (`85ae71a`). Features below must not be reported as available on `main` until that integration is complete. This is a backlog review, not an implementation or production certification.
 
-- **Implemented (demo):** source exists and uses simulated data/contracts; not production validated.
-- **Configured:** settings/manifests exist, but integration/runtime compatibility is unverified.
-- **Proposed:** architecture/design only.
-- **Verified:** requires recorded passing builds/tests against the claimed target environment. **Do not equate source inspection with verified execution.**
+Existing task IDs are preserved. New findings extend those tasks or receive new IDs; completed work is separated from remaining work. Historical demo checkmarks remain in [the archived backlog](docs/history/demo-backlog-pre-production.md).
 
-## Baseline
+## Current baseline and verification limits
 
-| Area | Status | Evidence / caveat |
+| Area | Available in reviewed code | Remaining boundary |
 | --- | --- | --- |
-| Five domain simulator modules | Implemented (demo) | In-process calls; global fixture data, no verified agencies |
-| React shell + mini-app examples | Implemented (demo) | Direct source imports; no remote signed MFE loader |
-| Angular and Flutter sample shells | Angular build verified; Flutter demo only | Angular bundle passes; visual/runtime parity and Flutter execution pending |
-| Custom UI/event protocol | Implemented (demo); web transport regression verified | Signed HTTP SSE/replay/expiry tests pass; not official AG-UI or A2UI |
-| JWT validation and session/action guard | Implemented (demo baseline) | RS256/JWKS, process-local, no production browser login |
-| Gateway configuration | Configured | Actual supported YAML/schema and traffic path not demonstrated |
-| Optional OpenRouter preview | Implemented (demo) | Free by default; model output does not route journeys |
-| Genuine LangGraph orchestration | Proposed | No framework SDK or persistent graph/checkpointer in source |
-| Real domain authorization/delegation | Not implemented | Required for real citizen/payment data |
-| Persistent transaction/workflow engine | Not implemented | Required for recovery, scheduled/proactive jobs |
+| Agent runtime | Keyword routing and static surfaces through `SuperAppAgentGraph` | No real LangGraph graph, model-driven planning or durable workflow |
+| Domain services | Five modules with local HTTP handlers and shared fixtures | No real providers, per-user domain isolation or durable records; core calls imported functions |
+| Capability discovery | 32 versioned definitions, schemas, risk/consent metadata, list/detail endpoints | Metadata is not enforced on invocation; nested outputs remain extensible |
+| Browser shells | React/Angular bundles; shared authenticated fetch SSE client | Both supply demo tokens; UI behavior and end-user login remain unverified |
+| Flutter | HTTP intent/action calls and partial widget renderer | **No SSE subscription exists in `main.dart`**; native projects/builds and parity remain unverified |
+| Mini-apps | Four locally imported HTML modules | Manual actions depend on the concierge surface; no independent secure runtime |
+| Identity/stream | RS256 ingress validation, subject-bound sessions, bounded process-local replay/backpressure | No revocation, tenant partition, durable ownership or full login lifecycle |
+| Deployment | Dockerfiles, Compose, seeded Keycloak realm, gateway YAML | Container dependencies/startup and gateway traffic path are not proven |
 
-## Prioritized implementation work
+Review-time `npm test`: **49 passed, 0 failed, 0 skipped**. `npm run lint` exits successfully but reports **zero executed tasks**. Earlier [release evidence](docs/reports/2026-10-23-release-gates.md) records 14 successful JS workspace build tasks; this review did not rerun the build, Keycloak, containers, Flutter or a browser. Passing simulations do not establish business correctness.
 
-### P0 — Fix before any real user, money, identity or government data
+### Confirmed defects to turn into regression tests
 
-- [ ] **P0-01** Implement production React/Flutter (and Angular if retained) OIDC Authorization Code + PKCE flows; token lifecycle, logout/revocation; remove demo markers from production release.
-- [ ] **P0-02** Authenticated, resumable, user-scoped SSE — **web/backend implementation verified, release validation partial**.
-  - [x] Bearer header/ownership/origin checks, event IDs, bounded replay and slow-consumer backpressure; signed-token HTTP tests pass.
-  - [x] Shared React/Angular fetch stream with token getter, UTF-8 parser, cursor/reset, reconnect and cleanup.
-  - [ ] Real end-user token lifecycle/browser smoke (P0-01), Flutter replay parity and real Keycloak execution. Durable multi-instance replay is P0-05.
-  - Evidence: [stream contract](docs/architecture/event-stream.md), [release-gate report](docs/reports/2026-10-23-release-gates.md).
-- [ ] **P0-03** Enforce subject/resource/tenant authorization in each domain service, including propagation of actor/delegator identity and consent scopes.
-- [ ] **P0-04** Introduce resource-and-quote-bound HITL user authorization for mutations; bind approval to amount, recipient, time window, resource and immutable server quote.
-- [ ] **P0-05** Durable session/workflow persistence, TTL, key rotation/revocation strategy, rehydration and multi-instance session ownership.
-- [ ] **P0-06** Domain-owned durable idempotency, outbox/transactional guarantees, partial-failure compensation and reconciliation for composite payments.
-- [ ] **P0-07** Remove seeded credentials/unrestricted origins from production identity/gateway configs; pin supported images, harden secrets and deployment permissions.
-- [ ] **P0-08** Release verification — **partially complete**.
-  - [x] Clean `npm ci`, 49/49 tests, forced build across all 14 JS workspaces (React/Angular bundles included); baseline failures fixed.
-  - [x] Add isolated `npm run test:keycloak` runner and real-issuer HTTP/SSE integration test, using generated service-account secrets and disposable realm.
-  - [ ] Execute real Keycloak gate (Docker unavailable here); it must pass before production claims.
-  - [ ] React visual smoke (Chromium download failed here), Flutter validation and broader end-user PKCE coverage.
-  - Recorded outputs and exceptions: [release-gate report](docs/reports/2026-10-23-release-gates.md).
+These probes used synthetic fixtures in an isolated local Node process with live inference disabled; no real payment/provider was contacted.
 
-### P1 — Make the agent-centric concept real
+| Observed behavior | Source | Backlog |
+| --- | --- | --- |
+| `/pay/unified` accepts an item amount of `-10` and increases the wallet balance by 10 | `services/service-wallet/src/index.ts` | P0-09 |
+| `/wallet/topup` accepts the string `Infinity` | `services/service-wallet/src/index.ts` | P0-09 |
+| Fine payment returns domain HTTP 400 for insufficient funds, but the core returns 200 with `police_fines_settled_card` | `services/agent-core/src/langgraph/graph.ts` | P0-12 |
+| Extending an unknown parking ticket modifies the first existing meter | `services/service-ride/src/index.ts` | P1-13, P0-03 |
+| A wallet action with `selectedChoice: ''` returns 403; the React renderer includes that field even when no choice exists | Renderer + `agent-core/src/index.ts` | P1-12 |
+| `validateA2UIMessage` throws for a render envelope with `data: null` | `packages/protocol-core/src/a2-ui.ts` | P1-14 |
 
-- [x] **P1-01** Define capability IDs, input/output schemas, risk metadata, owner, version and consent requirements in the catalog. **Verified discovery scope:** 32 versioned definitions, `/capabilities` + ID lookup, `/tools` IDs/version, Ajv compilation and simulator response checks. Nested output objects remain extensible. Runtime enforcement/remote invocation remain P1-02/P0-03/P1-10; metadata grants no authority.
-- [ ] **P1-02** Decouple graph from direct business imports with authenticated, typed adapter interfaces.
-- [ ] **P1-03** Integrate genuine LangGraph or selected runtime (real graph nodes, tool schemas, checkpoints, interrupts); ensure model output can influence *permitted* plans.
-- [ ] **P1-04** Add deterministic durable workflow executor for cross-domain sequences, scheduled tasks, retries, cancellation and proactive jobs.
-- [ ] **P1-05** Evaluate model routing and agent planning against fixed task sets; budgets/latency/safety checks with free-first tests and opt-in paid models.
-- [ ] **P1-06** Implement standard AG-UI event adapter and official A2UI renderer for web (generic Lit WC) + Flutter; version and conformance tests.
-- [ ] **P1-07** Implement real MCP tool transport/invocation and A2A only where remote agents are needed.
-- [ ] **P1-08** Validate actual agentgateway.dev deployment: supported config, LLM/MCP/A2A traffic, governance/limits, observability and security.
-- [ ] **P1-09** Define secure signed manifest/mini-app runtime and independent deployment strategy; preserve no-agent manual journey access.
-- [ ] **P1-10** Build user-bound consent lifecycle (grant/view/update/revoke), dynamic authorization and delegated-agent chain checks.
+## Execution order
 
-### P2 — Production engineering and experience quality
+1. **Correctness first:** P0-09, P0-12, P0-10 and P1-12/P1-13. Fix false success, invalid money/resource inputs, stale actions and broken UI dispatch before adding autonomy.
+2. **Identity and service boundary:** P0-01/P0-13, P1-02, P0-03, P1-10 and P0-04. Mini-app/manual and agent paths must share the same authorization rules.
+3. **Durability and transactions:** P0-05/P0-06 with P1-04; add restart, replay, timeout and partial-failure tests.
+4. **Agent and UI capability:** P1-03/P1-05, P1-06/P1-07/P1-08/P1-09; proceed against approved architecture/version choices and measured needs.
+5. **Release validation:** close P0-07/P0-08/P0-11/P0-14 and applicable P2 work. Build/scan/test automation may be prepared, but do not re-enable disabled GitHub workflows without explicit user instruction.
 
-- [ ] **P2-01** Accessibility, Arabic/RTL, performance, offline behavior, Flutter-native behavior and renderer parity.
-- [ ] **P2-02** Distributed tracing, SLOs, load tests, chaos/failure injection, HA/DR and capacity planning.
-- [ ] **P2-03** Vulnerability/dependency/image scans, SBOM, trusted build/release pipeline, signed artifacts and audit retention.
-- [ ] **P2-04** Public reference OpenAPI/MCP/A2A contracts, examples, developer onboarding and interop verification.
+P0 = blocks use with real users, identity, money or government records. P1 = required platform functionality/correctness. P2 = broader engineering and experience work; applicable accessibility, privacy and operational requirements still gate the intended release.
 
-## Documentation maintenance
+## P0 — Security, financial correctness and release blockers
 
-- [x] Consolidate README, docs index, as-built architecture, API inventory, runtime, frontend and target architecture.
-- [x] Correct official AG-UI vs A2UI naming and call existing implementation *custom*.
-- [x] Revisit ADR-0001 through ADR-0008 and add agent-first ADR-0009 as **Proposed**.
-- [x] Document authentication, free-model test policy and production blockers.
-- [x] Preserve historical demo task checklist and label recordings historical.
-- [x] Attach actual command outputs, clean locked dependency installation, reproducible verification commands and explicit blocked gates in the [dated report](docs/reports/2026-10-23-release-gates.md). Browser/Keycloak/Flutter gates remain open above.
+- [ ] **P0-01 — Real end-user login in retained shells.** Implement Authorization Code + PKCE, in-memory token handling, refresh/expiry, logout, account switching and appropriate mobile redirects. Configure shell token audience/scopes and remove production demo tokens/identity badges. Source: `apps/*`, `services/keycloak/realm-export.json`. **Done when:** real end-user login works through intent, action and stream, and logout/account switch clears surfaces, history and listeners. Service-account token tests alone are insufficient.
+
+- [ ] **P0-02 — Complete authenticated stream lifecycle (partial).** Backend/web bearer checks, replay bounds and fetch client exist. Add the missing Flutter stream subscription, replay/reconnect/cancellation and matching lifecycle behavior. Connect real token refresh/reauthentication and visible connection/error status in all retained shells. Test idle disconnect, expiry, slow clients and proxy buffering. Durable cross-instance replay belongs to P0-05. **Done when:** real identity/browser/native interruption tests pass; no token appears in URLs. See [stream contract](docs/architecture/event-stream.md).
+
+- [ ] **P0-03 — Enforce authorization at every domain boundary.** Replace globally shared user fixtures with subject/tenant-owned resources; verify actor, subject, tenant, resource, scopes and consent at HTTP/tool boundaries as well as core ingress. Protect profile/prompt-context and private discovery; restrict direct domain exposure/CORS. Propagate identity without trusting client-selected user IDs. Source: `services/service-*/src/index.ts`, graph direct imports. **Done when:** user/tenant A cannot read or mutate B's resources through any available path, including internal calls and manual mini-apps.
+
+- [ ] **P0-04 — Bind mutation approval to the complete server quote.** Use an immutable approval ID/revision bound to subject, actor, action/capability, selected resource, amount/currency, recipient, parameters and expiry. Validate required fields, not only the five currently protected payload keys; scope choices to the relevant action/group. Omitting or changing a bound value must not select a default resource. **Done when:** stale, replayed, modified, cross-user and cross-resource approvals are rejected; cancellation and consent revocation prevent execution. Depends on P0-03/P1-10; concurrency is P0-10.
+
+- [ ] **P0-05 — Durable session ownership and recovery.** Persist subject/tenant binding, conversation/checkpoints, approval references, event cursor and workflow version; define TTL/deletion, retention and migrations. Bound current session/owner/consumed-action maps and message history; allocate unpredictable session IDs, coordinate replicas and rehydrate after restart. **Done when:** restart/failover cannot transfer ownership, replay an effect or lose an outstanding approval; expired sessions are reclaimed. Token/JWKS rotation is tracked separately in P0-13.
+
+- [ ] **P0-06 — Durable payment/idempotency and reconciliation.** Replace fixture ledger mutations with domain-owned transactions, idempotency keys and outbox/state transitions. Derive totals from authoritative quotes; remove the simulated card fallback that resets balance to 250. Prevent unified settlement plus subsequent fine payment from double-debiting or claiming inconsistent agency settlement. Define compensation/refund/manual reconciliation for partial effects. **Done when:** repeated/reordered requests and crashes settle each business operation once, ledger totals reconcile, and unsuccessful steps remain visible/recoverable. Depends on P0-09/P0-12 and P1-04.
+
+- [ ] **P0-07 — Make deployments executable and separate demo/production profiles.** Agent-core's Dockerfile omits the domain modules its graph imports; React's omits imported mini-apps and does not install Vite/dependencies. Repair build contexts, locked installs, source/build entry points and frontend binding/asset serving. Add readiness/health checks, graceful shutdown, persistent identity/domain stores, non-root execution and least-privilege network/secrets configuration. Pin tested runtime/gateway images; remove seeded credentials, wildcard origins and `start-dev` from production. Default local demo binds to loopback (`dev-backend.ts` currently binds `0.0.0.0`). **Done when:** clean-image Compose startup and the chosen production deployment pass smoke/restart checks without host `node_modules`, and secrets are injected externally. Remote core/domain semantics depend on P1-02.
+
+- [ ] **P0-08 — Close actual release verification gaps (partial).** Preserve existing 49-test and 14-build evidence; rerun on the integrated release commit. Execute `npm run test:keycloak` on Docker, browser interactions for React/Angular, and Flutter analyze/test/build on supported targets. Extend identity integration beyond two service accounts to real shell PKCE, audience rejection, expiry, rotation/revocation and ownership isolation. Add independent HTTP/container tests; imported handler tests do not exercise deployment. **Done when:** recorded results identify commit, versions, target, commands and exceptions; no required gate is skipped or inferred from a green build. Current Docker/browser/Flutter environment limitations are recorded in the [release report](docs/reports/2026-10-23-release-gates.md).
+
+- [ ] **P0-09 — Enforce runtime input validation and money invariants.** Apply schemas in actual domain/core/tool handlers, including nested fields, finite numbers, strict parsing, positive bounded amounts, currency and precision/minor-unit rules, valid quantities/durations and required resource IDs. Reject unknown fields and malformed preferences rather than coercing arbitrary objects/strings. Source: wallet/top-up/unified settlement, parking/EV, food orders and profile handlers; catalog schemas currently run only in tests. **Done when:** negative/NaN/infinite/overflow/string-coercion amounts, invalid durations and malformed nested payloads return controlled 4xx without state changes. Add regressions for both confirmed financial probes.
+
+- [ ] **P0-10 — Serialize session transitions and make action consumption recoverable.** Introduce a unique surface/approval revision and atomic compare-and-set or per-session execution coordination. Current shared mutable state and timestamp/action key do not coordinate concurrent intent/action requests, can collide, and consume an action before its execution outcome is known. **Done when:** concurrent requests, multiple tabs and retries cannot act on a replaced surface or produce duplicate effects; definitive failure and uncertain outcome have explicit retry/reconciliation behavior. Domain idempotency remains P0-06.
+
+- [ ] **P0-11 — Bound and harden HTTP/JWKS/stream resource use.** Add per-user/IP/tenant and total request/stream quotas, global session/listener limits, byte-based body limits and read/processing deadlines across all services. Return controlled 413/429 errors, handle aborted/malformed requests and wrap asynchronous handlers safely. Domain bodies currently accumulate without a cap; the core destroys oversized requests rather than returning 413. Test HTTP method/content-type/Origin handling and close-time listener/timer cleanup. **Done when:** slow uploads, session churn, oversized payloads and connection floods remain within defined budgets and cannot terminate the server.
+
+- [ ] **P0-12 — Propagate domain failures and report truthful outcomes.** Check every domain result before creating success surfaces, receipts or subsequent effects. Fine payment, parking extension and composite journeys currently ignore failures; a rejected fine payment was reproduced as a successful core response. Define pending/succeeded/failed/partially-completed states with stable error codes and retry guidance. **Done when:** insufficient funds, unavailable services, rejected quotes and partial settlements never show paid/cleared/connected status; later irreversible steps stop or compensate as specified.
+
+- [ ] **P0-13 — Harden access-token and signing-key lifecycle.** Validate access-token type and required permissions in addition to signature/claims; scope JWKS caches to issuer/config, constrain unknown-key refreshes, deduplicate fetches and test key rotation/outages. Enforce finite/valid time claims and claim/header limits; define revocation/logout and allowed clock skew. Review demo bypass and fail closed in shared/production profiles. **Done when:** wrong token type/scope/issuer/audience, revoked tokens, repeated unknown `kid` values and rotation races are covered against real Keycloak. Extends the auth/key-management portions previously bundled in P0-05.
+
+- [ ] **P0-14 — Protect citizen data and produce auditable mutation records.** Minimize/redact identity/profile, premises/vehicle identifiers and secrets before model calls, progress events, logs or recordings. `generatePromptContext` currently includes a full identity/assets fixture and is sent to OpenRouter when preview is enabled. Define provider-egress consent/policy, encryption/access/retention/deletion and tamper-evident approval/effect audit records with correlation IDs. **Done when:** allowed data destinations are enforced, user A's records never appear in B's context, and each mutation can be traced to actor, consent, quote and result without logging credentials. Audit platform operations/retention automation continues under P2-02/P2-03.
+
+## P1 — Complete the agent-centric product and integration boundaries
+
+- [ ] **P1-02 — Introduce typed authenticated domain adapters.** Remove direct business-handler imports from the graph; use one capability invocation contract for core, workflow and manual UI paths, with server-side schema enforcement, identity propagation, deadlines, cancellation and typed errors. Keep an explicit in-process simulator adapter for tests. **Done when:** independent service deployments work and the core cannot accidentally bypass domain policy or execute a second private fixture store. Depends on the completed P1-01 discovery; works with P0-03/P0-09/P0-12.
+
+- [ ] **P1-03 — Implement the selected real agent runtime.** Resolve ADR-0009/runtime choices explicitly, then implement actual nodes, typed tools, bounded planning, conversation context, checkpoints and HITL interrupts. Model output may choose only authorized capabilities; add clarification and out-of-scope behavior instead of guessing/defaulting. Replace monolithic keyword routing incrementally behind evaluated interfaces. **Done when:** a permitted multi-turn task uses runtime/tool/checkpoint APIs and resumes correctly; a class/path named LangGraph is not sufficient evidence.
+
+- [ ] **P1-04 — Add durable deterministic workflow execution.** Define the executor boundary to the agent with versioned workflow/task IDs, retries/backoff, timeouts/circuit breaking, cancellation, durable waits/HITL, schedules/events and compensation. Proactive work requires revocable resource/budget/time-bound grants. **Done when:** a cross-domain journey and a scheduled/waiting journey resume after process/host failure and reconcile partial effects. Select the engine through an ADR; do not treat a proposal or YAML file as an executable workflow.
+
+- [ ] **P1-05 — Evaluate models and enforce actual cost/safety budgets.** Use a fixed civic/legacy/ambiguous/multilingual task set with tool-selection accuracy, completion rate, approval violations, token use, total cost per successful task and latency. Keep no-key deterministic tests and free-first live tests; make paid use explicit and capped across retries/fallbacks. Restrict provider endpoints, validate outputs and handle rate limits/outages. **Done when:** model choice affects evaluated permitted plans, token/task budgets are enforced and a free-model failure never silently enables paid inference. Current preview discards model output; its 300 output-token cap is not a complete spend budget.
+
+- [ ] **P1-06 — Implement standard AG-UI/A2UI adapters and shared rendering.** Pin protocol versions, separate lifecycle events from UI descriptions and provide the generic Lit Web Component plus Flutter-native renderer described by the target architecture. Define component negotiation, supported versions, action binding, navigation, data binding and update semantics. Keep a clearly named compatibility adapter for custom envelopes during migration. **Done when:** official fixtures/conformance and web/native parity tests pass, including static/service-generated and agent-proposed UI. Angular retention and renderer reuse should be explicit rather than maintaining three divergent implementations by default.
+
+- [ ] **P1-07 — Implement real MCP; add A2A only for a demonstrated remote-agent need.** Replace `GET /mcp` descriptor JSON with supported initialization, tool discovery/call transport, schemas, authentication and errors; reconcile catalog/tool names. Catalog currently lacks the `/mcp` route referenced by gateway YAML. Define remote-agent identities, delegated authority and cancellation before A2A execution. **Done when:** independent reference clients invoke authorized tools successfully and reject unauthorized calls; document A2A as deferred if no remote-agent requirement is selected.
+
+- [ ] **P1-08 — Validate the actual gateway path.** Select a tested agentgateway version/schema, resolve Compose command/config/startup dependency issues and replace mismatched tool names/transports. Route the chosen LLM/MCP/remote-agent paths through it; core currently calls OpenRouter directly and does not use `AGENTGATEWAY_URL` for inference. Verify auth, quotas, budgets, policy failures and telemetry in traffic tests. **Done when:** the configured gateway demonstrably handles traffic and enforces the advertised rules; unsupported features remain explicitly unimplemented.
+
+- [ ] **P1-09 — Implement a secure mini-app runtime and manifest lifecycle.** Choose and document embedded-module versus independently deployed Web Component loading; do not assume Module Federation exists. Add complete manifests (housing currently has none), stable routes, compatibility, permissions, integrity/signature/trust policy, version rollout/rollback and allowlisted host bridge. Replace unused example remote URLs and substring-based app selection. **Done when:** an authorized app can be discovered/launched/unmounted predictably and incompatible/untrusted modules cannot gain host/token privileges. Manual business execution is P1-11.
+
+- [ ] **P1-10 — Implement consent and delegated authority lifecycle.** Store user/tenant-bound grants with capability/resource scope, allowed actions, limits, expiry, actor/delegator chain and grant/revoke history. Re-evaluate current authority on every effect, including scheduled tasks and sub-agent calls; show view/update/revoke controls. **Done when:** users can inspect/revoke grants and revocation prevents pending/new actions without relying on the model or a catalog metadata flag. Works with P0-03/P0-04/P0-13/P0-14.
+
+- [ ] **P1-11 — Make manual mini-app journeys work independently of concierge state.** Route direct navigation through the same governed adapters and quote/approval flow as the agent. Current mini-app events call `/api/a2ui/action`, which requires an existing matching concierge surface; a fresh tab cannot perform a valid independent journey. Fix `SALIK_RECHARGED` being mapped to `extend_parking`, and remove optimistic wallet increments before confirmed success. **Done when:** parking, toll recharge, utilities, fines, wallet and housing work from direct navigation without first prompting the agent; failed operations do not update balances/status.
+
+- [ ] **P1-12 — Repair renderer/action/UI state correctness.** Omit absent/empty `selectedChoice`; track choices/forms per group and surface revision and reset stale values when replacing a surface. Forward binding parameters and action types in Angular/Flutter (currently largely action-name-only), honor disabled states and implement or reject unsupported components/navigation. Validate responses before rendering; show non-2xx/401/403/409/429 errors, stop loading indicators, prevent duplicate clicks and deduplicate HTTP/SSE updates. Replace hardcoded connected/verified/success/countdown labels with actual state. **Done when:** real browser/native actions reproduce all supported journeys and adversarial/stale selections cannot change another action's resource. Never weaken the backend action guard to make the UI pass.
+
+- [ ] **P1-13 — Correct resource and domain semantics.** Return controlled not-found/validation failures for unknown drivers, restaurants/items, bookings, orders, parking tickets and chargers instead of choosing the first fixture or fabricating tracking. Propagate the approved parking ticket into extension; filter fines/assets by the authorized selected resource. Derive tariffs/durations, balances, discounts, receipts and move-in status from domain state; use explicit currency/units across civic AED and legacy examples. Split mobility/utilities/payments/fines/housing/identity ownership or document transitional mappings. **Done when:** operations affect exactly the selected owned resource and unsupported/unknown resources never silently succeed. Input and access enforcement remain P0-09/P0-03.
+
+- [ ] **P1-14 — Make protocol/catalog contracts enforceable and consistent.** Guard malformed/null envelopes without exceptions; validate per-event/component properties, action types, unique IDs, total node/payload budgets and session/version consistency at ingress and renderer boundaries. Extend capability outputs beyond permissive object/success envelopes, include required mutation resource/quote data and define error schemas/version evolution. Generate or check tool/schema mappings from one contract source so catalog, `/mcp`, gateway and frontends cannot drift. **Done when:** malformed/fuzzed payloads fail safely and contract tests prove success/error semantics and references, not merely schema compilation. P1-01 remains complete for discovery metadata only.
+
+- [ ] **P1-15 — Finalize deployment and external integration scope.** Record retained shells, target hosting/OpenShift requirements, network/air-gap profile, actual provider owners, user journeys and allowed autonomy modes in ADRs with acceptance criteria. Replace placeholder agency/UAE PASS/payment endpoints with scoped provider adapters only when contracts, test environments and credentials are available. If offline operation is selected, package images/dependencies/renderer assets and self-hosted inference without external fonts/avatars/provider calls. **Done when:** each release scenario identifies its real versus simulated dependencies and testable deployment profile; no unselected provider/agent integration is claimed complete.
+
+## P2 — Engineering, experience and operating quality
+
+- [ ] **P2-01 — Accessibility, localization and device quality.** Add Arabic/RTL, locale-aware dates/currency, translation catalogs, keyboard/focus/screen-reader labels, error announcements, touch targets and responsive/device checks. Define safe offline/read-only behavior and reconnect UX; never queue financial effects blindly. Validate Flutter lifecycle/disposal, navigation and native platform capabilities. **Done when:** an agreed supported-component/journey matrix passes accessibility and device tests; unsupported features are communicated.
+
+- [ ] **P2-02 — Observability, capacity and recovery operations.** Propagate request/run/workflow/tool/approval IDs, emit structured redacted logs/metrics/traces, and define readiness versus liveness. Set measurable latency/throughput/error SLOs, load/soak/chaos tests, backpressure alerts, HA/failover and backup/restore RPO/RTO procedures. **Done when:** operators can diagnose a partial journey, detect stuck tasks and restore durable state using tested runbooks.
+
+- [ ] **P2-03 — Supply-chain and release automation.** Run dependency/image/secret scans and triage actual findings; generate SBOMs, pin supported toolchains, sign artifacts and enforce review/release evidence with rollback. Automate audit retention/access policies. Prepare local/opt-in CI commands for all retained stacks; **do not enable/re-enable GitHub Actions without explicit user instruction**. **Done when:** a release can be reproduced and its provenance, scan disposition and rollback are reviewable. Initial deployment security remains P0-07/P0-08.
+
+- [ ] **P2-04 — Developer contracts and documentation upkeep.** Publish versioned OpenAPI/MCP/A2A examples only for implemented interfaces; add developer/provider onboarding and compatibility/migration guides. Reconcile README/ADRs/package descriptions/recorders with the reviewed runtime: Flutter is HTTP-only today, protocol names are custom, several UI/recorder assertions overstate integration, and earlier report branch status is historical. **Done when:** documented commands and capabilities match executable source and release evidence; generated docs are checked for drift.
+
+- [ ] **P2-05 — Add meaningful code-quality and test gates.** Configure real lint/format/static checks (`npm run lint` currently runs zero tasks), remove unused dependencies/imports and unsafe `any` at trust boundaries, and make package exports/entry points consistent with source execution versus emitted builds. Add isolated fixtures and negative/failure/concurrency/restart tests for this review's findings, plus true HTTP/browser/container/native tests. Catalog tests must not count an arbitrary error response or fabricated fallback as proof that a capability works. **Done when:** intended checks actually execute, defective business behavior fails tests, and every retained stack has an explicit tested boundary.
+
+- [ ] **P2-06 — Reproducible tooling and developer lifecycle.** Make ports/hosts/base URLs configurable consistently across runner, shells, Compose and mobile; clarify build-time versus runtime frontend configuration and remove unused env placeholders. Pin Node/npm/Flutter expectations, resolve package-manager/workspace conventions, and add reliable start/stop/cleanup and opt-in recording commands with synthetic data. **Done when:** a clean checkout starts and stops documented targets without implicit local assets, stale processes, leaked generated secrets or regenerating misleading recordings.
+
+## Completed foundations — retain, do not reimplement
+
+- [x] **P1-01 — Capability discovery metadata:** 32 stable IDs, versions/owners, input/output schemas, risk/consent declarations, `/capabilities`, detail lookup and linked `/tools` entries; simulator contract checks pass. Invocation enforcement is P0-09/P1-02/P1-14.
+- [x] Initial ingress RS256 issuer/audience/expiry validation, subject-bound session/action guard and free-model/paid-opt-in defaults. Production lifecycle and domain authority remain open above.
+- [x] Backend/web portion of P0-02: bearer fetch transport, bounded process-local journal, replay/reset/snapshots, expiry/backpressure and regression coverage. Do not confuse this with Flutter or durable replay.
+- [x] P0-08 foundation: recorded 49-test/14-workspace build baseline and isolated real-Keycloak runner/test source. Actual Keycloak, visual/native and deployment release gates remain unchecked.
+- [x] Documentation index, as-built/target separation, ADR review, production warnings, historical demo archive and dated command evidence. This backlog review adds remaining defects and closure criteria; it does not fix them.
 
 ## Completion policy
 
-A task cannot be marked verified solely by documentation, a test declaration, an accepted ADR, a passing mock test, or a gateway YAML file. Provide CI execution link or a dated manual test report showing target environment, results and known exceptions.
+Each implementation PR must reference task IDs, update their status, identify dependencies and attach passing evidence for its actual target. Preserve IDs and history when splitting tasks. Partial completion stays unchecked with the completed boundary stated. For dependent tasks, build against the documented contract early, but do not mark end-to-end integration complete until dependencies are proven.
 
-References: [Documentation index](docs/INDEX.md), [SECURITY.md](SECURITY.md), [target architecture](docs/architecture/target-architecture.md).
+A generated surface, mock receipt, declared test, compiled schema, gateway YAML or green type-check is not proof of a real integration, business success or production authorization. Record commit/version/environment, positive and negative results and known exceptions. Do not estimate completion percentage from checkbox counts.
 
+References: [documentation index](docs/INDEX.md), [security](SECURITY.md), [target architecture](docs/architecture/target-architecture.md), [release evidence](docs/reports/2026-10-23-release-gates.md).
