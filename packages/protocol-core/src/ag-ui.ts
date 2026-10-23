@@ -143,6 +143,7 @@ export interface AGUISurfacePayload {
   version: '1.0.0';
   /** Opaque revision issued by core; action requests must echo it. */
   revision?: string;
+  assistantMessage?: { id: string; text: string };
   sessionId: string;
   timestamp: number | string;
   view: UIComponentNode;
@@ -266,6 +267,13 @@ export function validateAGUISurface(data: unknown): ValidationResult<AGUISurface
 
   if (payload.revision !== undefined && (typeof payload.revision !== 'string' || !/^[0-9a-f-]{36}$/.test(payload.revision))) {
     errors.push('Invalid surface revision');
+  }
+  if (payload.assistantMessage !== undefined) {
+    const message = payload.assistantMessage;
+    if (!message || typeof message !== 'object' || typeof message.id !== 'string' || !message.id ||
+        typeof message.text !== 'string' || !message.text.trim() || message.text.length > 4000) {
+      errors.push('Invalid assistant message');
+    }
   }
   const viewValidation = validateUIComponentNode(payload.view, 'view');
   if (!viewValidation.success && viewValidation.errors) {

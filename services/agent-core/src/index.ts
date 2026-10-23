@@ -54,6 +54,16 @@ function isSurfaceActionAllowed(state: SuperAppAgentState, action: string, paylo
 const activeTransitions = new Set<string>();
 type RequestContext = { session?: SuperAppAgentState; release?: () => void };
 
+function commitSurface(session: SuperAppAgentState) {
+  const surface = session.currentSurface;
+  if (!surface) return;
+  surface.revision = randomUUID();
+  const latest = session.messages.at(-1);
+  if (latest?.role === 'assistant') {
+    surface.assistantMessage = { id: surface.revision, text: latest.content.slice(0, 4000) };
+  }
+}
+
 export function getOrCreateSession(sessionId: string): SuperAppAgentState {
   if (!sessions.has(sessionId)) {
     sessions.set(sessionId, {
@@ -146,7 +156,7 @@ async function handleGatewayRequest(
     const updatedState = await SuperAppAgentGraph.executeIntent(session, body.text, onDelta);
 
     if (updatedState.currentSurface) {
-      updatedState.currentSurface.revision = randomUUID();
+      commitSurface(updatedState);
       broadcast(body.sessionId, createA2UIMessage('A2UI_RENDER_SURFACE', body.sessionId, {
         mode: 'REPLACE', surface: updatedState.currentSurface, outcome: 'SUCCEEDED',
       }));
@@ -189,7 +199,7 @@ async function handleGatewayRequest(
     );
 
     if (updatedState.currentSurface) {
-      updatedState.currentSurface.revision = randomUUID();
+      commitSurface(updatedState);
       broadcast(body.sessionId, createA2UIMessage('A2UI_RENDER_SURFACE', body.sessionId, {
         mode: 'REPLACE', surface: updatedState.currentSurface, outcome: 'SUCCEEDED',
       }));
@@ -244,6 +254,7 @@ export async function executeGatewayRequest(method: string, pathname: string,
       if (outcome !== 'FAILED') session.reconciliation = { outcome, steps: steps.map(step => ({ ...step })) };
       surface = session.currentSurface;
       session.messages.push({ id: `failure_${Date.now()}`, role: 'assistant', content: message, timestamp: Date.now() });
+      commitSurface(session);
       broadcast(session.sessionId, createA2UIMessage('A2UI_RENDER_SURFACE', session.sessionId, { mode: 'REPLACE', surface, outcome, code, steps, retry }));
     }
     return { status, data: { success: false, error: message, code, outcome, steps, retry, surface } };

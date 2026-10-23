@@ -77,6 +77,10 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen> {
     if (_currentSurface?['revision'] == value['revision']) return;
     _choices..clear()..addAll(choices);
     _currentSurface = value;
+    final message = value['assistantMessage'];
+    if (message is Map && message['text'] is String) {
+      _messages.add({'role': 'assistant', 'text': message['text']});
+    }
   }
 
   void _readResponse(http.Response response) {

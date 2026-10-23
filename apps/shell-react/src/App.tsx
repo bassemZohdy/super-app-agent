@@ -1,3 +1,4 @@
+import { VoiceClient, type VoiceState } from '../../../packages/protocol-core/src/voice-client.ts';
 import { checkedSurface, readCoreResponse } from '../../../packages/protocol-core/src/surface-client.ts';
 import { connectEventStream } from '../../../packages/protocol-core/src/sse-client.ts';
 import React, { useState, useEffect, useRef } from 'react';
@@ -21,6 +22,22 @@ export function App() {
   const [prompt, setPrompt] = useState('');
   const [thinkingDelta, setThinkingDelta] = useState<string | null>(null);
   const [currentSurface, setCurrentSurface] = useState<AGUISurfacePayload | null>(null);
+  const voice = useRef<VoiceClient>();
+  const [voiceState, setVoiceState] = useState<VoiceState>('idle');
+  const [voiceError, setVoiceError] = useState('');
+  const [voiceAvailable, setVoiceAvailable] = useState({ input: false, output: false });
+  const [voiceLanguage, setVoiceLanguage] = useState('en-US');
+  const [readReplies, setReadReplies] = useState(false);
+  const voiceSettings = useRef({ readReplies, language: voiceLanguage });
+  voiceSettings.current = { readReplies, language: voiceLanguage };
+  useEffect(() => {
+    const client = new VoiceClient({ onTranscript: text => setPrompt(text), onState: setVoiceState, onError: setVoiceError });
+    voice.current = client;
+    setVoiceAvailable({ input: client.canListen, output: client.canSpeak });
+    const hidden = () => { if (document.hidden) client.cancel(); };
+    document.addEventListener('visibilitychange', hidden);
+    return () => { document.removeEventListener('visibilitychange', hidden); client.dispose(); };
+  }, []);
   const lastRevision = useRef<string>();
   const requestPending = useRef(false);
   const applySurface = (value: unknown) => {
@@ -29,12 +46,16 @@ export function App() {
     lastRevision.current = surface.revision;
     setCurrentSurface(surface);
     setActiveTab('agent');
+    if (surface.assistantMessage) {
+      setMessages(prev => [...prev, { role: 'assistant', text: surface.assistantMessage!.text }]);
+      if (voiceSettings.current.readReplies) voice.current?.speak(surface.assistantMessage.text, voiceSettings.current.language);
+    }
   };
   const showError = (text: string) => setMessages(prev => [...prev, { role: 'assistant', text }]);
   const applyResponse = async (res: Response) => {
     const result = await readCoreResponse(res, sessionId);
     if (result.surface) applySurface(result.surface);
-    if (result.error) showError(result.error);
+    if (result.error && result.error !== result.surface?.assistantMessage?.text) showError(result.error);
   };
   const [activeTab, setActiveTab] = useState<SmartCityTab>('agent');
   const [walletBalance, setWalletBalance] = useState<number>(250.0);
@@ -132,10 +153,11 @@ export function App() {
     const query = textToSend || prompt;
     if (!query.trim() || requestPending.current) return;
     requestPending.current = true;
+    voice.current?.cancel();
 
     setMessages((prev) => [...prev, { role: 'user', text: query }]);
     setPrompt('');
-    setThinkingDelta('🧠 Rashid (LangGraph) reasoning with smart city services...');
+    setThinkingDelta('Preparing your request...');
 
     try {
       const res = await fetch(`${GATEWAY_URL}/api/a2ui/intent`, {
@@ -201,6 +223,7 @@ export function App() {
 
     if (requestPending.current) return;
     requestPending.current = true;
+    voice.current?.cancel();
     setThinkingDelta(`⚡ Processing Smart City action: ${action}...`);
     try {
       const res = await fetch(`${GATEWAY_URL}/api/a2ui/action`, {
@@ -481,6 +504,25 @@ export function App() {
             ))}
           </div>
 
+          <div style={{ padding: '8px 14px', background: '#f8fafc', fontSize: '12px' }}>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <button type="button" disabled={!voiceAvailable.input} aria-pressed={voiceState === 'listening'}
+                onClick={() => {
+                  setVoiceError('');
+                  if (voiceState === 'listening') voice.current?.stopListening();
+                  else voice.current?.startListening(voiceLanguage);
+                }}>{voiceState === 'listening' ? 'Stop microphone' : 'Use microphone'}</button>
+              <select aria-label="Voice language" value={voiceLanguage} onChange={e => { voice.current?.cancel(); setVoiceLanguage(e.target.value); }}>
+                <option value="en-US">English</option><option value="ar-AE">Arabic</option>
+              </select>
+              <label><input type="checkbox" checked={readReplies} disabled={!voiceAvailable.output}
+                onChange={e => { setReadReplies(e.target.checked); if (!e.target.checked) voice.current?.cancel(); }} /> Read replies aloud</label>
+              {voiceState !== 'idle' && <button type="button" onClick={() => voice.current?.cancel()}>Cancel voice</button>}
+            </div>
+            <div role="status" aria-live="polite">{voiceError || (voiceState === 'listening' ? 'Listening. Your transcript will appear below for review.' : voiceState === 'speaking' ? 'Speaking reply.' : !voiceAvailable.input ? 'Voice input unavailable; type your request below.' : 'Voice input fills a draft. Review it, then press Send.')}</div>
+            <small>Your browser may process speech through its speech service. Audio is not stored by this app. Arabic dictation is available where supported; service routing currently uses English requests.</small>
+          </div>
+
           {/* Bottom Chat Prompt Input */}
           <div
             style={{
@@ -493,9 +535,11 @@ export function App() {
           >
             <input
               type="text"
+              aria-label="Chat message"
+              maxLength={4000}
               placeholder="Ask about parking, utilities, fines, or Ejari..."
               value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
+              onChange={(e) => { voice.current?.cancel(); setPrompt(e.target.value); }}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
               style={{
                 flex: 1,
