@@ -12,12 +12,12 @@
   ],
   "scripts": {
     "dev": "turbo run dev --parallel",
-    "dev:backend": "node --experimental-strip-types scripts/dev-backend.ts",
+    "dev:backend": "node --env-file-if-exists=.env --experimental-strip-types scripts/dev-backend.ts",
     "dev:react": "npm run dev --workspace=apps/shell-react",
     "dev:angular": "npm run dev --workspace=apps/shell-angular",
     "dev:flutter": "cd apps/shell-flutter && flutter run -d chrome",
     "build": "turbo run build",
-    "test": "node --experimental-strip-types --test packages/protocol-core/test/*.ts services/test/*.ts test/*.ts",
+    "test": "node --experimental-strip-types --import ./scripts/test-env.ts --test packages/protocol-core/test/*.ts services/test/*.ts test/*.ts",
     "test:record": "node --experimental-strip-types scripts/record-e2e-scenarios.ts",
     "test:video": "node --experimental-strip-types scripts/record-video-scenarios.ts",
     "lint": "turbo run lint"

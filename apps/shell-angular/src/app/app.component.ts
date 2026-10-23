@@ -167,11 +167,11 @@ export class AppComponent implements OnInit {
   surface = signal<AGUISurfacePayload | null>(null);
   selectedChoice = signal<string>('drv_1');
   sessionId = `ng_${Date.now()}`;
-  keycloakToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImtleWNsb2FrLXN1cGVyYXBwLWtleS0xIn0.eyJleHAiOjE5OTk5OTk5OTksInN1YiI6InVzcl9iYXNzZW1fb2lkYyIsInByZWZlcnJlZF91c2VybmFtZSI6ImJhc3NlbSIsImVtYWlsIjoiYmFzc2VtQHN1cGVyYXBwLmludGVybmFsIiwibmFtZSI6IkJhc3NlbSBab2hkeSIsInZpcFRpZXIiOiJHb2xkIFZJUCIsInJvbGVzIjpbInN1cGVyYXBwLXVzZXIiLCJzdXBlcmFwcC12aXAiXX0.sig_keycloak_verified';
+  keycloakToken = 'demo-local'; // local demo only
 
   ngOnInit() {
     try {
-      const sse = new EventSource(`http://localhost:4000/api/a2ui/stream?sessionId=${this.sessionId}&token=${this.keycloakToken}`);
+      const sse = new EventSource(`http://localhost:4000/api/a2ui/stream?sessionId=${this.sessionId}&demo=1`);
       sse.onmessage = (event) => {
         const data: A2UIMessageEnvelope = JSON.parse(event.data);
         if (data.type === 'A2UI_STREAM_DELTA') {

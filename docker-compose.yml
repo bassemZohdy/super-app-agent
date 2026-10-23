@@ -6,7 +6,7 @@ services:
     image: ghcr.io/agentgateway/agentgateway:latest
     container_name: superapp-agentgateway
     ports:
-      - "${PORT_AGENTGATEWAY_EDGE:-8080}:8080"
+      - "127.0.0.1:${PORT_AGENTGATEWAY_EDGE:-8080}:8080"
     volumes:
       - ./services/agentgateway/config.yaml:/etc/agentgateway/config.yaml:ro
     environment:
@@ -26,14 +26,21 @@ services:
       dockerfile: services/agent-core/Dockerfile
     container_name: superapp-agent-core
     ports:
-      - "${PORT_AGENT_CORE:-${PORT_GATEWAY:-4000}}:4000"
+      - "127.0.0.1:${PORT_AGENT_CORE:-${PORT_GATEWAY:-4000}}:4000"
     environment:
       - PORT=4000
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
-      - OPENROUTER_MODEL=${OPENROUTER_MODEL:-anthropic/claude-3.5-sonnet}
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL:-openrouter/free}
       - AGENTGATEWAY_URL=http://agentgateway:8080
       - KEYCLOAK_URL=http://keycloak:8080
-      - NODE_ENV=development
+      - KEYCLOAK_ISSUER=${KEYCLOAK_ISSUER:-http://localhost:8085/realms/superapp}
+      - KEYCLOAK_AUDIENCE=${KEYCLOAK_AUDIENCE:-agent-core}
+      - KEYCLOAK_JWKS_URL=http://keycloak:8080/realms/superapp/protocol/openid-connect/certs
+      - DEMO_AUTH=${DEMO_AUTH:-false}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://localhost:3001,http://localhost:3002}
+      - ENABLE_LIVE_LLM=${ENABLE_LIVE_LLM:-false}
+      - OPENROUTER_ALLOW_PAID_MODELS=${OPENROUTER_ALLOW_PAID_MODELS:-false}
+      - NODE_ENV=${NODE_ENV:-development}
     depends_on:
       - service-ride
       - service-food
@@ -48,7 +55,7 @@ services:
       dockerfile: services/service-ride/Dockerfile
     container_name: superapp-service-ride
     ports:
-      - "${PORT_SERVICE_RIDE:-4001}:4001"
+      - "127.0.0.1:${PORT_SERVICE_RIDE:-4001}:4001"
     environment:
       - PORT=4001
 
@@ -59,7 +66,7 @@ services:
       dockerfile: services/service-food/Dockerfile
     container_name: superapp-service-food
     ports:
-      - "${PORT_SERVICE_FOOD:-4002}:4002"
+      - "127.0.0.1:${PORT_SERVICE_FOOD:-4002}:4002"
     environment:
       - PORT=4002
 
@@ -70,7 +77,7 @@ services:
       dockerfile: services/service-wallet/Dockerfile
     container_name: superapp-service-wallet
     ports:
-      - "${PORT_SERVICE_WALLET:-4003}:4003"
+      - "127.0.0.1:${PORT_SERVICE_WALLET:-4003}:4003"
     environment:
       - PORT=4003
 
@@ -81,7 +88,7 @@ services:
       dockerfile: services/service-catalog/Dockerfile
     container_name: superapp-service-catalog
     ports:
-      - "${PORT_SERVICE_CATALOG:-4004}:4004"
+      - "127.0.0.1:${PORT_SERVICE_CATALOG:-4004}:4004"
     environment:
       - PORT=4004
 
@@ -92,7 +99,7 @@ services:
       dockerfile: services/service-profile/Dockerfile
     container_name: superapp-service-profile
     ports:
-      - "${PORT_SERVICE_PROFILE:-4005}:4005"
+      - "127.0.0.1:${PORT_SERVICE_PROFILE:-4005}:4005"
     environment:
       - PORT=4005
 
@@ -102,7 +109,7 @@ services:
     container_name: superapp-keycloak
     command: ["start-dev", "--import-realm"]
     ports:
-      - "${PORT_KEYCLOAK:-8085}:8080"
+      - "127.0.0.1:${PORT_KEYCLOAK:-8085}:8080"
     environment:
       - KEYCLOAK_ADMIN=${KEYCLOAK_ADMIN:-admin}
       - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD:-admin}

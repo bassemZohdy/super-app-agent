@@ -7,7 +7,6 @@ import { executeFoodRequest } from '../services/service-food/src/index.ts';
 import { executeWalletRequest } from '../services/service-wallet/src/index.ts';
 import { executeCatalogRequest } from '../services/service-catalog/src/index.ts';
 import { executeProfileRequest } from '../services/service-profile/src/index.ts';
-import { generateKeycloakToken } from '../services/agent-core/src/auth.ts';
 import {
   validateAGUISurface,
   validateA2UIMessage,
@@ -348,8 +347,8 @@ test('E2E Life Scenario 8: User Profile Personalization & Adaptive AG-UI Surface
 test('E2E Life Scenario 9: Keycloak OIDC Token Authentication & Security Rejection', async () => {
   const sessionId = `sess_sec_${Date.now()}`;
 
-  // 1. Valid Keycloak OIDC JWT token accepted
-  const validToken = generateKeycloakToken('bassem', ['superapp-user', 'superapp-vip'], 'Gold VIP');
+  // 1. Explicit local demo identity accepted (NOT a real Keycloak token)
+  const validToken = 'demo-local';
   const authRes = await executeCoreRequest('POST', '/api/a2ui/intent', {}, {
     sessionId,
     text: 'What can you do for me?',
@@ -359,8 +358,8 @@ test('E2E Life Scenario 9: Keycloak OIDC Token Authentication & Security Rejecti
   assert.strictEqual(authRes.status, 200);
   assert.strictEqual(authRes.data.success, true);
   const session = getOrCreateSession(sessionId);
-  assert.strictEqual((session as any).user.preferred_username, 'bassem');
-  assert.strictEqual((session as any).user.vipTier, 'Gold VIP');
+  assert.strictEqual((session as any).user.preferred_username, 'demo');
+  assert.strictEqual((session as any).user.vipTier, 'Standard');
 
   // 2. Malformed JWT token rejected with 401
   const malformedRes = await executeCoreRequest('POST', '/api/a2ui/intent', {}, {
@@ -399,7 +398,7 @@ test('E2E Life Scenario 9: Keycloak OIDC Token Authentication & Security Rejecti
     authorization: `Bearer ${expiredToken}`,
   });
   assert.strictEqual(expiredRes.status, 401);
-  assert.ok(expiredRes.data.error.includes('expired'));
+  assert.strictEqual(expiredRes.data.authenticated, false);
 });
 
 // ==============================================================================

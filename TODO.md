@@ -270,3 +270,25 @@
   - [x] Execute flight recorder and generate `docs/reports/E2E_LIFE_SCENARIOS_RECORDING.md`
   - [x] Record fresh HD screen recording video (`docs/recordings/videos/superapp-e2e-scenarios.webm`) with Playwright & Google Chrome
   - [x] Commit and push all changes to GitHub
+
+---
+
+## Phase 10 — Production readiness (OPEN; do not confuse demo completion with release readiness)
+
+The preceding phases track the **demo acceptance scope only**. The following items are pending before production:
+
+- [x] Reject forged/demo JWTs by default; validate Keycloak RS256 signatures, issuer, audience and expiry
+- [x] Scope sessions to authenticated users; reject actions not represented on current surface
+- [x] Add local-only demo opt-in, multi-listener SSE, UI payload limits, and restricted CORS / local ports
+- [x] Default optional OpenRouter preview to free inference and block paid models without explicit opt-in
+- [x] Add regression test coverage for authentication, access controls and model spend policy (**execution pending**)
+- [ ] Real OIDC/PKCE frontend login (React, Angular, Flutter) and authenticated production SSE
+- [ ] Real domain-level authorization, consent, delegated identity, and tenant isolation
+- [ ] Durable session/checkpoint state, event replay, retries and distributed idempotency
+- [ ] Atomic/composable multi-agency settlement with compensation, audit and authorization proof
+- [ ] Actual LangGraph agent orchestration instead of keyword routing; model output currently unused
+- [ ] Official AG-UI + A2UI adapters and cross-platform renderer parity tests
+- [ ] Container/version pinning, security scanning, Keycloak integration, production load testing
+- [ ] Run full `npm test`, `npm run build`, and real Keycloak end-to-end tests before merge
+
+See [SECURITY.md](SECURITY.md).

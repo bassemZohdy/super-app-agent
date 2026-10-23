@@ -76,15 +76,15 @@ export class SuperAppAgentGraph {
 
     // Check if OpenRouter API is configured for live LLM reasoning
     const openRouterConfig = getOpenRouterConfig();
-    if (openRouterConfig.apiKey) {
-      onProgress?.(`⚡ Routing to OpenRouter (${openRouterConfig.model}) with Smart City Citizen context...`);
+    if (openRouterConfig.apiKey && process.env.ENABLE_LIVE_LLM === 'true') {
+      onProgress?.(`⚡ Calling optional OpenRouter preview (${openRouterConfig.model}); deterministic demo controls service routing...`);
       try {
         await invokeOpenRouterChat([
           { role: 'system', content: `You are Rashid, the Autonomous Smart City Concierge for DubaiNow & TAMM platforms.\n${profileRes.data.promptContext}` },
           { role: 'user', content: prompt },
         ]);
       } catch (err: any) {
-        onProgress?.(`⚠️ OpenRouter notice: ${err.message}. Proceeding with deterministic LangGraph StateGraph.`);
+        onProgress?.(`⚠️ OpenRouter notice: ${err.message}. Proceeding with deterministic demo routing.`);
       }
     }
 
