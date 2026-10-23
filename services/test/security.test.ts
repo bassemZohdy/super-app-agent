@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, sign } from 'node:crypto';
 import { verifyKeycloakToken } from '../agent-core/src/auth.ts';
-import { executeCoreRequest } from '../agent-core/src/index.ts';
+import { getOrCreateSession, executeCoreRequest } from '../agent-core/src/index.ts';
 
 test('security: rejects fabricated JWTs instead of trusting decoded claims', async () => {
   const fakePayload = Buffer.from(JSON.stringify({
@@ -70,7 +70,7 @@ test('security: verified JWT sessions belong to the authenticated subject', asyn
   }, { authorization: bob });
   assert.strictEqual(denied.status, 403);
   const forbidden = await executeCoreRequest('POST', '/api/a2ui/action', {}, {
-    sessionId: sid, action: 'pay_police_fines', payload: {},
+    sessionId: sid, surfaceRevision: getOrCreateSession(sid).currentSurface?.revision, action: 'pay_police_fines', payload: {},
   }, { authorization: alice });
   assert.strictEqual(forbidden.status, 403);
 });

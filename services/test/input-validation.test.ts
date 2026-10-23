@@ -5,7 +5,7 @@ import { executeRideRequest as ride, activeParkingMeters, activeRides, salikBala
 import { executeFoodRequest as food, activeUtilityBill, activeOrders, server as foodServer } from '../service-food/src/index.ts';
 import { executeProfileRequest as profile, currentPreferences, server as profileServer } from '../service-profile/src/index.ts';
 import { executeCatalogRequest as catalog, server as catalogServer } from '../service-catalog/src/index.ts';
-import { executeCoreRequest as core, sessions, server as coreServer } from '../agent-core/src/index.ts';
+import { getOrCreateSession, executeCoreRequest as core, sessions, server as coreServer } from '../agent-core/src/index.ts';
 import { MAX_MONEY, toMinor, fromMinor } from '../../packages/protocol-core/src/request-validation.ts';
 
 const snapshot = () => JSON.stringify({ balance, transactions, policeFines, meters: [...activeParkingMeters],
@@ -134,11 +134,11 @@ test('P0-09: core rejects malformed envelopes/action fields before consuming or 
   assert.equal((await core('POST', '/api/a2ui/intent', {}, { sessionId: sid, text: 'show my wallet' })).status, 200);
   for (const payload of [{}, { amount: '50' }, { amount: NaN }, { amount: 1.001 }, { amount: 50, extra: true }]) {
     const before = snapshot();
-    assert.equal((await core('POST', '/api/a2ui/action', {}, { sessionId: sid, action: 'topup_wallet', payload })).status, 400);
+    assert.equal((await core('POST', '/api/a2ui/action', {}, { sessionId: sid, surfaceRevision: getOrCreateSession(sid).currentSurface?.revision, action: 'topup_wallet', payload })).status, 400);
     assert.equal(snapshot(), before);
   }
-  assert.equal((await core('POST', '/api/a2ui/action', {}, { sessionId: sid, action: 'constructor', payload: {} })).status, 403);
-  assert.equal((await core('POST', '/api/a2ui/action', {}, { sessionId: sid, action: 'topup_wallet', payload: { amount: 50 } })).status, 200);
+  assert.equal((await core('POST', '/api/a2ui/action', {}, { sessionId: sid, surfaceRevision: getOrCreateSession(sid).currentSurface?.revision, action: 'constructor', payload: {} })).status, 403);
+  assert.equal((await core('POST', '/api/a2ui/action', {}, { sessionId: sid, surfaceRevision: getOrCreateSession(sid).currentSurface?.revision, action: 'topup_wallet', payload: { amount: 50 } })).status, 200);
 });
 
 test('P0-09: real HTTP handlers reject invalid JSON bodies, nested inputs and coerced money', async t => {

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { trackDomainOperations, executionOutcome, DomainOperationError, type Step } from './domain-operations.ts';
 import { validateRequest } from '../../../packages/protocol-core/src/request-validation.ts';
 import http from 'node:http';
@@ -50,7 +51,8 @@ function isSurfaceActionAllowed(state: SuperAppAgentState, action: string, paylo
       JSON.stringify(payload[field]) === JSON.stringify(binding[field]))
   ));
 }
-const consumedActions = new Set<string>();
+const activeTransitions = new Set<string>();
+type RequestContext = { session?: SuperAppAgentState; release?: () => void };
 
 export function getOrCreateSession(sessionId: string): SuperAppAgentState {
   if (!sessions.has(sessionId)) {
@@ -69,7 +71,7 @@ async function handleGatewayRequest(
   query: Record<string, string> = {},
   body: any = {},
   headers: Record<string, string | undefined> = {},
-  requestContext: { session?: SuperAppAgentState } = {}
+  requestContext: RequestContext = {}
 ): Promise<{ status: number; data: any }> {
   const normMethod = method.toUpperCase();
   const invalid = validateRequest('agent-core', normMethod, pathname, query, body);
@@ -106,17 +108,33 @@ async function handleGatewayRequest(
     };
   }
 
-  // 2. User Intent Ingestion
-  if (normMethod === 'POST' && pathname === '/api/a2ui/intent') {
-    if (typeof body.sessionId !== 'string' || !/^[a-zA-Z0-9_-]{8,128}$/.test(body.sessionId) ||
-        typeof body.text !== 'string' || !body.text.trim() || body.text.length > 4000) {
-      return { status: 400, data: { error: 'Invalid sessionId or text (max 4000 characters)' } };
+  // Hold coordination through execution, failure rendering and final broadcast.
+  if (normMethod === 'POST' && ['/api/a2ui/intent', '/api/a2ui/action'].includes(pathname)) {
+    if (pathname.endsWith('/action') && !sessions.has(body.sessionId)) {
+      return { status: 404, data: { error: 'Session not found' } };
     }
     if (!ownsSession(body.sessionId, authResult.user!.sub)) {
       return { status: 403, data: { error: 'Session belongs to a different user' } };
     }
+    if (activeTransitions.has(body.sessionId)) {
+      return { status: 409, data: { success: false, code: 'SESSION_BUSY',
+        error: 'A request is already running. Wait for its result before retrying.', retry: { allowed: false, next: 'wait' } } };
+    }
+    activeTransitions.add(body.sessionId);
+    requestContext.release = () => activeTransitions.delete(body.sessionId);
     const session = getOrCreateSession(body.sessionId);
+    if (session.reconciliation) {
+      return { status: 409, data: { success: false, code: 'RECONCILIATION_REQUIRED',
+        error: 'Reconcile the previous journey before submitting more requests in this session.',
+        outcome: session.reconciliation.outcome, steps: session.reconciliation.steps,
+        retry: { allowed: false, next: 'reconcile' }, surface: session.currentSurface } };
+    }
     requestContext.session = session;
+  }
+
+  // 2. User Intent Ingestion
+  if (normMethod === 'POST' && pathname === '/api/a2ui/intent') {
+    const session = requestContext.session!;
     if (authResult.user) {
       (session as any).user = authResult.user;
     }
@@ -128,6 +146,7 @@ async function handleGatewayRequest(
     const updatedState = await SuperAppAgentGraph.executeIntent(session, body.text, onDelta);
 
     if (updatedState.currentSurface) {
+      updatedState.currentSurface.revision = randomUUID();
       broadcast(body.sessionId, createA2UIMessage('A2UI_RENDER_SURFACE', body.sessionId, {
         mode: 'REPLACE', surface: updatedState.currentSurface, outcome: 'SUCCEEDED',
       }));
@@ -145,34 +164,18 @@ async function handleGatewayRequest(
 
   // 3. Interactive Action Dispatch
   if (normMethod === 'POST' && pathname === '/api/a2ui/action') {
-    if (typeof body.sessionId !== 'string' || typeof body.action !== 'string' ||
-        !/^[a-zA-Z0-9_-]{8,128}$/.test(body.sessionId)) {
-      return { status: 400, data: { error: 'Valid sessionId and action are required' } };
+    const session = requestContext.session!;
+    if (body.surfaceRevision !== session.currentSurface?.revision) {
+      return { status: 409, data: { success: false, code: 'STALE_SURFACE',
+        error: 'This surface has been replaced. Review the current surface before acting.',
+        retry: { allowed: false, next: 'refresh_surface' }, surface: session.currentSurface } };
     }
-    if (!sessions.has(body.sessionId)) {
-      return { status: 404, data: { error: 'Session not found' } };
-    }
-    if (!ownsSession(body.sessionId, authResult.user!.sub)) {
-      return { status: 403, data: { error: 'Session belongs to a different user' } };
-    }
-    const session = getOrCreateSession(body.sessionId);
-    requestContext.session = session;
     if (!isSurfaceActionAllowed(session, body.action, body.payload || {})) {
       return { status: 403, data: { error: 'Action is not authorized for the current UI surface' } };
-    }
-    if (!body.payload || typeof body.payload !== 'object' || Array.isArray(body.payload)) {
-      return { status: 400, data: { error: 'Invalid action payload' } };
     }
     if (authResult.user) {
       (session as any).user = authResult.user;
     }
-    // Prevent accidental double execution of the same surface action in this process.
-    // Durable idempotency remains the responsibility of the transactional service.
-    const actionKey = body.sessionId + ':' + session.currentSurface!.timestamp + ':' + body.action;
-    if (consumedActions.has(actionKey)) {
-      return { status: 409, data: { error: 'Action already submitted for this surface' } };
-    }
-    consumedActions.add(actionKey);
     const onDelta = (text: string) =>
       broadcast(body.sessionId, createA2UIMessage('A2UI_STREAM_DELTA', body.sessionId, {
         phase: 'TOOL_EXECUTION', text,
@@ -186,6 +189,7 @@ async function handleGatewayRequest(
     );
 
     if (updatedState.currentSurface) {
+      updatedState.currentSurface.revision = randomUUID();
       broadcast(body.sessionId, createA2UIMessage('A2UI_RENDER_SURFACE', body.sessionId, {
         mode: 'REPLACE', surface: updatedState.currentSurface, outcome: 'SUCCEEDED',
       }));
@@ -207,7 +211,7 @@ async function handleGatewayRequest(
 export async function executeGatewayRequest(method: string, pathname: string,
   query: Record<string, string> = {}, body: any = {}, headers: Record<string, string | undefined> = {}): Promise<{ status: number; data: any }> {
   const steps: Step[] = [];
-  const requestContext: { session?: SuperAppAgentState } = {};
+  const requestContext: RequestContext = {};
   try {
     const result = await trackDomainOperations(steps, () => handleGatewayRequest(method, pathname, query, body, headers, requestContext));
     return result.data.success === true ? { ...result, data: { ...result.data, outcome: 'SUCCEEDED', steps } } : result;
@@ -230,18 +234,21 @@ export async function executeGatewayRequest(method: string, pathname: string,
     let surface;
     if (session) {
       session.currentSurface = {
-        version: '1.0.0', sessionId: session.sessionId, timestamp: Date.now(),
+        version: '1.0.0', sessionId: session.sessionId, timestamp: Date.now(), revision: randomUUID(),
         view: { type: 'SurfaceCard', id: 'execution_outcome_card', style: { variant: 'warning' }, children: [
           { type: 'Heading', id: 'outcome_heading', properties: { text: outcome === 'FAILED' ? 'Request failed' : 'Journey needs attention' } },
           { type: 'Badge', id: 'outcome_badge', properties: { text: outcome, variant: 'warning' } },
           { type: 'Text', id: 'outcome_message', properties: { text: message } },
         ] },
       };
+      if (outcome !== 'FAILED') session.reconciliation = { outcome, steps: steps.map(step => ({ ...step })) };
       surface = session.currentSurface;
       session.messages.push({ id: `failure_${Date.now()}`, role: 'assistant', content: message, timestamp: Date.now() });
       broadcast(session.sessionId, createA2UIMessage('A2UI_RENDER_SURFACE', session.sessionId, { mode: 'REPLACE', surface, outcome, code, steps, retry }));
     }
     return { status, data: { success: false, error: message, code, outcome, steps, retry, surface } };
+  } finally {
+    requestContext.release?.();
   }
 }
 

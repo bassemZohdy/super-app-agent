@@ -119,6 +119,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen> {
         },
         body: jsonEncode({
           'sessionId': _sessionId,
+          'surfaceRevision': _currentSurface?['revision'],
           'action': action,
           'payload': bodyPayload,
         }),
@@ -524,3 +525,4 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen> {
     }
   }
 }
+

@@ -40,7 +40,7 @@ for (const [action, schema] of Object.entries(actionSchemas)) {
   schema.properties = { ...schema.properties, action: { const: action } };
 }
 const coreIntent = object({ sessionId, text: text(4000), handshake }, ['sessionId', 'text']);
-const coreAction = object({ sessionId, action: text(128), payload: { type: 'object' } }, ['sessionId', 'action', 'payload']);
+const coreAction = object({ sessionId, surfaceRevision: { type: 'string', pattern: '^[0-9a-f-]{36}$' }, action: text(128), payload: { type: 'object' } }, ['sessionId', 'surfaceRevision', 'action', 'payload']);
 
 type Route = { owner: string; method: string; path: string; aliases?: string[]; schema: Schema; tool?: string };
 const routes: Route[] = [];

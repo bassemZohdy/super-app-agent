@@ -7,7 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { executeCoreRequest } from '../services/agent-core/src/index.ts';
+import { getOrCreateSession, executeCoreRequest } from '../services/agent-core/src/index.ts';
 import { executeRideRequest } from '../services/service-ride/src/index.ts';
 import { executeFoodRequest } from '../services/service-food/src/index.ts';
 import { executeWalletRequest } from '../services/service-wallet/src/index.ts';
@@ -114,7 +114,7 @@ async function recordScenario1(): Promise<ScenarioRecord> {
   // Step 3: Action Loop - Booking Confirmation
   const t2 = Date.now();
   const actionRes = await executeCoreRequest('POST', '/api/a2ui/action', {}, {
-    sessionId,
+    sessionId, surfaceRevision: getOrCreateSession(sessionId).currentSurface?.revision,
     action: 'book_ride',
     payload: { selectedChoice: 'drv_1' },
   });
@@ -192,7 +192,7 @@ async function recordScenario2(): Promise<ScenarioRecord> {
 
   const t1 = Date.now();
   const actionRes = await executeCoreRequest('POST', '/api/a2ui/action', {}, {
-    sessionId,
+    sessionId, surfaceRevision: getOrCreateSession(sessionId).currentSurface?.revision,
     action: 'order_food',
     payload: { selectedChoice: 'item_diavola' },
   });
@@ -272,7 +272,7 @@ async function recordScenario3(): Promise<ScenarioRecord> {
 
   const t1 = Date.now();
   const actionRes = await executeCoreRequest('POST', '/api/a2ui/action', {}, {
-    sessionId,
+    sessionId, surfaceRevision: getOrCreateSession(sessionId).currentSurface?.revision,
     action: 'topup_wallet',
     payload: { amount: 50.0 },
   });
@@ -350,7 +350,7 @@ async function recordScenario4(): Promise<ScenarioRecord> {
 
   const t1 = Date.now();
   const actionRes = await executeCoreRequest('POST', '/api/a2ui/action', {}, {
-    sessionId,
+    sessionId, surfaceRevision: getOrCreateSession(sessionId).currentSurface?.revision,
     action: 'confirm_composite_checkout',
     payload: {},
   });
@@ -785,7 +785,7 @@ async function recordScenario10(): Promise<ScenarioRecord> {
 
   const t1 = Date.now();
   const activateRes = await executeCoreRequest('POST', '/api/a2ui/action', {}, {
-    sessionId,
+    sessionId, surfaceRevision: getOrCreateSession(sessionId).currentSurface?.revision,
     action: 'activate_parking',
     payload: { zoneId: 'zone_302a', durationHours: 2, plateNumber: 'Dubai B-74892' },
   });
@@ -814,7 +814,7 @@ async function recordScenario10(): Promise<ScenarioRecord> {
 
   const t2 = Date.now();
   await executeCoreRequest('POST', '/api/a2ui/action', {}, {
-    sessionId,
+    sessionId, surfaceRevision: getOrCreateSession(sessionId).currentSurface?.revision,
     action: 'extend_parking',
     payload: { ticketId, additionalHours: 1 },
   });
@@ -942,7 +942,7 @@ async function recordScenario12(): Promise<ScenarioRecord> {
 
   const t1 = Date.now();
   await executeCoreRequest('POST', '/api/a2ui/action', {}, {
-    sessionId,
+    sessionId, surfaceRevision: getOrCreateSession(sessionId).currentSurface?.revision,
     action: 'pay_utilities_bill',
     payload: {},
   });
@@ -1018,7 +1018,7 @@ async function recordScenario13(): Promise<ScenarioRecord> {
 
   const t1 = Date.now();
   await executeCoreRequest('POST', '/api/a2ui/action', {}, {
-    sessionId,
+    sessionId, surfaceRevision: getOrCreateSession(sessionId).currentSurface?.revision,
     action: 'pay_police_fines',
     payload: {},
   });
@@ -1095,7 +1095,7 @@ async function recordScenario14(): Promise<ScenarioRecord> {
 
   const t1 = Date.now();
   await executeCoreRequest('POST', '/api/a2ui/action', {}, {
-    sessionId,
+    sessionId, surfaceRevision: getOrCreateSession(sessionId).currentSurface?.revision,
     action: 'confirm_movein',
     payload: {},
   });
@@ -1172,7 +1172,7 @@ async function recordScenario15(): Promise<ScenarioRecord> {
 
   const t1 = Date.now();
   const checkoutRes = await executeCoreRequest('POST', '/api/a2ui/action', {}, {
-    sessionId,
+    sessionId, surfaceRevision: getOrCreateSession(sessionId).currentSurface?.revision,
     action: 'confirm_smartcity_checkout',
     payload: {},
   });
@@ -1392,4 +1392,5 @@ async function run() {
 }
 
 await run();
+
 
