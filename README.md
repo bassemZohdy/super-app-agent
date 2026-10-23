@@ -1,4 +1,6 @@
 # SuperApp Agent 🚀
+
+> **Prototype notice (October 2026):** This repository demonstrates simulated journeys and custom UI contracts. Its `SuperAppAgentGraph` is not yet a real LangGraph runtime; the optional OpenRouter call does not decide or execute the journeys. The earlier architecture chapters describe **the intended design**, not a fully implemented enterprise product. See [SECURITY.md](SECURITY.md) for current limitations, secure demo setup, and free-model defaults, and [TODO.md](TODO.md) for remaining production blockers.
 > Next-Generation Agentic SuperApp Platform with AG-UI / A2-UI Protocols, Polyglot Frontends (React / Angular / Flutter), and Microservice-Driven Mini-Apps.
 
 ---

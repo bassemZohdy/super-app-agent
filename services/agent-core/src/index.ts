@@ -6,11 +6,46 @@ import {
 } from '../../../packages/protocol-core/src/index.ts';
 import type { SuperAppAgentState } from './langgraph/state.ts';
 import { SuperAppAgentGraph } from './langgraph/graph.ts';
-import { verifyKeycloakToken } from './auth.ts';
+import { verifyKeycloakToken, isDemoAuthEnabled } from './auth.ts';
 
 // In-Memory Session and SSE Subscriber Registry
 export const sessions = new Map<string, SuperAppAgentState>();
-export const sseClients = new Map<string, (msg: A2UIMessageEnvelope) => void>();
+const sessionOwners = new Map<string, string>();
+export const sseClients = new Map<string, Set<(msg: A2UIMessageEnvelope) => void>>();
+function broadcast(sessionId: string, msg: A2UIMessageEnvelope) {
+  for (const listener of sseClients.get(sessionId) || []) listener(msg);
+}
+function ownsSession(sessionId: string, sub: string): boolean {
+  const owner = sessionOwners.get(sessionId);
+  if (owner && owner !== sub) return false;
+  sessionOwners.set(sessionId, sub);
+  return true;
+}
+// An allowed action is not permission to change financial or resource values.
+function isSurfaceActionAllowed(state: SuperAppAgentState, action: string, payload: Record<string, any>): boolean {
+  if (!state.currentSurface) return false;
+  const bindings: Array<Record<string, any>> = [];
+  const choices = new Set<string>();
+  const walk = (node: any) => {
+    if (node.type === 'ChoiceGroup') {
+      for (const option of node.properties?.options || []) choices.add(option.id);
+    }
+    for (const event of node.onEvents || []) {
+      if (event.actionType === 'AGENT_ACTION_DISPATCH' && event.payload?.action === action) {
+        bindings.push(event.payload);
+      }
+    }
+    for (const child of node.children || []) walk(child);
+  };
+  walk(state.currentSurface.view);
+  if (payload.selectedChoice !== undefined && !choices.has(payload.selectedChoice)) return false;
+  const protectedFields = ['amount', 'durationHours', 'zoneId', 'plateNumber', 'ticketId'];
+  return bindings.some(binding => protectedFields.every(field =>
+    payload[field] === undefined || (binding[field] !== undefined &&
+      JSON.stringify(payload[field]) === JSON.stringify(binding[field]))
+  ));
+}
+const consumedActions = new Set<string>();
 
 export function getOrCreateSession(sessionId: string): SuperAppAgentState {
   if (!sessions.has(sessionId)) {
@@ -49,7 +84,7 @@ export async function executeGatewayRequest(
 
   // Keycloak OIDC Authentication & Security Check
   const authHeader = headers['authorization'] || headers['Authorization'];
-  const authResult = verifyKeycloakToken(authHeader);
+  const authResult = await verifyKeycloakToken(authHeader);
   if (!authResult.authenticated) {
     return {
       status: authResult.statusCode || 401,
@@ -62,36 +97,28 @@ export async function executeGatewayRequest(
 
   // 2. User Intent Ingestion
   if (normMethod === 'POST' && pathname === '/api/a2ui/intent') {
-    if (!body.sessionId || !body.text) {
-      return { status: 400, data: { error: 'sessionId and text are required' } };
+    if (typeof body.sessionId !== 'string' || !/^[a-zA-Z0-9_-]{8,128}$/.test(body.sessionId) ||
+        typeof body.text !== 'string' || !body.text.trim() || body.text.length > 4000) {
+      return { status: 400, data: { error: 'Invalid sessionId or text (max 4000 characters)' } };
     }
-
+    if (!ownsSession(body.sessionId, authResult.user!.sub)) {
+      return { status: 403, data: { error: 'Session belongs to a different user' } };
+    }
     const session = getOrCreateSession(body.sessionId);
     if (authResult.user) {
       (session as any).user = authResult.user;
     }
-    const clientBroadcaster = sseClients.get(body.sessionId);
-
-    const onDelta = (text: string) => {
-      if (clientBroadcaster) {
-        clientBroadcaster(
-          createA2UIMessage('A2UI_STREAM_DELTA', body.sessionId, {
-            phase: 'REASONING',
-            text,
-          })
-        );
-      }
-    };
+    const onDelta = (text: string) =>
+      broadcast(body.sessionId, createA2UIMessage('A2UI_STREAM_DELTA', body.sessionId, {
+        phase: 'TOOL_EXECUTION', text,
+      }));
 
     const updatedState = await SuperAppAgentGraph.executeIntent(session, body.text, onDelta);
 
-    if (updatedState.currentSurface && clientBroadcaster) {
-      clientBroadcaster(
-        createA2UIMessage('A2UI_RENDER_SURFACE', body.sessionId, {
-          mode: 'REPLACE',
-          surface: updatedState.currentSurface,
-        })
-      );
+    if (updatedState.currentSurface) {
+      broadcast(body.sessionId, createA2UIMessage('A2UI_RENDER_SURFACE', body.sessionId, {
+        mode: 'REPLACE', surface: updatedState.currentSurface,
+      }));
     }
 
     return {
@@ -106,26 +133,37 @@ export async function executeGatewayRequest(
 
   // 3. Interactive Action Dispatch
   if (normMethod === 'POST' && pathname === '/api/a2ui/action') {
-    if (!body.sessionId || !body.action) {
-      return { status: 400, data: { error: 'sessionId and action are required' } };
+    if (typeof body.sessionId !== 'string' || typeof body.action !== 'string' ||
+        !/^[a-zA-Z0-9_-]{8,128}$/.test(body.sessionId)) {
+      return { status: 400, data: { error: 'Valid sessionId and action are required' } };
     }
-
+    if (!sessions.has(body.sessionId)) {
+      return { status: 404, data: { error: 'Session not found' } };
+    }
+    if (!ownsSession(body.sessionId, authResult.user!.sub)) {
+      return { status: 403, data: { error: 'Session belongs to a different user' } };
+    }
     const session = getOrCreateSession(body.sessionId);
+    if (!isSurfaceActionAllowed(session, body.action, body.payload || {})) {
+      return { status: 403, data: { error: 'Action is not authorized for the current UI surface' } };
+    }
+    if (!body.payload || typeof body.payload !== 'object' || Array.isArray(body.payload)) {
+      return { status: 400, data: { error: 'Invalid action payload' } };
+    }
     if (authResult.user) {
       (session as any).user = authResult.user;
     }
-    const clientBroadcaster = sseClients.get(body.sessionId);
-
-    const onDelta = (text: string) => {
-      if (clientBroadcaster) {
-        clientBroadcaster(
-          createA2UIMessage('A2UI_STREAM_DELTA', body.sessionId, {
-            phase: 'TOOL_EXECUTION',
-            text,
-          })
-        );
-      }
-    };
+    // Prevent accidental double execution of the same surface action in this process.
+    // Durable idempotency remains the responsibility of the transactional service.
+    const actionKey = body.sessionId + ':' + session.currentSurface!.timestamp + ':' + body.action;
+    if (consumedActions.has(actionKey)) {
+      return { status: 409, data: { error: 'Action already submitted for this surface' } };
+    }
+    consumedActions.add(actionKey);
+    const onDelta = (text: string) =>
+      broadcast(body.sessionId, createA2UIMessage('A2UI_STREAM_DELTA', body.sessionId, {
+        phase: 'TOOL_EXECUTION', text,
+      }));
 
     const updatedState = await SuperAppAgentGraph.resumeWithAction(
       session,
@@ -134,13 +172,10 @@ export async function executeGatewayRequest(
       onDelta
     );
 
-    if (updatedState.currentSurface && clientBroadcaster) {
-      clientBroadcaster(
-        createA2UIMessage('A2UI_RENDER_SURFACE', body.sessionId, {
-          mode: 'REPLACE',
-          surface: updatedState.currentSurface,
-        })
-      );
+    if (updatedState.currentSurface) {
+      broadcast(body.sessionId, createA2UIMessage('A2UI_RENDER_SURFACE', body.sessionId, {
+        mode: 'REPLACE', surface: updatedState.currentSurface,
+      }));
     }
 
     return {
@@ -155,10 +190,16 @@ export async function executeGatewayRequest(
   return { status: 404, data: { error: 'Not found', path: pathname } };
 }
 
-function sendJson(res: http.ServerResponse, statusCode: number, data: any) {
+function allowedOrigin(requestOrigin: string | undefined): string {
+  const allowed = (process.env.CORS_ORIGINS ||
+    'http://localhost:3000,http://localhost:3001,http://localhost:3002')
+    .split(',').map(value => value.trim());
+  return requestOrigin && allowed.includes(requestOrigin) ? requestOrigin : 'null';
+}
+function sendJson(req: http.IncomingMessage, res: http.ServerResponse, statusCode: number, data: any) {
   res.writeHead(statusCode, {
     'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': allowedOrigin(req.headers.origin),
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   });
@@ -171,7 +212,7 @@ export const server = http.createServer(async (req, res) => {
 
   if (method === 'OPTIONS') {
     res.writeHead(204, {
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': allowedOrigin(req.headers.origin),
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     });
@@ -180,27 +221,42 @@ export const server = http.createServer(async (req, res) => {
 
   // SSE Stream Endpoint
   if (method === 'GET' && url.pathname === '/api/a2ui/stream') {
-    const authHeader = (req.headers['authorization'] as string) || (url.searchParams.get('token') ? `Bearer ${url.searchParams.get('token')}` : undefined);
-    const authResult = verifyKeycloakToken(authHeader);
+    // Native EventSource has no Authorization header. Demo mode uses an explicit
+    // switch; production clients must use an authenticated fetch-based SSE reader.
+    const demo = isDemoAuthEnabled() && url.searchParams.get('demo') === '1';
+    const authHeader = (req.headers['authorization'] as string | undefined) ||
+      (demo ? 'Bearer demo-local' : undefined);
+    const authResult = await verifyKeycloakToken(authHeader);
     if (!authResult.authenticated) {
-      sendJson(res, authResult.statusCode || 401, { error: authResult.error, authenticated: false });
+      sendJson(req, authResult.statusCode || 401, { error: authResult.error, authenticated: false });
       return;
     }
 
-    const sid = url.searchParams.get('sessionId') || `sess_${Date.now()}`;
+    const sid = url.searchParams.get('sessionId');
+    if (!sid || !/^[a-zA-Z0-9_-]{8,128}$/.test(sid)) {
+      sendJson(req, 400, { error: 'Valid sessionId is required' });
+      return;
+    }
+    if (!ownsSession(sid, authResult.user!.sub)) {
+      sendJson(req, 403, { error: 'Session belongs to a different user' });
+      return;
+    }
 
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
       'Connection': 'keep-alive',
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': allowedOrigin(req.headers.origin),
     });
 
     const listener = (msg: A2UIMessageEnvelope) => {
       res.write(`data: ${JSON.stringify(msg)}\n\n`);
     };
 
-    sseClients.set(sid, listener);
+    const subscribers = sseClients.get(sid) || new Set();
+    subscribers.add(listener);
+    sseClients.set(sid, subscribers);
+    const heartbeat = setInterval(() => res.write(': keepalive\n\n'), 20_000);
 
     // Initial handshake ACK
     const ack = createA2UIMessage('A2UI_HANDSHAKE_ACK', sid, {
@@ -212,7 +268,9 @@ export const server = http.createServer(async (req, res) => {
     res.write(`data: ${JSON.stringify(ack)}\n\n`);
 
     req.on('close', () => {
-      sseClients.delete(sid);
+      clearInterval(heartbeat);
+      subscribers.delete(listener);
+      if (!subscribers.size) sseClients.delete(sid);
     });
     return;
   }
@@ -226,19 +284,24 @@ export const server = http.createServer(async (req, res) => {
 
   if (method === 'POST') {
     let bodyText = '';
-    req.on('data', (chunk) => (bodyText += chunk));
+    req.on('data', (chunk) => {
+      bodyText += chunk;
+      if (bodyText.length > 1_000_000) req.destroy();
+    });
     req.on('end', async () => {
       try {
         const body = bodyText ? JSON.parse(bodyText) : {};
         const result = await executeGatewayRequest(method, url.pathname, query, body, headers);
-        sendJson(res, result.status, result.data);
+        sendJson(req, result.status, result.data);
       } catch (e: any) {
-        sendJson(res, 400, { error: 'Invalid JSON body', details: e.message });
+        sendJson(req, e instanceof SyntaxError ? 400 : 500, {
+          error: e instanceof SyntaxError ? 'Invalid JSON body' : 'Request processing failed',
+        });
       }
     });
   } else {
     const result = await executeGatewayRequest(method, url.pathname, query, {}, headers);
-    sendJson(res, result.status, result.data);
+    sendJson(req, result.status, result.data);
   }
 });
 
