@@ -103,21 +103,8 @@ export class SuperAppAgentGraph {
           content: `Welcome to your new home in ${ejariRes.data.contract.property.building}! Your Ejari contract is active, DEWA smart meter is connected with deposit waived for Golden Visa holders, and residential parking is ready.`,
           timestamp: Date.now(),
         });
-      } else if (hasUtilitiesAction || hasPoliceAction) {
-        onProgress?.('🏛️ Compiling Unified Civic Living Reconciliation across DEWA, Dubai Police, and Salik...');
-        const billRes = executeFoodRequest('GET', '/utilities/bill');
-        const finesRes = executeWalletRequest('GET', '/fines/check');
-        const salikRes = executeRideRequest('GET', '/mobility/salik/balance');
-        const walletRes = executeWalletRequest('GET', '/wallet/balance');
-
-        state.currentSurface = this.buildSmartCityCompositeSurface(state.sessionId, billRes.data.bill, finesRes.data, salikRes.data, walletRes.data, profile);
-        state.messages.push({
-          id: `msg_${Date.now() + 1}`,
-          role: 'assistant',
-          content: `I've compiled your unified municipal summary for ${profile.displayName}. Settle your DEWA bill, traffic radar fines, and Salik recharge in one secure DubaiPay checkout.`,
-          timestamp: Date.now(),
-        });
-      } else {
+      } else if (lower.includes('pizza') && lower.includes('ride')) {
+        // Legacy multi-domain fallback for backwards compatibility
         onProgress?.('🔀 Orchestrating composite workflow across Ride, Food, and Wallet microservices...');
         const rideRes = executeRideRequest('GET', '/rides/options', { destination: 'Downtown Dining' });
         const foodRes = executeFoodRequest('GET', '/restaurants/search', { query: 'pizza' });
@@ -131,9 +118,24 @@ export class SuperAppAgentGraph {
           content: `I've prepared a personalized itinerary for ${profile.displayName} with your favored ${preferences.mobility.preferredTierName} and pizza matching your dietary preferences.`,
           timestamp: Date.now(),
         });
+      } else {
+        // Smart City Unified Civic Living Reconciliation across DEWA, Dubai Police, and Salik
+        onProgress?.('🏛️ Compiling Unified Civic Living Reconciliation across DEWA, Dubai Police, and Salik...');
+        const billRes = executeFoodRequest('GET', '/utilities/bill');
+        const finesRes = executeWalletRequest('GET', '/fines/check');
+        const salikRes = executeRideRequest('GET', '/mobility/salik/balance');
+        const walletRes = executeWalletRequest('GET', '/wallet/balance');
+
+        state.currentSurface = this.buildSmartCityCompositeSurface(state.sessionId, billRes.data.bill, finesRes.data, salikRes.data, walletRes.data, profile);
+        state.messages.push({
+          id: `msg_${Date.now() + 1}`,
+          role: 'assistant',
+          content: `I've compiled your unified municipal summary for ${profile.displayName}. Settle your DEWA bill, traffic radar fines, and Salik recharge in one secure DubaiPay checkout.`,
+          timestamp: Date.now(),
+        });
       }
     } else if (targetDomain === 'ride') {
-      if (hasParkingAction || hasSalikAction || hasEVAction) {
+      if (hasParkingAction || hasSalikAction || hasEVAction || lower.includes('car') || lower.includes('drive')) {
         onProgress?.('🚗 Querying RTA & Mawaqif Smart Mobility for Parking, Salik, and EV Chargers...');
         const zonesRes = executeRideRequest('GET', '/mobility/parking/zones');
         const salikRes = executeRideRequest('GET', '/mobility/salik/balance');
@@ -161,7 +163,7 @@ export class SuperAppAgentGraph {
         });
       }
     } else if (targetDomain === 'food') {
-      if (hasUtilitiesAction) {
+      if (hasUtilitiesAction || lower.includes('utility') || lower.includes('bill') || lower.includes('meter')) {
         onProgress?.('⚡ Connecting to DEWA / ADDC Smart Grid for Premise DEWA-201948201...');
         const billRes = executeFoodRequest('GET', '/utilities/bill');
         const consumptionRes = executeFoodRequest('GET', '/utilities/consumption');
@@ -202,16 +204,16 @@ export class SuperAppAgentGraph {
           timestamp: Date.now(),
         });
       } else {
-        onProgress?.('💳 Querying Wallet Microservice for balances and ledger history...');
+        onProgress?.('💳 Querying DubaiPay Citizen Wallet for balances and ledger history...');
         const walletRes = executeWalletRequest('GET', '/wallet/balance');
         const txRes = executeWalletRequest('GET', '/wallet/transactions');
 
-        onProgress?.(`📊 Building secure wallet overview with ${profile.vipTier} member benefits...`);
+        onProgress?.(`📊 Building secure DubaiPay overview with verified UAE PASS citizen credentials...`);
         state.currentSurface = this.buildWalletOverviewSurface(state.sessionId, walletRes.data.balance, txRes.data.transactions, profile);
         state.messages.push({
           id: `msg_${Date.now() + 1}`,
           role: 'assistant',
-          content: `Welcome back, ${profile.displayName}! Your wallet balance is $${walletRes.data.balance} with active ${profile.vipTier} status.`,
+          content: `Welcome back, ${profile.displayName}! Your DubaiPay citizen wallet balance is ${walletRes.data.balance} AED with active ${profile.residencyStatus || 'Golden Visa Resident'} status.`,
           timestamp: Date.now(),
         });
       }
@@ -926,20 +928,20 @@ export class SuperAppAgentGraph {
           {
             type: 'Heading',
             id: 'wallet_heading',
-            properties: { text: `💳 SuperApp Wallet • ${profile?.displayName || 'Active Account'}`, level: 2 },
+            properties: { text: `💳 DubaiPay Citizen Wallet • ${profile?.displayName || 'Active Citizen'}`, level: 2 },
           },
           {
             type: 'Badge',
             id: 'vip_badge',
             properties: {
-              text: `👑 ${profile?.vipTier || 'Gold VIP'} Member • 5% Instant Cashback Active`,
+              text: `🛡️ UAE PASS Verified • ${profile?.vipTier || 'Gold VIP'} Member • ${profile?.residencyStatus || 'Golden Visa Resident'} • Zero Surcharge`,
               variant: 'success',
             },
           },
           {
             type: 'MetricWidget',
             id: 'metric_balance',
-            properties: { label: 'Active Balance', value: `$${balance.toFixed(2)}`, trend: 'neutral' },
+            properties: { label: 'Active DubaiPay Balance', value: `${balance.toFixed(2)} AED`, trend: 'neutral' },
           },
           {
             type: 'DataTable',
@@ -953,14 +955,14 @@ export class SuperAppAgentGraph {
               rows: txs.slice(0, 4).map((t) => ({
                 type: t.type,
                 purpose: t.purpose,
-                amount: `${t.type === 'PAYMENT' ? '-' : '+'}$${t.amount.toFixed(2)}`,
+                amount: `${t.type === 'PAYMENT' ? '-' : '+'}${t.amount.toFixed(2)} AED`,
               })),
             },
           },
           {
             type: 'Button',
             id: 'btn_topup_50',
-            properties: { label: 'Quick Top-Up ($50.00)', variant: 'outline', fullWidth: true },
+            properties: { label: 'Quick Top-Up (+50.00 AED via DubaiPay)', variant: 'outline', fullWidth: true },
             onEvents: [
               {
                 event: 'onPress',
@@ -1240,6 +1242,34 @@ export class SuperAppAgentGraph {
                 { category: 'Water (Desalination Grid)', amount: `${waterCost.toFixed(2)} AED` },
                 { category: 'Sewerage & Environmental Fee', amount: `${sewCost.toFixed(2)} AED` },
                 { category: 'Dubai Municipality Housing Fee (5%)', amount: `${houseCost.toFixed(2)} AED` },
+              ],
+            },
+          },
+          {
+            type: 'ChoiceGroup',
+            id: 'dewa_payment_channel_choice',
+            properties: {
+              selectedId: 'opt_dubaipay',
+              options: [
+                {
+                  id: 'opt_dubaipay',
+                  title: 'DubaiPay Direct Debit (Emirates NBD)',
+                  subtitle: 'Instant settlement • 0.00 AED surcharge • Green Slab certified',
+                  price: `${bill.totalAmount.toFixed(2)} AED`,
+                  badge: '⭐ Recommended',
+                },
+                {
+                  id: 'opt_applepay',
+                  title: 'Apple Pay / Digital Card',
+                  subtitle: 'Instant biometric settlement',
+                  price: `${bill.totalAmount.toFixed(2)} AED`,
+                },
+                {
+                  id: 'opt_autopay',
+                  title: 'Green Slab Smart Autopay',
+                  subtitle: 'Automated recurring billing on the 1st of every month',
+                  price: 'Auto-Debit',
+                },
               ],
             },
           },

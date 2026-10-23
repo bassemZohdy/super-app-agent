@@ -15,7 +15,7 @@
 | **Protocols Evaluated** | AG-UI v1.0.0 (Declarative Tree), A2-UI v1.0.0 (Event Streaming) |
 | **Cognitive Framework** | LangGraph StateGraph Supervisor + Domain Worker Subagents |
 | **Microservices Mesh** | `service-ride`, `service-food`, `service-wallet`, `service-catalog`, `service-profile`, `keycloak` |
-| **Report Generated At** | 2026-10-23T03:34:15.624Z |
+| **Report Generated At** | 2026-10-23T04:37:44.622Z |
 
 ---
 
@@ -23,21 +23,21 @@
 
 | Scenario ID | Title | Persona & Target Device | Duration | Outcome |
 |:---|:---|:---|:---:|:---:|
-| **SCENARIO-01** | Commuter Morning Rush (Ride Hailing & Real-Time Tracking) | Executive Commuter traveling to airport on iPhone (Mobile PWA) | 12ms | ✅ **PASSED** |
+| **SCENARIO-01** | Commuter Morning Rush (Ride Hailing & Real-Time Tracking) | Executive Commuter traveling to airport on iPhone (Mobile PWA) | 11ms | ✅ **PASSED** |
 | **SCENARIO-02** | Evening Dinner Delivery (Dining Discovery & Kitchen Prep) | Hungry professional ordering dinner from desktop web shell | 2ms | ✅ **PASSED** |
 | **SCENARIO-03** | Zero-Trust Wallet Management (Balance, Ledger & Top-Up) | Fintech-savvy user checking ledger and topping up balance | 1ms | ✅ **PASSED** |
-| **SCENARIO-04** | Composite Multi-Agent Orchestration (Ride + Food + Wallet HITL) | Power user requiring multi-modal coordination across mobility and dining | 1ms | ✅ **PASSED** |
+| **SCENARIO-04** | Composite Multi-Agent Orchestration (Ride + Food + Wallet HITL) | Power user requiring multi-modal coordination across mobility and dining | 2ms | ✅ **PASSED** |
 | **SCENARIO-05** | Ecosystem Discovery (Mini-App Catalog & MCP Tools) | New user exploring SuperApp capabilities and installed domains | 1ms | ✅ **PASSED** |
 | **SCENARIO-06** | Financial Safety Guardrail (Zero-Trust Ledger Protection) | Budget-constrained user or fraudulent overcharge attempt | 0ms | ✅ **PASSED** |
 | **SCENARIO-07** | A2-UI Protocol Validation & Integrity Guardrails | Host Shell Network Client (React / Angular / Flutter) | 0ms | ✅ **PASSED** |
-| **SCENARIO-08** | User Profile Personalization & Adaptive AG-UI Surfaces | Bassem Zohdy (Gold VIP, Eco EV Preferred, Vegetarian/Spicy) | 2ms | ✅ **PASSED** |
+| **SCENARIO-08** | User Profile Personalization & Adaptive AG-UI Surfaces | Bassem Zohdy (Gold VIP, Eco EV Preferred, Vegetarian/Spicy) | 1ms | ✅ **PASSED** |
 | **SCENARIO-09** | Keycloak OIDC Token Authentication & Security Rejection | Enterprise IAM Security Validator | 1ms | ✅ **PASSED** |
 | **SCENARIO-10** | Smart Mobility: RTA & Mawaqif Smart Parking Meter Activation & Extension | Bassem Zohdy (Golden Visa Citizen, Tesla EV Driver) | 1ms | ✅ **PASSED** |
-| **SCENARIO-11** | Smart Mobility: Salik Toll Tag Status & Instant Recharge | Bassem Zohdy (Golden Visa Citizen) | 0ms | ✅ **PASSED** |
+| **SCENARIO-11** | Smart Mobility: Salik Toll Tag Status & Instant Recharge | Bassem Zohdy (Golden Visa Citizen) | 1ms | ✅ **PASSED** |
 | **SCENARIO-12** | Smart Utilities: DEWA Telemetry & Bill Settlement | Bassem Zohdy (Eco-Conscious Resident) | 1ms | ✅ **PASSED** |
 | **SCENARIO-13** | Citizen Safety: Dubai Police Traffic Fines Clearance | Bassem Zohdy (Tesla EV Owner) | 1ms | ✅ **PASSED** |
 | **SCENARIO-14** | Smart Housing: Ejari Move-In Autonomous Onboarding | Bassem Zohdy (New Tenant & Golden Visa Resident) | 8ms | ✅ **PASSED** |
-| **SCENARIO-15** | Unified Municipal Settlement across DEWA, Police & Salik | Bassem Zohdy (Busy Executive Citizen) | 2ms | ✅ **PASSED** |
+| **SCENARIO-15** | Unified Municipal Settlement across DEWA, Police & Salik | Bassem Zohdy (Busy Executive Citizen) | 0ms | ✅ **PASSED** |
 | **SCENARIO-16** | UAE PASS National Identity & Digital Asset Registry | Bassem Zohdy (Golden Visa Resident) | 0ms | ✅ **PASSED** |
 
 ---
@@ -69,7 +69,7 @@
 - **Generated AG-UI Surface**:
   - **Root Type**: `SurfaceCard` (ID: `ride_card`)
   - **Rendered Primitives**: `Heading (ride_heading)`, `Text (ride_pref_summary)`, `MapViewer (ride_overview_map)`, `ChoiceGroup (ride_choices)`, `Button (btn_confirm_ride)`
-- **Latency**: 12ms | **Status**: ✅ PASSED
+- **Latency**: 11ms | **Status**: ✅ PASSED
 
 #### Step 3: Driver Dispatch & Live Telemetry Surface
 
@@ -105,7 +105,7 @@
 - **Generated AG-UI Surface**:
   - **Root Type**: `SurfaceCard` (ID: `food_card`)
   - **Rendered Primitives**: `Heading (food_heading)`, `Text (food_pref_note)`, `ChoiceGroup (food_choices)`, `Button (btn_order_food)`
-- **Latency**: 1ms | **Status**: ✅ PASSED
+- **Latency**: 2ms | **Status**: ✅ PASSED
 
 #### Step 2: Kitchen Order Dispatch & Tracking
 
@@ -180,7 +180,7 @@
 - **Generated AG-UI Surface**:
   - **Root Type**: `SurfaceCard` (ID: `composite_orchestrator_card`)
   - **Rendered Primitives**: `Heading (comp_title)`, `Badge (vip_status_badge)`, `Text (comp_summary)`, `MetricWidget (metric_cab)`, `MetricWidget (metric_dinner)`, `MetricWidget (metric_wallet_status)`, `Button (btn_confirm_both)`
-- **Latency**: 1ms | **Status**: ✅ PASSED
+- **Latency**: 2ms | **Status**: ✅ PASSED
 
 #### Step 2: Atomic Multi-Service Settlement & Dual Confirmation
 
@@ -307,7 +307,7 @@
   - **Root Type**: `SurfaceCard` (ID: `wallet_card`)
   - **Rendered Primitives**: `Heading (wallet_heading)`, `Badge (vip_badge)`, `MetricWidget (metric_balance)`, `DataTable (tx_table)`, `Button (btn_topup_50)`
 - **Outcome**: Gold VIP Member badge rendered with 5% instant cashback active.
-- **Latency**: 1ms | **Status**: ✅ PASSED
+- **Latency**: 0ms | **Status**: ✅ PASSED
 
 ---
 
@@ -380,11 +380,11 @@
 - **Agent Thought Deltas (Streamed to Client)**:
   - `🅿️ Activating RTA / Mawaqif Smart Parking meter...`
 - **Microservice Tool Invocations**:
-  - 🔧 **`service_mobility_activateParking`**: e-Ticket TKT-DXB-1792726455612-8627 issued for 2 hours
+  - 🔧 **`service_mobility_activateParking`**: e-Ticket TKT-DXB-1792730264610-8250 issued for 2 hours
 - **Generated AG-UI Surface**:
   - **Root Type**: `SurfaceCard` (ID: `parking_active_card`)
   - **Rendered Primitives**: `Heading`, `Badge`, `Text`, `MetricWidget`, `Button`
-- **Outcome**: Meter live: ticket TKT-DXB-1792726455612-8627, expires in 1h 59m, tariff 8.00 AED settled.
+- **Outcome**: Meter live: ticket TKT-DXB-1792730264610-8250, expires in 1h 59m, tariff 8.00 AED settled.
 - **Latency**: 0ms | **Status**: ✅ PASSED
 
 #### Step 3: Parking Meter Extension (+1 Hour • 4.00 AED)
@@ -393,7 +393,7 @@
 - **Agent Thought Deltas (Streamed to Client)**:
   - `🅿️ Extending parking meter by 1 hour...`
 - **Microservice Tool Invocations**:
-  - 🔧 **`service_mobility_extendParking`**: e-Ticket TKT-DXB-1792726455612-8627 extended to 3 hours total
+  - 🔧 **`service_mobility_extendParking`**: e-Ticket TKT-DXB-1792730264610-8250 extended to 3 hours total
 - **Generated AG-UI Surface**:
   - **Root Type**: `SurfaceCard` (ID: `parking_extended_card`)
   - **Rendered Primitives**: `Heading`, `MetricWidget`
@@ -424,9 +424,9 @@
 - **Agent Thought Deltas (Streamed to Client)**:
   - `💳 Crediting +100 AED to Salik tag SLK-8492019 via DubaiPay...`
 - **Microservice Tool Invocations**:
-  - 🔧 **`service_mobility_salik_recharge`**: New Balance: 114 AED, Tx: SLK-TX-1792726455612
+  - 🔧 **`service_mobility_salik_recharge`**: New Balance: 114 AED, Tx: SLK-TX-1792730264610
 - **Outcome**: Instant top-up confirmed; Darb and Salik gates immediately open.
-- **Latency**: 0ms | **Status**: ✅ PASSED
+- **Latency**: 1ms | **Status**: ✅ PASSED
 
 ---
 
@@ -556,7 +556,7 @@
   - **Root Type**: `SurfaceCard` (ID: `smartcity_composite_card`)
   - **Rendered Primitives**: `Heading`, `Badge`, `Text`, `MetricWidget`, `MetricWidget`, `MetricWidget`, `MetricWidget`, `Button`
 - **Outcome**: Consolidated grand total 940.40 AED synthesized across 3 independent civic entities.
-- **Latency**: 1ms | **Status**: ✅ PASSED
+- **Latency**: 0ms | **Status**: ✅ PASSED
 
 #### Step 2: Single-Click DubaiPay Cryptographic Settlement & Agency Reconciliation
 
@@ -564,7 +564,7 @@
 - **Agent Thought Deltas (Streamed to Client)**:
   - `🏛️ Executing Unified Civic Living Settlement across DEWA, Police, and Salik...`
 - **Microservice Tool Invocations**:
-  - 🔧 **`service_citizenpay_payUnified`**: DubaiPay Tx: Transaction Hash: GOV-TX-DXB-1792726455623-83338
+  - 🔧 **`service_citizenpay_payUnified`**: DubaiPay Tx: Transaction Hash: GOV-TX-DXB-1792730264621-22599
   - 🔧 **`service_utilities_reconcile`**: DEWA utility account balanced
   - 🔧 **`service_police_reconcile`**: Police radar fines record cleared
   - 🔧 **`service_salik_reconcile`**: Salik tag balance incremented
@@ -572,7 +572,7 @@
   - **Root Type**: `SurfaceCard` (ID: `composite_success_card`)
   - **Rendered Primitives**: `Heading`, `Badge`, `Text`, `MetricWidget`, `MetricWidget`, `MetricWidget`
 - **Outcome**: Single payment atomic transaction settled across DEWA, Dubai Police, and Salik.
-- **Latency**: 1ms | **Status**: ✅ PASSED
+- **Latency**: 0ms | **Status**: ✅ PASSED
 
 ---
 

@@ -11,72 +11,99 @@ export function mountWalletMiniApp(context: MiniAppBootstrapContext) {
         <div style="display: flex; align-items: center; gap: 10px;">
           <span style="font-size: 28px;">💳</span>
           <div>
-            <h2 style="margin: 0; font-size: 20px; font-weight: 700; color: #0f172a;">Wallet & Payments</h2>
-            <div style="font-size: 12px; color: #64748b;">Autonomous Microfrontend • org.superapp.wallet</div>
+            <h2 style="margin: 0; font-size: 20px; font-weight: 700; color: #0f172a;">Citizen Pay & Police Fines</h2>
+            <div style="font-size: 12px; color: #64748b;">DubaiPay & Dubai Police HQ • gov.smartcity.citizenpay</div>
           </div>
         </div>
         <span style="background: #ecfdf5; color: #065f46; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px;">
-          ZERO-TRUST VAULT
+          UAE PASS VAULT
         </span>
       </div>
 
-      <!-- Digital Card Preview -->
-      <div style="background: linear-gradient(135deg, #1e3a8a, #3b82f6); border-radius: 14px; padding: 20px; color: #ffffff; margin-bottom: 20px; box-shadow: 0 10px 15px -3px rgba(37,99,235,0.25);">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-          <span style="font-size: 14px; font-weight: 600; opacity: 0.9;">SuperApp Platinum Card</span>
-          <span style="font-weight: 800; font-size: 16px; letter-spacing: 1px;">VISA</span>
+      <!-- Digital Citizen Card -->
+      <div style="background: linear-gradient(135deg, #064e3b, #059669); border-radius: 14px; padding: 20px; color: #ffffff; margin-bottom: 20px; box-shadow: 0 10px 15px -3px rgba(5,150,105,0.25);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+          <span style="font-size: 13px; font-weight: 600; opacity: 0.95;">DubaiPay Citizen Wallet</span>
+          <span style="background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700;">🌟 Golden Visa</span>
         </div>
-        <div style="font-size: 12px; opacity: 0.8; margin-bottom: 4px;">CURRENT BALANCE</div>
-        <div style="font-size: 28px; font-weight: 800; letter-spacing: -0.5px;">$142.50 USD</div>
-        <div style="display: flex; justify-content: space-between; margin-top: 18px; font-size: 12px; opacity: 0.85;">
-          <span>•••• •••• •••• 4242</span>
-          <span>EXP 08/29</span>
+        <div style="font-size: 11px; opacity: 0.8; margin-bottom: 4px;">ACTIVE STORED BALANCE</div>
+        <div style="font-size: 28px; font-weight: 800; letter-spacing: -0.5px;">250.00 AED</div>
+        <div style="display: flex; justify-content: space-between; margin-top: 16px; font-size: 12px; opacity: 0.85;">
+          <span>Bassem Zohdy (784-1988-1234567-1)</span>
+          <span>Verified Citizen</span>
         </div>
       </div>
 
-      <!-- Quick Top Up Action -->
-      <div style="font-size: 13px; font-weight: 700; color: #334155; margin-bottom: 10px;">QUICK TOP-UP</div>
+      <!-- Quick Reload -->
+      <div style="font-size: 13px; font-weight: 700; color: #334155; margin-bottom: 8px;">QUICK TOP-UP</div>
       <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 20px;">
-        <button id="btn_topup_20" style="padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; background: #f8fafc; font-weight: 700; font-size: 14px; color: #0f172a; cursor: pointer;">
-          +$20
+        <button id="btn_topup_50" style="padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; background: #f8fafc; font-weight: 700; font-size: 13px; color: #0f172a; cursor: pointer;">
+          +50 AED
         </button>
-        <button id="btn_topup_50" style="padding: 10px; border: 2px solid #10b981; border-radius: 8px; background: #ecfdf5; font-weight: 700; font-size: 14px; color: #065f46; cursor: pointer;">
-          +$50
+        <button id="btn_topup_100" style="padding: 10px; border: 2px solid #059669; border-radius: 8px; background: #ecfdf5; font-weight: 700; font-size: 13px; color: #065f46; cursor: pointer;">
+          +100 AED
         </button>
-        <button id="btn_topup_100" style="padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; background: #f8fafc; font-weight: 700; font-size: 14px; color: #0f172a; cursor: pointer;">
-          +$100
+        <button id="btn_topup_200" style="padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; background: #f8fafc; font-weight: 700; font-size: 13px; color: #0f172a; cursor: pointer;">
+          +200 AED
         </button>
       </div>
 
-      <!-- Recent Transactions -->
-      <div style="font-size: 13px; font-weight: 700; color: #334155; margin-bottom: 10px;">RECENT TRANSACTIONS</div>
-      <div style="display: flex; flex-direction: column; gap: 8px;">
-        <div style="display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 13px;">
+      <!-- Dubai Police Traffic Fines Card -->
+      <div style="border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin-bottom: 18px; background: #f8fafc;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
           <div>
-            <div style="font-weight: 600; color: #0f172a;">Morning Coffee Express</div>
-            <div style="font-size: 11px; color: #94a3b8;">Today, 8:45 AM</div>
+            <div style="font-size: 14px; font-weight: 700; color: #0f172a;">👮 Dubai Police Traffic Fines</div>
+            <div style="font-size: 12px; color: #64748b;">Plate: Dubai B-74892 • 2 Pending Violations</div>
           </div>
-          <div style="font-weight: 700; color: #ef4444;">-$7.50</div>
+          <span style="background: #fef3c7; color: #92400e; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px;">
+            ✨ 10% Early Discount
+          </span>
         </div>
-        <div style="display: flex; justify-content: space-between; padding: 10px; font-size: 13px;">
-          <div>
-            <div style="font-weight: 600; color: #0f172a;">Card Auto-Reload</div>
-            <div style="font-size: 11px; color: #94a3b8;">Yesterday</div>
+
+        <div style="font-size: 13px; color: #334155; margin-bottom: 14px;">
+          <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #e2e8f0;">
+            <span>Radar Speeding (Al Khail Road)</span>
+            <span style="font-weight: 600;">270.00 AED</span>
           </div>
-          <div style="font-weight: 700; color: #10b981;">+$50.00</div>
+          <div style="display: flex; justify-content: space-between; padding: 6px 0;">
+            <span>Parking Overstay (Downtown)</span>
+            <span style="font-weight: 600;">150.00 AED</span>
+          </div>
         </div>
+
+        <button id="btn_miniapp_pay_fines" style="width: 100%; padding: 10px; border-radius: 8px; background: #0f172a; color: #ffffff; font-weight: 700; border: none; font-size: 13px; cursor: pointer;">
+          🛡️ Settle Fines with Dubai Police (420.00 AED • 0 Black Points)
+        </button>
       </div>
+
+      <!-- Unified Checkout Link -->
+      <button id="btn_miniapp_pay_unified" style="width: 100%; padding: 12px; border-radius: 10px; background: #059669; color: #ffffff; font-weight: 700; border: none; font-size: 14px; cursor: pointer;">
+        🏛️ Unified Living Settlement (DEWA + Police + Salik • 940.40 AED)
+      </button>
     </div>
   `;
 
-  context.container.querySelector('#btn_topup_20')?.addEventListener('click', () => {
-    context.onDispatchEvent('WALLET_TOPPED_UP', { amount: 20.0 });
-  });
   context.container.querySelector('#btn_topup_50')?.addEventListener('click', () => {
     context.onDispatchEvent('WALLET_TOPPED_UP', { amount: 50.0 });
   });
   context.container.querySelector('#btn_topup_100')?.addEventListener('click', () => {
     context.onDispatchEvent('WALLET_TOPPED_UP', { amount: 100.0 });
+  });
+  context.container.querySelector('#btn_topup_200')?.addEventListener('click', () => {
+    context.onDispatchEvent('WALLET_TOPPED_UP', { amount: 200.0 });
+  });
+
+  context.container.querySelector('#btn_miniapp_pay_fines')?.addEventListener('click', () => {
+    context.onDispatchEvent('POLICE_FINES_PAID', {
+      plateNumber: 'Dubai B-74892',
+      amount: 420.0,
+    });
+  });
+
+  context.container.querySelector('#btn_miniapp_pay_unified')?.addEventListener('click', () => {
+    context.onDispatchEvent('UNIFIED_PAY_SETTLED', {
+      total: 940.4,
+    });
   });
 }
 

@@ -4,30 +4,38 @@ import { A2UIRenderer } from './components/A2UIRenderer.tsx';
 import { mountRideMiniApp, unmountRideMiniApp } from '../../../mini-apps/miniapp-ride/src/index.tsx';
 import { mountFoodMiniApp, unmountFoodMiniApp } from '../../../mini-apps/miniapp-food/src/index.tsx';
 import { mountWalletMiniApp, unmountWalletMiniApp } from '../../../mini-apps/miniapp-wallet/src/index.tsx';
+import { mountHousingMiniApp, unmountHousingMiniApp } from '../../../mini-apps/miniapp-housing/src/index.tsx';
+
+export type SmartCityTab = 'agent' | 'mobility' | 'utilities' | 'citizenpay' | 'housing';
 
 export function App() {
   const [sessionId] = useState(() => `sess_${Math.random().toString(36).substring(2, 9)}`);
   const [messages, setMessages] = useState<Array<{ role: string; text: string }>>([
-    { role: 'assistant', text: 'Marhaba Bassem! I am your Smart City Citizen Concierge (DubaiNow / TAMM). You can ask me to park your car in Downtown, pay DEWA electricity bills, clear police traffic fines, or manage your Ejari tenancy.' },
+    {
+      role: 'assistant',
+      text: 'Marhaba Bassem! I am Rashid, your Smart City Citizen Concierge (DubaiNow / TAMM). You can ask me to activate smart parking in Downtown, check DEWA electricity & water telemetry, settle Dubai Police traffic fines, or manage your Ejari lease.',
+    },
   ]);
   const [prompt, setPrompt] = useState('');
   const [thinkingDelta, setThinkingDelta] = useState<string | null>(null);
   const [currentSurface, setCurrentSurface] = useState<AGUISurfacePayload | null>(null);
-  const [activeTab, setActiveTab] = useState<'agent' | 'ride' | 'food' | 'wallet'>('agent');
+  const [activeTab, setActiveTab] = useState<SmartCityTab>('agent');
   const [walletBalance, setWalletBalance] = useState<number>(250.0);
-  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
 
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const miniAppMountRef = useRef<HTMLDivElement>(null);
 
   const GATEWAY_URL = 'http://localhost:4000';
-  const DEMO_KEYCLOAK_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImtleWNsb2FrLXN1cGVyYXBwLWtleS0xIn0.eyJleHAiOjE5OTk5OTk5OTksInN1YiI6InVzcl9iYXNzZW1fb2lkYyIsInByZWZlcnJlZF91c2VybmFtZSI6ImJhc3NlbSIsImVtYWlsIjoiYmFzc2VtQHN1cGVyYXBwLmludGVybmFsIiwibmFtZSI6IkJhc3NlbSBab2hkeSIsInZpcFRpZXIiOiJHb2xkIFZJUCIsInJvbGVzIjpbInN1cGVyYXBwLXVzZXIiLCJzdXBlcmFwcC12aXAiXX0.sig_keycloak_verified';
+  const DEMO_KEYCLOAK_TOKEN =
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImtleWNsb2FrLXN1cGVyYXBwLWtleS0xIn0.eyJleHAiOjE5OTk5OTk5OTksInN1YiI6InVzcl9iYXNzZW1fb2lkYyIsInByZWZlcnJlZF91c2VybmFtZSI6ImJhc3NlbSIsImVtYWlsIjoiYmFzc2VtQHN1cGVyYXBwLmludGVybmFsIiwibmFtZSI6IkJhc3NlbSBab2hkeSIsInZpcFRpZXIiOiJHb2xkIFZJUCIsInJvbGVzIjpbInN1cGVyYXBwLXVzZXIiLCJzdXBlcmFwcC12aXAiXX0.sig_keycloak_verified';
 
   // 1. Establish A2-UI Protocol SSE Stream
   useEffect(() => {
     let eventSource: EventSource | null = null;
     try {
-      eventSource = new EventSource(`${GATEWAY_URL}/api/a2ui/stream?sessionId=${sessionId}&token=${DEMO_KEYCLOAK_TOKEN}`);
+      eventSource = new EventSource(
+        `${GATEWAY_URL}/api/a2ui/stream?sessionId=${sessionId}&token=${DEMO_KEYCLOAK_TOKEN}`
+      );
 
       eventSource.onmessage = (event) => {
         try {
@@ -38,12 +46,16 @@ export function App() {
             setThinkingDelta(null);
             setCurrentSurface(envelope.data.surface);
             setActiveTab('agent');
-            setMessages((prev) => [...prev, { role: 'assistant', text: 'Prepared interactive surface for your request.' }]);
+            setMessages((prev) => [
+              ...prev,
+              { role: 'assistant', text: 'Prepared interactive Smart City surface for your request.' },
+            ]);
           } else if (envelope.type === 'A2UI_LAUNCH_MINIAPP') {
-            const appId = envelope.data.miniAppId;
-            if (appId.includes('ride')) setActiveTab('ride');
-            else if (appId.includes('food')) setActiveTab('food');
-            else if (appId.includes('wallet')) setActiveTab('wallet');
+            const appId = envelope.data.miniAppId || '';
+            if (appId.includes('mobility') || appId.includes('ride')) setActiveTab('mobility');
+            else if (appId.includes('utilities') || appId.includes('food')) setActiveTab('utilities');
+            else if (appId.includes('citizenpay') || appId.includes('wallet')) setActiveTab('citizenpay');
+            else if (appId.includes('housing')) setActiveTab('housing');
           }
         } catch (err) {
           console.error('Failed to parse SSE payload', err);
@@ -76,29 +88,40 @@ export function App() {
           ...prev,
           { role: 'user', text: `Action from ${activeTab.toUpperCase()} Mini-App: ${eventName}` },
         ]);
-        if (eventName === 'RIDE_BOOKED') {
-          handleDispatchAction('book_ride', payload);
-        } else if (eventName === 'FOOD_ORDER_PLACED') {
-          handleDispatchAction('order_food', payload);
+        if (eventName === 'PARKING_ACTIVATED') {
+          handleDispatchAction('activate_parking', payload);
+        } else if (eventName === 'SALIK_RECHARGED') {
+          handleDispatchAction('extend_parking', payload);
+        } else if (eventName === 'DEWA_BILL_PAID') {
+          handleDispatchAction('pay_utilities_bill', payload);
+        } else if (eventName === 'POLICE_FINES_PAID') {
+          handleDispatchAction('pay_police_fines', payload);
         } else if (eventName === 'WALLET_TOPPED_UP') {
           setWalletBalance((prev) => prev + payload.amount);
           handleDispatchAction('topup_wallet', payload);
+        } else if (eventName === 'UNIFIED_PAY_SETTLED') {
+          handleDispatchAction('confirm_smartcity_checkout', payload);
+        } else if (eventName === 'MOVEIN_CONFIRMED') {
+          handleDispatchAction('confirm_movein', payload);
         }
       },
     };
 
-    if (activeTab === 'ride') {
+    if (activeTab === 'mobility') {
       mountRideMiniApp(context);
-    } else if (activeTab === 'food') {
+    } else if (activeTab === 'utilities') {
       mountFoodMiniApp(context);
-    } else if (activeTab === 'wallet') {
+    } else if (activeTab === 'citizenpay') {
       mountWalletMiniApp(context);
+    } else if (activeTab === 'housing') {
+      mountHousingMiniApp(context);
     }
 
     return () => {
-      if (activeTab === 'ride') unmountRideMiniApp(context);
-      else if (activeTab === 'food') unmountFoodMiniApp(context);
-      else if (activeTab === 'wallet') unmountWalletMiniApp(context);
+      if (activeTab === 'mobility') unmountRideMiniApp(context);
+      else if (activeTab === 'utilities') unmountFoodMiniApp(context);
+      else if (activeTab === 'citizenpay') unmountWalletMiniApp(context);
+      else if (activeTab === 'housing') unmountHousingMiniApp(context);
     };
   }, [activeTab, sessionId]);
 
@@ -109,7 +132,7 @@ export function App() {
 
     setMessages((prev) => [...prev, { role: 'user', text: query }]);
     setPrompt('');
-    setThinkingDelta('🧠 Supervisor reasoning with LangGraph...');
+    setThinkingDelta('🧠 Rashid (LangGraph) reasoning with smart city services...');
 
     try {
       const res = await fetch(`${GATEWAY_URL}/api/a2ui/intent`, {
@@ -157,14 +180,26 @@ export function App() {
       setThinkingDelta(null);
       setMessages((prev) => [
         ...prev,
-        { role: 'assistant', text: 'Error connecting to Agent Gateway. Please verify services are running on port 4000.' },
+        {
+          role: 'assistant',
+          text: 'Error connecting to Agent Gateway. Please verify services are running on port 4000.',
+        },
       ]);
     }
   };
 
   // 4. Dispatch Interactive Action
   const handleDispatchAction = async (action: string, payload: Record<string, any>) => {
-    setThinkingDelta(`⚡ Executing action: ${action}...`);
+    if (action === 'LAUNCH_MINIAPP') {
+      const miniAppId = payload.miniAppId || '';
+      if (miniAppId.includes('mobility') || miniAppId.includes('ride')) setActiveTab('mobility');
+      else if (miniAppId.includes('utilities') || miniAppId.includes('food')) setActiveTab('utilities');
+      else if (miniAppId.includes('citizenpay') || miniAppId.includes('wallet')) setActiveTab('citizenpay');
+      else if (miniAppId.includes('housing')) setActiveTab('housing');
+      return;
+    }
+
+    setThinkingDelta(`⚡ Processing Smart City action: ${action}...`);
     try {
       const res = await fetch(`${GATEWAY_URL}/api/a2ui/action`, {
         method: 'POST',
@@ -189,51 +224,76 @@ export function App() {
     }
   };
 
+  const navTabs: Array<{ id: SmartCityTab; label: string }> = [
+    { id: 'agent', label: '🤖 AI CONCIERGE' },
+    { id: 'mobility', label: '🚗 SMART MOBILITY' },
+    { id: 'utilities', label: '⚡ UTILITIES (DEWA)' },
+    { id: 'citizenpay', label: '💳 CITIZEN PAY' },
+    { id: 'housing', label: '🏠 HOUSING (EJARI)' },
+  ];
+
   return (
-    <div className="superapp-container" style={{ display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
-      {/* SuperApp Top Chrome */}
+    <div
+      className="superapp-container"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100vh',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      }}
+    >
+      {/* Top Header Chrome */}
       <header
         style={{
           height: '60px',
-          background: '#0f172a',
+          background: '#064e3b',
           color: '#ffffff',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: '0 20px',
-          borderBottom: '1px solid #1e293b',
+          borderBottom: '1px solid #047857',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ background: '#059669', color: '#fff', borderRadius: '8px', padding: '6px 10px', fontWeight: 800, fontSize: '14px' }}>
+          <div
+            style={{
+              background: '#059669',
+              color: '#fff',
+              borderRadius: '8px',
+              padding: '6px 10px',
+              fontWeight: 800,
+              fontSize: '14px',
+            }}
+          >
             DXB
           </div>
           <div>
-            <div style={{ fontWeight: 700, fontSize: '15px' }}>SmartCity Now • Unified Citizen Agent</div>
-            <div style={{ fontSize: '11px', color: '#94a3b8' }}>DubaiNow & TAMM Reference Architecture • UAE PASS Sovereign IAM</div>
+            <div style={{ fontWeight: 700, fontSize: '15px' }}>
+              SmartCity Now • Unified Citizen Agent
+            </div>
+            <div style={{ fontSize: '11px', color: '#a7f3d0' }}>
+              DubaiNow & TAMM Reference Architecture • UAE PASS Sovereign IAM
+            </div>
           </div>
         </div>
 
         {/* Mini-App Quick Switcher */}
         <div style={{ display: 'flex', gap: '6px' }}>
-          {[
-            { id: 'agent', label: '🤖 AI CONCIERGE' },
-            { id: 'ride', label: '🚗 SMART MOBILITY' },
-            { id: 'food', label: '⚡ UTILITIES (DEWA)' },
-            { id: 'wallet', label: '💳 CITIZEN PAY' },
-          ].map((tab) => (
+          {navTabs.map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
+              onClick={() => setActiveTab(tab.id)}
               style={{
                 padding: '6px 12px',
                 borderRadius: '8px',
-                border: activeTab === tab.id ? '1px solid #10b981' : '1px solid #334155',
-                background: activeTab === tab.id ? '#064e3b' : '#1e293b',
-                color: activeTab === tab.id ? '#6ee7b7' : '#cbd5e1',
+                border: activeTab === tab.id ? '1px solid #34d399' : '1px solid #065f46',
+                background: activeTab === tab.id ? '#047857' : '#064e3b',
+                color: activeTab === tab.id ? '#ffffff' : '#a7f3d0',
                 fontWeight: 600,
                 fontSize: '12px',
                 cursor: 'pointer',
+                transition: 'all 0.15s ease',
               }}
             >
               {tab.label}
@@ -243,13 +303,46 @@ export function App() {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           {/* UAE PASS Authenticated Citizen Profile */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '20px', padding: '4px 12px' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              background: '#047857',
+              border: '1px solid #059669',
+              borderRadius: '20px',
+              padding: '4px 12px',
+            }}
+          >
             <span style={{ fontSize: '13px' }}>🛡️</span>
-            <span style={{ fontSize: '12px', fontWeight: 600, color: '#f8fafc' }}>Bassem Zohdy</span>
-            <span style={{ background: '#f59e0b', color: '#78350f', fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '10px' }}>🌟 Golden Visa</span>
+            <span style={{ fontSize: '12px', fontWeight: 600, color: '#f8fafc' }}>
+              Bassem Zohdy
+            </span>
+            <span
+              style={{
+                background: '#f59e0b',
+                color: '#78350f',
+                fontSize: '10px',
+                fontWeight: 700,
+                padding: '2px 6px',
+                borderRadius: '10px',
+              }}
+            >
+              🌟 Golden Visa
+            </span>
           </div>
 
-          <div style={{ background: '#064e3b', color: '#6ee7b7', padding: '6px 14px', borderRadius: '20px', fontWeight: 700, fontSize: '13px' }}>
+          <div
+            style={{
+              background: '#022c22',
+              color: '#6ee7b7',
+              padding: '6px 14px',
+              borderRadius: '20px',
+              fontWeight: 700,
+              fontSize: '13px',
+              border: '1px solid #065f46',
+            }}
+          >
             💳 {walletBalance.toFixed(2)} AED
           </div>
         </div>
@@ -257,22 +350,55 @@ export function App() {
 
       {/* Responsive Workspace Grid */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        {/* Left Pane: Persistent Conversational Agent Concierge (38% width on desktop) */}
+        {/* Left Pane: Persistent Conversational Agent Concierge */}
         <section
           style={{
             width: '38%',
-            minWidth: '320px',
+            minWidth: '340px',
             borderRight: '1px solid #e2e8f0',
             background: '#f8fafc',
             display: 'flex',
             flexDirection: 'column',
           }}
         >
-          <div style={{ padding: '14px 18px', borderBottom: '1px solid #e2e8f0', background: '#ffffff', fontWeight: 700, fontSize: '14px', color: '#0f172a' }}>
-            💬 Rashid • Smart City Citizen Concierge (LangGraph)
+          <div
+            style={{
+              padding: '14px 18px',
+              borderBottom: '1px solid #e2e8f0',
+              background: '#ffffff',
+              fontWeight: 700,
+              fontSize: '14px',
+              color: '#0f172a',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <span>💬 Rashid • Smart City Citizen Concierge</span>
+            <span
+              style={{
+                fontSize: '10px',
+                background: '#ecfdf5',
+                color: '#065f46',
+                padding: '2px 6px',
+                borderRadius: '4px',
+                fontWeight: 700,
+              }}
+            >
+              UAE PASS VERIFIED
+            </span>
           </div>
 
-          <div style={{ flex: 1, padding: '16px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div
+            style={{
+              flex: 1,
+              padding: '16px',
+              overflowY: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px',
+            }}
+          >
             {messages.map((m, idx) => (
               <div
                 key={idx}
@@ -288,7 +414,7 @@ export function App() {
                     borderRadius: '12px',
                     fontSize: '13px',
                     lineHeight: '1.5',
-                    background: m.role === 'user' ? '#2563eb' : '#ffffff',
+                    background: m.role === 'user' ? '#059669' : '#ffffff',
                     color: m.role === 'user' ? '#ffffff' : '#0f172a',
                     border: m.role === 'user' ? 'none' : '1px solid #e2e8f0',
                     boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
@@ -300,22 +426,41 @@ export function App() {
             ))}
 
             {thinkingDelta && (
-              <div style={{ padding: '10px 14px', borderRadius: '10px', background: '#fef3c7', color: '#92400e', fontSize: '12px', fontStyle: 'italic' }}>
+              <div
+                style={{
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  background: '#fef3c7',
+                  color: '#92400e',
+                  fontSize: '12px',
+                  fontStyle: 'italic',
+                }}
+              >
                 ⚡ {thinkingDelta}
               </div>
             )}
             <div ref={chatBottomRef} />
           </div>
 
-          {/* Quick-Prompt Suggestion Chips */}
-          <div style={{ padding: '8px 14px', display: 'flex', gap: '6px', overflowX: 'auto', background: '#ffffff', borderTop: '1px solid #f1f5f9' }}>
+          {/* Smart City Suggestion Chips */}
+          <div
+            style={{
+              padding: '8px 14px',
+              display: 'flex',
+              gap: '6px',
+              overflowX: 'auto',
+              background: '#ffffff',
+              borderTop: '1px solid #f1f5f9',
+            }}
+          >
             {[
-              '🅿️ Park in Zone 302A & Find EV Charger',
-              '⚡ Pay DEWA Bill & Police Fines',
+              '🅿️ Park in Zone 302A (Burj Khalifa)',
+              '⚡ Settle DEWA Bill (420.40 AED)',
+              '👮 Pay Dubai Police Fines (-10% Discount)',
+              '🏠 Connect Ejari & Move-In for Unit 1402',
+              '🏛️ Unified DubaiPay Settlement (DEWA + Police + Salik)',
               '🛣️ Check Salik Balance & Recharge',
-              '🏠 Connect Ejari & Utilities for Unit 1402',
               '🛡️ My UAE PASS Citizen Profile',
-              '🚗 Book Ride to Airport',
             ].map((chip) => (
               <button
                 key={chip}
@@ -325,11 +470,12 @@ export function App() {
                   fontSize: '11px',
                   fontWeight: 600,
                   borderRadius: '14px',
-                  background: '#f1f5f9',
-                  border: '1px solid #cbd5e1',
-                  color: '#334155',
+                  background: '#f0fdf4',
+                  border: '1px solid #bbf7d0',
+                  color: '#065f46',
                   whiteSpace: 'nowrap',
                   cursor: 'pointer',
+                  transition: 'background 0.15s ease',
                 }}
               >
                 {chip}
@@ -338,10 +484,18 @@ export function App() {
           </div>
 
           {/* Bottom Chat Prompt Input */}
-          <div style={{ padding: '12px 14px', background: '#ffffff', borderTop: '1px solid #e2e8f0', display: 'flex', gap: '8px' }}>
+          <div
+            style={{
+              padding: '12px 14px',
+              background: '#ffffff',
+              borderTop: '1px solid #e2e8f0',
+              display: 'flex',
+              gap: '8px',
+            }}
+          >
             <input
               type="text"
-              placeholder="Ask the concierge..."
+              placeholder="Ask about parking, utilities, fines, or Ejari..."
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
@@ -357,7 +511,7 @@ export function App() {
             <button
               onClick={() => handleSend()}
               style={{
-                background: '#2563eb',
+                background: '#059669',
                 color: '#fff',
                 border: 'none',
                 borderRadius: '8px',
@@ -372,22 +526,53 @@ export function App() {
           </div>
         </section>
 
-        {/* Right Pane: Contextual Mini-App Canvas & AG-UI Dynamic Cards (62% width) */}
+        {/* Right Pane: Contextual Mini-App Canvas & AG-UI Dynamic Cards */}
         <main style={{ flex: 1, background: '#ffffff', overflowY: 'auto', padding: '24px' }}>
-          <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-            <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ maxWidth: '820px', margin: '0 auto' }}>
+            <div
+              style={{
+                marginBottom: '20px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
               <div>
-                <h1 style={{ fontSize: '20px', fontWeight: 700, color: '#0f172a', margin: '0 0 4px 0' }}>
-                  {activeTab === 'agent' ? 'Dynamic AG-UI Canvas' : `${activeTab.toUpperCase()} Mini-App`}
+                <h1
+                  style={{
+                    fontSize: '20px',
+                    fontWeight: 700,
+                    color: '#0f172a',
+                    margin: '0 0 4px 0',
+                  }}
+                >
+                  {activeTab === 'agent'
+                    ? 'Dynamic Smart City AG-UI Canvas'
+                    : activeTab === 'mobility'
+                    ? 'Smart Mobility & Parking Mini-App'
+                    : activeTab === 'utilities'
+                    ? 'DEWA Smart Utilities Mini-App'
+                    : activeTab === 'citizenpay'
+                    ? 'Citizen Pay & Police Fines Mini-App'
+                    : 'Ejari Housing & Move-In Mini-App'}
                 </h1>
                 <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>
                   {activeTab === 'agent'
-                    ? 'Server-driven generative UI compiled on-the-fly by the backend agent'
-                    : 'Independently mounted microfrontend module inside the host shell'}
+                    ? 'Generative civic UI cards compiled on-the-fly by Rashid (LangGraph Supervisor)'
+                    : 'Independently mounted microfrontend module verified under UAE PASS sovereign identity'}
                 </p>
               </div>
-              <span style={{ fontSize: '11px', background: '#dcfce7', color: '#166534', padding: '4px 10px', borderRadius: '12px', fontWeight: 700 }}>
-                ● Protocol Stream Active
+              <span
+                style={{
+                  fontSize: '11px',
+                  background: '#dcfce7',
+                  color: '#166534',
+                  padding: '4px 10px',
+                  borderRadius: '12px',
+                  fontWeight: 700,
+                }}
+              >
+                ● Smart City Grid Active
               </span>
             </div>
 
@@ -397,19 +582,35 @@ export function App() {
             </div>
 
             {/* If tab is Agent, render AG-UI Surface */}
-            {activeTab === 'agent' && (
-              currentSurface ? (
+            {activeTab === 'agent' &&
+              (currentSurface ? (
                 <A2UIRenderer node={currentSurface.view} onDispatchAction={handleDispatchAction} />
               ) : (
-                <div style={{ border: '2px dashed #cbd5e1', borderRadius: '16px', padding: '80px 20px', textAlign: 'center', color: '#64748b' }}>
-                  <div style={{ fontSize: '36px', marginBottom: '14px' }}>🪄</div>
-                  <div style={{ fontWeight: 700, fontSize: '16px', color: '#0f172a', marginBottom: '6px' }}>Ready for Your Instructions</div>
-                  <div style={{ fontSize: '13px', maxWidth: '420px', margin: '0 auto' }}>
-                    Type a query or tap a suggestion chip on the left to orchestrate multi-domain mini-apps and render generative UI cards.
+                <div
+                  style={{
+                    border: '2px dashed #cbd5e1',
+                    borderRadius: '16px',
+                    padding: '80px 20px',
+                    textAlign: 'center',
+                    color: '#64748b',
+                  }}
+                >
+                  <div style={{ fontSize: '40px', marginBottom: '14px' }}>🏛️</div>
+                  <div
+                    style={{
+                      fontWeight: 700,
+                      fontSize: '17px',
+                      color: '#0f172a',
+                      marginBottom: '6px',
+                    }}
+                  >
+                    SmartCity Now Citizen Concierge Ready
+                  </div>
+                  <div style={{ fontSize: '13px', maxWidth: '440px', margin: '0 auto', lineHeight: '1.6' }}>
+                    Tap a suggestion chip on the left or enter instructions to manage your RTA parking meters, DEWA smart utilities, Dubai Police fines, and Ejari tenancy.
                   </div>
                 </div>
-              )
-            )}
+              ))}
           </div>
         </main>
       </div>

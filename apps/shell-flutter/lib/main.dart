@@ -151,32 +151,32 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: const Color(0xFF2563EB),
+                color: const Color(0xFF059669),
                 borderRadius: BorderRadius.circular(6),
               ),
-              child: const Text('SA', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 13)),
+              child: const Text('DXB', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 13)),
             ),
             const SizedBox(width: 10),
-            const Text('SuperApp Flutter', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const Text('SmartCity Now • Flutter', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           ],
         ),
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: const Color(0xFF064E3B),
         foregroundColor: Colors.white,
         actions: [
           Container(
             margin: const EdgeInsets.symmetric(vertical: 10),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: const Color(0xFF1E293B),
+              color: const Color(0xFF047857),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFF334155)),
+              border: Border.all(color: const Color(0xFF059669)),
             ),
             child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text('🛡️ ', style: TextStyle(fontSize: 12)),
                 Text('Bassem ', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
-                Text('Gold VIP', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFFF59E0B))),
+                Text('🌟 Golden Visa', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFFF59E0B))),
               ],
             ),
           ),
@@ -185,11 +185,11 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen> {
             margin: const EdgeInsets.only(right: 16),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
             decoration: BoxDecoration(
-              color: const Color(0xFF064E3B),
+              color: const Color(0xFF022C22),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
-              '💳 \$${_walletBalance.toStringAsFixed(2)}',
+              '💳 ${_walletBalance.toStringAsFixed(2)} AED',
               style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF6EE7B7), fontSize: 13),
             ),
           ),
@@ -281,11 +281,12 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             child: Row(
               children: [
-                _buildChip('Book ride & pizza', 'Book ride to Downtown and order pizza'),
-                _buildChip('👤 My Profile', 'My Profile & Preferences'),
-                _buildChip('Book Cab', 'Book a comfort cab to airport'),
-                _buildChip('Order Pizza', 'Order woodfired pizza for dinner'),
-                _buildChip('Check Wallet', 'Check wallet balance'),
+                _buildChip('🅿️ Park Zone 302A', 'Park in Zone 302A Downtown Dubai'),
+                _buildChip('⚡ DEWA Utilities', 'Check my DEWA electricity and water bill for premise DEWA-201948201'),
+                _buildChip('👮 Police Fines', 'Check my Dubai Police traffic radar fines for plate Dubai B-74892'),
+                _buildChip('🏠 Ejari Move-In', 'I just signed my Ejari lease, connect my utilities and issue parking for Unit 1402'),
+                _buildChip('🏛️ Unified DubaiPay', 'Pay my DEWA electricity bill, settle my police radar fines, and recharge my Salik tag'),
+                _buildChip('🛡️ UAE PASS', 'Show my UAE PASS citizen profile and registered vehicles and premises'),
               ],
             ),
           ),

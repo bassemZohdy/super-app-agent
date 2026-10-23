@@ -10,24 +10,24 @@ import type { AGUISurfacePayload, A2UIMessageEnvelope, UIComponentNode } from '.
     <div class="angular-shell-container">
       <header class="header">
         <div style="display: flex; align-items: center; gap: 12px;">
-          <div class="logo">SA</div>
+          <div class="logo" style="background: #059669;">DXB</div>
           <div>
-            <div style="font-weight: 700; font-size: 15px;">SuperApp Agent • Angular 18</div>
-            <div style="font-size: 11px; color: #94a3b8;">A2-UI Protocol Engine with Angular Signals</div>
+            <div style="font-weight: 700; font-size: 15px;">SmartCity Now • Angular 18</div>
+            <div style="font-size: 11px; color: #94a3b8;">DubaiNow & TAMM Reference • A2-UI Protocol Engine</div>
           </div>
         </div>
-        <div style="display: flex; align-items: center; gap: 8px; background: #1e293b; border: 1px solid #334155; border-radius: 20px; padding: 4px 12px; font-size: 12px; color: #f8fafc;">
+        <div style="display: flex; align-items: center; gap: 8px; background: #064e3b; border: 1px solid #059669; border-radius: 20px; padding: 4px 12px; font-size: 12px; color: #f8fafc;">
           <span>🛡️ Bassem Zohdy</span>
-          <span style="background: #f59e0b; color: #78350f; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 10px;">Gold VIP</span>
+          <span style="background: #f59e0b; color: #78350f; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 10px;">🌟 Golden Visa</span>
         </div>
         <div class="status">⚡ Connected to Gateway (:4000)</div>
-        <div class="balance">💳 Wallet: $142.50</div>
+        <div class="balance">💳 Wallet: 250.00 AED</div>
       </header>
 
       <div class="main-layout">
         <!-- Left Pane: Conversational Concierge -->
         <aside class="agent-pane">
-          <div class="pane-header">💬 Autonomous Concierge (LangGraph)</div>
+          <div class="pane-header">💬 Rashid • Smart City Citizen Concierge (LangGraph)</div>
 
           <div class="messages">
             <div *ngFor="let m of messages()" class="msg" [class.user]="m.role === 'user'">
@@ -38,11 +38,12 @@ import type { AGUISurfacePayload, A2UIMessageEnvelope, UIComponentNode } from '.
 
           <!-- Suggestion Chips -->
           <div class="suggestion-chips">
-            <button (click)="sendIntent('Book ride to Downtown and order pizza')">Book Ride & Pizza</button>
-            <button (click)="sendIntent('My Profile & Preferences')">👤 My Profile</button>
-            <button (click)="sendIntent('Book a comfort cab to airport')">Book Cab</button>
-            <button (click)="sendIntent('Order woodfired pizza for dinner')">Order Pizza</button>
-            <button (click)="sendIntent('Check wallet balance')">Check Wallet</button>
+            <button (click)="sendIntent('Park in Zone 302A Downtown Dubai')">🅿️ Park in Zone 302A</button>
+            <button (click)="sendIntent('Check my DEWA electricity and water bill for premise DEWA-201948201')">⚡ Settle DEWA Bill</button>
+            <button (click)="sendIntent('Check my Dubai Police traffic radar fines for plate Dubai B-74892')">👮 Clear Police Fines</button>
+            <button (click)="sendIntent('I just signed my Ejari lease, connect my utilities and issue parking for Unit 1402')">🏠 Ejari Move-In</button>
+            <button (click)="sendIntent('Pay my DEWA electricity bill, settle my police radar fines, and recharge my Salik tag')">🏛️ Unified DubaiPay</button>
+            <button (click)="sendIntent('Show my UAE PASS citizen profile and registered vehicles and premises')">🛡️ UAE PASS Profile</button>
           </div>
 
           <div class="input-row">

@@ -7,38 +7,77 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
+import net from 'node:net';
 import { chromium } from 'playwright';
 
 console.log('================================================================');
 console.log('🎬 SUPERAPP AGENT: STARTING VISUAL E2E VIDEO FLIGHT RECORDER');
 console.log('================================================================\n');
 
-// 1. Boot Backend Microservices & Agent Core
-console.log('📦 [1/4] Booting backend microservices and Agent Core...');
+const isPortInUse = (port: number): Promise<boolean> => {
+  return new Promise((resolve) => {
+    const tester = net.createServer()
+      .once('error', (err: any) => {
+        if (err.code === 'EADDRINUSE') resolve(true);
+        else resolve(false);
+      })
+      .once('listening', () => {
+        tester.once('close', () => resolve(false)).close();
+      })
+      .listen(port, '0.0.0.0');
+  });
+};
 
-process.env.PORT = '4001';
-const { server: rideServer } = await import('../services/service-ride/src/index.ts');
-await new Promise<void>((resolve) => rideServer.listen(4001, '0.0.0.0', resolve));
+// 1. Boot Backend Microservices & Agent Core (if not already running)
+console.log('📦 [1/4] Checking and booting backend microservices...');
 
-process.env.PORT = '4002';
-const { server: foodServer } = await import('../services/service-food/src/index.ts');
-await new Promise<void>((resolve) => foodServer.listen(4002, '0.0.0.0', resolve));
+let rideServer: any = null;
+if (!(await isPortInUse(4001))) {
+  process.env.PORT = '4001';
+  const mod = await import('../services/service-ride/src/index.ts');
+  rideServer = mod.server;
+  await new Promise<void>((resolve) => rideServer.listen(4001, '0.0.0.0', resolve));
+}
 
-process.env.PORT = '4003';
-const { server: walletServer } = await import('../services/service-wallet/src/index.ts');
-await new Promise<void>((resolve) => walletServer.listen(4003, '0.0.0.0', resolve));
+let foodServer: any = null;
+if (!(await isPortInUse(4002))) {
+  process.env.PORT = '4002';
+  const mod = await import('../services/service-food/src/index.ts');
+  foodServer = mod.server;
+  await new Promise<void>((resolve) => foodServer.listen(4002, '0.0.0.0', resolve));
+}
 
-process.env.PORT = '4004';
-const { server: catalogServer } = await import('../services/service-catalog/src/index.ts');
-await new Promise<void>((resolve) => catalogServer.listen(4004, '0.0.0.0', resolve));
+let walletServer: any = null;
+if (!(await isPortInUse(4003))) {
+  process.env.PORT = '4003';
+  const mod = await import('../services/service-wallet/src/index.ts');
+  walletServer = mod.server;
+  await new Promise<void>((resolve) => walletServer.listen(4003, '0.0.0.0', resolve));
+}
 
-process.env.PORT = '4005';
-const { server: profileServer } = await import('../services/service-profile/src/index.ts');
-await new Promise<void>((resolve) => profileServer.listen(4005, '0.0.0.0', resolve));
+let catalogServer: any = null;
+if (!(await isPortInUse(4004))) {
+  process.env.PORT = '4004';
+  const mod = await import('../services/service-catalog/src/index.ts');
+  catalogServer = mod.server;
+  await new Promise<void>((resolve) => catalogServer.listen(4004, '0.0.0.0', resolve));
+}
 
-process.env.PORT = '4000';
-const { server: coreServer } = await import('../services/agent-core/src/index.ts');
-await new Promise<void>((resolve) => coreServer.listen(4000, '0.0.0.0', resolve));
+let profileServer: any = null;
+if (!(await isPortInUse(4005))) {
+  process.env.PORT = '4005';
+  const mod = await import('../services/service-profile/src/index.ts');
+  profileServer = mod.server;
+  await new Promise<void>((resolve) => profileServer.listen(4005, '0.0.0.0', resolve));
+}
+
+let coreServer: any = null;
+if (!(await isPortInUse(4000))) {
+  process.env.PORT = '4000';
+  const mod = await import('../services/agent-core/src/index.ts');
+  coreServer = mod.server;
+  await new Promise<void>((resolve) => coreServer.listen(4000, '0.0.0.0', resolve));
+}
 
 console.log('✅ Backend mesh ready (4000, 4001, 4002, 4003, 4004, 4005)');
 
@@ -46,30 +85,33 @@ console.log('✅ Backend mesh ready (4000, 4001, 4002, 4003, 4004, 4005)');
 console.log('🌐 [2/4] Serving React 18 Host Shell on http://localhost:3000...');
 const distDir = path.resolve(process.cwd(), 'apps/shell-react/dist');
 
-const staticServer = http.createServer((req, res) => {
-  const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
-  let filePath = path.join(distDir, url.pathname);
+let staticServer: any = null;
+if (!(await isPortInUse(3000))) {
+  staticServer = http.createServer((req, res) => {
+    const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+    let filePath = path.join(distDir, url.pathname);
 
-  if (url.pathname === '/' || !fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
-    filePath = path.join(distDir, 'index.html');
-  }
+    if (url.pathname === '/' || !fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+      filePath = path.join(distDir, 'index.html');
+    }
 
-  const ext = path.extname(filePath);
-  const mimeTypes: Record<string, string> = {
-    '.html': 'text/html',
-    '.js': 'application/javascript',
-    '.css': 'text/css',
-    '.json': 'application/json',
-    '.svg': 'image/svg+xml',
-    '.png': 'image/png',
-  };
+    const ext = path.extname(filePath);
+    const mimeTypes: Record<string, string> = {
+      '.html': 'text/html',
+      '.js': 'application/javascript',
+      '.css': 'text/css',
+      '.json': 'application/json',
+      '.svg': 'image/svg+xml',
+      '.png': 'image/png',
+    };
 
-  const contentType = mimeTypes[ext] || 'application/octet-stream';
-  res.writeHead(200, { 'Content-Type': contentType });
-  fs.createReadStream(filePath).pipe(res);
-});
+    const contentType = mimeTypes[ext] || 'application/octet-stream';
+    res.writeHead(200, { 'Content-Type': contentType });
+    fs.createReadStream(filePath).pipe(res);
+  });
 
-await new Promise<void>((resolve) => staticServer.listen(3000, '0.0.0.0', resolve));
+  await new Promise<void>((resolve) => staticServer.listen(3000, '0.0.0.0', resolve));
+}
 console.log('✅ Frontend static server running on http://localhost:3000');
 
 // 3. Launch Google Chrome with Video Recording
@@ -107,8 +149,8 @@ try {
   // SCENARIO 1: Smart Mobility - RTA Smart Parking Meter Activation & Extension
   // ---------------------------------------------------------------------------
   console.log('   ▶ Recording Scenario 1: Smart Mobility (RTA Parking in Downtown Zone 302A)');
-  const parkChip = page.locator('button:has-text("Park in Zone 302A & Find EV Charger")');
-  await parkChip.click();
+  const parkChip = page.locator('button:has-text("Park in Zone 302A")');
+  await parkChip.first().click();
 
   // Wait for LangGraph reasoning & AG-UI Parking Selection Card
   await page.waitForSelector('.ag-surface-card#parking_selection_card', { timeout: 8000 });
@@ -134,7 +176,7 @@ try {
   // SCENARIO 2: Smart Utilities - DEWA Telemetry & Bill Settlement
   // ---------------------------------------------------------------------------
   console.log('   ▶ Recording Scenario 2: Smart Utilities (DEWA Electricity & Water Settlement)');
-  const promptInput = page.locator('input[placeholder="Ask the concierge..."]');
+  const promptInput = page.locator('input[placeholder*="Ask"]');
   await promptInput.click();
   await promptInput.fill('Check my DEWA electricity and water bill for premise DEWA-201948201');
   await pause(600);
@@ -177,8 +219,8 @@ try {
   // SCENARIO 4: Smart Housing - Ejari Move-In Autonomous Golden Path
   // ---------------------------------------------------------------------------
   console.log('   ▶ Recording Scenario 4: Smart Housing (Ejari Move-In Golden Path)');
-  const moveinChip = page.locator('button:has-text("Connect Ejari & Utilities for Unit 1402")');
-  await moveinChip.click();
+  const moveinChip = page.locator('button:has-text("Connect Ejari")');
+  await moveinChip.first().click();
 
   await page.waitForSelector('.ag-surface-card#movein_card', { timeout: 8000 });
   await pause(2000);
@@ -215,7 +257,7 @@ try {
   // SCENARIO 6: UAE PASS Citizen Identity & Asset Vault
   // ---------------------------------------------------------------------------
   console.log('   ▶ Recording Scenario 6: UAE PASS National Identity & Digital Asset Vault');
-  const profileChip = page.locator('button:has-text("My UAE PASS Citizen Profile")');
+  const profileChip = page.locator('button:has-text("UAE PASS")');
   if (await profileChip.count() > 0) {
     await profileChip.first().click();
     await page.waitForSelector('.ag-surface-card#profile_card', { timeout: 8000 });
@@ -262,13 +304,13 @@ try {
   await browser.close();
 
   // Close HTTP servers
-  staticServer.close();
-  coreServer.close();
-  rideServer.close();
-  foodServer.close();
-  walletServer.close();
-  catalogServer.close();
-  profileServer.close();
+  if (staticServer) staticServer.close();
+  if (coreServer) coreServer.close();
+  if (rideServer) rideServer.close();
+  if (foodServer) foodServer.close();
+  if (walletServer) walletServer.close();
+  if (catalogServer) catalogServer.close();
+  if (profileServer) profileServer.close();
 
   if (videoObj) {
     const rawPath = await videoObj.path();
