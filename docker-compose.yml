@@ -37,7 +37,7 @@ services:
       - KEYCLOAK_AUDIENCE=${KEYCLOAK_AUDIENCE:-agent-core}
       - KEYCLOAK_JWKS_URL=http://keycloak:8080/realms/superapp/protocol/openid-connect/certs
       - DEMO_AUTH=${DEMO_AUTH:-false}
-      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3000}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://localhost:3001,http://localhost:3002}
       - ENABLE_LIVE_LLM=${ENABLE_LIVE_LLM:-false}
       - OPENROUTER_ALLOW_PAID_MODELS=${OPENROUTER_ALLOW_PAID_MODELS:-false}
       - NODE_ENV=development
