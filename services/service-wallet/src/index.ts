@@ -1,3 +1,4 @@
+import { validateRequest, toolSchema, invalidInput, toMinor, fromMinor, MAX_MONEY } from '../../../packages/protocol-core/src/request-validation.ts';
 import http from 'node:http';
 
 export interface Transaction {
@@ -91,7 +92,7 @@ export const policeFines: PoliceTrafficFine[] = [
   },
 ];
 
-export function executeWalletRequest(
+function handleWalletRequest(
   method: string,
   pathname: string,
   query: Record<string, string> = {},
@@ -141,8 +142,11 @@ export function executeWalletRequest(
   }
 
   if (normMethod === 'POST' && (pathname === '/fines/pay' || pathname === '/fines/settle')) {
-    const activeFines = policeFines.filter((f) => f.status === 'UNPAID');
-    const totalDue = activeFines.reduce((acc, f) => acc + f.payableAmount, 0);
+    const activeFines = policeFines.filter(f => body.fineIds.includes(f.fineId) && f.status === 'UNPAID');
+    if (activeFines.length !== body.fineIds.length) return { status: 404, data: { error: 'Selected unpaid fine not found' } };
+    const dueMinor = activeFines.reduce((acc, f) => acc + toMinor(f.payableAmount), 0);
+    if (dueMinor > MAX_MONEY * 100) return invalidInput('Settlement total exceeds demo limit');
+    const totalDue = fromMinor(dueMinor);
 
     if (balance < totalDue) {
       return {
@@ -155,7 +159,7 @@ export function executeWalletRequest(
       };
     }
 
-    balance -= totalDue;
+    balance = fromMinor(toMinor(balance) - dueMinor);
     const txId = `DP-PAY-${Date.now()}`;
     const paidAt = new Date().toISOString();
 
@@ -192,17 +196,14 @@ export function executeWalletRequest(
   // Unified Multi-Agency Government Settlement (DubaiPay / TAMM Pay)
   // ---------------------------------------------------------------------------
   if (normMethod === 'POST' && (pathname === '/pay/unified' || pathname === '/pay/multi-agency')) {
-    const items: Array<{ agency: string; purpose: string; amount: number }> = body.items || [
-      { agency: 'DEWA', purpose: 'Premise DEWA-201948201 Electricity & Water', amount: 420.4 },
-      { agency: 'Dubai Police', purpose: 'Traffic Violations (Radar + Overstay)', amount: 420.0 },
-      { agency: 'RTA Salik', purpose: 'Toll Tag SLK-8492019 Auto-Topup', amount: 100.0 },
-    ];
-
-    const grandTotal = items.reduce((acc, it) => acc + it.amount, 0);
+    const items: Array<{ agency: string; purpose: string; amount: number }> = body.items;
+    const totalMinor = items.reduce((acc, item) => acc + toMinor(item.amount), 0);
+    if (totalMinor > MAX_MONEY * 100) return invalidInput('Settlement total exceeds demo limit');
+    const grandTotal = fromMinor(totalMinor);
 
     // DubaiPay / TAMM Unified Gateway supports direct card backing / Apple Pay when wallet is below grand total
     if (balance >= grandTotal) {
-      balance = Math.round((balance - grandTotal) * 100) / 100;
+      balance = fromMinor(toMinor(balance) - totalMinor);
     } else {
       // Settled via DubaiPay registered card (Visa **** 4242)
       balance = 250.0; // Wallet topped up / kept positive
@@ -261,7 +262,7 @@ export function executeWalletRequest(
 
   // 4. Pay / Deduct Funds
   if (normMethod === 'POST' && pathname === '/wallet/pay') {
-    const amount = typeof body.amount === 'number' ? body.amount : parseFloat(body.amount);
+    const amount = body.amount;
 
     if (isNaN(amount) || amount <= 0) {
       return { status: 400, data: { error: 'Invalid payment amount' } };
@@ -278,8 +279,7 @@ export function executeWalletRequest(
       };
     }
 
-    balance -= amount;
-    balance = Math.round(balance * 100) / 100;
+    balance = fromMinor(toMinor(balance) - toMinor(amount));
 
     const tx: Transaction = {
       id: `tx_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
@@ -306,14 +306,15 @@ export function executeWalletRequest(
 
   // 5. Top-up Balance
   if (normMethod === 'POST' && pathname === '/wallet/topup') {
-    const amount = typeof body.amount === 'number' ? body.amount : parseFloat(body.amount);
+    const amount = body.amount;
 
     if (isNaN(amount) || amount <= 0) {
       return { status: 400, data: { error: 'Invalid top-up amount' } };
     }
 
-    balance += amount;
-    balance = Math.round(balance * 100) / 100;
+    const nextBalance = toMinor(balance) + toMinor(amount);
+    if (nextBalance > MAX_MONEY * 100) return invalidInput('Wallet balance exceeds demo limit');
+    balance = fromMinor(nextBalance);
 
     const tx: Transaction = {
       id: `tx_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
@@ -374,6 +375,18 @@ export function executeWalletRequest(
   }
 
   return { status: 404, data: { error: 'Not found', path: pathname } };
+}
+
+// All transports and in-process callers pass through the same request contract.
+export function executeWalletRequest(method: string, pathname: string, query: Record<string, string> = {}, body: any = {}): { status: number; data: any } {
+  const invalid = validateRequest('service-wallet', method.toUpperCase(), pathname, query, body);
+  if (invalid) return invalid;
+  const result = handleWalletRequest(method, pathname, query, body);
+  if (pathname === '/mcp' && result.data.tools) {
+    result.data.tools = result.data.tools.map((tool: any) => ({ ...tool,
+      parameters: toolSchema('service-wallet', tool.name) || tool.parameters }));
+  }
+  return result;
 }
 
 function sendJson(res: http.ServerResponse, statusCode: number, data: any) {

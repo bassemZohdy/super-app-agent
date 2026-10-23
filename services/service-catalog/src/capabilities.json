@@ -2,21 +2,10 @@
   {
     "id": "mobility.ride.options",
     "name": "ride_getOptions",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "owner": "service-ride",
     "description": "ride getOptions (simulated domain contract)",
     "availability": "simulation-only",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "destination": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "required": [],
-      "additionalProperties": false
-    },
     "outputSchema": {
       "oneOf": [
         {
@@ -80,31 +69,10 @@
   {
     "id": "mobility.ride.book",
     "name": "ride_bookCab",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "owner": "service-ride",
     "description": "ride bookCab (simulated domain contract)",
     "availability": "simulation-only",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "driverId": {
-          "type": "string",
-          "minLength": 1
-        },
-        "pickup": {
-          "type": "string",
-          "minLength": 1
-        },
-        "dropoff": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "required": [
-        "driverId"
-      ],
-      "additionalProperties": false
-    },
     "outputSchema": {
       "oneOf": [
         {
@@ -164,23 +132,10 @@
   {
     "id": "mobility.ride.track",
     "name": "ride_trackStatus",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "owner": "service-ride",
     "description": "ride trackStatus (simulated domain contract)",
     "availability": "simulation-only",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "bookingId": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "required": [
-        "bookingId"
-      ],
-      "additionalProperties": false
-    },
     "outputSchema": {
       "oneOf": [
         {
@@ -251,21 +206,10 @@
   {
     "id": "dining.restaurants.search",
     "name": "food_searchRestaurants",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "owner": "service-food",
     "description": "food searchRestaurants (simulated domain contract)",
     "availability": "simulation-only",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "query": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "required": [],
-      "additionalProperties": false
-    },
     "outputSchema": {
       "oneOf": [
         {
@@ -328,36 +272,10 @@
   {
     "id": "dining.order.create",
     "name": "food_createOrder",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "owner": "service-food",
     "description": "food createOrder (simulated domain contract)",
     "availability": "simulation-only",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "restaurantId": {
-          "type": "string",
-          "minLength": 1
-        },
-        "items": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1
-          },
-          "minItems": 1
-        },
-        "deliveryAddress": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "required": [
-        "restaurantId",
-        "items"
-      ],
-      "additionalProperties": false
-    },
     "outputSchema": {
       "oneOf": [
         {
@@ -420,23 +338,10 @@
   {
     "id": "dining.order.track",
     "name": "food_trackOrder",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "owner": "service-food",
     "description": "food trackOrder (simulated domain contract)",
     "availability": "simulation-only",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "orderId": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "required": [
-        "orderId"
-      ],
-      "additionalProperties": false
-    },
     "outputSchema": {
       "oneOf": [
         {
@@ -503,16 +408,10 @@
   {
     "id": "citizenpay.wallet.balance",
     "name": "wallet_getBalance",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "owner": "service-wallet",
     "description": "wallet getBalance (simulated domain contract)",
     "availability": "simulation-only",
-    "inputSchema": {
-      "type": "object",
-      "properties": {},
-      "required": [],
-      "additionalProperties": false
-    },
     "outputSchema": {
       "oneOf": [
         {
@@ -575,32 +474,10 @@
   {
     "id": "citizenpay.wallet.pay",
     "name": "wallet_authorizePayment",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "owner": "service-wallet",
     "description": "wallet authorizePayment (simulated domain contract)",
     "availability": "simulation-only",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "amount": {
-          "type": "number",
-          "exclusiveMinimum": 0
-        },
-        "purpose": {
-          "type": "string",
-          "minLength": 1
-        },
-        "referenceId": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "required": [
-        "amount",
-        "purpose"
-      ],
-      "additionalProperties": false
-    },
     "outputSchema": {
       "oneOf": [
         {
@@ -665,16 +542,10 @@
   {
     "id": "citizenpay.wallet.transactions",
     "name": "wallet_getTransactions",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "owner": "service-wallet",
     "description": "wallet getTransactions (simulated domain contract)",
     "availability": "simulation-only",
-    "inputSchema": {
-      "type": "object",
-      "properties": {},
-      "required": [],
-      "additionalProperties": false
-    },
     "outputSchema": {
       "oneOf": [
         {
@@ -739,16 +610,10 @@
   {
     "id": "identity.profile.read",
     "name": "profile_getProfile",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "owner": "service-profile",
     "description": "profile getProfile (simulated domain contract)",
     "availability": "simulation-only",
-    "inputSchema": {
-      "type": "object",
-      "properties": {},
-      "required": [],
-      "additionalProperties": false
-    },
     "outputSchema": {
       "oneOf": [
         {
@@ -806,16 +671,10 @@
   {
     "id": "identity.preferences.read",
     "name": "profile_getPreferences",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "owner": "service-profile",
     "description": "profile getPreferences (simulated domain contract)",
     "availability": "simulation-only",
-    "inputSchema": {
-      "type": "object",
-      "properties": {},
-      "required": [],
-      "additionalProperties": false
-    },
     "outputSchema": {
       "oneOf": [
         {
@@ -873,34 +732,10 @@
   {
     "id": "identity.preferences.update",
     "name": "profile_updatePreferences",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "owner": "service-profile",
     "description": "profile updatePreferences (simulated domain contract)",
     "availability": "simulation-only",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "dietary": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1
-          }
-        },
-        "mobility": {
-          "type": "object"
-        },
-        "ui": {
-          "type": "object"
-        },
-        "conciergeTone": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "required": [],
-      "additionalProperties": false
-    },
     "outputSchema": {
       "oneOf": [
         {
@@ -968,16 +803,10 @@
   {
     "id": "identity.prompt-context.read",
     "name": "profile_getPromptContext",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "owner": "service-profile",
     "description": "profile getPromptContext (simulated domain contract)",
     "availability": "simulation-only",
-    "inputSchema": {
-      "type": "object",
-      "properties": {},
-      "required": [],
-      "additionalProperties": false
-    },
     "outputSchema": {
       "oneOf": [
         {
@@ -1044,16 +873,10 @@
   {
     "id": "mobility.parking.zones",
     "name": "mobility_getParkingZones",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "owner": "service-ride",
     "description": "mobility getParkingZones (simulated domain contract)",
     "availability": "simulation-only",
-    "inputSchema": {
-      "type": "object",
-      "properties": {},
-      "required": [],
-      "additionalProperties": false
-    },
     "outputSchema": {
       "oneOf": [
         {
@@ -1116,33 +939,10 @@
   {
     "id": "mobility.parking.activate",
     "name": "mobility_activateParking",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "owner": "service-ride",
     "description": "mobility activateParking (simulated domain contract)",
     "availability": "simulation-only",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "zoneId": {
-          "type": "string",
-          "minLength": 1
-        },
-        "durationHours": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "plateNumber": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "required": [
-        "zoneId",
-        "durationHours",
-        "plateNumber"
-      ],
-      "additionalProperties": false
-    },
     "outputSchema": {
       "oneOf": [
         {
@@ -1209,28 +1009,10 @@
   {
     "id": "mobility.parking.extend",
     "name": "mobility_extendParking",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "owner": "service-ride",
     "description": "mobility extendParking (simulated domain contract)",
     "availability": "simulation-only",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "ticketId": {
-          "type": "string",
-          "minLength": 1
-        },
-        "additionalHours": {
-          "type": "integer",
-          "minimum": 1
-        }
-      },
-      "required": [
-        "ticketId",
-        "additionalHours"
-      ],
-      "additionalProperties": false
-    },
     "outputSchema": {
       "oneOf": [
         {
@@ -1296,16 +1078,10 @@
   {
     "id": "mobility.parking.active",
     "name": "mobility_getActiveParking",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "owner": "service-ride",
     "description": "mobility getActiveParking (simulated domain contract)",
     "availability": "simulation-only",
-    "inputSchema": {
-      "type": "object",
-      "properties": {},
-      "required": [],
-      "additionalProperties": false
-    },
     "outputSchema": {
       "oneOf": [
         {
@@ -1363,16 +1139,10 @@
   {
     "id": "mobility.toll.balance",
     "name": "mobility_getTollBalance",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "owner": "service-ride",
     "description": "mobility getTollBalance (simulated domain contract)",
     "availability": "simulation-only",
-    "inputSchema": {
-      "type": "object",
-      "properties": {},
-      "required": [],
-      "additionalProperties": false
-    },
     "outputSchema": {
       "oneOf": [
         {
@@ -1445,23 +1215,10 @@
   {
     "id": "mobility.toll.recharge",
     "name": "mobility_rechargeToll",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "owner": "service-ride",
     "description": "mobility rechargeToll (simulated domain contract)",
     "availability": "simulation-only",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "amount": {
-          "type": "number",
-          "exclusiveMinimum": 0
-        }
-      },
-      "required": [
-        "amount"
-      ],
-      "additionalProperties": false
-    },
     "outputSchema": {
       "oneOf": [
         {
@@ -1535,16 +1292,10 @@
   {
     "id": "mobility.toll.passings",
     "name": "mobility_getTollPassings",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "owner": "service-ride",
     "description": "mobility getTollPassings (simulated domain contract)",
     "availability": "simulation-only",
-    "inputSchema": {
-      "type": "object",
-      "properties": {},
-      "required": [],
-      "additionalProperties": false
-    },
     "outputSchema": {
       "oneOf": [
         {
@@ -1610,16 +1361,10 @@
   {
     "id": "mobility.ev.chargers",
     "name": "mobility_getEVChargers",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "owner": "service-ride",
     "description": "mobility getEVChargers (simulated domain contract)",
     "availability": "simulation-only",
-    "inputSchema": {
-      "type": "object",
-      "properties": {},
-      "required": [],
-      "additionalProperties": false
-    },
     "outputSchema": {
       "oneOf": [
         {
@@ -1682,28 +1427,10 @@
   {
     "id": "mobility.ev.start",
     "name": "mobility_startEVSession",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "owner": "service-ride",
     "description": "mobility startEVSession (simulated domain contract)",
     "availability": "simulation-only",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "chargerId": {
-          "type": "string",
-          "minLength": 1
-        },
-        "plateNumber": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "required": [
-        "chargerId",
-        "plateNumber"
-      ],
-      "additionalProperties": false
-    },
     "outputSchema": {
       "oneOf": [
         {
@@ -1775,16 +1502,10 @@
   {
     "id": "utilities.consumption.read",
     "name": "utilities_getConsumption",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "owner": "service-food",
     "description": "utilities getConsumption (simulated domain contract)",
     "availability": "simulation-only",
-    "inputSchema": {
-      "type": "object",
-      "properties": {},
-      "required": [],
-      "additionalProperties": false
-    },
     "outputSchema": {
       "oneOf": [
         {
@@ -1847,16 +1568,10 @@
   {
     "id": "utilities.bill.read",
     "name": "utilities_getBill",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "owner": "service-food",
     "description": "utilities getBill (simulated domain contract)",
     "availability": "simulation-only",
-    "inputSchema": {
-      "type": "object",
-      "properties": {},
-      "required": [],
-      "additionalProperties": false
-    },
     "outputSchema": {
       "oneOf": [
         {
@@ -1914,16 +1629,10 @@
   {
     "id": "utilities.bill.pay",
     "name": "utilities_payBill",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "owner": "service-food",
     "description": "utilities payBill (simulated domain contract)",
     "availability": "simulation-only",
-    "inputSchema": {
-      "type": "object",
-      "properties": {},
-      "required": [],
-      "additionalProperties": false
-    },
     "outputSchema": {
       "oneOf": [
         {
@@ -1981,21 +1690,17 @@
       "path": "/utilities/pay",
       "inputLocation": "body"
     },
-    "exampleInput": {}
+    "exampleInput": {
+      "billId": "DEWA-2026-10-8492"
+    }
   },
   {
     "id": "utilities.eco-advice.read",
     "name": "utilities_getEcoAdvice",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "owner": "service-food",
     "description": "utilities getEcoAdvice (simulated domain contract)",
     "availability": "simulation-only",
-    "inputSchema": {
-      "type": "object",
-      "properties": {},
-      "required": [],
-      "additionalProperties": false
-    },
     "outputSchema": {
       "oneOf": [
         {
@@ -2062,21 +1767,10 @@
   {
     "id": "citizenpay.fines.read",
     "name": "citizenpay_getFines",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "owner": "service-wallet",
     "description": "citizenpay getFines (simulated domain contract)",
     "availability": "simulation-only",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "plateNumber": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "required": [],
-      "additionalProperties": false
-    },
     "outputSchema": {
       "oneOf": [
         {
@@ -2146,16 +1840,10 @@
   {
     "id": "citizenpay.fines.pay",
     "name": "citizenpay_payFines",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "owner": "service-wallet",
     "description": "citizenpay payFines (simulated domain contract)",
     "availability": "simulation-only",
-    "inputSchema": {
-      "type": "object",
-      "properties": {},
-      "required": [],
-      "additionalProperties": false
-    },
     "outputSchema": {
       "oneOf": [
         {
@@ -2204,51 +1892,20 @@
       "path": "/fines/pay",
       "inputLocation": "body"
     },
-    "exampleInput": {}
+    "exampleInput": {
+      "fineIds": [
+        "DP-2026-894102",
+        "RTA-2026-449102"
+      ]
+    }
   },
   {
     "id": "citizenpay.unified.pay",
     "name": "citizenpay_unifiedPay",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "owner": "service-wallet",
     "description": "citizenpay unifiedPay (simulated domain contract)",
     "availability": "simulation-only",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "items": {
-          "type": "array",
-          "minItems": 1,
-          "items": {
-            "type": "object",
-            "properties": {
-              "agency": {
-                "type": "string",
-                "minLength": 1
-              },
-              "purpose": {
-                "type": "string",
-                "minLength": 1
-              },
-              "amount": {
-                "type": "number",
-                "exclusiveMinimum": 0
-              }
-            },
-            "required": [
-              "agency",
-              "purpose",
-              "amount"
-            ],
-            "additionalProperties": false
-          }
-        }
-      },
-      "required": [
-        "items"
-      ],
-      "additionalProperties": false
-    },
     "outputSchema": {
       "oneOf": [
         {
@@ -2326,27 +1983,10 @@
   {
     "id": "citizenpay.wallet.topup",
     "name": "wallet_topup",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "owner": "service-wallet",
     "description": "wallet topup (simulated domain contract)",
     "availability": "simulation-only",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "amount": {
-          "type": "number",
-          "exclusiveMinimum": 0
-        },
-        "source": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "required": [
-        "amount"
-      ],
-      "additionalProperties": false
-    },
     "outputSchema": {
       "oneOf": [
         {
@@ -2410,16 +2050,10 @@
   {
     "id": "housing.ejari.read",
     "name": "housing_getEjari",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "owner": "service-catalog",
     "description": "housing getEjari (simulated domain contract)",
     "availability": "simulation-only",
-    "inputSchema": {
-      "type": "object",
-      "properties": {},
-      "required": [],
-      "additionalProperties": false
-    },
     "outputSchema": {
       "oneOf": [
         {
@@ -2482,16 +2116,10 @@
   {
     "id": "housing.move-in.execute",
     "name": "housing_moveIn",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "owner": "service-catalog",
     "description": "housing moveIn (simulated domain contract)",
     "availability": "simulation-only",
-    "inputSchema": {
-      "type": "object",
-      "properties": {},
-      "required": [],
-      "additionalProperties": false
-    },
     "outputSchema": {
       "oneOf": [
         {
@@ -2558,6 +2186,8 @@
       "path": "/housing/move-in",
       "inputLocation": "body"
     },
-    "exampleInput": {}
+    "exampleInput": {
+      "contractNumber": "EJR-2026-948102"
+    }
   }
 ]

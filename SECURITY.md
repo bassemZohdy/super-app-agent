@@ -27,6 +27,8 @@ Security issues should be assessed against actual source/deployment, not against
 
 **CORS/network:** agent-core rejects requests with a disallowed Origin and uses the `CORS_ORIGINS` allowlist for HTTP/SSE, with `Vary: Origin`. Requests without Origin still require API authentication. CORS does not replace authorization. Compose exposes demo backend and Keycloak host ports only on 127.0.0.1. The separate agentgateway YAML has wildcard CORS and has not been validated as an active enforcement path.
 
+**Input/money validation:** shared non-coercing request contracts run before all core/domain effects. Numeric strings, non-finite/negative/over-precision/oversized money and malformed nested objects are rejected; selected mutations require explicit resource IDs. Integer minor-unit arithmetic and aggregate ceilings protect fixture balances. This does not implement domain authorization, immutable quotes, durable transactions or true cross-currency settlement.
+
 **LLM spend:** no key = no network inference; live preview is off by default and free-model routing is default. Paid models require opt-in, and no automatic paid fallback is configured. This guards **model spend**, not privacy or prompt safety.
 
 ## Immediate risk register

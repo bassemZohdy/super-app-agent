@@ -1,3 +1,4 @@
+import { validateRequest, toolSchema } from '../../../packages/protocol-core/src/request-validation.ts';
 import http from 'node:http';
 
 export interface UserProfile {
@@ -92,7 +93,7 @@ CIVIC INSTRUCTIONS:
 5. Acknowledge ${profile.residencyStatus || 'Golden Visa Resident'} & ${profile.vipTier} status with VIP civic priority.`;
 }
 
-export function executeProfileRequest(
+function handleProfileRequest(
   method: string,
   pathname: string,
   query: Record<string, string> = {},
@@ -217,6 +218,18 @@ export function executeProfileRequest(
   }
 
   return { status: 404, data: { error: 'Not found', path: pathname } };
+}
+
+// All transports and in-process callers pass through the same request contract.
+export function executeProfileRequest(method: string, pathname: string, query: Record<string, string> = {}, body: any = {}): { status: number; data: any } {
+  const invalid = validateRequest('service-profile', method.toUpperCase(), pathname, query, body);
+  if (invalid) return invalid;
+  const result = handleProfileRequest(method, pathname, query, body);
+  if (pathname === '/mcp' && result.data.tools) {
+    result.data.tools = result.data.tools.map((tool: any) => ({ ...tool,
+      parameters: toolSchema('service-profile', tool.name) || tool.parameters }));
+  }
+  return result;
 }
 
 function sendJson(res: http.ServerResponse, statusCode: number, data: any) {

@@ -2,7 +2,7 @@
 
 **Reviewed: 23 October 2026.** Scope: agent-core, five domain simulators, capability catalog, React/Angular/Flutter, four mini-apps, custom protocols, model client, identity/gateway configuration, containers, scripts, tests and architecture documentation.
 
-**Reviewed code:** `254b4882719c4464395c9fb79e921837d5cde634` on `docs/full-project-refresh-20261023`. PR #3 was merged into that branch; PR #2 is still open against `main` (`85ae71a`). Features below must not be reported as available on `main` until that integration is complete. This is a backlog review, not an implementation or production certification.
+**Integrated baseline:** PR #2 (including PR #3 and this review backlog) merged into `main` at `ba911e2e80ecebc800cf7c5bd668d3486342882a`. The P0-09 changes described below are on a separate implementation branch until its PR is merged. This remains a prototype, not a production certification.
 
 Existing task IDs are preserved. New findings extend those tasks or receive new IDs; completed work is separated from remaining work. Historical demo checkmarks remain in [the archived backlog](docs/history/demo-backlog-pre-production.md).
 
@@ -27,10 +27,10 @@ These probes used synthetic fixtures in an isolated local Node process with live
 
 | Observed behavior | Source | Backlog |
 | --- | --- | --- |
-| `/pay/unified` accepts an item amount of `-10` and increases the wallet balance by 10 | `services/service-wallet/src/index.ts` | P0-09 |
-| `/wallet/topup` accepts the string `Infinity` | `services/service-wallet/src/index.ts` | P0-09 |
+| Original finding: negative unified settlement increases balance — fixed by P0-09 branch | `services/service-wallet/src/index.ts` | P0-09 |
+| Original finding: string `Infinity` top-up accepted — fixed by P0-09 branch | `services/service-wallet/src/index.ts` | P0-09 |
 | Fine payment returns domain HTTP 400 for insufficient funds, but the core returns 200 with `police_fines_settled_card` | `services/agent-core/src/langgraph/graph.ts` | P0-12 |
-| Extending an unknown parking ticket modifies the first existing meter | `services/service-ride/src/index.ts` | P1-13, P0-03 |
+| Original finding: unknown parking ticket modifies first meter — mutation fallback removed in P0-09 branch | `services/service-ride/src/index.ts` | P1-13, P0-03 |
 | A wallet action with `selectedChoice: ''` returns 403; the React renderer includes that field even when no choice exists | Renderer + `agent-core/src/index.ts` | P1-12 |
 | `validateA2UIMessage` throws for a render envelope with `data: null` | `packages/protocol-core/src/a2-ui.ts` | P1-14 |
 
@@ -62,7 +62,7 @@ P0 = blocks use with real users, identity, money or government records. P1 = req
 
 - [ ] **P0-08 — Close actual release verification gaps (partial).** Preserve existing 49-test and 14-build evidence; rerun on the integrated release commit. Execute `npm run test:keycloak` on Docker, browser interactions for React/Angular, and Flutter analyze/test/build on supported targets. Extend identity integration beyond two service accounts to real shell PKCE, audience rejection, expiry, rotation/revocation and ownership isolation. Add independent HTTP/container tests; imported handler tests do not exercise deployment. **Done when:** recorded results identify commit, versions, target, commands and exceptions; no required gate is skipped or inferred from a green build. Current Docker/browser/Flutter environment limitations are recorded in the [release report](docs/reports/2026-10-23-release-gates.md).
 
-- [ ] **P0-09 — Enforce runtime input validation and money invariants.** Apply schemas in actual domain/core/tool handlers, including nested fields, finite numbers, strict parsing, positive bounded amounts, currency and precision/minor-unit rules, valid quantities/durations and required resource IDs. Reject unknown fields and malformed preferences rather than coercing arbitrary objects/strings. Source: wallet/top-up/unified settlement, parking/EV, food orders and profile handlers; catalog schemas currently run only in tests. **Done when:** negative/NaN/infinite/overflow/string-coercion amounts, invalid durations and malformed nested payloads return controlled 4xx without state changes. Add regressions for both confirmed financial probes.
+- [x] **P0-09 — Enforce runtime input validation and money invariants.** **Implemented/verified on task branch:** shared non-coercing input schemas for core/domain/direct callers, explicit mutation resource IDs, bounded exact money arithmetic, nested preference validation and catalog/tool input version 2.0.0. 58 tests and 14 forced build tasks pass; [evidence](docs/reports/2026-10-23-p0-09-validation.md). Production authorization, quotes, durable/cross-currency settlement and failure propagation remain separate open tasks. **Original acceptance scope:** Apply schemas in actual domain/core/tool handlers, including nested fields, finite numbers, strict parsing, positive bounded amounts, currency and precision/minor-unit rules, valid quantities/durations and required resource IDs. Reject unknown fields and malformed preferences rather than coercing arbitrary objects/strings. Source: wallet/top-up/unified settlement, parking/EV, food orders and profile handlers; catalog inputs now share the runtime schema source. **Done when:** negative/NaN/infinite/overflow/string-coercion amounts, invalid durations and malformed nested payloads return controlled 4xx without state changes. Add regressions for both confirmed financial probes.
 
 - [ ] **P0-10 — Serialize session transitions and make action consumption recoverable.** Introduce a unique surface/approval revision and atomic compare-and-set or per-session execution coordination. Current shared mutable state and timestamp/action key do not coordinate concurrent intent/action requests, can collide, and consume an action before its execution outcome is known. **Done when:** concurrent requests, multiple tabs and retries cannot act on a replaced surface or produce duplicate effects; definitive failure and uncertain outcome have explicit retry/reconciliation behavior. Domain idempotency remains P0-06.
 
