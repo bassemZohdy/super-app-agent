@@ -1,3 +1,4 @@
+import { checkedSurface, choiceDefaults, readCoreResponse, surfaceActionPayload } from '../../../../packages/protocol-core/src/surface-client.ts';
 import { connectEventStream } from '../../../../packages/protocol-core/src/sse-client.ts';
 import { Component, signal, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -21,7 +22,7 @@ import type { AGUISurfacePayload, A2UIMessageEnvelope, UIComponentNode } from '.
           <span>🛡️ Bassem Zohdy</span>
           <span style="background: #f59e0b; color: #78350f; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 10px;">🌟 Golden Visa</span>
         </div>
-        <div class="status">⚡ Connected to Gateway (:4000)</div>
+        <div class="status">Local demo gateway (:4000)</div>
         <div class="balance">💳 Wallet: 250.00 AED</div>
       </header>
 
@@ -60,7 +61,7 @@ import type { AGUISurfacePayload, A2UIMessageEnvelope, UIComponentNode } from '.
               <h2 style="font-size: 20px; font-weight: 700; margin: 0 0 4px 0;">Dynamic AG-UI Canvas</h2>
               <div style="font-size: 13px; color: #64748b;">Server-driven generative UI rendered natively in Angular 18</div>
             </div>
-            <span class="active-pill">● SSE Connected</span>
+            <span class="active-pill">Session stream</span>
           </div>
 
           <div *ngIf="surface()" class="surface-container">
@@ -87,8 +88,8 @@ import type { AGUISurfacePayload, A2UIMessageEnvelope, UIComponentNode } from '.
                 <div *ngIf="child.type === 'ChoiceGroup'" class="choice-group">
                   <div *ngFor="let opt of child.properties?.options" 
                        class="choice-item" 
-                       [class.selected]="selectedChoice() === opt.id"
-                       (click)="selectedChoice.set(opt.id)">
+                       [class.selected]="choices()[child.id] === opt.id"
+                       (click)="selectChoice(child.id, opt.id)">
                     <div>
                       <div style="font-weight: 600; font-size: 14px;">{{ opt.title }}</div>
                       <div style="font-size: 12px; color: #64748b;">{{ opt.subtitle }}</div>
@@ -108,7 +109,8 @@ import type { AGUISurfacePayload, A2UIMessageEnvelope, UIComponentNode } from '.
                 <!-- Button -->
                 <button *ngIf="child.type === 'Button'" 
                         class="ag-action-btn"
-                        (click)="dispatchAction(child.onEvents?.[0]?.payload?.action || 'submit')">
+                        [disabled]="pending || child.properties?.disabled === true"
+                        (click)="dispatchAction(child)">
                   {{ child.properties?.label }}
                 </button>
               </div>
@@ -167,7 +169,21 @@ export class AppComponent implements OnInit, OnDestroy {
   ]);
   delta = signal<string | null>(null);
   surface = signal<AGUISurfacePayload | null>(null);
-  selectedChoice = signal<string>('drv_1');
+  choices = signal<Record<string, string>>({});
+  pending = false;
+  selectChoice(group: string, choice: string) { this.choices.update(prev => ({ ...prev, [group]: choice })); }
+  applySurface(value: unknown) {
+    const surface = checkedSurface(value, this.sessionId);
+    if (this.surface()?.revision === surface.revision) return;
+    this.choices.set(choiceDefaults(surface.view));
+    this.surface.set(surface);
+  }
+  showError(text: string) { this.messages.update(prev => [...prev, { role: 'assistant', text }]); }
+  async applyResponse(res: Response) {
+    const result = await readCoreResponse(res, this.sessionId);
+    if (result.surface) this.applySurface(result.surface);
+    if (result.error) this.showError(result.error);
+  }
   sessionId = `ng_${Date.now()}`;
   keycloakToken = 'demo-local'; // local demo only
 
@@ -180,8 +196,8 @@ export class AppComponent implements OnInit, OnDestroy {
         if (data.type === 'A2UI_STREAM_DELTA') this.delta.set(data.data.text);
         else if (data.type === 'A2UI_RENDER_SURFACE') {
           this.delta.set(null);
-          this.surface.set(data.data.surface);
-          this.messages.update(m => [...m, { role: 'assistant', text: 'Prepared interactive surface for your request.' }]);
+          try { this.applySurface(data.data.surface); }
+          catch (error) { this.showError((error as Error).message); }
         }
       },
       onError: error => console.warn('Event stream unavailable', error.message),
@@ -191,7 +207,8 @@ export class AppComponent implements OnInit, OnDestroy {
   ngOnDestroy() { this.streamController.abort(); }
 
   async sendIntent(text: string) {
-    if (!text.trim()) return;
+    if (!text.trim() || this.pending) return;
+    this.pending = true;
     this.messages.update((m) => [...m, { role: 'user', text }]);
     this.delta.set('🧠 Supervisor reasoning with LangGraph...');
 
@@ -212,20 +229,22 @@ export class AppComponent implements OnInit, OnDestroy {
           }
         })
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.surface) {
-          this.delta.set(null);
-          this.surface.set(data.surface);
-        }
-      }
+      await this.applyResponse(res);
     } catch (e) {
       this.delta.set(null);
-      this.messages.update((m) => [...m, { role: 'assistant', text: 'Error connecting to Gateway at :4000.' }]);
-    }
+      this.showError('Could not read the gateway response. Check status before retrying.');
+    } finally { this.pending = false; this.delta.set(null); }
   }
 
-  async dispatchAction(action: string) {
+  async dispatchAction(node: UIComponentNode) {
+    if (this.pending || node.properties?.disabled) return;
+    const binding = node.onEvents?.find(event => event.event === 'onPress');
+    if (!binding || !this.surface()) { this.showError('No active action is available.'); return; }
+    let payload: Record<string, any>;
+    try { payload = surfaceActionPayload(this.surface()!.view, binding, this.choices()); }
+    catch (error) { this.showError((error as Error).message); return; }
+    const action = binding.payload.action;
+    this.pending = true;
     this.delta.set(`⚡ Executing action: ${action}...`);
     try {
       const res = await fetch('http://localhost:4000/api/a2ui/action', {
@@ -238,20 +257,14 @@ export class AppComponent implements OnInit, OnDestroy {
           sessionId: this.sessionId,
           action,
           surfaceRevision: this.surface()?.revision,
-          payload: { selectedChoice: this.selectedChoice() }
+          payload
         })
       });
-      if (res.ok) {
-        const data = await res.json();
-        this.delta.set(null);
-        if (data.surface) {
-          this.surface.set(data.surface);
-        }
-      }
+      await this.applyResponse(res);
     } catch (e) {
       this.delta.set(null);
-      console.error('Failed to dispatch action', e);
-    }
+      this.showError('Could not confirm the action result. Check status before retrying.');
+    } finally { this.pending = false; this.delta.set(null); }
   }
 }
 
