@@ -36,11 +36,11 @@ Paths have some short aliases; the canonical examples above are taken from the c
 
 ### Versioned capabilities (P1-01)
 
-`GET /capabilities` returns `schemaVersion: "1.0.0"` and 32 definitions from `services/service-catalog/src/capabilities.json`. `GET /capabilities/:id` resolves a stable dotted ID. `/tools` keeps its discovery envelope and adds capability IDs/version to every entry.
+`GET /capabilities` returns `schemaVersion: "1.0.0"` and 32 version-2 capability definitions combining metadata in `services/service-catalog/src/capabilities.json` with enforced input schemas in `packages/protocol-core/src/request-validation.ts`. `GET /capabilities/:id` resolves a stable dotted ID. `/tools` keeps its discovery envelope and adds capability IDs/version to every entry.
 
 Each definition includes owner service, semantic version, input/output JSON Schemas, risk, mutation/confirmation flags, subject-bound consent scopes, delegation policy, HTTP mapping and a synthetic example. Inputs reject undeclared fields in contract validation; output envelopes describe success/error shapes while nested domain objects remain extensible. All 32 schemas are compiled and checked against simulator responses by Ajv in tests.
 
-This is discovery metadata. **The current graph and domain handlers do not enforce these schemas, scopes or consent requirements.** Authenticated typed adapters (P1-02), domain enforcement (P0-03) and consent lifecycle (P1-10) must apply them before real invocation. The registry does not advertise an MCP/A2A transport or authorize its callers. Version output contract changes explicitly; do not silently reuse an ID/version for incompatible semantics.
+All core/domain request handlers now enforce the shared input schemas before state mutation, including direct in-process calls. Scopes and consent metadata are **not** authorization enforcement; output contracts still describe simulation envelopes. Authenticated typed adapters (P1-02), domain enforcement (P0-03) and consent lifecycle (P1-10) must apply them before real invocation. The registry does not advertise an MCP/A2A transport or authorize its callers. Version output contract changes explicitly; do not silently reuse an ID/version for incompatible semantics.
 
 ### Tool “MCP” descriptors
 
@@ -60,6 +60,28 @@ Not every action is available on every UI surface. The backend rejects actions a
 - Composite “ride + food” and municipal payment/move-in journeys.
 
 These examples reference government brands to illustrate integration use cases. **No real DubaiNow/TAMM/UAE PASS or agency account is accessed.**
+
+## Runtime validation (P0-09)
+
+Core and domain handlers reject invalid roots, undeclared fields, malformed nested preferences, non-finite numbers, numeric strings and excess precision with HTTP 400 (`VALIDATION_ERROR`). The catalog and legacy `/mcp` descriptor inputs use the same schema source; no type coercion, implicit defaults or extra-field stripping is enabled. Invalid or missing selected mutation resources never choose the first fixture.
+
+Capability versions are now **2.0.0** because required mutation inputs changed. The discovery envelope `schemaVersion` remains 1.0.0. Update clients to send:
+
+| Operation | Required body fields |
+| --- | --- |
+| Parking activation | `zoneId`, integer `durationHours`, `plateNumber` |
+| Parking extension | `ticketId`, integer `additionalHours` |
+| EV start | `chargerId`, `plateNumber` |
+| Ride booking / food order | `driverId` / `restaurantId` and nonempty unique `items` IDs |
+| Utility payment | `billId` |
+| Fine payment | Nonempty unique `fineIds` list |
+| Unified settlement | Nonempty `items` with `agency`, `purpose`, numeric `amount` |
+| Housing move-in | `contractNumber` |
+| Wallet payment / top-up / toll recharge | Numeric `amount`; payment also requires `purpose` |
+
+Demo amounts accept at most two decimal places, from 0.01 to 1,000,000, with the same aggregate total/balance ceiling. Arithmetic uses integer minor units. Duration is a positive integer capped at 720 hours including cumulative extension. These are **demo limits**, not actual agency/tariff policy. Optional currency is fixed to USD on legacy wallet APIs and AED on civic settlement/toll APIs; the shared fixture ledger still mixes legacy/civic scenarios and requires replacement under P0-06/P1-13.
+
+Read resource fallback/tracking, real domain authorization, immutable quotes, false-success propagation, card fallback and durable transaction guarantees remain separate backlog tasks. See [validation evidence](../reports/2026-10-23-p0-09-validation.md).
 
 ## Contract evolution
 

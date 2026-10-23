@@ -8,7 +8,7 @@ import { executeFoodRequest } from '../service-food/src/index.ts';
 import { executeWalletRequest } from '../service-wallet/src/index.ts';
 import { executeProfileRequest } from '../service-profile/src/index.ts';
 
-const ajv = new Ajv({ allErrors: true, strict: true });
+const ajv = new Ajv({ allErrors: true, strict: true, multipleOfPrecision: 10 });
 const executors = {
   'service-ride': executeRideRequest, 'service-food': executeFoodRequest,
   'service-wallet': executeWalletRequest, 'service-profile': executeProfileRequest,
@@ -42,16 +42,22 @@ test('capability catalog exposes unique versioned contracts and conservative ris
 });
 
 test('all capability JSON Schemas compile and accept the corresponding simulator response', () => {
+  let activeTicket: string | undefined;
+  executeWalletRequest('POST', '/wallet/topup', {}, { amount: 1000 });
   for (const capability of capabilities) {
+    const input = structuredClone(capability.exampleInput);
+    if (capability.id === 'mobility.parking.extend') input.ticketId = activeTicket;
     const validateInput = ajv.compile(capability.inputSchema);
     const validateOutput = ajv.compile(capability.outputSchema);
-    assert.ok(validateInput(capability.exampleInput), capability.id + ': ' + ajv.errorsText(validateInput.errors));
+    assert.ok(validateInput(input), capability.id + ': ' + ajv.errorsText(validateInput.errors));
     const { method, path, inputLocation } = capability.execution;
-    const route = path.replace(/\{([^}]+)\}/g, (_, key) => encodeURIComponent(String(capability.exampleInput[key])));
+    const route = path.replace(/\{([^}]+)\}/g, (_, key) => encodeURIComponent(String(input[key])));
     const result = executors[capability.owner](method, route,
-      inputLocation === 'query' ? capability.exampleInput as Record<string, string> : {},
-      inputLocation === 'body' ? capability.exampleInput : {});
-    assert.notEqual(result.status, 404, capability.id + ': declared route does not exist');
+      inputLocation === 'query' ? input as Record<string, string> : {},
+      inputLocation === 'body' ? input : {});
+    assert.equal(result.status, 200, capability.id + ': declared example must succeed');
+    assert.equal(result.data.success, true, capability.id + ': successful effect/read required');
+    if (capability.id === 'mobility.parking.activate') activeTicket = result.data.meter.ticketId;
     assert.ok(validateOutput(result.data), capability.id + ': ' + ajv.errorsText(validateOutput.errors));
     assert.equal(validateInput({ ...capability.exampleInput, undeclaredField: 'unsafe' }), false);
   }

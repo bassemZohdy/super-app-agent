@@ -1,3 +1,4 @@
+import { validateRequest } from '../../../packages/protocol-core/src/request-validation.ts';
 import http from 'node:http';
 import { EventJournal, StreamWriter, eventFrame } from './event-stream.ts';
 import {
@@ -69,6 +70,8 @@ export async function executeGatewayRequest(
   headers: Record<string, string | undefined> = {}
 ): Promise<{ status: number; data: any }> {
   const normMethod = method.toUpperCase();
+  const invalid = validateRequest('agent-core', normMethod, pathname, query, body);
+  if (invalid) return invalid;
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
     return { status: 400, data: { error: 'Request body must be a JSON object' } };
   }

@@ -322,7 +322,9 @@ export class SuperAppAgentGraph {
       });
     } else if (action === 'extend_parking') {
       onProgress?.('🅿️ Extending parking meter by 1 hour...');
-      executeRideRequest('POST', '/mobility/parking/extend', {}, { additionalHours: 1 });
+      executeRideRequest('POST', '/mobility/parking/extend', {}, {
+        ticketId: payload.ticketId, additionalHours: 1,
+      });
 
       state.currentSurface = {
         version: '1.0.0',
@@ -348,7 +350,7 @@ export class SuperAppAgentGraph {
       };
     } else if (action === 'pay_utilities_bill') {
       onProgress?.('⚡ Settling DEWA electricity & water bill via DubaiPay...');
-      const res = executeFoodRequest('POST', '/utilities/pay');
+      const res = executeFoodRequest('POST', '/utilities/pay', {}, { billId: executeFoodRequest('GET', '/utilities/bill').data.bill.billId });
       const rcpt = res.data.receipt;
 
       state.currentSurface = {
@@ -393,7 +395,7 @@ export class SuperAppAgentGraph {
       });
     } else if (action === 'pay_police_fines') {
       onProgress?.('👮 Settling traffic radar fines with Dubai Police HQ...');
-      const res = executeWalletRequest('POST', '/fines/pay');
+      const res = executeWalletRequest('POST', '/fines/pay', {}, { fineIds: executeWalletRequest('GET', '/fines/check').data.fines.map((fine: any) => fine.fineId) });
 
       state.currentSurface = {
         version: '1.0.0',
@@ -437,9 +439,13 @@ export class SuperAppAgentGraph {
       });
     } else if (action === 'confirm_smartcity_checkout') {
       onProgress?.('🏛️ Executing Unified Civic Living Settlement across DEWA, Police, and Salik...');
-      const res = executeWalletRequest('POST', '/pay/unified');
-      executeFoodRequest('POST', '/utilities/pay');
-      executeWalletRequest('POST', '/fines/pay');
+      const res = executeWalletRequest('POST', '/pay/unified', {}, { items: [
+        { agency: 'DEWA', purpose: 'Demo utility settlement', amount: 420.4 },
+        { agency: 'Dubai Police', purpose: 'Demo fine settlement', amount: 420 },
+        { agency: 'RTA Salik', purpose: 'Demo toll recharge', amount: 100 },
+      ] });
+      executeFoodRequest('POST', '/utilities/pay', {}, { billId: executeFoodRequest('GET', '/utilities/bill').data.bill.billId });
+      executeWalletRequest('POST', '/fines/pay', {}, { fineIds: executeWalletRequest('GET', '/fines/check').data.fines.map((fine: any) => fine.fineId) });
       executeRideRequest('POST', '/mobility/salik/recharge', {}, { amount: 100 });
 
       state.currentSurface = {
@@ -494,8 +500,8 @@ export class SuperAppAgentGraph {
       });
     } else if (action === 'confirm_movein') {
       onProgress?.('🏠 Finalizing Move-In Golden Path with Dubai Land Department...');
-      const res = executeCatalogRequest('POST', '/housing/move-in');
-      executeRideRequest('POST', '/mobility/parking/activate', {}, { zoneId: 'zone_302a', durationHours: 720 });
+      const res = executeCatalogRequest('POST', '/housing/move-in', {}, { contractNumber: executeCatalogRequest('GET', '/housing/ejari').data.contract.contractNumber });
+      executeRideRequest('POST', '/mobility/parking/activate', {}, { zoneId: 'zone_302a', durationHours: 720, plateNumber: 'Dubai B-74892' });
 
       state.currentSurface = {
         version: '1.0.0',
@@ -665,7 +671,7 @@ export class SuperAppAgentGraph {
       executeRideRequest('POST', '/rides/book', {}, { driverId: 'drv_1' });
 
       onProgress?.('🍕 Dispatching Pizza Napoli kitchen order...');
-      executeFoodRequest('POST', '/orders/create', {}, { restaurantId: 'rest_1' });
+      executeFoodRequest('POST', '/orders/create', {}, { restaurantId: 'rest_1', items: ['item_diavola'] });
 
       state.currentSurface = {
         version: '1.0.0',
@@ -730,7 +736,8 @@ export class SuperAppAgentGraph {
       };
     } else if (action === 'update_preferences') {
       onProgress?.('👤 Updating user preferences in Profile Microservice...');
-      const updateRes = executeProfileRequest('POST', '/profile/preferences', {}, payload);
+      const { action: _action, ...preferences } = payload;
+      const updateRes = executeProfileRequest('POST', '/profile/preferences', {}, preferences);
       const profile = executeProfileRequest('GET', '/profile').data.profile;
 
       state.currentSurface = this.buildProfileOverviewSurface(state.sessionId, profile, updateRes.data.preferences);
@@ -1685,3 +1692,4 @@ export class SuperAppAgentGraph {
     };
   }
 }
+
