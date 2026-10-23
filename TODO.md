@@ -2,7 +2,7 @@
 
 **Reviewed: 23 October 2026.** Scope: agent-core, five domain simulators, capability catalog, React/Angular/Flutter, four mini-apps, custom protocols, model client, identity/gateway configuration, containers, scripts, tests and architecture documentation.
 
-**Integrated baseline:** PR #2 (including PR #3 and this review backlog) merged into `main` at `ba911e2e80ecebc800cf7c5bd668d3486342882a`. P0-09 is proposed in PR #4; P0-12 is on a separate branch stacked on it. Those task changes reach main only when their implementation PRs are merged. This remains a prototype, not a production certification.
+**Integrated baseline:** PRs #2/#3, #4 (P0-09) and #5 (P0-12) are merged into `main` (latest merge `bdf8864c5ea0394bb71607edf9ed4dcce5c53486`). P0-10 is implemented on its task branch. This remains a prototype, not a production certification.
 
 Existing task IDs are preserved. New findings extend those tasks or receive new IDs; completed work is separated from remaining work. Historical demo checkmarks remain in [the archived backlog](docs/history/demo-backlog-pre-production.md).
 
@@ -27,10 +27,10 @@ These probes used synthetic fixtures in an isolated local Node process with live
 
 | Observed behavior | Source | Backlog |
 | --- | --- | --- |
-| Original finding: negative unified settlement increases balance — fixed by P0-09 branch | `services/service-wallet/src/index.ts` | P0-09 |
-| Original finding: string `Infinity` top-up accepted — fixed by P0-09 branch | `services/service-wallet/src/index.ts` | P0-09 |
-| Original finding: rejected fine payment returned a success surface — fixed by P0-12 branch | `services/agent-core/src/langgraph/graph.ts` | P0-12 |
-| Original finding: unknown parking ticket modifies first meter — mutation fallback removed in P0-09 branch | `services/service-ride/src/index.ts` | P1-13, P0-03 |
+| Original finding: negative unified settlement increases balance — fixed on main by P0-09 | `services/service-wallet/src/index.ts` | P0-09 |
+| Original finding: string `Infinity` top-up accepted — fixed on main by P0-09 | `services/service-wallet/src/index.ts` | P0-09 |
+| Original finding: rejected fine payment returned a success surface — fixed on main by P0-12 | `services/agent-core/src/langgraph/graph.ts` | P0-12 |
+| Original finding: unknown parking ticket modifies first meter — mutation fallback removed on main by P0-09 | `services/service-ride/src/index.ts` | P1-13, P0-03 |
 | A wallet action with `selectedChoice: ''` returns 403; the React renderer includes that field even when no choice exists | Renderer + `agent-core/src/index.ts` | P1-12 |
 | `validateA2UIMessage` throws for a render envelope with `data: null` | `packages/protocol-core/src/a2-ui.ts` | P1-14 |
 
@@ -64,7 +64,7 @@ P0 = blocks use with real users, identity, money or government records. P1 = req
 
 - [x] **P0-09 — Enforce runtime input validation and money invariants.** **Implemented/verified on task branch:** shared non-coercing input schemas for core/domain/direct callers, explicit mutation resource IDs, bounded exact money arithmetic, nested preference validation and catalog/tool input version 2.0.0. 58 tests and 14 forced build tasks pass; [evidence](docs/reports/2026-10-23-p0-09-validation.md). Production authorization, quotes, durable/cross-currency settlement and failure propagation remain separate open tasks. **Original acceptance scope:** Apply schemas in actual domain/core/tool handlers, including nested fields, finite numbers, strict parsing, positive bounded amounts, currency and precision/minor-unit rules, valid quantities/durations and required resource IDs. Reject unknown fields and malformed preferences rather than coercing arbitrary objects/strings. Source: wallet/top-up/unified settlement, parking/EV, food orders and profile handlers; catalog inputs now share the runtime schema source. **Done when:** negative/NaN/infinite/overflow/string-coercion amounts, invalid durations and malformed nested payloads return controlled 4xx without state changes. Add regressions for both confirmed financial probes.
 
-- [ ] **P0-10 — Serialize session transitions and make action consumption recoverable.** Introduce a unique surface/approval revision and atomic compare-and-set or per-session execution coordination. Current shared mutable state and timestamp/action key do not coordinate concurrent intent/action requests, can collide, and consume an action before its execution outcome is known. **Done when:** concurrent requests, multiple tabs and retries cannot act on a replaced surface or produce duplicate effects; definitive failure and uncertain outcome have explicit retry/reconciliation behavior. Domain idempotency remains P0-06.
+- [x] **P0-10 — Serialize process-local session transitions and make action consumption recoverable.** Intent/action execution, failure rendering and broadcast hold a per-session coordinator; overlapping requests return `SESSION_BUSY`. Every committed surface gets a UUID revision, required as `surfaceRevision` on action requests; stale/replayed revisions return `STALE_SURFACE`. Invalid inputs preserve the approval, definitive rejection permits a fresh intent, and partial/unknown effects block further session requests with `RECONCILIATION_REQUIRED`. Five new regression groups plus the partial-outcome regression verify concurrency, independent sessions, timestamp collisions, duplicate effects and retry behavior. [Evidence](docs/reports/2026-10-23-p0-10-session-transitions.md). **Boundary:** process-local only; restart/multiple instances/cross-session effects and authenticated reconciliation procedures remain P0-05/P0-06/P0-03. No client reset endpoint bypasses the reconciliation block.
 
 - [ ] **P0-11 — Bound and harden HTTP/JWKS/stream resource use.** Add per-user/IP/tenant and total request/stream quotas, global session/listener limits, byte-based body limits and read/processing deadlines across all services. Return controlled 413/429 errors, handle aborted/malformed requests and wrap asynchronous handlers safely. Domain bodies currently accumulate without a cap; the core destroys oversized requests rather than returning 413. Test HTTP method/content-type/Origin handling and close-time listener/timer cleanup. **Done when:** slow uploads, session churn, oversized payloads and connection floods remain within defined budgets and cannot terminate the server.
 

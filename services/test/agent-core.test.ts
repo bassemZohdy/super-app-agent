@@ -82,7 +82,7 @@ test('agent-core: composite multi-domain intent orchestrates ride, food, and wal
 
   // Now trigger the action loop!
   const actionRes = await executeCoreRequest('POST', '/api/a2ui/action', {}, {
-    sessionId: sid,
+    sessionId: sid, surfaceRevision: getOrCreateSession(sid).currentSurface?.revision,
     action: 'confirm_composite_checkout',
     payload: {},
   });
@@ -98,7 +98,7 @@ test('agent-core: action loop handles book_ride dispatch', async () => {
   const sid = `sess_action_ride_${Date.now()}`;
   await executeCoreRequest('POST', '/api/a2ui/intent', {}, { sessionId: sid, text: 'Find a cab ride to Downtown' });
   const actionRes = await executeCoreRequest('POST', '/api/a2ui/action', {}, {
-    sessionId: sid,
+    sessionId: sid, surfaceRevision: getOrCreateSession(sid).currentSurface?.revision,
     action: 'book_ride',
     payload: { selectedChoice: 'drv_1' },
   });
@@ -114,7 +114,7 @@ test('agent-core: action loop handles topup_wallet', async () => {
   const sid = `sess_action_wallet_${Date.now()}`;
   await executeCoreRequest('POST', '/api/a2ui/intent', {}, { sessionId: sid, text: 'Show my wallet balance' });
   const actionRes = await executeCoreRequest('POST', '/api/a2ui/action', {}, {
-    sessionId: sid,
+    sessionId: sid, surfaceRevision: getOrCreateSession(sid).currentSurface?.revision,
     action: 'topup_wallet',
     payload: { amount: 50.0 },
   });

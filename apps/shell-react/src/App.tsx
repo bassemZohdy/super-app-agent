@@ -197,7 +197,7 @@ export function App() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${DEMO_KEYCLOAK_TOKEN}`,
         },
-        body: JSON.stringify({ sessionId, action, payload }),
+        body: JSON.stringify({ sessionId, surfaceRevision: currentSurface?.revision, action, payload }),
       });
 
       if (res.ok) {
@@ -574,7 +574,7 @@ export function App() {
             {/* If tab is Agent, render AG-UI Surface */}
             {activeTab === 'agent' &&
               (currentSurface ? (
-                <A2UIRenderer node={currentSurface.view} onDispatchAction={handleDispatchAction} />
+                <A2UIRenderer key={currentSurface.revision} node={currentSurface.view} onDispatchAction={handleDispatchAction} />
               ) : (
                 <div
                   style={{
