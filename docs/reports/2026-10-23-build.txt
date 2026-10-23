@@ -1,0 +1,107 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> super-app-agent-monorepo@1.0.0 build
+> turbo run build --force
+
+
+   • turbo 2.11.10
+   • Packages in scope: @superapp/agent-core, @superapp/miniapp-food, @superapp/miniapp-housing, @superapp/miniapp-ride, @superapp/miniapp-wallet, @superapp/protocol-core, @superapp/service-catalog, @superapp/service-food, @superapp/service-profile, @superapp/service-ride, @superapp/service-wallet, @superapp/shell-angular, @superapp/shell-react, @superapp/ui-tokens
+   • Running build in 14 packages
+   • Remote caching disabled
+
+@superapp/service-profile:build: cache bypass, force executing c4bdeeef0c5de83e
+@superapp/protocol-core:build: cache bypass, force executing 04cc21197707752e
+@superapp/ui-tokens:build: cache bypass, force executing 9d9b26147eb64397
+@superapp/service-wallet:build: cache bypass, force executing d0fc3ec720be1bfe
+@superapp/service-ride:build: cache bypass, force executing bb3742e1f1e8322e
+@superapp/miniapp-food:build: cache bypass, force executing ac2d01933b8abaa3
+@superapp/service-catalog:build: cache bypass, force executing 4c127a855cf085f5
+@superapp/miniapp-wallet:build: cache bypass, force executing 0a92c901592e377d
+@superapp/miniapp-housing:build: cache bypass, force executing ef64d535e0185c16
+@superapp/service-food:build: cache bypass, force executing da18cee74db917c2
+@superapp/miniapp-food:build: 
+@superapp/miniapp-food:build: > @superapp/miniapp-food@1.0.0 build
+@superapp/miniapp-food:build: > tsc
+@superapp/miniapp-food:build: 
+@superapp/service-food:build: 
+@superapp/service-food:build: > @superapp/service-food@1.0.0 build
+@superapp/service-food:build: > tsc
+@superapp/service-food:build: 
+@superapp/miniapp-housing:build: 
+@superapp/miniapp-housing:build: > @superapp/miniapp-housing@1.0.0 build
+@superapp/miniapp-housing:build: > tsc
+@superapp/miniapp-housing:build: 
+@superapp/service-ride:build: 
+@superapp/service-ride:build: > @superapp/service-ride@1.0.0 build
+@superapp/service-ride:build: > tsc
+@superapp/service-ride:build: 
+@superapp/protocol-core:build: 
+@superapp/protocol-core:build: > @superapp/protocol-core@1.0.0 build
+@superapp/protocol-core:build: > tsc --noEmit
+@superapp/protocol-core:build: 
+@superapp/service-wallet:build: 
+@superapp/service-wallet:build: > @superapp/service-wallet@1.0.0 build
+@superapp/service-wallet:build: > tsc
+@superapp/service-wallet:build: 
+@superapp/service-profile:build: 
+@superapp/service-profile:build: > @superapp/service-profile@1.0.0 build
+@superapp/service-profile:build: > tsc
+@superapp/service-profile:build: 
+@superapp/service-catalog:build: 
+@superapp/service-catalog:build: > @superapp/service-catalog@1.0.0 build
+@superapp/service-catalog:build: > tsc
+@superapp/service-catalog:build: 
+@superapp/ui-tokens:build: 
+@superapp/ui-tokens:build: > @superapp/ui-tokens@1.0.0 build
+@superapp/ui-tokens:build: > tsc --noEmit
+@superapp/ui-tokens:build: 
+@superapp/miniapp-wallet:build: 
+@superapp/miniapp-wallet:build: > @superapp/miniapp-wallet@1.0.0 build
+@superapp/miniapp-wallet:build: > tsc
+@superapp/miniapp-wallet:build: 
+@superapp/miniapp-ride:build: cache bypass, force executing 940f2714f0b130a1
+@superapp/shell-react:build: cache bypass, force executing 7ee24e439265ea9b
+@superapp/shell-angular:build: cache bypass, force executing e901800d241e032e
+@superapp/agent-core:build: cache bypass, force executing 5db353b1f441bc2f
+@superapp/miniapp-ride:build: 
+@superapp/miniapp-ride:build: > @superapp/miniapp-ride@1.0.0 build
+@superapp/miniapp-ride:build: > tsc
+@superapp/miniapp-ride:build: 
+@superapp/agent-core:build: 
+@superapp/agent-core:build: > @superapp/agent-core@1.0.0 build
+@superapp/agent-core:build: > tsc
+@superapp/agent-core:build: 
+@superapp/shell-angular:build: 
+@superapp/shell-angular:build: > @superapp/shell-angular@1.0.0 build
+@superapp/shell-angular:build: > ng build
+@superapp/shell-angular:build: 
+@superapp/shell-react:build: 
+@superapp/shell-react:build: > @superapp/shell-react@1.0.0 build
+@superapp/shell-react:build: > tsc && vite build
+@superapp/shell-react:build: 
+@superapp/shell-angular:build: ❯ Building...
+@superapp/shell-react:build: vite v6.4.5 building for production...
+@superapp/shell-react:build: transforming...
+@superapp/shell-react:build: ✓ 33 modules transformed.
+@superapp/shell-react:build: rendering chunks...
+@superapp/shell-react:build: computing gzip size...
+@superapp/shell-react:build: dist/index.html                   0.70 kB │ gzip:  0.46 kB
+@superapp/shell-react:build: dist/assets/index-B0Jshr5X.css    2.74 kB │ gzip:  1.06 kB
+@superapp/shell-react:build: dist/assets/index-3pBjx1Y4.js   184.82 kB │ gzip: 56.52 kB
+@superapp/shell-react:build: ✓ built in 850ms
+@superapp/shell-angular:build: ✔ Building...
+@superapp/shell-angular:build: Initial chunk files | Names         |  Raw size | Estimated transfer size
+@superapp/shell-angular:build: main.js             | main          | 135.25 kB |                39.37 kB
+@superapp/shell-angular:build: polyfills.js        | polyfills     |  34.52 kB |                11.28 kB
+@superapp/shell-angular:build: 
+@superapp/shell-angular:build:                     | Initial total | 169.77 kB |                50.66 kB
+@superapp/shell-angular:build: 
+@superapp/shell-angular:build: Application bundle generation complete. [2.432 seconds]
+@superapp/shell-angular:build: 
+@superapp/shell-angular:build: Output location: /workspace/scratch/e697290ceee3/super-app-agent/apps/shell-angular/dist
+@superapp/shell-angular:build: 
+
+ Tasks:    14 successful, 14 total
+Cached:    0 cached, 14 total
+  Time:    6.438s 
+

@@ -1,5 +1,13 @@
 # Documentation changelog
 
+## 2026-10-23 — Backlog implementation: capabilities, streams and build gates
+
+- Completed P1-01 discovery: 32 stable capability IDs, version/owner, JSON Schemas, risk and consent metadata; catalog/list/detail/tool discovery endpoints and contract tests.
+- Implemented backend/web portion of P0-02: authenticated scoped SSE, bounded replay, expiry, origin rejection, backpressure, shared React/Angular fetch client and transport regressions. Flutter/login/durable replay remain open.
+- Fixed P0-08 baseline failures: package-manager metadata, Angular workspace, mini-app TypeScript configs, housing workspace, Node source type-checking, incorrect HTTP JSON response calls, crypto types and personalization scenario requiring its own active profile surface.
+- Verified clean installation, 49 automated tests and all 14 JS workspace build tasks. Added a separate disposable real-Keycloak runner; Docker is unavailable, and browser installation failed, so those execution gates remain open.
+- Updated README/security/architecture/development docs and TODO with [recorded evidence](reports/2026-10-23-release-gates.md); no workflows enabled or model API calls made.
+
 ## 2026-10-23 — Full documentation reconciliation
 
 - Replaced misleading `README.md` claims of full agentic autonomy/official protocol support with an **as-built prototype** description and free-model/no-key quick start.
@@ -11,3 +19,4 @@
 - Expanded [SECURITY](../SECURITY.md) into explicit threat boundaries and release gates; marked recordings and E2E transcripts **historical**.
 
 Documentation work is **docs-only** and does not itself validate a successful build, Keycloak integration, agentgateway syntax, model interoperability or production behavior.
+

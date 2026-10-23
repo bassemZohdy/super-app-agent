@@ -1,0 +1,62 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> super-app-agent-monorepo@1.0.0 test
+> node --experimental-strip-types --import ./scripts/test-env.ts --test packages/protocol-core/test/*.ts services/test/*.ts test/*.ts
+
+✔ validateUIComponentNode: accepts valid component primitives (7.086365ms)
+✔ validateUIComponentNode: rejects invalid component type (0.400183ms)
+✔ validateAGUISurface: accepts valid surface payload (0.28518ms)
+✔ validateAGUISurface: rejects invalid version (0.216216ms)
+✔ createA2UIMessage: properly wraps A2-UI envelope (0.334875ms)
+✔ validateA2UIMessage: validates nested AG-UI surface on A2UI_RENDER_SURFACE (0.210948ms)
+✔ agent-core: health check endpoint (2.280438ms)
+✔ agent-core: ride intent classifies correctly and returns valid AG-UI surface (2.693662ms)
+✔ agent-core: food intent classifies correctly and returns valid AG-UI surface (1.208141ms)
+✔ agent-core: wallet intent classifies correctly and returns valid AG-UI surface (1.193349ms)
+✔ agent-core: composite multi-domain intent orchestrates ride, food, and wallet (1.728296ms)
+✔ agent-core: action loop handles book_ride dispatch (0.656681ms)
+✔ agent-core: action loop handles topup_wallet (0.580595ms)
+✔ capability catalog exposes unique versioned contracts and conservative risk/consent metadata (2.685689ms)
+✔ all capability JSON Schemas compile and accept the corresponding simulator response (122.796139ms)
+✔ replay is session-bound and bounded by count, TTL, session count and bytes (2.678199ms)
+✔ slow writers wait for drain and disconnect at the byte limit (0.425071ms)
+✔ SSE parser preserves multi-line UTF-8 data across CR/LF and byte boundaries (5.733284ms)
+✔ real HTTP stream verifies signed bearer, user ownership, origin, replay and expiry (1942.781258ms)
+✔ browser stream reconnects with bearer headers and cursor, resets stale replay, and stops on 401 (503.974885ms)
+✔ service-ride: health, ride options, booking and tracking (2.110683ms)
+✔ service-food: health, restaurant search, create order and tracking (0.737532ms)
+✔ service-wallet: health, balance, payment and topup (0.680376ms)
+✔ service-catalog: health, miniapps list and tool registry (0.512443ms)
+✔ OpenRouter defaults to free router and never charges without explicit opt-in (5.870161ms)
+✔ security: rejects fabricated JWTs instead of trusting decoded claims (1.650779ms)
+✔ security: verified JWT sessions belong to the authenticated subject (115.808643ms)
+✔ service-profile: health check endpoint (1.628515ms)
+✔ service-profile: retrieve profile and verify VIP tier (0.214954ms)
+✔ service-profile: retrieve and update user preferences (0.401916ms)
+✔ service-profile: prompt-context generates tailored LLM instructions (0.212811ms)
+✔ service-profile: MCP protocol tool definitions (0.202475ms)
+✔ E2E Life Scenario 1: Commuter Morning Rush - Ride Hailing & Tracking (4.928551ms)
+✔ E2E Life Scenario 2: Evening Dinner - Food Discovery & Kitchen Prep (1.563918ms)
+✔ E2E Life Scenario 3: Wallet Management - Balance, Ledger & Top-Up (0.992307ms)
+✔ E2E Life Scenario 4: Composite Multi-Agent Orchestration with HITL Checkout (1.148461ms)
+✔ E2E Life Scenario 5: Concierge Ecosystem & Mini-App Catalog Exploration (1.143204ms)
+✔ E2E Life Scenario 6: Financial Guardrail - Insufficient Balance Protection (0.186361ms)
+✔ E2E Life Scenario 7: A2-UI Protocol Validation & Rejection Guardrails (0.273012ms)
+✔ E2E Life Scenario 8: User Profile Personalization & Adaptive AG-UI Surfaces (1.342905ms)
+✔ E2E Life Scenario 9: Keycloak OIDC Token Authentication & Security Rejection (0.684863ms)
+✔ E2E Life Scenario 10: Smart Mobility - RTA Parking Meter Activation & Extension (1.016022ms)
+✔ E2E Life Scenario 11: Smart Mobility - Salik Toll Tag Status & Instant Recharge (0.600445ms)
+✔ E2E Life Scenario 12: Smart Utilities - DEWA Telemetry & Bill Settlement (0.627977ms)
+✔ E2E Life Scenario 13: Citizen Safety - Dubai Police Traffic Fines Clearance (0.768359ms)
+✔ E2E Life Scenario 14: Smart Housing - Ejari Move-In Autonomous Onboarding (12.308679ms)
+✔ E2E Life Scenario 15: Unified Municipal Settlement across DEWA, Police & Salik (0.870783ms)
+✔ E2E Life Scenario 16: UAE PASS National Identity & Digital Asset Registry (0.234203ms)
+✔ E2E SuperApp Agent Journey: Complete Composite Multi-Service User Flow (4.709431ms)
+ℹ tests 49
+ℹ suites 0
+ℹ pass 49
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2700.678061

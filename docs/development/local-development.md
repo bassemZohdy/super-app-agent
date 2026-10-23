@@ -1,6 +1,6 @@
 # Local development
 
-**Applies to the demonstration repository as of 23 October 2026.** Commands are taken from the checked-in scripts. This documentation update is not a fresh successful execution of all toolchains.
+**Applies to the demonstration repository as of 23 October 2026.** Commands are taken from the checked-in scripts. See the [dated validation evidence](../reports/2026-10-23-release-gates.md) for the commands actually executed and remaining gates.
 
 ## Prerequisites
 
@@ -43,7 +43,7 @@ npm run dev:react
 # http://localhost:3000
 ```
 
-The React shell sends the local demo marker and subscribes with `?demo=1` to the custom SSE endpoint. For Angular, use `npm run dev:angular` (requires its full Angular CLI workspace config; validate before use); for Flutter, `npm run dev:flutter` (Flutter SDK/browser needed). All three are *example* shells, not a verified production release matrix.
+React and Angular send the local demo marker in an Authorization header through the shared fetch-based SSE client. Angular now has a checked-in CLI workspace: `npm run dev:angular`. Both browser bundles pass the Node build; visual smoke is still pending. Flutter requires its SDK/browser (`npm run dev:flutter`) and retains its existing stream client. Full OIDC/PKCE login remains open for all shells. React reads `VITE_GATEWAY_URL` at build/dev time, defaulting to `http://localhost:4000`.
 
 ### Compose mode
 
@@ -88,7 +88,8 @@ The model response is currently ignored by journey routing. Free models may rate
 - **401 on intent/action:** `DEMO_AUTH` is disabled, or token is invalid; production mode never accepts `demo-local`.
 - **403 on action:** create a session with an intent and click only an action actually offered on its current surface. Cross-user sessions also return 403.
 - **409 on repeated click:** process-local duplicate-action protection; a second execution is blocked for that surface/action pair.
-- **SSE 401:** `?demo=1` is only for local demo; real auth needs an authenticated streaming client.
+- **SSE 401:** the browser client sends a bearer header; enable local demo auth or supply a valid token via its getter. On 401/403 the client stops; login/token refresh integration remains P0-01. A 409 replay cursor triggers a reconnect with a fresh snapshot.
 - **LLM unavailable:** remove key or disable preview; mock journeys do not require inference.
 - **Ports occupied:** close the other runner/Compose stack or adjust deployment consistently; the in-process script uses fixed ports.
-- **Flutter / Angular not launching:** install the missing SDK/toolchain and validate project scaffolding; these are not CI-proven by the documentation update.
+- **Flutter not launching:** install its SDK/toolchain. Flutter build/native behavior has not been executed in this environment.
+
