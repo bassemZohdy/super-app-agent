@@ -364,6 +364,9 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
             {markers.map((m: any, i: number) => (
               <div
                 key={m.id || i}
+                role="button"
+                tabIndex={0}
+                className="ag-interactive-widget"
                 style={{
                   background: '#ffffff',
                   padding: '6px 12px',
@@ -375,6 +378,8 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
                   alignItems: 'center',
                   gap: '6px',
                   color: '#0f172a',
+                  cursor: 'pointer',
+                  border: '1px solid #cbd5e1',
                 }}
               >
                 <span>📍</span>
@@ -438,12 +443,16 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
               {rows.map((row: any, rIdx: number) => (
                 <tr
                   key={rIdx}
+                  className="ag-table-row"
                   style={{
                     borderBottom: rIdx < rows.length - 1 ? '1px solid #f1f5f9' : 'none',
+                    transition: 'all 0.15s ease',
                   }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f8fafc')}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                 >
                   {columns.map((col: any) => (
-                    <td key={col.key} style={{ padding: '10px 14px', color: '#1e293b' }}>
+                    <td key={col.key} style={{ padding: '11px 14px', color: '#1e293b' }}>
                       {row[col.key]}
                     </td>
                   ))}
@@ -494,25 +503,56 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
     }
 
     case 'MiniAppEmbed': {
+      const appId = node.properties?.miniAppId || 'smartcity.miniapp';
+      const cleanName = appId.replace('gov.smartcity.', '').replace('org.superapp.', '').toUpperCase();
       return (
         <div
+          className="ag-interactive-widget"
+          onClick={() => onDispatchAction('LAUNCH_MINIAPP', { miniAppId: appId })}
           style={{
             border: '2px solid #059669',
-            borderRadius: '12px',
+            borderRadius: '14px',
             padding: '20px',
-            background: '#f0fdf4',
+            background: 'linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)',
             marginBottom: '16px',
+            cursor: 'pointer',
+            boxShadow: '0 4px 12px rgba(5, 150, 105, 0.08)',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-            <span style={{ fontSize: '18px' }}>🏛️</span>
-            <strong style={{ fontSize: '14px' }}>
-              Smart City Microfrontend: {node.properties?.miniAppId}
-            </strong>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '20px' }}>🏛️</span>
+              <strong style={{ fontSize: '15px', color: '#065f46' }}>
+                Smart City Microfrontend: {appId}
+              </strong>
+            </div>
+            <span style={{ fontSize: '10px', background: '#dcfce7', color: '#166534', padding: '3px 8px', borderRadius: '12px', fontWeight: 700 }}>
+              ● TAP TO LAUNCH
+            </span>
           </div>
-          <p style={{ fontSize: '12px', color: '#64748b' }}>
-            Route: {node.properties?.entryRoute || '/'} • Scoped Sandbox Container
+          <p style={{ fontSize: '12.5px', color: '#475569', marginBottom: '14px', lineHeight: '1.5' }}>
+            Route: <code style={{ background: '#ffffff', padding: '2px 6px', borderRadius: '4px', border: '1px solid #cbd5e1' }}>{node.properties?.entryRoute || '/'}</code> • Sandboxed sovereign microfrontend
           </p>
+          <button
+            type="button"
+            className="ag-btn"
+            style={{
+              padding: '9px 16px',
+              borderRadius: '8px',
+              background: '#059669',
+              color: '#ffffff',
+              border: 'none',
+              fontWeight: 700,
+              fontSize: '12.5px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            <span>🚀 Open {cleanName} Mini-App Canvas</span>
+            <span>↗</span>
+          </button>
         </div>
       );
     }

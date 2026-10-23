@@ -39,52 +39,111 @@ export function mountRideMiniApp(context: MiniAppBootstrapContext) {
           <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Recent gates: Al Safa, Al Barsha</div>
         </div>
         <div style="text-align: right;">
-          <div style="font-size: 18px; font-weight: 800; color: #059669;">114.00 AED</div>
-          <button id="btn_recharge_salik" style="margin-top: 4px; padding: 4px 10px; background: #059669; color: #ffffff; border: none; border-radius: 6px; font-size: 11px; font-weight: 700; cursor: pointer;">
+          <div id="salik_display_balance" style="font-size: 18px; font-weight: 800; color: #059669;">114.00 AED</div>
+          <button id="btn_recharge_salik" style="margin-top: 4px; padding: 5px 12px; background: #059669; color: #ffffff; border: none; border-radius: 6px; font-size: 11.5px; font-weight: 700; cursor: pointer; transition: all 0.15s ease;">
             +100 AED Recharge
           </button>
         </div>
       </div>
 
       <!-- Parking Zones Selector -->
-      <div style="font-size: 13px; font-weight: 700; color: #334155; margin-bottom: 10px;">RTA PARKING ZONES</div>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <span style="font-size: 13px; font-weight: 700; color: #334155;">RTA PARKING ZONES (TAP TO SELECT)</span>
+        <span style="font-size: 11px; color: #059669; font-weight: 600;">Interactive Choice</span>
+      </div>
       <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border: 2px solid #059669; background: #ecfdf5; border-radius: 10px;">
-          <div>
-            <strong style="color: #0f172a; font-size: 14px;">Zone 302A • Downtown Commercial</strong>
-            <div style="font-size: 12px; color: #64748b;">Burj Khalifa & Dubai Mall • 42 spots available</div>
+        <div id="zone_card_302a" role="button" tabindex="0" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border: 2px solid #059669; background: #ecfdf5; border-radius: 10px; cursor: pointer; transition: all 0.15s ease;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <div id="zone_radio_302a" style="width: 18px; height: 18px; border-radius: 50%; border: 5px solid #059669; background: #ffffff;"></div>
+            <div>
+              <strong style="color: #0f172a; font-size: 14px;">Zone 302A • Downtown Commercial</strong>
+              <div style="font-size: 12px; color: #64748b;">Burj Khalifa & Dubai Mall • 42 spots available</div>
+            </div>
           </div>
           <div style="text-align: right;">
             <div style="font-weight: 800; color: #0f172a; font-size: 15px;">4.00 AED/hr</div>
-            <span style="font-size: 10px; background: #dcfce7; color: #166534; padding: 2px 6px; border-radius: 4px; font-weight: 700;">Nearest</span>
+            <span id="zone_badge_302a" style="font-size: 10px; background: #dcfce7; color: #166534; padding: 2px 6px; border-radius: 4px; font-weight: 700;">Selected</span>
           </div>
         </div>
-        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border: 1px solid #e2e8f0; background: #ffffff; border-radius: 10px;">
-          <div>
-            <strong style="color: #0f172a; font-size: 14px;">Zone 101B • Business Bay Waterfront</strong>
-            <div style="font-size: 12px; color: #64748b;">Executive Towers • 85 spots available</div>
+
+        <div id="zone_card_101b" role="button" tabindex="0" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border: 1.5px solid #e2e8f0; background: #ffffff; border-radius: 10px; cursor: pointer; transition: all 0.15s ease;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <div id="zone_radio_101b" style="width: 18px; height: 18px; border-radius: 50%; border: 2px solid #cbd5e1; background: #ffffff;"></div>
+            <div>
+              <strong style="color: #0f172a; font-size: 14px;">Zone 101B • Business Bay Waterfront</strong>
+              <div style="font-size: 12px; color: #64748b;">Executive Towers • 85 spots available</div>
+            </div>
           </div>
           <div style="text-align: right;">
             <div style="font-weight: 800; color: #0f172a; font-size: 15px;">3.00 AED/hr</div>
+            <span id="zone_badge_101b" style="font-size: 10px; background: #f1f5f9; color: #475569; padding: 2px 6px; border-radius: 4px; font-weight: 600; display: none;">Select</span>
           </div>
         </div>
       </div>
 
-      <button id="btn_miniapp_activate_parking" style="width: 100%; padding: 12px; border-radius: 10px; background: #059669; color: #ffffff; font-weight: 700; border: none; font-size: 14px; cursor: pointer; transition: background 0.15s ease;">
+      <button id="btn_miniapp_activate_parking" style="width: 100%; padding: 13px; border-radius: 10px; background: #059669; color: #ffffff; font-weight: 700; border: none; font-size: 14px; cursor: pointer; transition: all 0.15s ease; box-shadow: 0 2px 6px rgba(5,150,105,0.25);">
         🅿️ Activate Smart Parking Meter (Zone 302A • 2 Hours • 8.00 AED)
       </button>
     </div>
   `;
 
-  context.container.querySelector('#btn_miniapp_activate_parking')?.addEventListener('click', () => {
+  let selectedZone = 'zone_302a';
+  const card302 = context.container.querySelector('#zone_card_302a') as HTMLElement | null;
+  const card101 = context.container.querySelector('#zone_card_101b') as HTMLElement | null;
+  const radio302 = context.container.querySelector('#zone_radio_302a') as HTMLElement | null;
+  const radio101 = context.container.querySelector('#zone_radio_101b') as HTMLElement | null;
+  const badge302 = context.container.querySelector('#zone_badge_302a') as HTMLElement | null;
+  const badge101 = context.container.querySelector('#zone_badge_101b') as HTMLElement | null;
+  const activateBtn = context.container.querySelector('#btn_miniapp_activate_parking') as HTMLButtonElement | null;
+  const rechargeBtn = context.container.querySelector('#btn_recharge_salik') as HTMLButtonElement | null;
+  const salikDisplay = context.container.querySelector('#salik_display_balance') as HTMLElement | null;
+
+  const updateZoneSelection = (zone: 'zone_302a' | 'zone_101b') => {
+    selectedZone = zone;
+    if (zone === 'zone_302a') {
+      if (card302) { card302.style.borderColor = '#059669'; card302.style.background = '#ecfdf5'; }
+      if (card101) { card101.style.borderColor = '#e2e8f0'; card101.style.background = '#ffffff'; }
+      if (radio302) { radio302.style.border = '5px solid #059669'; }
+      if (radio101) { radio101.style.border = '2px solid #cbd5e1'; }
+      if (badge302) { badge302.style.display = 'inline-block'; badge302.textContent = 'Selected'; }
+      if (badge101) { badge101.style.display = 'none'; }
+      if (activateBtn) activateBtn.innerHTML = '🅿️ Activate Smart Parking Meter (Zone 302A • 2 Hours • 8.00 AED)';
+    } else {
+      if (card101) { card101.style.borderColor = '#059669'; card101.style.background = '#ecfdf5'; }
+      if (card302) { card302.style.borderColor = '#e2e8f0'; card302.style.background = '#ffffff'; }
+      if (radio101) { radio101.style.border = '5px solid #059669'; }
+      if (radio302) { radio302.style.border = '2px solid #cbd5e1'; }
+      if (badge101) { badge101.style.display = 'inline-block'; badge101.textContent = 'Selected'; }
+      if (badge302) { badge302.style.display = 'none'; }
+      if (activateBtn) activateBtn.innerHTML = '🅿️ Activate Smart Parking Meter (Zone 101B • 2 Hours • 6.00 AED)';
+    }
+  };
+
+  card302?.addEventListener('click', () => updateZoneSelection('zone_302a'));
+  card101?.addEventListener('click', () => updateZoneSelection('zone_101b'));
+
+  activateBtn?.addEventListener('click', () => {
+    activateBtn.disabled = true;
+    activateBtn.innerHTML = '⏳ Activating Parking Meter with RTA...';
     context.onDispatchEvent('PARKING_ACTIVATED', {
-      zoneId: 'zone_302a',
+      zoneId: selectedZone,
       durationHours: 2,
       plateNumber: 'Dubai B-74892',
     });
   });
 
-  context.container.querySelector('#btn_recharge_salik')?.addEventListener('click', () => {
+  rechargeBtn?.addEventListener('click', () => {
+    rechargeBtn.disabled = true;
+    rechargeBtn.innerHTML = '⏳ Recharging...';
+    setTimeout(() => {
+      if (salikDisplay) salikDisplay.textContent = '214.00 AED';
+      rechargeBtn.innerHTML = '✓ Recharged!';
+      setTimeout(() => {
+        rechargeBtn.disabled = false;
+        rechargeBtn.innerHTML = '+100 AED Recharge';
+      }, 1500);
+    }, 400);
+
     context.onDispatchEvent('SALIK_RECHARGED', {
       amount: 100,
       tagId: 'SLK-8492019',

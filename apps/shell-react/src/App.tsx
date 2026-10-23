@@ -11,10 +11,32 @@ import { mountHousingMiniApp, unmountHousingMiniApp } from '../../../mini-apps/m
 
 export type SmartCityTab = 'agent' | 'mobility' | 'utilities' | 'citizenpay' | 'housing';
 
+export interface ChatActionOption {
+  label: string;
+  action: () => void;
+  primary?: boolean;
+}
+
+export interface ChatMessage {
+  id?: string;
+  role: 'assistant' | 'user' | 'system';
+  text: string;
+  isError?: boolean;
+  errorInfo?: {
+    title: string;
+    description: string;
+    technicalCode?: string;
+    retryAction?: () => void;
+    retryLabel?: string;
+    alternatives?: ChatActionOption[];
+  };
+}
+
 export function App() {
   const [sessionId] = useState(() => `sess_${Math.random().toString(36).substring(2, 9)}`);
-  const [messages, setMessages] = useState<Array<{ role: string; text: string }>>([
+  const [messages, setMessages] = useState<ChatMessage[]>([
     {
+      id: 'msg_welcome',
       role: 'assistant',
       text: 'Marhaba Bassem! I am Rashid, your Autonomous Smart City Citizen Concierge. You can ask me to activate smart parking in Downtown, check DEWA electricity & water telemetry, settle Dubai Police traffic fines, or manage your Ejari lease.',
     },
@@ -30,6 +52,10 @@ export function App() {
   const [voiceAvailable, setVoiceAvailable] = useState({ input: false, output: false });
   const [voiceLanguage, setVoiceLanguage] = useState('en-US');
   const [readReplies, setReadReplies] = useState(false);
+  const [autoListen, setAutoListen] = useState(false);
+  const autoListenRef = useRef(false);
+  autoListenRef.current = autoListen;
+  const isSpeakingRef = useRef(false);
   const [voiceCountdown, setVoiceCountdown] = useState<string | null>(null);
   const voiceSilenceTimer = useRef<any>(null);
   const pendingVoiceText = useRef<string>('');
@@ -46,7 +72,7 @@ export function App() {
         pendingVoiceText.current = clean;
         setVoiceCountdown(`Heard: "${clean.slice(0, 42)}${clean.length > 42 ? '...' : ''}"`);
         if (voiceSilenceTimer.current) clearTimeout(voiceSilenceTimer.current);
-        // User finished speaking this phrase: wait 700ms pause then auto-send immediately
+        // User finished speaking this phrase: wait 750ms pause then auto-send immediately
         voiceSilenceTimer.current = setTimeout(() => {
           if (pendingVoiceText.current && !requestPending.current) {
             const query = pendingVoiceText.current;
@@ -58,17 +84,31 @@ export function App() {
       },
       onState: (state) => {
         setVoiceState(state);
-        if (state === 'idle' && pendingVoiceText.current) {
-          // Speech recognition naturally finished after speech pause
-          if (voiceSilenceTimer.current) clearTimeout(voiceSilenceTimer.current);
-          voiceSilenceTimer.current = setTimeout(() => {
-            if (pendingVoiceText.current && !requestPending.current) {
-              const query = pendingVoiceText.current;
-              pendingVoiceText.current = '';
-              setVoiceCountdown(null);
-              void handleSendRef.current(query);
-            }
-          }, 350);
+        if (state === 'speaking') {
+          isSpeakingRef.current = true;
+        } else if (state === 'idle') {
+          const wasSpeaking = isSpeakingRef.current;
+          isSpeakingRef.current = false;
+
+          // 1. If user was dictating and finished speech utterance:
+          if (pendingVoiceText.current) {
+            if (voiceSilenceTimer.current) clearTimeout(voiceSilenceTimer.current);
+            voiceSilenceTimer.current = setTimeout(() => {
+              if (pendingVoiceText.current && !requestPending.current) {
+                const query = pendingVoiceText.current;
+                pendingVoiceText.current = '';
+                setVoiceCountdown(null);
+                void handleSendRef.current(query);
+              }
+            }, 350);
+          } else if (wasSpeaking && autoListenRef.current && !requestPending.current) {
+            // 2. Continuous Voice: Rashid finished speaking reply: automatically restart listening!
+            setTimeout(() => {
+              if (autoListenRef.current && !requestPending.current) {
+                voice.current?.startListening(voiceSettings.current.language);
+              }
+            }, 450);
+          }
         }
       },
       onError: (err) => {
@@ -90,6 +130,94 @@ export function App() {
   }, []);
   const lastRevision = useRef<string>();
   const requestPending = useRef(false);
+
+  const showStructuredError = (opts: {
+    title?: string;
+    message: string;
+    code?: string;
+    retryAction?: () => void;
+    retryLabel?: string;
+    alternatives?: ChatActionOption[];
+  }) => {
+    const lower = opts.message.toLowerCase();
+    const defaultAlternatives: ChatActionOption[] = [];
+
+    if (lower.includes('balance') || lower.includes('fund') || lower.includes('insufficient') || lower.includes('wallet')) {
+      defaultAlternatives.push({
+        label: '💳 Instant Top-Up (+100 AED)',
+        action: () => handleDispatchAction('topup_wallet', { amount: 100 }),
+        primary: true,
+      });
+      defaultAlternatives.push({
+        label: '🏛️ Unified Multi-Agency Pay',
+        action: () => handleDispatchAction('confirm_smartcity_checkout', {}),
+      });
+      defaultAlternatives.push({
+        label: '🛡️ Check Wallet Balance',
+        action: () => handleSend('Show my wallet balance and recent transactions'),
+      });
+    } else if (lower.includes('choice') || lower.includes('option') || lower.includes('select') || lower.includes('valid')) {
+      defaultAlternatives.push({
+        label: '🅿️ Select Downtown Zone 302A (Recommended)',
+        action: () => handleDispatchAction('activate_parking', { zoneId: 'zone_302a', durationHours: 2, plateNumber: 'Dubai B-74892' }),
+        primary: true,
+      });
+      defaultAlternatives.push({
+        label: '🚗 Switch to Business Bay Zone 101B',
+        action: () => handleDispatchAction('activate_parking', { zoneId: 'zone_101b', durationHours: 2, plateNumber: 'Dubai B-74892' }),
+      });
+    } else if (lower.includes('gateway') || lower.includes('connect') || lower.includes('network') || lower.includes('4000')) {
+      defaultAlternatives.push({
+        label: '📦 Browse Municipal Catalog',
+        action: () => handleSend('show all services'),
+        primary: true,
+      });
+      defaultAlternatives.push({
+        label: '🛡️ UAE PASS Identity Profile',
+        action: () => handleSend('my profile'),
+      });
+      defaultAlternatives.push({
+        label: '⚡ Check DEWA Smart Grid',
+        action: () => handleSend('check my dewa electricity and water bill'),
+      });
+    } else {
+      defaultAlternatives.push({
+        label: '📦 Open Registered Services Catalog',
+        action: () => handleSend('show all services'),
+        primary: true,
+      });
+      defaultAlternatives.push({
+        label: '💬 Ask Rashid for Alternative Paths',
+        action: () => handleSend('What alternative options or ways can I solve this?'),
+      });
+    }
+
+    const errorItem: ChatMessage = {
+      id: `err_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      role: 'assistant',
+      text: opts.message,
+      isError: true,
+      errorInfo: {
+        title: opts.title || 'Municipal Service Notice',
+        description: opts.message,
+        technicalCode: opts.code,
+        retryAction: opts.retryAction,
+        retryLabel: opts.retryLabel || '🔄 Retry Action',
+        alternatives: opts.alternatives && opts.alternatives.length > 0 ? opts.alternatives : defaultAlternatives,
+      },
+    };
+
+    setMessages((prev) => [...prev, errorItem]);
+  };
+
+  const showError = (text: string) => {
+    showStructuredError({
+      message: text,
+      retryAction: () => handleSend('retry'),
+      retryLabel: '🔄 Retry Intent',
+    });
+  };
+
   const applySurface = (value: unknown) => {
     const surface = checkedSurface(value, sessionId);
     if (lastRevision.current === surface.revision) return;
@@ -97,15 +225,32 @@ export function App() {
     setCurrentSurface(surface);
     setActiveTab('agent');
     if (surface.assistantMessage) {
-      setMessages(prev => [...prev, { role: 'assistant', text: surface.assistantMessage!.text }]);
-      if (voiceSettings.current.readReplies) voice.current?.speak(surface.assistantMessage.text, voiceSettings.current.language);
+      setMessages(prev => [...prev, { id: `msg_${Date.now()}`, role: 'assistant', text: surface.assistantMessage!.text }]);
+      if (voiceSettings.current.readReplies) {
+        voice.current?.speak(surface.assistantMessage.text, voiceSettings.current.language);
+      } else if (autoListenRef.current) {
+        // Continuous voice: reply rendered without audio: restart listening automatically!
+        setTimeout(() => {
+          if (autoListenRef.current && !requestPending.current) {
+            voice.current?.startListening(voiceSettings.current.language);
+          }
+        }, 650);
+      }
     }
   };
-  const showError = (text: string) => setMessages(prev => [...prev, { role: 'assistant', text }]);
+
   const applyResponse = async (res: Response) => {
     const result = await readCoreResponse(res, sessionId);
     if (result.surface) applySurface(result.surface);
-    if (result.error && result.error !== result.surface?.assistantMessage?.text) showError(result.error);
+    if (result.error && result.error !== result.surface?.assistantMessage?.text) {
+      showStructuredError({
+        title: 'Smart City Service Notice',
+        message: result.error,
+        code: `HTTP_${res.status}`,
+        retryAction: () => handleSend(),
+        retryLabel: '🔄 Retry Request',
+      });
+    }
   };
   const [activeTab, setActiveTab] = useState<SmartCityTab>('agent');
   const [walletBalance, setWalletBalance] = useState<number>(250.0);
@@ -258,13 +403,13 @@ export function App() {
       await applyResponse(res);
     } catch (err) {
       setThinkingDelta(null);
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          text: 'Error connecting to Agent Gateway. Please verify services are running on port 4000.',
-        },
-      ]);
+      showStructuredError({
+        title: 'Agent Gateway Unreachable',
+        message: 'Could not connect to the Smart City Agent Gateway. Please verify services are operational on port 4000.',
+        code: 'GATEWAY_CONNECTION_ERROR',
+        retryAction: () => handleSend(query),
+        retryLabel: '🔄 Retry Sending Instruction',
+      });
     } finally {
       requestPending.current = false;
       setIsActionPending(false);
@@ -275,7 +420,15 @@ export function App() {
 
   // 4. Dispatch Interactive Action
   const handleDispatchAction = async (action: string, payload: Record<string, any>) => {
-    if (action === 'CLIENT_ERROR') { showError(payload.error); return; }
+    if (action === 'CLIENT_ERROR') {
+      showStructuredError({
+        title: 'Selection Required Before Proceeding',
+        message: payload.error || 'Please choose an available option from the card above before confirming.',
+        code: 'CLIENT_VALIDATION_ERROR',
+        retryLabel: '🔄 Choose Recommended & Continue',
+      });
+      return;
+    }
     if (action === 'LAUNCH_MINIAPP') {
       const miniAppId = payload.miniAppId || '';
       if (miniAppId.includes('mobility') || miniAppId.includes('ride')) setActiveTab('mobility');
@@ -304,7 +457,13 @@ export function App() {
       await applyResponse(res);
     } catch (err) {
       setThinkingDelta(null);
-      showError('Could not confirm the action result. Check status before retrying.');
+      showStructuredError({
+        title: 'Municipal Action Confirmation Failed',
+        message: 'Could not confirm the action result with the government service grid. Please verify status before retrying.',
+        code: 'ACTION_CONFIRMATION_FAILED',
+        retryAction: () => handleDispatchAction(action, payload),
+        retryLabel: `🔄 Retry Action: ${action}`,
+      });
     } finally {
       requestPending.current = false;
       setIsActionPending(false);
@@ -560,6 +719,41 @@ export function App() {
               >
                 {readReplies ? '🔊 Read Aloud' : '🔇 Muted'}
               </button>
+
+              {/* Hands-Free Voice Continuous Loop Toggle */}
+              <button
+                type="button"
+                disabled={!voiceAvailable.input}
+                onClick={() => {
+                  const next = !autoListen;
+                  setAutoListen(next);
+                  autoListenRef.current = next;
+                  if (next && voiceState === 'idle') {
+                    voice.current?.startListening(voiceLanguage);
+                  } else if (!next && voiceState === 'listening') {
+                    voice.current?.stopListening();
+                  }
+                }}
+                title={autoListen ? 'Hands-Free loop active (speaks and automatically listens back)' : 'Click to enable continuous hands-free voice'}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '4px 10px',
+                  borderRadius: '16px',
+                  background: autoListen ? '#ecfdf5' : '#f8fafc',
+                  border: autoListen ? '1.5px solid #10b981' : '1px solid #cbd5e1',
+                  color: autoListen ? '#065f46' : '#64748b',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  cursor: voiceAvailable.input ? 'pointer' : 'not-allowed',
+                  opacity: voiceAvailable.input ? 1 : 0.5,
+                  transition: 'all 0.15s ease',
+                  boxShadow: autoListen ? '0 1px 4px rgba(16, 185, 129, 0.2)' : 'none',
+                }}
+              >
+                <span>{autoListen ? '🎙️ Hands-Free: ON' : '🎙️ Hands-Free: OFF'}</span>
+              </button>
             </div>
           </div>
 
@@ -578,7 +772,7 @@ export function App() {
           >
             {messages.map((m, idx) => (
               <div
-                key={idx}
+                key={m.id || idx}
                 className="chat-message-anim"
                 style={{
                   display: 'flex',
@@ -593,7 +787,8 @@ export function App() {
                         width: '26px',
                         height: '26px',
                         borderRadius: '50%',
-                        background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
+                        background: m.isError ? '#fef3c7' : 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
+                        border: m.isError ? '1px solid #f59e0b' : 'none',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -602,7 +797,7 @@ export function App() {
                         marginTop: '2px',
                       }}
                     >
-                      🏛️
+                      {m.isError ? '⚠️' : '🏛️'}
                     </div>
                   )}
 
@@ -611,6 +806,7 @@ export function App() {
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: m.role === 'user' ? 'flex-end' : 'flex-start',
+                      width: '100%',
                     }}
                   >
                     <div
@@ -624,7 +820,7 @@ export function App() {
                         gap: '6px',
                       }}
                     >
-                      <span>{m.role === 'user' ? 'You' : 'Rashid'}</span>
+                      <span>{m.role === 'user' ? 'You' : m.isError ? 'Municipal Notice' : 'Rashid'}</span>
                       {m.role === 'user' && (
                         <span style={{ fontSize: '9px', background: '#dcfce7', color: '#166534', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>
                           UAE PASS
@@ -632,21 +828,105 @@ export function App() {
                       )}
                     </div>
 
-                    <div
-                      style={{
-                        padding: '11px 15px',
-                        borderRadius: m.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                        fontSize: '13.5px',
-                        lineHeight: '1.6',
-                        background: m.role === 'user' ? 'linear-gradient(135deg, #059669 0%, #047857 100%)' : '#ffffff',
-                        color: m.role === 'user' ? '#ffffff' : '#1e293b',
-                        border: m.role === 'user' ? 'none' : '1px solid #e2e8f0',
-                        boxShadow: m.role === 'user' ? '0 2px 6px rgba(5, 150, 105, 0.2)' : '0 2px 5px rgba(0, 0, 0, 0.04)',
-                        wordBreak: 'break-word',
-                      }}
-                    >
-                      {m.text}
-                    </div>
+                    {m.isError && m.errorInfo ? (
+                      <div
+                        style={{
+                          padding: '14px 16px',
+                          borderRadius: '14px',
+                          background: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)',
+                          border: '1.5px solid #fde68a',
+                          boxShadow: '0 4px 12px rgba(245, 158, 11, 0.12)',
+                          width: '100%',
+                          boxSizing: 'border-box',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                          <span style={{ fontSize: '18px' }}>⚠️</span>
+                          <strong style={{ fontSize: '14px', color: '#92400e' }}>
+                            {m.errorInfo.title}
+                          </strong>
+                        </div>
+                        <p style={{ fontSize: '13px', color: '#78350f', margin: '0 0 12px 0', lineHeight: '1.5' }}>
+                          {m.errorInfo.description}
+                        </p>
+
+                        {/* Primary Retry Action */}
+                        {m.errorInfo.retryAction && (
+                          <div style={{ marginBottom: '10px' }}>
+                            <button
+                              type="button"
+                              onClick={m.errorInfo.retryAction}
+                              className="ag-btn"
+                              style={{
+                                padding: '8px 16px',
+                                borderRadius: '8px',
+                                background: '#059669',
+                                color: '#ffffff',
+                                border: 'none',
+                                fontWeight: 700,
+                                fontSize: '12.5px',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                              }}
+                            >
+                              <span>{m.errorInfo.retryLabel || '🔄 Retry Request'}</span>
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Alternative Paths & Different Ways */}
+                        {m.errorInfo.alternatives && m.errorInfo.alternatives.length > 0 && (
+                          <div>
+                            <div style={{ fontSize: '10.5px', fontWeight: 700, color: '#b45309', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                              Or Try Different Ways:
+                            </div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                              {m.errorInfo.alternatives.map((alt, aIdx) => (
+                                <button
+                                  key={aIdx}
+                                  type="button"
+                                  onClick={alt.action}
+                                  style={{
+                                    padding: '5px 11px',
+                                    borderRadius: '16px',
+                                    background: '#ffffff',
+                                    border: alt.primary ? '1.5px solid #059669' : '1px solid #cbd5e1',
+                                    color: alt.primary ? '#065f46' : '#334155',
+                                    fontSize: '11px',
+                                    fontWeight: alt.primary ? 700 : 600,
+                                    cursor: 'pointer',
+                                    boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                                    transition: 'all 0.15s ease',
+                                  }}
+                                  onMouseEnter={(e) => (e.currentTarget.style.background = '#f0fdf4')}
+                                  onMouseLeave={(e) => (e.currentTarget.style.background = '#ffffff')}
+                                >
+                                  {alt.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          padding: '11px 15px',
+                          borderRadius: m.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                          fontSize: '13.5px',
+                          lineHeight: '1.6',
+                          background: m.role === 'user' ? 'linear-gradient(135deg, #059669 0%, #047857 100%)' : '#ffffff',
+                          color: m.role === 'user' ? '#ffffff' : '#1e293b',
+                          border: m.role === 'user' ? 'none' : '1px solid #e2e8f0',
+                          boxShadow: m.role === 'user' ? '0 2px 6px rgba(5, 150, 105, 0.2)' : '0 2px 5px rgba(0, 0, 0, 0.04)',
+                          wordBreak: 'break-word',
+                        }}
+                      >
+                        {m.text}
+                      </div>
+                    )}
 
                     {/* Quick Voice Playback for Assistant Replies */}
                     {m.role !== 'user' && voiceAvailable.output && (
@@ -907,6 +1187,56 @@ export function App() {
             </div>
           )}
 
+          {/* Hands-Free Loop Status Banner */}
+          {autoListen && (
+            <div
+              style={{
+                margin: '8px 14px 0 14px',
+                padding: '7px 12px',
+                borderRadius: '10px',
+                background: voiceState === 'listening' ? '#fef2f2' : voiceState === 'speaking' ? '#f0fdf4' : '#f8fafc',
+                border: voiceState === 'listening' ? '1px solid #fca5a5' : voiceState === 'speaking' ? '1px solid #86efac' : '1px solid #cbd5e1',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                fontSize: '11.5px',
+                color: voiceState === 'listening' ? '#991b1b' : voiceState === 'speaking' ? '#166534' : '#475569',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>{voiceState === 'listening' ? '🔴' : voiceState === 'speaking' ? '🔊' : '🟢'}</span>
+                <span style={{ fontWeight: 700 }}>
+                  {voiceState === 'listening'
+                    ? 'Hands-Free: Listening to you now... Speak anytime'
+                    : voiceState === 'speaking'
+                    ? 'Hands-Free: Rashid speaking reply (will resume listening)'
+                    : 'Hands-Free Active: Speak anytime, auto-submits on pause'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setAutoListen(false);
+                  autoListenRef.current = false;
+                  voice.current?.cancel();
+                }}
+                style={{
+                  background: '#ffffff',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '6px',
+                  padding: '2px 8px',
+                  fontSize: '10.5px',
+                  fontWeight: 700,
+                  color: '#475569',
+                  cursor: 'pointer',
+                }}
+              >
+                Pause Loop ⏸
+              </button>
+            </div>
+          )}
+
           {/* Voice Auto-Submitting Banner */}
           {voiceCountdown && (
             <div
@@ -1009,7 +1339,7 @@ export function App() {
                 type="button"
                 disabled={!voiceAvailable.input}
                 aria-pressed={voiceState === 'listening'}
-                title={voiceState === 'listening' ? 'Stop listening & send' : 'Dictate with microphone'}
+                title={voiceState === 'listening' ? 'Stop listening & send' : 'Start hands-free voice'}
                 onClick={() => {
                   setVoiceError('');
                   if (voiceState === 'listening') {
@@ -1021,6 +1351,8 @@ export function App() {
                       void handleSendRef.current(toSend);
                     }
                   } else {
+                    setAutoListen(true);
+                    autoListenRef.current = true;
                     if (voiceSilenceTimer.current) clearTimeout(voiceSilenceTimer.current);
                     pendingVoiceText.current = '';
                     setVoiceCountdown(null);
