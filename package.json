@@ -12,7 +12,7 @@
   ],
   "scripts": {
     "dev": "turbo run dev --parallel",
-    "dev:backend": "node --experimental-strip-types scripts/dev-backend.ts",
+    "dev:backend": "node --env-file-if-exists=.env --experimental-strip-types scripts/dev-backend.ts",
     "dev:react": "npm run dev --workspace=apps/shell-react",
     "dev:angular": "npm run dev --workspace=apps/shell-angular",
     "dev:flutter": "cd apps/shell-flutter && flutter run -d chrome",
