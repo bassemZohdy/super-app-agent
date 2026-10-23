@@ -8,11 +8,79 @@ export interface OpenRouterConfig {
   model: string;
   baseUrl: string;
 }
+
+export interface OpenRouterTTSConfig {
+  apiKey: string;
+  model: string;
+  voice: string;
+  baseUrl: string;
+}
+
 export function getOpenRouterConfig(): OpenRouterConfig {
   return {
     apiKey: process.env.OPENROUTER_API_KEY || '',
     model: process.env.OPENROUTER_MODEL || 'openrouter/free',
     baseUrl: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
+  };
+}
+
+export function getOpenRouterTTSConfig(): OpenRouterTTSConfig {
+  return {
+    apiKey: process.env.OPENROUTER_API_KEY || '',
+    model: process.env.OPENROUTER_TTS_MODEL || 'hexgrad/kokoro-82m',
+    voice: process.env.OPENROUTER_TTS_VOICE || 'alloy',
+    baseUrl: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
+  };
+}
+
+export interface TTSResult {
+  audioBase64: string;
+  format: string;
+  model: string;
+  voice: string;
+}
+
+export async function invokeOpenRouterTTS(
+  input: string,
+  options: { voice?: string; language?: string } = {}
+): Promise<TTSResult | null> {
+  const config = getOpenRouterTTSConfig();
+  if (!config.apiKey || !input || !input.trim()) {
+    return null;
+  }
+  const base = new URL(config.baseUrl);
+  if (base.protocol !== 'https:' && process.env.NODE_ENV === 'production') {
+    throw new Error('Production OpenRouter endpoint must use HTTPS');
+  }
+  const url = new URL(config.baseUrl.replace(/\/$/, '') + '/audio/speech');
+  const selectedVoice = options.voice || config.voice;
+  const response = await fetch(url, {
+    method: 'POST',
+    signal: AbortSignal.timeout(15_000),
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${config.apiKey}`,
+      'HTTP-Referer': 'https://superapp-agent.internal',
+      'X-Title': 'SuperApp Agent Platform',
+    },
+    body: JSON.stringify({
+      model: config.model,
+      input: input.slice(0, 3000),
+      voice: selectedVoice,
+      response_format: 'mp3',
+    }),
+  });
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '');
+    throw new Error(`OpenRouter TTS failed: HTTP ${response.status} ${errorText.slice(0, 200)}`);
+  }
+  const arrayBuffer = await response.arrayBuffer();
+  const audioBase64 = Buffer.from(arrayBuffer).toString('base64');
+  return {
+    audioBase64,
+    format: 'audio/mpeg',
+    model: config.model,
+    voice: selectedVoice,
   };
 }
 export async function invokeOpenRouterChat(messages: Array<{ role: string; content: string }>): Promise<string> {

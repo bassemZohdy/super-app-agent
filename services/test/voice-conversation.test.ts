@@ -81,6 +81,77 @@ test('voice: speech is opt-in, cancels listening, handles playback failure and d
   assert.equal(f.states.length, count); assert.equal(f.errors.length, 1);
 });
 
+test('voice: neural audio playback plays via Audio element, falls back cleanly on failure, and can be cancelled', async () => {
+  const createdAudio: any[] = [];
+  class FakeAudio {
+    src: string;
+    onended: (() => void) | null = null;
+    onerror: (() => void) | null = null;
+    paused = false;
+    constructor(src: string) {
+      this.src = src;
+      createdAudio.push(this);
+    }
+    async play() {}
+    pause() { this.paused = true; }
+  }
+
+  const states: string[] = [];
+  const errors: string[] = [];
+  const spokenUtterances: any[] = [];
+
+  const env: VoiceEnvironment = {
+    Audio: FakeAudio as any,
+    SpeechSynthesisUtterance: class { text: string; constructor(text: string) { this.text = text; } },
+    speechSynthesis: { speak: (u: any) => spokenUtterances.push(u), cancel: () => {} },
+  };
+
+  // 1. Success case: neural TTS audio plays and onended transitions state to idle
+  let fetchCount = 0;
+  const client = new VoiceClient({
+    onTranscript: () => {},
+    onState: state => states.push(state),
+    onError: err => errors.push(err),
+    fetchAudio: async () => {
+      fetchCount++;
+      return { audioBase64: 'FAKE_BASE64_AUDIO', format: 'audio/mpeg' };
+    },
+  }, env);
+
+  assert.equal(client.canSpeak, true);
+  client.speak('Welcome to Dubai!');
+  await new Promise(r => setTimeout(r, 10));
+
+  assert.equal(fetchCount, 1);
+  assert.equal(states.at(-1), 'speaking');
+  assert.equal(createdAudio.length, 1);
+  assert.match(createdAudio[0].src, /FAKE_BASE64_AUDIO/);
+
+  createdAudio[0].onended!();
+  assert.equal(states.at(-1), 'idle');
+
+  // 2. Fallback case: fetchAudio returns no audioBase64 -> falls back to browser synthesis
+  const fallbackClient = new VoiceClient({
+    onTranscript: () => {},
+    onState: state => states.push(state),
+    onError: err => errors.push(err),
+    fetchAudio: async () => ({ available: false }),
+  }, env);
+
+  fallbackClient.speak('Fallback test');
+  await new Promise(r => setTimeout(r, 10));
+  assert.equal(spokenUtterances.length, 1);
+  assert.equal(spokenUtterances[0].text, 'Fallback test');
+
+  // 3. Cancel mid-flight: pauses audio and returns to idle
+  client.speak('Cancel me');
+  await new Promise(r => setTimeout(r, 10));
+  assert.equal(states.at(-1), 'speaking');
+  client.cancel();
+  assert.equal(states.at(-1), 'idle');
+  assert.equal(createdAudio.at(-1).paused, true);
+});
+
 const intent = (sessionId: string, text: string) => core('POST', '/api/a2ui/intent', {}, { sessionId, text });
 
 test('conversation: replies and current-proposal explanations agree across HTTP/SSE without effects', async () => {
