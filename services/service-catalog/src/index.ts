@@ -1,3 +1,4 @@
+import { createApplicationServer } from '../../../packages/backend-kit/src/application.ts';
 import { validateRequest, toolSchema } from '../../../packages/protocol-core/src/request-validation.ts';
 import http from 'node:http';
 import { capabilities } from './capabilities.ts';
@@ -257,41 +258,7 @@ function sendJson(res: http.ServerResponse, statusCode: number, data: any) {
   res.end(JSON.stringify(data));
 }
 
-export const server = http.createServer((req, res) => {
-  const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
-  const method = req.method || 'GET';
-
-  if (method === 'OPTIONS') {
-    res.writeHead(204, {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    });
-    return res.end();
-  }
-
-  const query: Record<string, string> = {};
-  url.searchParams.forEach((v, k) => {
-    query[k] = v;
-  });
-
-  if (method === 'POST') {
-    let bodyText = '';
-    req.on('data', (chunk) => (bodyText += chunk));
-    req.on('end', () => {
-      try {
-        const body = bodyText ? JSON.parse(bodyText) : {};
-        const result = executeCatalogRequest(method, url.pathname, query, body);
-        sendJson(res, result.status, result.data);
-      } catch (e: any) {
-        sendJson(res, 400, { error: 'Invalid JSON body', details: e.message });
-      }
-    });
-  } else {
-    const result = executeCatalogRequest(method, url.pathname, query);
-    sendJson(res, result.status, result.data);
-  }
-});
+export const server = createApplicationServer('service-catalog', executeCatalogRequest);
 
 const PORT = parseInt(process.env.PORT || '4004', 10);
 if (process.argv[1]?.endsWith('service-catalog/src/index.ts')) {

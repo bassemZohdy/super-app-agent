@@ -1,129 +1,86 @@
-# Super App Agent
+# Cityside — Super App Agent
 
-**Agent-first Smart City Super App — implementation prototype and architectural reference.**
+A runnable city-services demo with a conversational concierge, independently persisted provider APIs, Keycloak authentication, and Redis sessions. RTA, DEWA, Etisalat, du, Dubai Police and Dubai Land Department are **simulated entities**. Payments use simulated funds; no real government or financial system is connected.
 
-> **Status (23 October 2026):** A functional *simulated* Smart City demonstration, not a production platform. The source contains React, Angular and Flutter shells; service simulators; a custom JSON UI/event contract; basic token verification; and optional OpenRouter inference previews. It does **not** implement a genuine LangGraph execution runtime, official AG-UI/A2UI, durable workflow persistence, production user consent, or live government integrations.
+## Run the integrated demo
 
-The design goal is **Option A: Agent-Centric Super App**. A Concierge Agent should be the primary interface for discovering services, assembling multi-domain journeys and choosing UI surfaces. The shell continues to own presentation/navigation, while domain services own business authorization and transactions. The current code demonstrates that concept with deterministic routing.
-
-## Documentation
-
-| Start here | Purpose |
-| --- | --- |
-| [Documentation index](docs/INDEX.md) | All guides, architecture and decisions |
-| [System overview](docs/architecture/system-overview.md) | **As-built** architecture, boundaries and data flow |
-| [Target architecture](docs/architecture/target-architecture.md) | Agent-first **proposed** direction, not implemented |
-| [UI protocols](docs/architecture/protocol-ag-ui-a2-ui.md) | Current custom messages vs official AG-UI and A2UI |
-| [Service contracts](docs/architecture/service-contracts.md) | Simulated service endpoints, catalog and actions |
-| [Local development](docs/development/local-development.md) | Setup and demo commands |
-| [Testing](docs/development/testing.md) | Test coverage, limitations and validation checklist |
-| [Security](SECURITY.md) | Authentication, threat boundaries and production blockers |
-| [Backlog](TODO.md) | Prioritized pending work; earlier demo phases archived |
-
-## Current implementation at a glance
-
-| Component | Location | What exists today |
-| --- | --- | --- |
-| React host | `apps/shell-react` | Chat panel, custom declarative UI renderer, directly imported mini-app modules |
-| Angular host | `apps/shell-angular` | Separate Angular demonstration shell and custom rendering |
-| Flutter host | `apps/shell-flutter` | Flutter/Dart demo interface and native widget mapping |
-| Agent HTTP/SSE server | `services/agent-core/src/index.ts` | Intent/action endpoints, SSE, in-memory user-bound sessions, surface action allowlist |
-| Journey logic | `services/agent-core/src/langgraph/graph.ts` | Keyword classification, direct TypeScript calls to simulated domains, hardcoded UI builders |
-| Model adapter | `services/agent-core/src/openrouter.ts` | Optional, bounded OpenRouter call; **response is not used to select a journey** |
-| Services | `services/service-{ride,food,wallet,catalog,profile}` | Simulated API handlers and fixtures; NOT external government integrations |
-| Protocols | `packages/protocol-core` | **Project-specific** AG-UI/A2-UI-named types, events, validation |
-| Gateway configuration | `services/agentgateway/config.yaml` | Candidate agentgateway.dev configuration; MCP/LLM routing **not established as end-to-end verified** |
-| Identity | `services/agent-core/src/auth.ts` | RS256/JWKS JWT signature and selected claims checks; explicit local-only demo identity |
-
-**Naming warning:** The repo's legacy `AG-UI` = custom component tree and `A2-UI` = custom transport/events. That is **not** the terminology or schema of the public standards. Standard [AG-UI](https://github.com/ag-ui-protocol/ag-ui) is agent↔application interaction, while [A2UI](https://a2ui.org/) is a declarative UI specification. Keep the custom contract isolated until formal adapters exist.
-
-## Quick start — local demo (no LLM key)
-
-Prerequisites: a modern Node.js 22+ installation with TypeScript type stripping support, npm, and optionally Flutter and Docker. See [setup caveats](docs/development/local-development.md).
+Requires Node.js 24+, npm, and Docker Compose. Install dependencies before starting the containers: the demo mounts this checkout and its installed backend dependencies read-only.
 
 ```bash
-git clone https://github.com/bassemZohdy/super-app-agent.git
-cd super-app-agent
-cp .env.example .env
-# Edit .env and set DEMO_AUTH=true only for local development
-npm install
-npm test
-npm run dev:backend
-```
-
-In another terminal:
-
-```bash
+npm ci --ignore-scripts
+cp .env.example .env  # first setup only; preserve an existing .env
+npm run demo:up
 npm run dev:react
 ```
 
-Open http://localhost:3000. Backend health: http://localhost:4000/health. If `DEMO_AUTH` is not enabled, the React demo marker will be rejected, by design. Never set `DEMO_AUTH=true` for a public deployment or use real personal/payment data.
+Open [React](http://localhost:3000), sign in with Keycloak, and choose **bassem** or **demo-commuter**, password **demo123**. Each user has separate personal and household accounts. Keycloak can take about 30 seconds to initialize on first start. An OpenRouter key in the ignored `.env` enables generated replies; the demo works without a key. Set `ENABLE_LIVE_LLM=false` for deterministic replies.
 
-Other scripts: `npm run dev:angular`, `npm run dev:flutter`, `npm run build` and `npm run test:record`. The Node/TypeScript build (including React and Angular bundles) and 49 automated tests pass in the [dated verification report](docs/reports/2026-10-23-release-gates.md). Flutter, browser smoke and real Keycloak execution remain open. The legacy recorded scenarios are historical artifacts, not evidence of current production security.
+`npm run dev:angular` serves the Angular shell at http://localhost:3001. Flutter has a local-demo sign-in and account/history controls; its SDK is required and native execution has not been verified here.
 
-## Optional LLM preview: free-first
-
-```dotenv
-OPENROUTER_API_KEY=                # optional; keep in ignored .env
-OPENROUTER_MODEL=openrouter/free
-ENABLE_LIVE_LLM=false             # set true to allow the informational preview
-OPENROUTER_ALLOW_PAID_MODELS=false
+```bash
+npm run demo:verify:journeys # all provider payment and move-in flows
+npm run demo:verify     # real local Keycloak + REST + payments + Redis checks
+npm run test:redis      # distributed locks, ownership, JSON persistence and replay
+npm test               # offline regression and OpenAPI contract tests
+npm run build -- --concurrency=2
+npm run demo:logs
+npm run demo:down       # stops containers; preserves databases
 ```
 
-Without a key, normal mock journeys still work and make **no LLM calls**. When enabled, the agent sends context to an OpenRouter model; **it ignores the model response for routing and tool execution**. The free router selects a free model according to provider availability; a specific `:free` model can be used for model-specific tests. Free API availability/rate limits can change. There is no silent paid failover; selecting a paid model requires `OPENROUTER_ALLOW_PAID_MODELS=true`. See [local development](docs/development/local-development.md).
+Do not run the integrated stack and `dev:backend` simultaneously: both use ports 4000–4006. [Full setup, credentials and troubleshooting](docs/development/local-development.md).
 
-**Never paste API keys into GitHub, issues or this repository.** An OpenRouter key is not required for the included mock tests.
-
-## As-built request flow
+## What runs
 
 ```mermaid
-sequenceDiagram
-    actor Citizen as Demo user
-    participant UI as React/Angular/Flutter shell
-    participant Core as agent-core HTTP/SSE
-    participant Graph as Deterministic SuperAppAgentGraph
-    participant Domain as In-process service simulators
-    Citizen->>UI: Enter text intent
-    UI->>Core: POST /api/a2ui/intent
-    Core->>Core: Verify auth, bind session to subject
-    Core->>Graph: executeIntent(text, state)
-    opt Optional enabled OpenRouter preview
-        Graph-->>Graph: LLM response ignored for routing
-    end
-    Graph->>Domain: Direct execute*Request calls
-    Domain-->>Graph: Simulated result
-    Graph-->>Core: Custom UI surface
-    Core-->>UI: HTTP response + custom SSE render event
-    Citizen->>UI: Click offered action
-    UI->>Core: POST /api/a2ui/action
-    Core->>Core: Validate action on current surface
-    Core->>Graph: resumeWithAction(action)
-    Graph->>Domain: Simulated mutation
-    Core-->>UI: Updated surface
+flowchart LR
+  Shell[React / Angular / Flutter] -->|User access token| Core[Concierge API]
+  Shell -->|Sign in| KC[Keycloak]
+  Core --> Redis[(Redis sessions / locks / replay)]
+  Core -->|REST + user identity + account| Apps[Application microservices]
+  Apps -->|Client credentials| KC
+  Apps -->|Service token + trusted user context| Providers[RTA / DEWA / Etisalat / du / Police / DLD]
+  Apps --> Payments[Payment gateway simulator]
+  Providers -->|Check captured payment| Payments
+  Providers --> SQLite[(Separate SQLite database per entity)]
+  Payments --> Ledger[(Payment SQLite ledger)]
+  Core -->|Grounded conversational replies| OR[OpenRouter]
 ```
 
-The demo can run without the separate agentgateway container; direct service imports mean this request path does not validate remote MCP federation.
+| Layer | Components | Persistence / responsibility |
+| --- | --- | --- |
+| Shells | Cityside React, Angular, Flutter | Presentation, sign-in and account selection; browsers use code + PKCE |
+| Concierge | `services/agent-core` | Intent/action API, deterministic routing, grounded model replies, surface approval checks |
+| Application APIs | ride, food/utilities, wallet, catalog/housing, profile, telecom | Validate user JWTs and selected accounts; call providers using their own client credentials |
+| Provider APIs | `services/provider-simulator`, seven independently configured instances | Versioned REST, OpenAPI 3.1, scoped service authorization, account-owned SQLite state and idempotency |
+| Identity | Seeded Keycloak realm | End-user authentication and distinct confidential service accounts |
+| Session store | Redis with append-only persistence | Owner/account binding, transcript, surfaces, reconciliation state, TTL, leases and shared SSE replay |
 
-## Voice and conversation
+The food-named application service still owns utilities for compatibility. `service-telecom` integrates both telecom entities. Profile/preferences and food orders use account-scoped application SQLite storage. The lightweight fixture runner remains available for historical scenarios and tests; it is not the isolated integration stack.
 
-React/Angular chat supports **Use microphone** to draft a message and **Read replies aloud** for optional speech playback. Review the transcript before pressing Send. Text replies appear alongside the current interactive surface; follow-ups such as “explain this” and “show me the options” retain the current topic. A booking/payment still requires its surface confirmation button.
+## Provider APIs and OpenAPI
 
-Voice availability depends on the browser; typing remains available. Browser speech services may process audio remotely. Flutter receives assistant text; native speech is pending. See [usage, architecture and validation limits](docs/architecture/voice-and-conversation.md).
+| Simulator | Port | OpenAPI | Main resources |
+| --- | --- | --- | --- |
+| RTA | 4101 | [Contract](services/provider-simulator/openapi/rta.openapi.json) | parking, rides, Salik, EV charging, residential permits |
+| DEWA | 4102 | [Contract](services/provider-simulator/openapi/dewa.openapi.json) | meter consumption, bills, connections |
+| Etisalat | 4103 | [Contract](services/provider-simulator/openapi/etisalat.openapi.json) | subscriptions, plans, bills |
+| du | 4104 | [Contract](services/provider-simulator/openapi/du.openapi.json) | subscriptions, plans, bills |
+| Dubai Police | 4105 | [Contract](services/provider-simulator/openapi/police.openapi.json) | fines and settlements |
+| Land/tenancy | 4106 | [Contract](services/provider-simulator/openapi/dld.openapi.json) | tenancy and move-in proposals |
+| Payment gateway | 4107 | [Contract](services/provider-simulator/openapi/payments.openapi.json) | wallets, top-ups, capture, declines, refunds, transaction history |
 
-## Scope and operating constraints
+Each exposes `/health` and `/openapi.json`. Protected resources use `/v1/accounts/{accountId}/…`; writes require `Idempotency-Key`. See [provider integration guide](docs/demo/provider-backends.md) for grants, examples, exact payment semantics and limits.
 
-- **Mock services and fixtures:** names such as DubaiNow, TAMM, UAE PASS, DEWA, Salik and Dubai Police are *scenario references*, not evidence of connectivity, authorization or official endorsement.
-- **Sessions:** state/duplicate-action tracking is in memory only and vanishes on restart. UI action checks do not replace domain authorization or explicit transaction consent.
-- **Authentication:** `DEMO_AUTH` simulates one local user; production-mode verification of RS256 JWTs exists, but browser shells do not yet implement full OIDC/PKCE. React/Angular now use an authenticated fetch-based SSE client, but still supply a local demo token until login is implemented.
-- **Frontend federation:** mini-apps are imported into shells; manifests contain example remote URLs but an independently deployed, secure MFE registry/loader is not shown by this source.
-- **Models:** OpenRouter is the optional inference service. The cognitive runtime remains deterministic, not multi-agent planning.
-- **Gateway:** the YAML represents an architectural candidate and does not prove that its deployed image accepts the configuration or implements the declared policies.
+## Model behavior and limits
 
-For real identity, delegated consent, payments, or citizen records, all blockers in [SECURITY.md](SECURITY.md) and [TODO.md](TODO.md) must be resolved first.
+OpenRouter replies use the last 12 conversation messages and current service results. The actual generated text reaches HTTP/SSE clients; provider failures are shown explicitly. Keys remain server-side. The default model is `openrouter/free`; paid models require `OPENROUTER_ALLOW_PAID_MODELS=true` and there is no silent paid fallback.
 
-## Collaboration
+Routing and service execution remain deterministic. This repository does not implement a genuine LangGraph runtime, official AG-UI/A2UI, a durable workflow engine, production consent, a secure remote mini-app registry, or production government integrations. The legacy AG-UI/A2-UI names describe a project-specific JSON surface and event protocol.
 
-The [ADRs](docs/adr/) document decisions and proposals, each labeled according to implementation maturity. New features should include tests, contract updates, and matching documentation; do not mark a target capability “implemented” solely because a manifest or diagram mentions it.
+The demo uses known credentials, local HTTP, Redis AOF `everysec`, and embedded databases. It is intended for local development. [Security boundaries](SECURITY.md), [remaining work](TODO.md), [current verification](docs/reports/2026-10-23-provider-demo.md).
 
-License: MIT (as declared in `package.json`).
+## Documentation
 
+[Documentation index](docs/INDEX.md) · [System overview](docs/architecture/system-overview.md) · [Provider contracts](docs/architecture/service-contracts.md) · [Session and stream behavior](docs/architecture/event-stream.md) · [Testing](docs/development/testing.md) · [Change history](docs/CHANGELOG.md)
+
+License: MIT.

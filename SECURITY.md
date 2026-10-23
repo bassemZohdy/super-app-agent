@@ -1,70 +1,41 @@
-# Security and trust boundaries
+# Security boundaries
 
-**Review baseline:** 23 October 2026 after merged hardening PR #1. **This project is not production-safe for government, identity or financial data.** The names DubaiNow, TAMM, UAE PASS, Salik, DEWA, Police, etc. identify fictional scenarios, not authenticated integrations or organizational endorsement.
+This repository is a local demo. The reference stack uses known users/client secrets, local HTTP, single-node Redis and embedded SQLite. The named entities and all money are simulated. Do not deploy this realm/configuration publicly or use real personal/card/government records.
 
-Security issues should be assessed against actual source/deployment, not against aspirational ADRs.
+## Identity and service authorization
 
-## Trust model
+React and Angular use a public Keycloak client with authorization code and S256 PKCE, state/expiry checks, refresh and logout. Browser tokens live in sessionStorage, not in URLs or committed configuration. This remains readable by same-origin JavaScript: production needs an explicit XSS/session architecture and hardened deployment. Flutter's current sign-in is an explicitly local-demo password grant; native PKCE remains pending.
 
-| Actor/component | Trusted for | **Not** trusted for |
-| --- | --- | --- |
-| Browser/Flutter shell | Rendering allowed UI and initiating requests | Business authorization, deciding transaction amounts, asserting user identity |
-| Agent/LLM | Suggesting plans, responses, selected approved capabilities | Granting consent, selecting its own security scope, invoking arbitrary money movement |
-| Agent-core | Validating incoming tokens/session and surface action constraints | Domain resource ownership or distributed transaction safety |
-| Capability/domain service | Owning its specific data/business policy **when implemented** | Trusting UI/agent-provided authorization without verifying it |
-| Identity/consent service | Verifying user + actor delegation, scopes, consent, revocation | Inferring approval from model text |
-| Gateway | Ingress/data-plane mediation **if verified** | Replacing domain authorization or durable workflow state |
+Core and application APIs verify RS256 signatures against configured JWKS, exact issuer/audience, expiration and user subject. Application APIs additionally require `superapp-user`. The core's `DEMO_AUTH=true` bypass applies only outside production and is disabled in integrated Compose. Fixture mode intentionally retains weaker legacy handlers and singleton data for offline tests.
 
-## What the source currently implements
+Application services independently obtain client-credential tokens, cached only in their process and refreshed before expiry. Providers require audience `provider-api`, an allowed `azp` and an exact provider realm role. The settlement client has read-only payment access. No service credential enters a browser. Production provider/JWKS/token endpoints require HTTPS.
 
-**Keycloak token validation:** `services/agent-core/src/auth.ts` requires RS256 with configured JWKS, exact `KEYCLOAK_ISSUER`, audience `KEYCLOAK_AUDIENCE`, expiration, subject, optional not-before and future issue-time check. Public keys are cached in process for about five minutes. This is a useful ingress guard, **not** proof of a complete OIDC/RBAC/delegation architecture. Claim verification has no online revocation check or explicit token-type/scope authorization.
+`X-User-Subject` is trusted only after machine authentication. Application services derive it from the validated user JWT. Providers enforce account membership and resource ownership through their SQLite account records. This is a demo trusted-service delegation boundary, not cryptographic on-behalf-of token exchange, tenant federation, or production consent.
 
-**Demo bypass:** `DEMO_AUTH=true` and `NODE_ENV !== production` permit synthetic `demo-local` identity (including requests without bearer token). This is for isolated localhost demonstrations **only**. Never configure it on shared environments or any public network.
+## Session ownership and recovery
 
-**Session authorization:** an in-memory map associates a session ID to subject `sub`. SSE verifies bearer tokens and ownership, rejects disallowed origins, expires connections, and supports replay/snapshots. Replay is bounded to 100 events/session, 1,000 sessions, 8 MiB total and five-minute idle retention; five listeners/session and 256 KiB pending output/listener limit slow consumers. None of this is durable or cross-replica; owner/session/action maps still need lifecycle limits.
+Integrated mode stores owner subject, immutable selected account, up to 100 messages, current surface/revision and reconciliation state in Redis. Default inactivity TTL is one hour. Active requests renew an expiring lease, check it before mutations, and use token-fenced saves/releases. Overlaps return 409; Redis failures fail closed rather than creating new sessions. React can list/restore/delete only the signed-in user's conversations.
 
-**Action authorization:** agent-core checks whether the action is represented by the active surface, validates selected UI choices, and protects certain submitted fields (amount, duration, zone, plate, ticket) from client edits. Repeated same-surface actions are rejected in one process. **These checks cannot establish payment consent, prevent races across processes or enforce domain ownership.**
+Redis also persists 100 replay events/session and carries cross-process pub/sub. Socket backpressure/listener bounds remain local to each core process. The reference AOF uses `everysec`: normal restarts preserve state, but a crash can lose recent writes. Global quotas, online revocation, HA, encryption, retention enforcement and disaster recovery remain production work. Deleting an idle conversation deletes its state/events, not entity financial/business records.
 
-**CORS/network:** agent-core rejects requests with a disallowed Origin and uses the `CORS_ORIGINS` allowlist for HTTP/SSE, with `Vary: Origin`. Requests without Origin still require API authentication. CORS does not replace authorization. Compose exposes demo backend and Keycloak host ports only on 127.0.0.1. The separate agentgateway YAML has wildcard CORS and has not been validated as an active enforcement path.
+## Business writes and payments
 
-**Input/money validation:** shared non-coercing request contracts run before all core/domain effects. Numeric strings, non-finite/negative/over-precision/oversized money and malformed nested objects are rejected; selected mutations require explicit resource IDs. Integer minor-unit arithmetic and aggregate ceilings protect fixture balances. This does not implement domain authorization, immutable quotes, durable transactions or true cross-currency settlement.
+Every provider write requires a persisted per-account idempotency key and a request hash. Matching replays return the stored result; changed payloads conflict. Input schemas reject unknown fields and invalid amounts. Gateway amounts are integer AED fils; capture/decline/refund and balance updates are transactional. Refund is allowed once per captured payment.
 
-**LLM spend:** no key = no network inference; live preview is off by default and free-model routing is default. Paid models require opt-in, and no automatic paid fallback is configured. This guards **model spend**, not privacy or prompt safety.
+Providers check captured payment ownership, merchant, reference, amount and refund state before settlement, and record consumed proof IDs. Application quotes derive from provider resources. Core action revision/allowlist checks prevent ordinary stale/replayed buttons; complete immutable quote approval, expiry and delegated consent are not yet implemented.
 
-## Immediate risk register
+Capture and entity settlement are separate transactions. An unknown outcome blocks further mutations in that conversation; no cross-service atomicity or automatic compensation is claimed. A provider refund does not itself reverse a settled entity bill. Operators must reconcile payment and entity state. Redis persistence cannot guarantee exactly-once external effects under all crashes or lease-loss scenarios.
 
-| Severity | Risk | Required production resolution |
-| --- | --- | --- |
-| Critical | Demo identity/dev Keycloak realm includes static accounts and insecure settings | Remove fixture users/default passwords, full OIDC/PKCE and production realm hardening |
-| Critical | Domain simulator state shared without per-user authorization; agent calls domain handlers directly | Subject/tenant-aware domain service APIs; enforcement at resource boundaries |
-| Critical | Fake wallet/fines/utility/pay flows can appear successful without reliable transaction guarantees | Server-derived immutable quotes, real payment authority, durable idempotency, compensation, receipts, audit |
-| High | Session and duplicate state only in memory | Durable scoped session/claim-state store, TTL, revocation, per-tenant partitioning |
-| High | Browser shells still supply demo tokens; replay is process-local; Flutter has no new replay adapter | OIDC token lifecycle, Flutter parity, durable replay and multi-instance ownership |
-| High | UI schema/action validation is only partial | Official schema and semantic policies, limits, fuzzing, renderer sandboxes |
-| High | Prompt injection, data exfiltration and tool privilege misuse not evaluated for a real agent | Capability allowlists, input/output safety evaluation, trace-level audit, approved access envelopes |
-| High | Floating agentgateway image, unverified config and wildcard CORS | Version pinning, validated deployment tests, explicit origins, least privilege |
-| Medium | Session/owner/action maps remain unbounded despite bounded replay/listener queues | Session TTL, per-user and total connection quotas, rate limits, monitoring |
-| Medium | No formal official protocol conformance | AG-UI/A2UI/MCP compatibility test harnesses |
+## Models, data and secrets
 
-## Local-only safety rules
+OpenRouter keys stay in ignored `.env`/server environment. No key means no inference. Live replies use bounded conversation/surface context, with a default free router, bounded timeout/tokens, explicit paid opt-in and no automatic paid fallback. Provider failures are visible. Real model connectivity/key validity is not proven by mocked tests.
 
-1. Never commit `.env`, keys, genuine tokens or copied citizen records.
-2. Demo: copy `.env.example` → `.env`; set `DEMO_AUTH=true` only in a local environment. Use fictional records.
-3. Without a key, the mock scenarios work and incur no LLM API usage.
-4. For model experiments, select `OPENROUTER_MODEL=openrouter/free`, `OPENROUTER_ALLOW_PAID_MODELS=false` and consciously enable `ENABLE_LIVE_LLM=true`. **Sending any text to a hosted model may transfer it to third-party providers.** Use synthetic prompts only.
-5. Do not expose Compose frontend or backend outside localhost for testing without rechecking all container/public bindings; backend loopback mappings do not make an insecure frontend safe.
-6. The Keycloak realm JSON is a seeded demo; it is **not an identity-provider hardening template**.
-7. Do not represent mock “receipts”, “verified identity” badges, balances or agency integration as a real authority's confirmation.
+Integration profiles omit real Emirates IDs, but prompts/surfaces still contain synthetic names, vehicle/premise references and bills. Production needs data minimization, approved provider egress/consent, redaction, retention/deletion controls and audit. No raw microphone audio is stored by the app; a browser speech service may process it remotely.
 
-## Production release gates
+`.dockerignore` excludes `.env`, local databases and repository metadata. Generated OpenAPI examples contain no access tokens. The seeded realm and Compose secrets are intentionally public demo credentials and must be replaced outside local development.
 
-- Real end-user OIDC/PKCE and secure authenticated stream lifecycle.
-- Per-resource user/tenant authorization and explicit delegated consent; scope/actor chain verified on **every effect**.
-- Real persistent domain stores and idempotent transaction/compensation workflows.
-- Signed manifest/component catalogs and enforced least-privileged mini-app runtime.
-- Auth/key-rotation/revocation tests, rate limits, CSRF/CORS/stream threat analysis and auditing.
-- Tracing, load/resilience testing, pinned and scanned artifacts, production secrets management.
-- Actual passing builds, security tests against real Keycloak, and signed review of release evidence.
+## Remaining release blockers
 
-This is an engineering risk summary, not a penetration test or compliance assessment. See [TODO](TODO.md) and [architecture](docs/architecture/system-overview.md).
+Production identity/tenant federation; native Flutter OIDC/SSE parity; complete consent/quotes and audit; payment reconciliation/compensation workflows; dependency upgrades/security scans; per-user/global quotas; durable workflow execution; production key rotation/revocation; HTTPS deployment; HA/backups; remote mini-app isolation; official protocol compatibility.
 
+The legacy `DEMO_AUTH` runner and agentgateway candidate are not production security boundaries. See [backlog](TODO.md), [provider guide](docs/demo/provider-backends.md), and [executed verification](docs/reports/2026-10-23-provider-demo.md).

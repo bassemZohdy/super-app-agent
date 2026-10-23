@@ -1,19 +1,19 @@
 :root {
   /* Colors */
-  --color-primary: #3b82f6;
-  --color-primary-hover: #2563eb;
+  --color-primary: #285c76;
+  --color-primary-hover: #1e4961;
   --color-secondary: #64748b;
   --color-background: #ffffff;
   --color-surface: #f8fafc;
   --color-surface-border: #e2e8f0;
   --color-text: #0f172a;
   --color-text-muted: #64748b;
-  --color-success: #10b981;
+  --color-success: #4c987d;
   --color-warning: #f59e0b;
   --color-danger: #ef4444;
 
   /* Typography */
-  --font-family-base: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-family-base: "Avenir Next", Avenir, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-family-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   --font-size-xs: 11px;
   --font-size-sm: 13px;

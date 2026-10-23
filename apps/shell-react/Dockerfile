@@ -1,8 +1,7 @@
-FROM node:22-alpine AS runner
+FROM node:24-alpine
 WORKDIR /app
-COPY package*.json ./
-COPY packages/ ./packages/
-COPY apps/shell-react/ ./apps/shell-react/
+COPY . .
+RUN npm ci --ignore-scripts
 WORKDIR /app/apps/shell-react
 EXPOSE 3000
 CMD ["npm", "run", "dev"]

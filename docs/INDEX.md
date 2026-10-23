@@ -21,7 +21,7 @@ Updated **23 October 2026** following security-hardening PR #1 on `main`.
 | --- | --- | --- |
 | [0001](adr/ADR-0001-superapp-and-mini-app-ecosystem.md) | Super App + Concierge | Accepted **concept**; demo exists |
 | [0002](adr/ADR-0002-ag-ui-and-a2-ui-declarative-protocols.md) | UI protocol | Legacy naming retained for compatibility; standards migration proposed |
-| [0003](adr/ADR-0003-backend-agent-microservices-architecture.md) | Service boundaries | Logical services implemented; remote integration incomplete |
+| [0003](adr/ADR-0003-backend-agent-microservices-architecture.md) | Service boundaries | REST application/provider integration implemented in the demo |
 | [0004](adr/ADR-0004-microfrontend-and-mini-app-runtime.md) | Mini-app runtime | Embedded demo; federation is target |
 | [0005](adr/ADR-0005-multi-flavor-frontend-adapters-react-angular-flutter.md) | Three shells | Demo implementations; parity not verified |
 | [0006](adr/ADR-0006-state-security-and-event-bus.md) | State/security | Initial guards implemented; production guarantees pending |
@@ -29,7 +29,7 @@ Updated **23 October 2026** following security-hardening PR #1 on `main`.
 | [0008](adr/ADR-0008-adoption-of-agentgateway-dev.md) | Agent gateway | Configuration candidate; compatibility must be proven |
 | [0009](adr/ADR-0009-agent-first-with-bounded-authority.md) | Option A agent-first authority boundaries | Proposed for architectural review |
 
-[Documentation change history](CHANGELOG.md) · [Current execution evidence](reports/2026-10-23-release-gates.md) · [Event stream contract](architecture/event-stream.md)
+[Documentation change history](CHANGELOG.md) · [Current execution evidence](reports/2026-10-23-provider-demo.md) · [Event stream contract](architecture/event-stream.md)
 
 ## Evidence and provenance
 
@@ -40,3 +40,12 @@ Updated **23 October 2026** following security-hardening PR #1 on `main`.
 
 
 - [Voice and conversational chat](architecture/voice-and-conversation.md) — microphone drafts, spoken replies, contextual follow-ups and verification limits.
+
+## Integrated provider demo
+
+- [Run and understand the provider backends](demo/provider-backends.md): contracts, grants, embedded databases, payment semantics and Redis sessions.
+- [ADR-0010](adr/ADR-0010-provider-simulators-and-redis-demo.md): implemented local-demo boundaries.
+- [Provider OpenAPI contracts](../services/provider-simulator/openapi): generated, validated OpenAPI 3.1 JSON.
+- [Latest verification](reports/2026-10-23-provider-demo.md): actual tests, browser checks and remaining limitations.
+
+Earlier dated reports, transcripts, videos and archived backlogs are historical evidence and are not overwritten by the new baseline.

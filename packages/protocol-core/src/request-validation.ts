@@ -33,14 +33,15 @@ const actionSchemas: Record<string, Schema> = {
   confirm_smartcity_checkout: object(), confirm_movein: object({ contractNumber: id, unit: text() }),
   book_ride: object({ selectedChoice: id, driverId: id }), order_food: object({ selectedChoice: id }),
   confirm_composite_checkout: object(), topup_wallet: object({ amount: moneySchema }, ['amount']),
+  pay_telecom_bill: object({ provider: { enum: ['etisalat', 'du'] }, billId: id }, ['provider','billId']),
   update_preferences: object({ ...preferencesSchema.properties }),
 };
 for (const [action, schema] of Object.entries(actionSchemas)) {
   // Renderers may echo the advertised action. It must agree with the envelope action.
   schema.properties = { ...schema.properties, action: { const: action } };
 }
-const coreIntent = object({ sessionId, text: text(4000), handshake }, ['sessionId', 'text']);
-const coreAction = object({ sessionId, surfaceRevision: { type: 'string', pattern: '^[0-9a-f-]{36}$' }, action: text(128), payload: { type: 'object' } }, ['sessionId', 'surfaceRevision', 'action', 'payload']);
+const coreIntent = object({ sessionId, accountId: id, text: text(4000), handshake }, ['sessionId', 'text']);
+const coreAction = object({ sessionId, accountId: id, surfaceRevision: { type: 'string', pattern: '^[0-9a-f-]{36}$' }, action: text(128), payload: { type: 'object' } }, ['sessionId', 'surfaceRevision', 'action', 'payload']);
 const coreTts = object({ text: text(4000), voice: { type: 'string', minLength: 1, maxLength: 64 }, language: { type: 'string', minLength: 1, maxLength: 32 } }, ['text']);
 
 type Route = { owner: string; method: string; path: string; aliases?: string[]; schema: Schema; tool?: string };
@@ -54,6 +55,9 @@ for (const owner of ['service-ride', 'service-food', 'service-wallet', 'service-
 route('agent-core', 'POST', '/api/a2ui/intent', coreIntent);
 route('agent-core', 'POST', '/api/a2ui/action', coreAction);
 route('agent-core', 'POST', '/api/a2ui/tts', coreTts);
+for (const path of ['/api/auth/config', '/api/accounts', '/api/sessions']) route('agent-core', 'GET', path, object({ accountId: id }));
+route('agent-core', 'GET', '/api/sessions/{sessionId}', object({ sessionId, accountId: id }, ['sessionId']));
+route('agent-core', 'DELETE', '/api/sessions/{sessionId}', object({ sessionId }, ['sessionId']));
 route('service-ride', 'GET', '/rides/options', object({ destination: text() }), [], 'ride_getOptions');
 route('service-ride', 'POST', '/rides/book', object({ driverId: id, pickup: text(), dropoff: text() }, ['driverId']), [], 'ride_bookCab');
 route('service-ride', 'GET', '/rides/track/{bookingId}', object({ bookingId: id }, ['bookingId']), [], 'ride_trackStatus');

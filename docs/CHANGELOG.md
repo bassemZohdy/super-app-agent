@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 23 October 2026 — integrated provider demo and Cityside interface
+
+Added seven account-scoped SQLite provider simulators and generated OpenAPI 3.1 contracts; application REST adapters and a telecom service; real local Keycloak client credentials and browser PKCE; Redis conversation ownership, TTL, fenced leases, history and shared SSE replay; payment capture/decline/refund, proof checks and persistent idempotency. Unified/move-in adapters avoid legacy duplicate effects. Updated the React/Angular/Flutter design and made OpenRouter replies visible with context and explicit failures. Added the reference Compose stack, provider/Redis/integration verification and refreshed current architecture/security/setup documentation. Historical reports remain unchanged; [current evidence](reports/2026-10-23-provider-demo.md) supersedes their implementation baseline.
+
 ## 2026-10-23 — Voice and conversational chat
 
 - Add React/Angular microphone drafts, English/Arabic recognition locale controls, optional spoken replies, visible errors/text fallback and audio cancellation on editing, sending, tab hide and teardown.

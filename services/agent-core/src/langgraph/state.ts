@@ -1,6 +1,6 @@
 import type { AGUISurfacePayload } from '../../../../packages/protocol-core/src/index.ts';
 
-export type DomainCategory = 'concierge' | 'ride' | 'food' | 'wallet' | 'composite';
+export type DomainCategory = 'concierge' | 'ride' | 'food' | 'wallet' | 'telecom' | 'composite';
 
 export interface AgentMessage {
   id: string;

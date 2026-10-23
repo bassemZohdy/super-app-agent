@@ -1,5 +1,7 @@
 # Frontend shells and mini-app integration
 
+> Current implementation: Cityside React and Angular use Keycloak code + PKCE and account selection. React includes saved-conversation restore/delete. Flutter includes local-demo Keycloak sign-in, account selection and HTTP history restore, with native execution still unverified. Standalone HTML mini-apps remain legacy embedded examples; the React concierge opens supported services through authenticated surfaces. See [local development](../development/local-development.md).
+
 ## What exists
 
 | Surface | Actual source | Present approach | Not yet proven |

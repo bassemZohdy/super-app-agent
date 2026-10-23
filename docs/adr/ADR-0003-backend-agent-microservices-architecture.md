@@ -1,5 +1,7 @@
 # ADR-0003 — Backend domain boundaries and Concierge API
 
+> Current demo implementation update (23 October 2026): see [ADR-0010](ADR-0010-provider-simulators-and-redis-demo.md) and the [provider guide](../demo/provider-backends.md). Earlier implementation descriptions below record the prior fixture baseline. The integrated demo now has REST provider adapters, Keycloak browser/service authentication and Redis sessions; LangGraph, production consent and standards migration remain targets.
+
 **Status:** **Logical separation demonstrated; distributed boundary/protocol target not implemented.**
 **Reviewed:** 2026-10-23.
 

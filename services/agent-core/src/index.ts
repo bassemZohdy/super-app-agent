@@ -1,5 +1,7 @@
+import { actorContext, actorFor, accountIdFor } from '../../../packages/backend-kit/src/context.ts';
+import { redisSessions, SessionError } from './session-store.ts';
 import { randomUUID } from 'node:crypto';
-import { trackDomainOperations, executionOutcome, DomainOperationError, type Step } from './domain-operations.ts';
+import { trackDomainOperations, executionOutcome, DomainOperationError, callDomainAsync, type Step } from './domain-operations.ts';
 import { validateRequest } from '../../../packages/protocol-core/src/request-validation.ts';
 import http from 'node:http';
 import { EventJournal, StreamWriter, eventFrame } from './event-stream.ts';
@@ -11,14 +13,16 @@ import {
 import type { SuperAppAgentState } from './langgraph/state.ts';
 import { SuperAppAgentGraph } from './langgraph/graph.ts';
 import { verifyKeycloakToken, isDemoAuthEnabled } from './auth.ts';
-import { invokeOpenRouterTTS } from './openrouter.ts';
+import { invokeOpenRouterTTS, getModelStatus } from './openrouter.ts';
 
 // In-Memory Session and SSE Subscriber Registry
 export const sessions = new Map<string, SuperAppAgentState>();
 const sessionOwners = new Map<string, string>();
 export const sseClients = new Map<string, Set<(msg: A2UIMessageEnvelope) => void>>();
 export const eventJournal = new EventJournal();
-function broadcast(sessionId: string, msg: A2UIMessageEnvelope) {
+async function broadcast(sessionId: string, msg: A2UIMessageEnvelope) {
+  const persistent = redisSessions();
+  if (persistent) { await persistent.publish(sessionId, msg); return; }
   eventJournal.append(sessionId, msg);
   for (const listener of sseClients.get(sessionId) || []) listener(msg);
 }
@@ -46,14 +50,14 @@ function isSurfaceActionAllowed(state: SuperAppAgentState, action: string, paylo
   };
   walk(state.currentSurface.view);
   if (payload.selectedChoice !== undefined && !choices.has(payload.selectedChoice)) return false;
-  const protectedFields = ['amount', 'durationHours', 'zoneId', 'plateNumber', 'ticketId'];
+  const protectedFields = ['amount', 'durationHours', 'zoneId', 'plateNumber', 'ticketId', 'provider', 'billId', 'subscriptionId', 'planId'];
   return bindings.some(binding => protectedFields.every(field =>
     payload[field] === undefined || (binding[field] !== undefined &&
       JSON.stringify(payload[field]) === JSON.stringify(binding[field]))
   ));
 }
 const activeTransitions = new Set<string>();
-type RequestContext = { session?: SuperAppAgentState; release?: () => void };
+type RequestContext = { session?: SuperAppAgentState; release?: () => void | Promise<void>; save?: () => Promise<void>; assertLease?: () => Promise<void> };
 
 function commitSurface(session: SuperAppAgentState) {
   const surface = session.currentSurface;
@@ -98,13 +102,22 @@ async function handleGatewayRequest(
       data: {
         status: 'ok',
         service: 'agent-core',
+        llm: getModelStatus(),
         agentCore: 'deterministic-demo-router',
         edgeProxy: 'agentgateway.dev',
-        activeSessions: sessions.size,
+        activeSessions: process.env.SESSION_STORE === 'redis' ? undefined : sessions.size,
+        sessions: { store: process.env.SESSION_STORE || 'memory', ttlSeconds: Number(process.env.SESSION_TTL_SECONDS || 3600) },
+        integration: process.env.PROVIDER_INTEGRATION === 'true' ? 'rest-providers' : 'legacy-fixtures',
         timestamp: new Date().toISOString(),
       },
     };
   }
+
+  if (normMethod === 'GET' && pathname === '/api/auth/config') return { status: 200, data: {
+    enabled: process.env.PROVIDER_INTEGRATION === 'true' || !isDemoAuthEnabled(),
+    issuer: process.env.KEYCLOAK_PUBLIC_ISSUER || process.env.KEYCLOAK_ISSUER,
+    clientId: process.env.KEYCLOAK_CLIENT_ID || 'superapp-shell',
+  } };
 
   // Keycloak OIDC Authentication & Security Check
   const authHeader = headers['authorization'] || headers['Authorization'];
@@ -119,28 +132,61 @@ async function handleGatewayRequest(
     };
   }
 
-  // Hold coordination through execution, failure rendering and final broadcast.
+  const accountId = body.accountId || query.accountId || accountIdFor(authResult.user!.sub);
+  if (![accountIdFor(authResult.user!.sub), accountIdFor(authResult.user!.sub, 'household')].includes(accountId)) {
+    return { status: 403, data: { success: false, code: 'ACCOUNT_FORBIDDEN', error: 'This account does not belong to the signed-in user.' } };
+  }
+  const actor = actorFor(authResult.user!, accountId, authHeader);
+  if (normMethod === 'GET' && pathname === '/api/accounts') {
+    const accounts = process.env.PROVIDER_INTEGRATION === 'true'
+      ? (await actorContext.run(actor, () => callDomainAsync('profile', 'GET', '/accounts'))).data.accounts
+      : [{ id: accountIdFor(actor.sub), label: 'Personal account' }, { id: accountIdFor(actor.sub, 'household'), label: 'Household account' }];
+    return { status: 200, data: { success: true, accounts, user: authResult.user } };
+  }
+  if (normMethod === 'GET' && pathname === '/api/sessions') {
+    const persistent = redisSessions();
+    return { status: 200, data: { success: true, sessions: persistent ? await persistent.list(actor.sub) : [...sessions.values()].filter(s => sessionOwners.get(s.sessionId) === actor.sub).map(s => ({ sessionId: s.sessionId, accountId: s.metadata?.accountId, title: s.messages.find(m => m.role === 'user')?.content.slice(0,80) || 'New conversation' })) } };
+  }
+  const sessionPath = /^\/api\/sessions\/([a-zA-Z0-9_-]{8,128})$/.exec(pathname);
+  if (sessionPath && (normMethod === 'GET' || normMethod === 'DELETE')) {
+    const sid = sessionPath[1], persistent = redisSessions();
+    if (persistent) {
+      if (normMethod === 'DELETE') { await persistent.remove(sid, actor.sub); return { status: 200, data: { success: true } }; }
+      const record = await persistent.read(sid, actor.sub);
+      return { status: 200, data: { success: true, sessionId: sid, accountId: record.accountId, messages: record.state.messages, surface: record.state.currentSurface } };
+    }
+    if (!sessions.has(sid)) return { status: 404, data: { error: 'Session not found' } };
+    if (sessionOwners.get(sid) !== actor.sub) return { status: 403, data: { error: 'Session belongs to a different user' } };
+    if (normMethod === 'DELETE') { if (activeTransitions.has(sid)) return { status: 409, data: { error: 'Session busy' } }; sessions.delete(sid); sessionOwners.delete(sid); return { status: 200, data: { success: true } }; }
+    const state = sessions.get(sid)!;
+    return { status: 200, data: { success: true, sessionId: sid, accountId: state.metadata?.accountId, messages: state.messages, surface: state.currentSurface } };
+  }
+  // Hold ownership and coordination through persistence and the final event.
   if (normMethod === 'POST' && ['/api/a2ui/intent', '/api/a2ui/action'].includes(pathname)) {
-    if (pathname.endsWith('/action') && !sessions.has(body.sessionId)) {
-      return { status: 404, data: { error: 'Session not found' } };
+    const persistent = redisSessions();
+    let session: SuperAppAgentState;
+    if (persistent) {
+      // Claim ownership before acquiring; load authoritative state again under the lock.
+      await persistent.claim(body.sessionId, actor.sub, accountId, pathname.endsWith('/intent'));
+      const lock = await persistent.acquire(body.sessionId);
+      requestContext.release = lock.release;
+      session = await persistent.claim(body.sessionId, actor.sub, accountId, false);
+      requestContext.save = () => lock.save(session);
+      requestContext.assertLease = lock.assert;
+    } else {
+      if (pathname.endsWith('/action') && !sessions.has(body.sessionId)) return { status: 404, data: { error: 'Session not found' } };
+      if (!ownsSession(body.sessionId, actor.sub)) return { status: 403, data: { error: 'Session belongs to a different user' } };
+      if (activeTransitions.has(body.sessionId)) return { status: 409, data: { success: false, code: 'SESSION_BUSY', error: 'A request is already running. Wait for its result before retrying.', retry: { allowed: false, next: 'wait' } } };
+      activeTransitions.add(body.sessionId);
+      requestContext.release = () => { activeTransitions.delete(body.sessionId); };
+      session = getOrCreateSession(body.sessionId);
+      if (session.metadata?.accountId && session.metadata.accountId !== accountId) return { status: 409, data: { success: false, code: 'SESSION_ACCOUNT_MISMATCH', error: 'Start a new conversation when switching accounts.' } };
     }
-    if (!ownsSession(body.sessionId, authResult.user!.sub)) {
-      return { status: 403, data: { error: 'Session belongs to a different user' } };
-    }
-    if (activeTransitions.has(body.sessionId)) {
-      return { status: 409, data: { success: false, code: 'SESSION_BUSY',
-        error: 'A request is already running. Wait for its result before retrying.', retry: { allowed: false, next: 'wait' } } };
-    }
-    activeTransitions.add(body.sessionId);
-    requestContext.release = () => activeTransitions.delete(body.sessionId);
-    const session = getOrCreateSession(body.sessionId);
-    if (session.reconciliation) {
-      return { status: 409, data: { success: false, code: 'RECONCILIATION_REQUIRED',
-        error: 'Reconcile the previous journey before submitting more requests in this session.',
-        outcome: session.reconciliation.outcome, steps: session.reconciliation.steps,
-        retry: { allowed: false, next: 'reconcile' }, surface: session.currentSurface } };
-    }
+    session.metadata = { ...session.metadata, accountId };
     requestContext.session = session;
+    if (session.reconciliation) return { status: 409, data: { success: false, code: 'RECONCILIATION_REQUIRED', error: 'Reconcile the previous journey before submitting more requests in this session.', outcome: session.reconciliation.outcome, steps: session.reconciliation.steps, retry: { allowed: false, next: 'reconcile' }, surface: session.currentSurface } };
+    actor.assertLease = requestContext.assertLease;
+    if (body.surfaceRevision) actor.requestId = `${body.surfaceRevision}:${body.action}`;
   }
 
   // 2. User Intent Ingestion
@@ -150,15 +196,15 @@ async function handleGatewayRequest(
       (session as any).user = authResult.user;
     }
     const onDelta = (text: string) =>
-      broadcast(body.sessionId, createA2UIMessage('A2UI_STREAM_DELTA', body.sessionId, {
+      void broadcast(body.sessionId, createA2UIMessage('A2UI_STREAM_DELTA', body.sessionId, {
         phase: 'TOOL_EXECUTION', text,
-      }));
+      })).catch(() => {});
 
-    const updatedState = await SuperAppAgentGraph.executeIntent(session, body.text, onDelta);
+    const updatedState = await actorContext.run(actor, () => SuperAppAgentGraph.executeIntent(session, body.text, onDelta));
 
     if (updatedState.currentSurface) {
       commitSurface(updatedState);
-      broadcast(body.sessionId, createA2UIMessage('A2UI_RENDER_SURFACE', body.sessionId, {
+      await broadcast(body.sessionId, createA2UIMessage('A2UI_RENDER_SURFACE', body.sessionId, {
         mode: 'REPLACE', surface: updatedState.currentSurface, outcome: 'SUCCEEDED',
       }));
     }
@@ -168,6 +214,7 @@ async function handleGatewayRequest(
       data: {
         success: true,
         activeDomain: updatedState.activeDomain,
+        inference: updatedState.metadata?.inference,
         surface: updatedState.currentSurface,
       },
     };
@@ -188,20 +235,20 @@ async function handleGatewayRequest(
       (session as any).user = authResult.user;
     }
     const onDelta = (text: string) =>
-      broadcast(body.sessionId, createA2UIMessage('A2UI_STREAM_DELTA', body.sessionId, {
+      void broadcast(body.sessionId, createA2UIMessage('A2UI_STREAM_DELTA', body.sessionId, {
         phase: 'TOOL_EXECUTION', text,
-      }));
+      })).catch(() => {});
 
-    const updatedState = await SuperAppAgentGraph.resumeWithAction(
+    const updatedState = await actorContext.run(actor, () => SuperAppAgentGraph.resumeWithAction(
       session,
       body.action,
       body.payload || {},
       onDelta
-    );
+    ));
 
     if (updatedState.currentSurface) {
       commitSurface(updatedState);
-      broadcast(body.sessionId, createA2UIMessage('A2UI_RENDER_SURFACE', body.sessionId, {
+      await broadcast(body.sessionId, createA2UIMessage('A2UI_RENDER_SURFACE', body.sessionId, {
         mode: 'REPLACE', surface: updatedState.currentSurface, outcome: 'SUCCEEDED',
       }));
     }
@@ -273,6 +320,7 @@ export async function executeGatewayRequest(method: string, pathname: string,
     return result.data.success === true ? { ...result, data: { ...result.data, outcome: 'SUCCEEDED', steps } } : result;
   }
   catch (error) {
+    if (error instanceof SessionError) return { status: error.status, data: { success: false, code: error.code, error: error.message } };
     const outcome = executionOutcome(steps);
     const domainError = error instanceof DomainOperationError;
     const code = outcome === 'UNKNOWN' ? 'DOMAIN_OUTCOME_UNKNOWN'
@@ -301,11 +349,12 @@ export async function executeGatewayRequest(method: string, pathname: string,
       surface = session.currentSurface;
       session.messages.push({ id: `failure_${Date.now()}`, role: 'assistant', content: message, timestamp: Date.now() });
       commitSurface(session);
-      broadcast(session.sessionId, createA2UIMessage('A2UI_RENDER_SURFACE', session.sessionId, { mode: 'REPLACE', surface, outcome, code, steps, retry }));
+      await broadcast(session.sessionId, createA2UIMessage('A2UI_RENDER_SURFACE', session.sessionId, { mode: 'REPLACE', surface, outcome, code, steps, retry }));
     }
     return { status, data: { success: false, error: message, code, outcome, steps, retry, surface } };
   } finally {
-    requestContext.release?.();
+    if (requestContext.session && requestContext.session.messages.length > 100) requestContext.session.messages = requestContext.session.messages.slice(-100);
+    try { await requestContext.save?.(); } finally { await requestContext.release?.(); }
   }
 }
 
@@ -319,7 +368,7 @@ function sendJson(req: http.IncomingMessage, res: http.ServerResponse, statusCod
   res.writeHead(statusCode, {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': allowedOrigin(req.headers.origin),
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, Last-Event-ID',
     'Vary': 'Origin',
   });
@@ -327,6 +376,7 @@ function sendJson(req: http.IncomingMessage, res: http.ServerResponse, statusCod
 }
 
 export const server = http.createServer(async (req, res) => {
+  try {
   const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
   const method = req.method || 'GET';
 
@@ -338,7 +388,7 @@ export const server = http.createServer(async (req, res) => {
   if (method === 'OPTIONS') {
     res.writeHead(204, {
       'Access-Control-Allow-Origin': allowedOrigin(req.headers.origin),
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization, Last-Event-ID',
       'Vary': 'Origin',
     });
@@ -363,13 +413,19 @@ export const server = http.createServer(async (req, res) => {
       sendJson(req, res, 400, { error: 'Valid sessionId is required' });
       return;
     }
-    if (!ownsSession(sid, authResult.user!.sub)) {
+    const persistent = redisSessions();
+    let persistentState: SuperAppAgentState | undefined;
+    const streamAccount = url.searchParams.get('accountId') || accountIdFor(authResult.user!.sub);
+    if (![accountIdFor(authResult.user!.sub), accountIdFor(authResult.user!.sub, 'household')].includes(streamAccount)) { sendJson(req, res, 403, { error: 'Account is not owned by this user' }); return; }
+    try { if (persistent) persistentState = await persistent.claim(sid, authResult.user!.sub, streamAccount); }
+    catch (error) { sendJson(req, res, error instanceof SessionError ? error.status : 503, { error: 'Session unavailable or not owned by this user' }); return; }
+    if (!persistent && !ownsSession(sid, authResult.user!.sub)) {
       sendJson(req, res, 403, { error: 'Session belongs to a different user' });
       return;
     }
 
     const cursor = req.headers['last-event-id'];
-    const replay = typeof cursor === 'string' && cursor ? eventJournal.after(sid, cursor) : [];
+    const replay = typeof cursor === 'string' && cursor ? (persistent ? await persistent.after(sid, cursor) : eventJournal.after(sid, cursor)) : [];
     if (replay === undefined) {
       sendJson(req, res, 409, { error: 'Replay cursor expired or unknown', code: 'STREAM_RESET_REQUIRED' });
       return;
@@ -389,6 +445,7 @@ export const server = http.createServer(async (req, res) => {
     });
     const writer = new StreamWriter(res);
     const listener = (msg: A2UIMessageEnvelope) => writer.send(eventFrame(msg));
+    const unsubscribe = persistent ? await persistent.subscribe(sid, listener) : undefined;
     subscribers.add(listener);
     sseClients.set(sid, subscribers);
     const heartbeat = setInterval(() => writer.send(': keepalive\n\n'), 20_000);
@@ -403,7 +460,7 @@ export const server = http.createServer(async (req, res) => {
     writer.send(`retry: 1000\ndata: ${JSON.stringify(ack)}\n\n`);
     if (cursor) for (const event of replay) listener(event);
     else {
-      const surface = sessions.get(sid)?.currentSurface;
+      const surface = (persistentState || sessions.get(sid))?.currentSurface;
       if (surface) writer.send(`data: ${JSON.stringify(createA2UIMessage('A2UI_RENDER_SURFACE', sid, {
         mode: 'REPLACE', surface,
       }))}\n\n`);
@@ -412,6 +469,7 @@ export const server = http.createServer(async (req, res) => {
       clearInterval(heartbeat);
       clearTimeout(expiry);
       writer.close();
+      void unsubscribe?.().catch(() => {});
       subscribers.delete(listener);
       if (!subscribers.size) sseClients.delete(sid);
     });
@@ -446,6 +504,7 @@ export const server = http.createServer(async (req, res) => {
     const result = await executeGatewayRequest(method, url.pathname, query, {}, headers);
     sendJson(req, res, result.status, result.data);
   }
+  } catch { if (res.headersSent) res.end(); else sendJson(req, res, 503, { success: false, error: 'Session or request service unavailable.' }); }
 });
 
 export const executeCoreRequest = executeGatewayRequest;

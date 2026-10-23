@@ -118,7 +118,7 @@ See [ADR-0002](../adr/ADR-0002-ag-ui-and-a2-ui-declarative-protocols.md) and [fr
 
 ## Current stream recovery
 
-The authenticated web/backend stream now has event IDs, bounded replay, snapshots, expiry and slow-consumer bounds. See the [wire contract](event-stream.md). This remains the custom envelope above; Flutter parity, end-user OIDC login and durable/multi-instance replay remain open.
+The authenticated web/backend stream now has event IDs, bounded replay, snapshots, expiry and slow-consumer bounds. See the [wire contract](event-stream.md). This remains the custom envelope above; React/Angular now have end-user OIDC login; Redis mode provides persistent cross-process replay. Flutter SSE parity remains open. See the current provider demo guide for the two runtime modes.
 
 ## Action revision migration (P0-10)
 

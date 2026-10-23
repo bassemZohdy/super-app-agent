@@ -1,0 +1,16 @@
+.git
+node_modules
+**/node_modules
+.env
+.env.*
+!.env.example
+.data
+**/.turbo
+**/dist
+**/build
+**/.angular
+.playwright-mcp
+**/*.sqlite
+**/*.sqlite-shm
+**/*.sqlite-wal
+docs/recordings/videos

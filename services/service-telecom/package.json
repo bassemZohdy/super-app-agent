@@ -1,0 +1,1 @@
+{"name":"@superapp/service-telecom","version":"1.0.0","private":true,"type":"module","scripts":{"build":"tsc --noEmit","dev":"node --env-file-if-exists=../../.env --experimental-strip-types src/index.ts"},"dependencies":{"@superapp/backend-kit":"*"},"devDependencies":{"@types/node":"^22.10.0","typescript":"^5.7.0"}}

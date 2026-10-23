@@ -1,3 +1,4 @@
+import { createApplicationServer } from '../../../packages/backend-kit/src/application.ts';
 import { validateRequest, toolSchema } from '../../../packages/protocol-core/src/request-validation.ts';
 import http from 'node:http';
 
@@ -78,7 +79,7 @@ export function generatePromptContext(profile: UserProfile, prefs: UserPreferenc
   const ejari = profile.smartCityAssets?.premises[0]?.ejariNumber || 'EJR-2026-948102';
 
   return `USER PROFILE CONTEXT & SMART CITY CITIZEN IDENTITY (UAE PASS):
-- Citizen: ${profile.displayName} (Emirates ID: ${profile.emiratesId || '784-1988-1234567-1'})
+- Citizen: ${profile.displayName} (Emirates ID: ${profile.emiratesId || 'not provided (demo account)'})
 - Residency & Status: ${profile.residencyStatus || 'Golden Visa Resident'} (${profile.vipTier} Member)
 - Registered Smart Vehicle: Plate ${vehicle} (${prefs.mobility.preferredTierName})
 - Registered Home Premise: ${profile.smartCityAssets?.premises[0]?.community || 'Downtown Dubai'}, Unit ${profile.smartCityAssets?.premises[0]?.unit || '1402'} (Premise ID: ${premise}, Ejari: ${ejari})
@@ -242,41 +243,7 @@ function sendJson(res: http.ServerResponse, statusCode: number, data: any) {
   res.end(JSON.stringify(data));
 }
 
-export const server = http.createServer((req, res) => {
-  const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
-  const method = req.method || 'GET';
-
-  if (method === 'OPTIONS') {
-    res.writeHead(204, {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    });
-    return res.end();
-  }
-
-  const query: Record<string, string> = {};
-  url.searchParams.forEach((v, k) => {
-    query[k] = v;
-  });
-
-  if (method === 'POST') {
-    let bodyText = '';
-    req.on('data', (chunk) => (bodyText += chunk));
-    req.on('end', () => {
-      try {
-        const body = bodyText ? JSON.parse(bodyText) : {};
-        const result = executeProfileRequest(method, url.pathname, query, body);
-        sendJson(res, result.status, result.data);
-      } catch (e: any) {
-        sendJson(res, 400, { error: 'Invalid JSON body', details: e.message });
-      }
-    });
-  } else {
-    const result = executeProfileRequest(method, url.pathname, query);
-    sendJson(res, result.status, result.data);
-  }
-});
+export const server = createApplicationServer('service-profile', executeProfileRequest);
 
 const PORT = parseInt(process.env.PORT || '4005', 10);
 if (process.argv[1]?.endsWith('service-profile/src/index.ts')) {
