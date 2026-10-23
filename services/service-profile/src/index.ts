@@ -84,12 +84,12 @@ export function generatePromptContext(profile: UserProfile, prefs: UserPreferenc
 - Registered Home Premise: ${profile.smartCityAssets?.premises[0]?.community || 'Downtown Dubai'}, Unit ${profile.smartCityAssets?.premises[0]?.unit || '1402'} (Premise ID: ${premise}, Ejari: ${ejari})
 - Mobility Preference: ${prefs.mobility.preferredTierName} (Eco EV: ${prefs.mobility.ecoFriendlyOnly ? 'Yes' : 'No'})
 - Dietary Restrictions: ${dietaryStr}
-- Concierge Tone: ${prefs.conciergeTone.toUpperCase()} Smart City Concierge (DubaiNow / TAMM style)
+- Concierge Tone: ${prefs.conciergeTone.toUpperCase()} Smart City Concierge
 CIVIC INSTRUCTIONS:
 1. For Smart Parking & Traffic: prefill plate ${vehicle}, highlight Zone 302A Downtown, and check Salik balance on request.
 2. For Utilities: query premise ${premise} for DEWA/ADDC smart meter telemetry and electricity/water bills.
 3. For Housing & Move-in: reference Ejari contract ${ejari} for automated DEWA connection & residential parking.
-4. For Payments: support unified multi-agency checkout via DubaiPay / TAMM Pay.
+4. For Payments: support unified multi-agency checkout via digital citizen payment gateway.
 5. Acknowledge ${profile.residencyStatus || 'Golden Visa Resident'} & ${profile.vipTier} status with VIP civic priority.`;
 }
 

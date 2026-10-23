@@ -16,27 +16,77 @@ export function App() {
   const [messages, setMessages] = useState<Array<{ role: string; text: string }>>([
     {
       role: 'assistant',
-      text: 'Marhaba Bassem! I am Rashid, your Smart City Citizen Concierge (DubaiNow / TAMM). You can ask me to activate smart parking in Downtown, check DEWA electricity & water telemetry, settle Dubai Police traffic fines, or manage your Ejari lease.',
+      text: 'Marhaba Bassem! I am Rashid, your Autonomous Smart City Citizen Concierge. You can ask me to activate smart parking in Downtown, check DEWA electricity & water telemetry, settle Dubai Police traffic fines, or manage your Ejari lease.',
     },
   ]);
   const [prompt, setPrompt] = useState('');
   const [thinkingDelta, setThinkingDelta] = useState<string | null>(null);
   const [currentSurface, setCurrentSurface] = useState<AGUISurfacePayload | null>(null);
+  const [actionPendingMessage, setActionPendingMessage] = useState<string | null>(null);
+  const [isActionPending, setIsActionPending] = useState(false);
   const voice = useRef<VoiceClient>();
   const [voiceState, setVoiceState] = useState<VoiceState>('idle');
   const [voiceError, setVoiceError] = useState('');
   const [voiceAvailable, setVoiceAvailable] = useState({ input: false, output: false });
   const [voiceLanguage, setVoiceLanguage] = useState('en-US');
   const [readReplies, setReadReplies] = useState(false);
+  const [voiceCountdown, setVoiceCountdown] = useState<string | null>(null);
+  const voiceSilenceTimer = useRef<any>(null);
+  const pendingVoiceText = useRef<string>('');
+  const handleSendRef = useRef<(text?: string) => Promise<void>>(() => Promise.resolve());
   const voiceSettings = useRef({ readReplies, language: voiceLanguage });
   voiceSettings.current = { readReplies, language: voiceLanguage };
+
   useEffect(() => {
-    const client = new VoiceClient({ onTranscript: text => setPrompt(text), onState: setVoiceState, onError: setVoiceError });
+    const client = new VoiceClient({
+      onTranscript: (text) => {
+        const clean = text.trim();
+        if (!clean) return;
+        setPrompt(clean);
+        pendingVoiceText.current = clean;
+        setVoiceCountdown(`Heard: "${clean.slice(0, 42)}${clean.length > 42 ? '...' : ''}"`);
+        if (voiceSilenceTimer.current) clearTimeout(voiceSilenceTimer.current);
+        // User finished speaking this phrase: wait 700ms pause then auto-send immediately
+        voiceSilenceTimer.current = setTimeout(() => {
+          if (pendingVoiceText.current && !requestPending.current) {
+            const query = pendingVoiceText.current;
+            pendingVoiceText.current = '';
+            setVoiceCountdown(null);
+            void handleSendRef.current(query);
+          }
+        }, 750);
+      },
+      onState: (state) => {
+        setVoiceState(state);
+        if (state === 'idle' && pendingVoiceText.current) {
+          // Speech recognition naturally finished after speech pause
+          if (voiceSilenceTimer.current) clearTimeout(voiceSilenceTimer.current);
+          voiceSilenceTimer.current = setTimeout(() => {
+            if (pendingVoiceText.current && !requestPending.current) {
+              const query = pendingVoiceText.current;
+              pendingVoiceText.current = '';
+              setVoiceCountdown(null);
+              void handleSendRef.current(query);
+            }
+          }, 350);
+        }
+      },
+      onError: (err) => {
+        if (voiceSilenceTimer.current) clearTimeout(voiceSilenceTimer.current);
+        pendingVoiceText.current = '';
+        setVoiceCountdown(null);
+        setVoiceError(err);
+      },
+    });
     voice.current = client;
     setVoiceAvailable({ input: client.canListen, output: client.canSpeak });
     const hidden = () => { if (document.hidden) client.cancel(); };
     document.addEventListener('visibilitychange', hidden);
-    return () => { document.removeEventListener('visibilitychange', hidden); client.dispose(); };
+    return () => {
+      if (voiceSilenceTimer.current) clearTimeout(voiceSilenceTimer.current);
+      document.removeEventListener('visibilitychange', hidden);
+      client.dispose();
+    };
   }, []);
   const lastRevision = useRef<string>();
   const requestPending = useRef(false);
@@ -160,7 +210,11 @@ export function App() {
   const handleSend = async (textToSend?: string) => {
     const query = textToSend || prompt;
     if (!query.trim() || requestPending.current) return;
+    if (voiceSilenceTimer.current) clearTimeout(voiceSilenceTimer.current);
+    pendingVoiceText.current = '';
+    setVoiceCountdown(null);
     requestPending.current = true;
+    setIsActionPending(true);
     voice.current?.cancel();
 
     setMessages((prev) => [...prev, { role: 'user', text: query }]);
@@ -213,9 +267,11 @@ export function App() {
       ]);
     } finally {
       requestPending.current = false;
+      setIsActionPending(false);
       setThinkingDelta(null);
     }
   };
+  handleSendRef.current = handleSend;
 
   // 4. Dispatch Interactive Action
   const handleDispatchAction = async (action: string, payload: Record<string, any>) => {
@@ -231,6 +287,8 @@ export function App() {
 
     if (requestPending.current) return;
     requestPending.current = true;
+    setIsActionPending(true);
+    setActionPendingMessage(`⚡ Processing Smart City action: ${action}...`);
     voice.current?.cancel();
     setThinkingDelta(`⚡ Processing Smart City action: ${action}...`);
     try {
@@ -249,6 +307,8 @@ export function App() {
       showError('Could not confirm the action result. Check status before retrying.');
     } finally {
       requestPending.current = false;
+      setIsActionPending(false);
+      setActionPendingMessage(null);
       setThinkingDelta(null);
     }
   };
@@ -302,7 +362,7 @@ export function App() {
               SmartCity Now • Unified Citizen Agent
             </div>
             <div style={{ fontSize: '11px', color: '#a7f3d0' }}>
-              DubaiNow & TAMM Reference Architecture • UAE PASS Sovereign IAM
+              Unified Citizen Platform • UAE PASS Sovereign IAM
             </div>
           </div>
         </div>
@@ -751,7 +811,15 @@ export function App() {
               </div>
               <button
                 type="button"
-                onClick={() => voice.current?.stopListening()}
+                onClick={() => {
+                  voice.current?.stopListening();
+                  if (pendingVoiceText.current) {
+                    const toSend = pendingVoiceText.current;
+                    pendingVoiceText.current = '';
+                    setVoiceCountdown(null);
+                    void handleSendRef.current(toSend);
+                  }
+                }}
                 style={{
                   padding: '3px 8px',
                   fontSize: '11px',
@@ -839,6 +907,51 @@ export function App() {
             </div>
           )}
 
+          {/* Voice Auto-Submitting Banner */}
+          {voiceCountdown && (
+            <div
+              style={{
+                margin: '8px 14px 0 14px',
+                padding: '8px 14px',
+                borderRadius: '10px',
+                background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)',
+                border: '1px solid #6ee7b7',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                fontSize: '12px',
+                color: '#065f46',
+                boxShadow: '0 2px 6px rgba(5, 150, 105, 0.08)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="spin-loader">⚡</span>
+                <span style={{ fontWeight: 600 }}>{voiceCountdown}</span>
+                <span style={{ fontSize: '11px', color: '#047857' }}>— sending immediately</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (voiceSilenceTimer.current) clearTimeout(voiceSilenceTimer.current);
+                  pendingVoiceText.current = '';
+                  setVoiceCountdown(null);
+                }}
+                style={{
+                  background: '#ffffff',
+                  border: '1px solid #a7f3d0',
+                  color: '#047857',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  borderRadius: '6px',
+                  padding: '2px 8px',
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+
           {/* Unified Modern Input & Microphone Bar */}
           <div
             style={{
@@ -867,10 +980,20 @@ export function App() {
                 placeholder="Ask about parking, utilities, fines, or Ejari..."
                 value={prompt}
                 onChange={(e) => {
+                  if (voiceSilenceTimer.current) clearTimeout(voiceSilenceTimer.current);
+                  pendingVoiceText.current = '';
+                  setVoiceCountdown(null);
                   voice.current?.cancel();
                   setPrompt(e.target.value);
                 }}
-                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    if (voiceSilenceTimer.current) clearTimeout(voiceSilenceTimer.current);
+                    pendingVoiceText.current = '';
+                    setVoiceCountdown(null);
+                    handleSend();
+                  }
+                }}
                 style={{
                   flex: 1,
                   border: 'none',
@@ -886,12 +1009,21 @@ export function App() {
                 type="button"
                 disabled={!voiceAvailable.input}
                 aria-pressed={voiceState === 'listening'}
-                title={voiceState === 'listening' ? 'Stop listening' : 'Dictate with microphone'}
+                title={voiceState === 'listening' ? 'Stop listening & send' : 'Dictate with microphone'}
                 onClick={() => {
                   setVoiceError('');
                   if (voiceState === 'listening') {
                     voice.current?.stopListening();
+                    if (pendingVoiceText.current) {
+                      const toSend = pendingVoiceText.current;
+                      pendingVoiceText.current = '';
+                      setVoiceCountdown(null);
+                      void handleSendRef.current(toSend);
+                    }
                   } else {
+                    if (voiceSilenceTimer.current) clearTimeout(voiceSilenceTimer.current);
+                    pendingVoiceText.current = '';
+                    setVoiceCountdown(null);
                     voice.current?.startListening(voiceLanguage);
                   }
                 }}
@@ -1000,10 +1132,37 @@ export function App() {
               <div ref={miniAppMountRef} />
             </div>
 
+            {/* Real-Time Municipal Action Progress Banner */}
+            {actionPendingMessage && (
+              <div
+                style={{
+                  marginBottom: '18px',
+                  padding: '12px 18px',
+                  borderRadius: '12px',
+                  background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)',
+                  border: '1.5px solid #6ee7b7',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  boxShadow: '0 4px 12px rgba(5, 150, 105, 0.12)',
+                }}
+              >
+                <span className="spin-loader" style={{ fontSize: '20px' }}>⏳</span>
+                <div>
+                  <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#065f46' }}>
+                    {actionPendingMessage}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#047857', marginTop: '2px' }}>
+                    Reconciling state across municipal services & UAE PASS sovereign digital ledger...
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* If tab is Agent, render AG-UI Surface */}
             {activeTab === 'agent' &&
               (currentSurface ? (
-                <A2UIRenderer key={currentSurface.revision} node={currentSurface.view} onDispatchAction={handleDispatchAction} />
+                <A2UIRenderer key={currentSurface.revision} node={currentSurface.view} onDispatchAction={handleDispatchAction} isPending={isActionPending} />
               ) : (
                 <div
                   style={{
