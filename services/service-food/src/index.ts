@@ -336,19 +336,7 @@ function handleFoodRequest(
     const orderId = pathname.replace('/orders/track/', '');
     const order = activeOrders.get(orderId);
 
-    if (!order) {
-      return {
-        status: 200,
-        data: {
-          success: true,
-          orderId,
-          status: 'PREPARING',
-          restaurantName: restaurants[0].name,
-          estimatedDeliveryTime: '20 mins',
-          kitchenProgress: '80%',
-        },
-      };
-    }
+    if (!order) return { status: 404, data: { success: false, error: 'Order not found', code: 'NOT_FOUND' } };
 
     return { status: 200, data: { success: true, order } };
   }

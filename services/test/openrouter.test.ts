@@ -44,6 +44,7 @@ test('OpenRouter TTS: defaults, fallback on missing key, and audio synthesis', a
     OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
     OPENROUTER_TTS_MODEL: process.env.OPENROUTER_TTS_MODEL,
     OPENROUTER_TTS_VOICE: process.env.OPENROUTER_TTS_VOICE,
+    ENABLE_OPENROUTER_TTS: process.env.ENABLE_OPENROUTER_TTS,
   };
   const oldFetch = globalThis.fetch;
   t.after(() => {
@@ -66,6 +67,7 @@ test('OpenRouter TTS: defaults, fallback on missing key, and audio synthesis', a
   assert.strictEqual(await invokeOpenRouterTTS('   '), null);
 
   process.env.OPENROUTER_API_KEY = 'sk-or-test-mock';
+  process.env.ENABLE_OPENROUTER_TTS = 'true';
   let requestedBody: any = null;
   globalThis.fetch = async (_input, init) => {
     requestedBody = JSON.parse(String(init?.body));

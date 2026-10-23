@@ -101,13 +101,13 @@ export function createA2UIMessage<T>(
 export function validateA2UIMessage(envelope: unknown): ValidationResult<A2UIMessageEnvelope> {
   const errors: string[] = [];
 
-  if (!envelope || typeof envelope !== 'object') {
+  if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope)) {
     return { success: false, errors: ['Envelope must be an object'] };
   }
 
   const env = envelope as Record<string, any>;
 
-  if (typeof env.id !== 'string' || !env.id.trim()) {
+  if (typeof env.id !== 'string' || !env.id.trim() || env.id.length > 128) {
     errors.push("Missing or invalid 'id' string");
   }
 
@@ -117,22 +117,39 @@ export function validateA2UIMessage(envelope: unknown): ValidationResult<A2UIMes
     );
   }
 
-  if (typeof env.sessionId !== 'string' || !env.sessionId.trim()) {
+  if (typeof env.sessionId !== 'string' || !env.sessionId.trim() || env.sessionId.length > 128) {
     errors.push("Missing or invalid 'sessionId'");
   }
 
-  if (typeof env.timestamp !== 'number') {
+  if (typeof env.timestamp !== 'number' || !Number.isFinite(env.timestamp) || env.timestamp < 0) {
     errors.push("Missing or invalid 'timestamp' number");
   }
 
-  if (env.data === undefined) {
-    errors.push("Missing 'data' payload");
+  if (!env.data || typeof env.data !== 'object' || Array.isArray(env.data)) {
+    errors.push("Missing or invalid 'data' object");
   } else if (env.type === 'A2UI_RENDER_SURFACE') {
+    if (!['REPLACE', 'PATCH', 'APPEND'].includes(env.data.mode)) {
+      errors.push('Invalid render mode');
+    }
     const surface = env.data.surface;
     const surfaceValidation = validateAGUISurface(surface);
     if (!surfaceValidation.success && surfaceValidation.errors) {
       errors.push(...surfaceValidation.errors);
+    } else if (surface.sessionId !== env.sessionId) {
+      errors.push('Surface sessionId must match envelope sessionId');
     }
+  }
+
+  if (env.data && typeof env.data === 'object' && !Array.isArray(env.data)) {
+    const d = env.data;
+    const bounded = (value: unknown, limit = 4000) => typeof value === 'string' && value.trim().length > 0 && value.length <= limit;
+    if (env.type === 'A2UI_STREAM_DELTA' && (!['REASONING','TOOL_EXECUTION','FINALIZING'].includes(d.phase) || !bounded(d.text) || (d.activeTool !== undefined && !bounded(d.activeTool,128)))) errors.push('Invalid stream delta');
+    if (env.type === 'A2UI_USER_INTENT' && (d.sessionId !== env.sessionId || !bounded(d.text))) errors.push('Invalid user intent');
+    if (env.type === 'A2UI_HANDSHAKE_ACK' && (d.status !== 'connected' || d.sessionId !== env.sessionId || !Array.isArray(d.supportedProtocols) || !d.supportedProtocols.length || d.supportedProtocols.length > 10 || d.supportedProtocols.some((p: unknown) => !bounded(p,64)))) errors.push('Invalid handshake acknowledgement');
+    if (env.type === 'A2UI_HANDSHAKE' && (!['react','angular','flutter','web_responsive'].includes(d.platform) || !d.viewport || !Number.isInteger(d.viewport.width) || d.viewport.width < 1 || d.viewport.width > 20000 || !Number.isInteger(d.viewport.height) || d.viewport.height < 1 || d.viewport.height > 20000 || !['mobile','tablet','desktop'].includes(d.viewport.category) || !Array.isArray(d.supportedComponents) || !d.supportedComponents.length || d.supportedComponents.length > 100 || d.supportedComponents.some((p: unknown) => !bounded(p,64)))) errors.push('Invalid handshake');
+    if (env.type === 'A2UI_EVENT_TRIGGER' && (!bounded(d.originComponentId,128) || !bounded(d.action,128) || !d.payload || typeof d.payload !== 'object' || Array.isArray(d.payload))) errors.push('Invalid action event');
+    if (env.type === 'A2UI_LAUNCH_MINIAPP' && (!bounded(d.miniAppId,128) || (d.entryRoute !== undefined && (!bounded(d.entryRoute,256) || !/^\/(?!\/)/.test(d.entryRoute))))) errors.push('Invalid mini-app launch');
+    if (env.type === 'A2UI_CLIENT_ERROR' && (!bounded(d.code,128) || !bounded(d.message))) errors.push('Invalid client error');
   }
 
   if (errors.length > 0) {

@@ -1,3 +1,4 @@
+import { manualService } from '../manual-services.ts';
 import { handleConversation, contextualPrompt } from '../conversation.ts';
 import type { AGUISurfacePayload, UIComponentNode } from '../../../../packages/protocol-core/src/index.ts';
 import type { SuperAppAgentState, DomainCategory } from './state.ts';
@@ -13,6 +14,14 @@ const executeTelecomRequest = (method: string, path: string, body: any = {}) => 
 const executeProfileRequest = (method: string, path: string, query: Record<string, string> = {}, body: any = {}) => callDomainAsync('profile', method, path, query, body);
 
 export class SuperAppAgentGraph {
+  public static async executeService(state: SuperAppAgentState, serviceId: string, onProgress?: (text: string) => void) {
+    const service = manualService(serviceId);
+    if (!service) throw new Error('Unsupported service route');
+    await this.prepareIntent(state, service.prompt, onProgress);
+    state.metadata = { ...state.metadata, inference: { status: 'disabled', provider: 'manual-service' } };
+    return state;
+  }
+
   /** Model prose is grounded in service results; only offered buttons execute mutations. */
   public static async executeIntent(
     state: SuperAppAgentState, prompt: string, onProgress?: (delta: string) => void
@@ -268,7 +277,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
         const walletRes = await executeWalletRequest('GET', '/wallet/balance');
         const txRes = await executeWalletRequest('GET', '/wallet/transactions');
 
-        onProgress?.(`📊 Building secure DubaiPay overview with verified UAE PASS citizen credentials...`);
+        onProgress?.(`Building the simulated wallet overview for your selected account…`);
         state.currentSurface = this.buildWalletOverviewSurface(state.sessionId, walletRes.data.balance, txRes.data.transactions, profile);
         state.messages.push({
           id: `msg_${Date.now() + 1}`,
@@ -278,7 +287,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
         });
       }
     } else if (hasProfileIntent) {
-      onProgress?.('🛡️ Retrieving UAE PASS National Identity and citizen credentials...');
+      onProgress?.('Retrieving the demo profile and registered resources…');
       state.currentSurface = this.buildProfileOverviewSurface(state.sessionId, profile, preferences);
       state.messages.push({
         id: `msg_${Date.now() + 1}`,
@@ -353,28 +362,28 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
               type: 'Text',
               id: 'meter_desc',
               properties: {
-                text: `Vehicle: ${meter.plateNumber} (Tesla Model Y EV) • ${meter.zoneName}. Total tariff paid: ${meter.totalFee} AED.`,
+                text: `Vehicle: ${meter.plateNumber} • ${meter.zoneName}. Total tariff paid: ${meter.totalFee} AED.`,
               },
             },
             {
               type: 'MetricWidget',
               id: 'meter_countdown',
-              properties: { label: 'Time Remaining', value: '1h 59m', trend: 'neutral', subtext: 'Expires at 11:45 AM' },
+              properties: { label: 'Time Remaining', value: `${Math.max(0, Math.ceil((meter.expiresAt - Date.now()) / 60000))} min at retrieval`, trend: 'neutral', subtext: `Expires ${new Date(meter.expiresAt).toISOString()}` },
             },
             {
               type: 'MetricWidget',
               id: 'meter_ticket',
-              properties: { label: 'RTA Parking e-Ticket', value: meter.ticketId, subtext: 'Valid for Zone 302A (Downtown)' },
+              properties: { label: 'RTA Parking e-Ticket', value: meter.ticketId, subtext: `Valid for Zone ${meter.zoneCode}` },
             },
             {
               type: 'Button',
               id: 'btn_extend_parking',
-              properties: { label: 'Extend Parking (+1 Hour • 4.00 AED)', variant: 'outline', fullWidth: true },
+              properties: { label: `Extend Parking (+1 Hour • ${(meter.totalFee / meter.durationHours).toFixed(2)} AED)`, variant: 'outline', fullWidth: true },
               onEvents: [
                 {
                   event: 'onPress',
                   actionType: 'AGENT_ACTION_DISPATCH',
-                  payload: { action: 'extend_parking', ticketId: meter.ticketId },
+                  payload: { action: 'extend_parking', ticketId: meter.ticketId, additionalHours: 1 },
                 },
               ],
             },
@@ -636,6 +645,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
           id: 'ride_confirmed_card',
           style: { variant: 'success', padding: 'medium', direction: 'vertical' },
           children: [
+            { type: 'MetricWidget', id: 'booking_id', properties: { label: 'Booking reference', value: booking.bookingId } },
             {
               type: 'Heading',
               id: 'confirm_title',
@@ -673,7 +683,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
                 {
                   event: 'onPress',
                   actionType: 'LAUNCH_MINIAPP',
-                  payload: { miniAppId: 'org.superapp.ride', entryRoute: '/trip/active' },
+                  payload: { miniAppId: 'org.superapp.ride', entryRoute: `/trip/${booking.bookingId}` },
                 },
               ],
             },
@@ -698,6 +708,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
           id: 'food_confirmed_card',
           style: { variant: 'success', padding: 'medium', direction: 'vertical' },
           children: [
+            { type: 'MetricWidget', id: 'order_id', properties: { label: 'Order reference', value: order.orderId } },
             {
               type: 'Heading',
               id: 'food_title',
@@ -723,7 +734,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
                 {
                   event: 'onPress',
                   actionType: 'LAUNCH_MINIAPP',
-                  payload: { miniAppId: 'org.superapp.food', entryRoute: '/order/status' },
+                  payload: { miniAppId: 'org.superapp.food', entryRoute: `/order/${order.orderId}` },
                 },
               ],
             },
@@ -1011,7 +1022,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
             type: 'Badge',
             id: 'vip_badge',
             properties: {
-              text: `🛡️ ${profile?.uaePassVerified ? 'UAE PASS demo fixture' : 'Demo account'} • ${profile?.vipTier || 'Gold VIP'} Member • ${profile?.residencyStatus || 'Golden Visa Resident'} • Zero Surcharge`,
+              text: `🛡️ ${profile?.uaePassVerified ? 'UAE PASS demo fixture' : 'Demo account'} • ${profile?.vipTier || 'Standard'} Member • ${profile?.residencyStatus || 'Demo resident'} • Zero Surcharge`,
               variant: 'success',
             },
           },
@@ -1323,32 +1334,9 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
             },
           },
           {
-            type: 'ChoiceGroup',
-            id: 'dewa_payment_channel_choice',
-            properties: {
-              selectedId: 'opt_dubaipay',
-              options: [
-                {
-                  id: 'opt_dubaipay',
-                  title: 'DubaiPay Direct Debit (Emirates NBD)',
-                  subtitle: 'Instant settlement • 0.00 AED surcharge • Green Slab certified',
-                  price: `${bill.totalAmount.toFixed(2)} AED`,
-                  badge: '⭐ Recommended',
-                },
-                {
-                  id: 'opt_applepay',
-                  title: 'Apple Pay / Digital Card',
-                  subtitle: 'Instant biometric settlement',
-                  price: `${bill.totalAmount.toFixed(2)} AED`,
-                },
-                {
-                  id: 'opt_autopay',
-                  title: 'Green Slab Smart Autopay',
-                  subtitle: 'Automated recurring billing on the 1st of every month',
-                  price: 'Auto-Debit',
-                },
-              ],
-            },
+            type: 'Text',
+            id: 'dewa_payment_channel',
+            properties: { text: 'Payment uses the selected account’s simulated wallet funds.' },
           },
           {
             type: 'Button',
@@ -1477,7 +1465,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
             type: 'Badge',
             id: 'uae_pass_badge',
             properties: {
-              text: `🛡️ ${profile?.uaePassVerified ? 'UAE PASS demo fixture' : 'Demo account'} • ${profile?.displayName || 'Citizen'} (${profile?.residencyStatus || 'Golden Visa Resident'})`,
+              text: `🛡️ ${profile?.uaePassVerified ? 'UAE PASS demo fixture' : 'Demo account'} • ${profile?.displayName || 'Citizen'} (${profile?.residencyStatus || 'Demo resident'})`,
               variant: 'success',
             },
           },
@@ -1662,7 +1650,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
           {
             type: 'Badge',
             id: 'vip_status_badge',
-            properties: { text: `👑 ${profile?.vipTier || 'Gold VIP'} Tier Active`, variant: 'success' },
+            properties: { text: `👑 ${profile?.vipTier || 'Standard'} Tier Active`, variant: 'success' },
           },
           {
             type: 'Text',
@@ -1745,7 +1733,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
             type: 'Text',
             id: 'cat_desc',
             properties: {
-              text: 'Autonomous civic concierge powered by UAE PASS digital identity. Ask in natural language or tap any municipal service to open its microfrontend:',
+              text: 'Demo city concierge using simulated services. Ask a question or open a bundled service workspace:',
             },
           },
           ...miniApps.map((app: any): UIComponentNode => ({

@@ -9,6 +9,9 @@ x-identity: &identity
   KEYCLOAK_ISSUER: http://localhost:8085/realms/superapp
   KEYCLOAK_JWKS_URL: http://keycloak:8080/realms/superapp/protocol/openid-connect/certs
   KEYCLOAK_TOKEN_URL: http://keycloak:8080/realms/superapp/protocol/openid-connect/token
+  KEYCLOAK_INTROSPECTION_URL: http://keycloak:8080/realms/superapp/protocol/openid-connect/token/introspect
+  KEYCLOAK_INTROSPECTION_CLIENT_ID: cityside-verifier
+  KEYCLOAK_INTROSPECTION_CLIENT_SECRET: ${KEYCLOAK_VERIFIER_SECRET:-demo-verifier-secret}
   KEYCLOAK_AUDIENCE: agent-core
   NODE_ENV: development
 x-providers: &providers

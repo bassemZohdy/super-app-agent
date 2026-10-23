@@ -1,3 +1,4 @@
+import { HttpPolicy, HttpError, readJsonBody } from '../../../packages/backend-kit/src/http-policy.ts';
 import http from 'node:http';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -15,9 +16,11 @@ export function createProviderServer(provider: ProviderId, path: string) {
   const ajv = new Ajv({ strict: false, allErrors: true });
   const routes = operations[provider].map(operation => ({ ...operation, regex: new RegExp(`^${operation.path.replace(/\{\w+\}/g, '[^/]+')}$`), validate: operation.body ? ajv.compile(operation.body) : undefined }));
   const payments = new ProviderClient('provider-settlements', process.env.PROVIDER_SETTLEMENT_SECRET || 'demo-settlements-secret');
-  const server = http.createServer(async (req, res) => {
+  const policy = new HttpPolicy();
+  const server = http.createServer({ maxHeaderSize: 16384, requestTimeout: 15000, headersTimeout: 10000 }, async (req, res) => {
     const send = (result: ApiResult) => { res.writeHead(result.status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(result.data)); };
     try {
+      const release = policy.admit(req.socket.remoteAddress || 'unknown'); res.once('finish', release); res.once('close', release);
       const url = new URL(req.url || '/', 'http://provider');
       if (req.method === 'GET' && url.pathname === '/health') return send({ status: 200, data: { status: 'ok', provider, storage: 'sqlite' } });
       if (req.method === 'GET' && url.pathname === '/openapi.json') return send({ status: 200, data: openApi(provider) });
@@ -38,8 +41,7 @@ export function createProviderServer(provider: ProviderId, path: string) {
       engine.seed(actor);
       let body: any = {};
       if (req.method === 'POST') {
-        let raw = ''; for await (const chunk of req) { raw += chunk; if (Buffer.byteLength(raw) > 65536) throw new ApiError(413, 'BODY_LIMIT', 'Request body exceeds 64 KiB.'); }
-        try { body = JSON.parse(raw); } catch { throw new ApiError(400, 'INVALID_JSON', 'A JSON object is required.'); }
+        body = await readJsonBody(req);
         if (!operation.validate?.(body)) throw new ApiError(400, 'VALIDATION_ERROR', 'The request does not match the OpenAPI schema.');
       }
       const key = req.headers['idempotency-key'];
@@ -66,8 +68,9 @@ export function createProviderServer(provider: ProviderId, path: string) {
       });
       send(result);
     } catch (error) {
-      const status = error instanceof ApiError ? error.status : 503;
-      send({ status, data: { success: false, code: error instanceof ApiError ? error.code : 'PROVIDER_UNAVAILABLE', error: error instanceof ApiError ? error.message : 'The simulator could not complete this request. Check operation status before retrying a write.' } });
+      const status = error instanceof HttpError ? error.status : error instanceof ApiError ? error.status : 503;
+      res.setHeader('Connection', 'close');
+      send({ status, data: { success: false, code: error instanceof ApiError ? error.code : 'PROVIDER_UNAVAILABLE', error: error instanceof HttpError ? error.message : error instanceof ApiError ? error.message : 'The simulator could not complete this request. Check operation status before retrying a write.' } });
     }
   });
   return { server, store };

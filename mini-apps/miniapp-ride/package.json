@@ -1,7 +1,7 @@
 {
   "name": "@superapp/miniapp-ride",
   "version": "1.0.0",
-  "description": "Ride & Mobility Federated Mini-App Remote",
+  "description": "Ride & Mobility Legacy Embedded Mini-App Example",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc"

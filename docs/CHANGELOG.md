@@ -1,5 +1,17 @@
 # Documentation changelog
 
+## 24 October 2026 — publication cleanup
+
+Reconciled the source/evidence references for GitHub publication, fixed the ADR index table, included the browser cancellation screenshot, consolidated typed action discovery and removed redundant endpoint checks. Repeated code/document/security-pattern, Flutter and integrated demo gates before committing. Private environment values, local databases, builds and caches remain excluded. Historical reports and recordings remain dated.
+
+## 24 October 2026 — demo target, checkpointed approval runtime and security gates
+
+Implemented a real LangGraph prepare/review/execute graph with bounded Redis checkpoints and tested restart resume; authenticated official MCP transport; model-independent bundled service routes; expiring digest-bound approvals and cancellation; shared access-token/JWKS/introspection checks with real logout revocation; byte/deadline/admission HTTP limits; Flutter authenticated SSE; corrected resource tracking; free-provider/model request budgets; and executable ESLint/docs/secret gates. Configured the supplied environment key privately; OpenRouter still returns 401. Updated current docs and retained production requirements. [Decision](adr/ADR-0011-local-demo-target.md) · [Evidence](reports/2026-10-24-demo-completion.md).
+
+## 23 October 2026 — latest demo validation and documentation reconciliation
+
+Pulled `0571413`, validated real local Keycloak/provider/Redis/payment journeys and ordinary restart recovery, and reproduced OpenRouter’s 401 for the configured key. Added startup readiness polling, safe envelope validation and regressions, Flutter web/bootstrap/strict-analysis/widget checks, desktop account switching and transcript restoration fixes, neutral default greetings, and preserved model-error status on conversation reload. Reconciled all current guides/ADR/backlog/package claims while preserving dated reports and open production criteria. [Current evidence](reports/2026-10-23-demo-reconciliation.md).
+
 ## 23 October 2026 — integrated provider demo and Cityside interface
 
 Added seven account-scoped SQLite provider simulators and generated OpenAPI 3.1 contracts; application REST adapters and a telecom service; real local Keycloak client credentials and browser PKCE; Redis conversation ownership, TTL, fenced leases, history and shared SSE replay; payment capture/decline/refund, proof checks and persistent idempotency. Unified/move-in adapters avoid legacy duplicate effects. Updated the React/Angular/Flutter design and made OpenRouter replies visible with context and explicit failures. Added the reference Compose stack, provider/Redis/integration verification and refreshed current architecture/security/setup documentation. Historical reports remain unchanged; [current evidence](reports/2026-10-23-provider-demo.md) supersedes their implementation baseline.

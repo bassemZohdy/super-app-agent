@@ -81,16 +81,22 @@ Redis stores the last 100 SSE events per session and publishes to subscribers on
 
 ## Verification
 
-`npm run demo:verify` exercises real local Keycloak user/service tokens, REST calls through both application layers, cross-user denial, Redis restore, payment replay/conflict/decline/refund, role denial, telecom APIs and stale-action rejection. `npm run test:redis` tests cross-client locking, fenced saves, replay and exact empty-array preservation. See the dated report for browser/restart evidence and limits.
+`npm run demo:verify` exercises real local Keycloak user/service tokens, REST calls through both application layers, cross-user denial, Redis restore, payment replay/conflict/decline/refund, role denial, telecom APIs and stale-action rejection. `npm run test:redis` tests cross-client locking, fenced saves, replay and exact empty-array preservation. See the [current validation report](../reports/2026-10-24-demo-completion.md) for browser/restart evidence and limits. `demo:up` now waits for public endpoint readiness; `demo:verify` separately exercises real authentication and persistence.
 
 `npm run demo:verify:journeys` verifies paid RTA parking, DEWA settlement, both telecom bills, fine settlement, unified checkout of already-paid resources, and DLD/DEWA/RTA move-in. It intentionally changes only seeded demo records and simulated funds. It can be rerun against already-settled bills.
 
 For an actual restart check:
 
 ```bash
-npm run demo:verify:restart -- --prepare
-docker compose -f docker-compose.demo.yml restart agent-core redis provider-payments
 npm run demo:verify:restart
 ```
 
-The temporary restart assertion file contains only session/account references, a revision and a simulated balance; no token is saved. The check removes its own session and assertion file afterward.
+This prepares its own proposal, restarts core/Redis/payment containers, waits for readiness, resumes the same approval, verifies one simulated top-up and removes its own session/temporary record. Run it without concurrent wallet-changing checks. The temporary record contains no token. Direct low-level scripts retain `--prepare`/`--verify` for debugging; normal use requires only the command above.
+
+## Graph, approval and manual route additions
+
+Integrated Redis now also holds bounded LangGraph root checkpoints and persisted review interrupts. Completed/replaced/cancelled continuations are removed; outstanding entries share the session TTL. This enables ordinary restart resume, not a general scheduler/compensation platform.
+
+The owned session response includes current approval and a bounded lifecycle history. `POST /api/a2ui/cancel` invalidates a pending proposal. `GET /api/services` and `POST /api/manual/prepare` expose eleven bundled routes without a model call; React can open `/services/wallet` directly. The authenticated official MCP transport is at core `/mcp`; application descriptors remain metadata. [MCP guide](../development/mcp.md).
+
+All integrated JWT verification now includes access-token type and authenticated online introspection via the separate `cityside-verifier` client/audience. Run `npm run demo:realm` when upgrading an existing realm and sign in again. The [demo target ADR](../adr/ADR-0011-local-demo-target.md) records retained and deferred requirements.

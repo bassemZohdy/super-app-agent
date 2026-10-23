@@ -1,45 +1,28 @@
 # Frontend shells and mini-app integration
 
-> Current implementation: Cityside React and Angular use Keycloak code + PKCE and account selection. React includes saved-conversation restore/delete. Flutter includes local-demo Keycloak sign-in, account selection and HTTP history restore, with native execution still unverified. Standalone HTML mini-apps remain legacy embedded examples; the React concierge opens supported services through authenticated surfaces. See [local development](../development/local-development.md).
+The current Cityside interface uses account-bound authenticated surfaces. React and Angular sign in with Keycloak authorization code + S256 PKCE; Flutter uses a local-demo password grant. All service names and funds represent simulators. See [setup](../development/local-development.md) and [current validation](../reports/2026-10-24-demo-completion.md).
 
-## What exists
+## Implemented clients
 
-| Surface | Actual source | Present approach | Not yet proven |
-| --- | --- | --- | --- |
-| React | `apps/shell-react/src/App.tsx` and `components/A2UIRenderer.tsx` | Vite shell, chat and custom UI renderer, directly imported mini-app mount functions | Remote federation / hostile mini-app isolation / OIDC login |
-| Angular | `apps/shell-angular/src/app/app.component.ts` | Standalone demo UI with custom rendering and SSE | Visual/runtime parity, OIDC login, shared renderer library |
-| Flutter | `apps/shell-flutter/lib/main.dart` | Dart widgets mapped from custom schema, HTTP actions, example demo identity | Native package distribution, platform-specific auth, parity |
-| Mini-apps | `mini-apps/miniapp-*` | Ride, food, wallet, housing example modules | Independently deployable MFE runtime; source imports are bundled |
-| Catalog | `services/service-catalog/src/index.ts` and manifests | Metadata, example `entryRoute`, `remoteUrl`, permissions | Signed manifests, version/permission enforcement and vetted remote loader |
+| Client | Current behavior | Remaining boundary |
+| --- | --- | --- |
+| React | Conversation and service workspace, PKCE/refresh/logout, personal/household selection, saved conversation restore/delete, authenticated SSE, microphone drafts and opt-in browser speech | Complete accessibility/component conformance, production session design and remote mini-app isolation |
+| Angular | Separate custom renderer, PKCE/refresh/logout, account selection, authenticated SSE and browser voice | Full UI/component parity and automated browser conformance |
+| Flutter | Custom widgets, local-demo login/refresh/logout, account selection at phone and desktop widths, HTTP intents/actions, authenticated SSE and saved transcript restore | Native PKCE, native speech, device/distribution validation and complete renderer parity |
+| Legacy mini-apps | Ride, food, wallet and housing mount modules in the workspace | Standalone modules are compatibility examples, not retained demo execution paths |
 
-The README previously called the runtime “Module Federation + Web Components”. That is an **aspiration**: the current React shell directly imports the mini-app components. None of these sample bundles provide a validated runtime registry/loader, isolation boundary or universal Lit renderer.
+React service navigation uses authenticated `/api/manual/prepare` and stable `/services/{id}` routes without a prior chat proposal or model call. The catalog declares repository-bundled surfaces, compatibility and trust; unused remote URLs/device permissions were removed. Exact mini-app IDs map to allowlisted routes. React does not mount the standalone legacy modules. No Module Federation, remote loader, Web Components or generic Lit renderer is claimed. The old modules remain source/type-checked compatibility examples.
 
-React and Angular share `packages/protocol-core/src/sse-client.ts`: header-based bearer auth, incremental UTF-8 parsing, reconnect cursor/reset, and lifecycle abort. Both still supply local demo tokens. The build type-checks Node/mini-app source without emitting it (Node executes TypeScript directly), and bundles the two web shells. Housing is now a registered workspace. See [verification](../reports/2026-10-23-release-gates.md).
+React and Angular share the fetch SSE client and browser OIDC helper in `packages/protocol-core`. Access tokens are sent in headers; refreshed tokens are obtained through the helper. Tokens live in sessionStorage, which is accessible to same-origin JavaScript. The selected account and conversation reference also live there. Logout clears local tokens and redirects through Keycloak; owned server conversations remain until deletion or expiry.
 
-## Three UI types in the proposed agent-first experience
+React restores the selected account's transcript and current surface through `/api/sessions/{id}`. Account switching clears the prior workspace and restores or creates a conversation for that account. Saved inference status is restored with the transcript and surface so model errors remain visible after reload. Busy controls prevent local overlaps; the server's session lease/revision remains authoritative. The connection indicator distinguishes a reachable concierge, configured inference, a successful generated response and a model error. “OpenRouter ready” alone does not verify the key.
 
-1. **Native mini-app screen:** existing complex domain UI, e.g. map-oriented parking.
-2. **Declarative UI screen:** standardized A2UI JSON rendered by generic web/mobile renderer, populated from a static config, service or trusted agent-generated proposal.
-3. **Conversational journey:** AG-UI streams agent messages/progress and embeds/refers to A2UI surfaces, while the shell owns navigation.
+Flutter web has a checked-in bootstrap page. Build/analyzer/widget-test results and exact versions are in the current report. Web compilation does not establish Android/iOS authentication, permissions or native lifecycle behavior. Flutter's renderer visibly reports unsupported components; it is not equivalent to the web renderers.
 
-Prefer declarative UI for simple read/review/form tasks and dedicated mini-app code when advanced interactivity or third-party integration demands it. Both should call identical governed business capabilities.
+## Intended shared experience
 
-## Contracts and ownership (future)
+The target supports dedicated native mini-app screens for complex interactions, standard declarative surfaces for read/review/form tasks, and conversational journeys linking those surfaces. The host owns navigation, identity UX, lifecycle and approved device access. The renderer owns schema/component handling. The agent requests permitted capabilities and screens; domains own resource authorization and business effects.
 
-- **Host owns:** app-level navigation, authentication UX, back stack, lifecycle, layout, localization, accessibility, approved native device capabilities.
-- **Renderer owns:** strict schema validation, supported component catalog, data-binding semantics, state reconciliation, presentation-only actions.
-- **Agent owns:** user-intent understanding, composing journeys, *requesting* screens/transitions and determining what information is needed.
-- **Domain owns:** resource ownership, business data, authorization, payment state and durable idempotency.
+The proposed remote manifest needs stable IDs/versions, shell compatibility, signed asset references, permissions, routes, data sensitivity, rollout/rollback and an allowlisted host bridge. None of these controls follows from a remote URL string. Manual mini-app and concierge paths must use the same governed capabilities and quote/approval rules.
 
-A dynamic UI should never gain arbitrary JavaScript execution, unrestricted navigation, token access or silently approved financial operations.
-
-## Manifest evolution proposal
-
-An independently deployable mini-app manifest should eventually describe: stable ID, version, shell compatibility, display name, signed asset location, permissions/capabilities, route catalog, accessible UI templates, API/MCP contracts, data sensitivity, trust tier, and policy requirements. A remote URL string in the current catalog is **not** enough.
-
-## Responsive experience
-
-The existing examples target chat plus a workspace/tabbed mini-app presentation. Preserve the idea of a focused mobile task surface and split desktop workspace, but test screen-reader behavior, keyboard access, RTL/Arabic, session switching and failure states on actual device sizes before treating it as a platform standard.
-
-See [UI protocols](protocol-ag-ui-a2-ui.md), [ADR-0004](../adr/ADR-0004-microfrontend-and-mini-app-runtime.md), [ADR-0005](../adr/ADR-0005-multi-flavor-frontend-adapters-react-angular-flutter.md).
-
+Test Arabic/RTL, keyboard/focus/screen readers, touch sizes, device lifecycle and failure states before treating the target as a supported platform. See [custom protocol](protocol-ag-ui-a2-ui.md), [ADR-0004](../adr/ADR-0004-microfrontend-and-mini-app-runtime.md), and [ADR-0005](../adr/ADR-0005-multi-flavor-frontend-adapters-react-angular-flutter.md).

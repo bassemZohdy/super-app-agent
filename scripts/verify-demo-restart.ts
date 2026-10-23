@@ -11,11 +11,15 @@ const wallet=async()=>{const response=await fetch('http://localhost:4003/wallet/
 if(process.argv.includes('--prepare')){
   const sessionId=`restart_${randomUUID()}`;
   const data=await call('/api/a2ui/intent','POST',{sessionId,accountId,text:'Show my wallet balance'});
-  writeFileSync(file,JSON.stringify({sessionId,accountId,revision:data.surface.revision,balanceMinor:await wallet()}));
+  const savedSession=await call(`/api/sessions/${sessionId}`); assert.equal(savedSession.runtime?.status,'awaiting-approval');
+  writeFileSync(file,JSON.stringify({sessionId,accountId,revision:data.surface.revision,balanceMinor:await wallet(),threadId:savedSession.runtime.threadId}));
   console.log('Prepared owner-bound session and wallet restart assertions (no tokens saved).');
 }else{
   const saved=JSON.parse(readFileSync(file,'utf8'));
   const data=await call(`/api/sessions/${saved.sessionId}`);assert.equal(data.accountId,saved.accountId);assert.equal(data.surface.revision,saved.revision);assert.ok(Array.isArray(data.messages));assert.equal(await wallet(),saved.balanceMinor);
+  assert.equal(data.runtime?.threadId,saved.threadId); assert.equal(data.runtime?.status,'awaiting-approval');
+  await call('/api/a2ui/action','POST',{sessionId:saved.sessionId,accountId:saved.accountId,surfaceRevision:saved.revision,action:'topup_wallet',payload:{amount:50}});
+  assert.equal(await wallet(),saved.balanceMinor+5000);
   await call(`/api/sessions/${saved.sessionId}`,'DELETE');unlinkSync(file);
-  console.log('PASS: conversation, owner/account, surface revision and SQLite wallet survived container restarts.');
+  console.log('PASS: conversation, owner/account, surface revision and SQLite wallet survived container restarts; LangGraph resumed its persisted approval and executed one top-up.');
 }

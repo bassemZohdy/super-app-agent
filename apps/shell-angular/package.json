@@ -2,7 +2,7 @@
   "name": "@superapp/shell-angular",
   "version": "1.0.0",
   "private": true,
-  "description": "Angular 18 Standalone Host Shell for SuperApp with AG-UI / A2-UI Dynamic Renderer",
+  "description": "Cityside Angular reference shell with Keycloak login and a custom UI renderer",
   "scripts": {
     "dev": "ng serve --port 3001",
     "build": "ng build"

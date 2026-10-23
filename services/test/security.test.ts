@@ -41,7 +41,7 @@ test('security: verified JWT sessions belong to the authenticated subject', asyn
   const mint = (sub: string, claims: Record<string, unknown> = {}) => {
     const header = Buffer.from(JSON.stringify({ alg: 'RS256', kid: 'test-signing-key', typ: 'JWT' })).toString('base64url');
     const payload = Buffer.from(JSON.stringify({
-      iss: process.env.KEYCLOAK_ISSUER, aud: 'agent-core', sub,
+      iss: process.env.KEYCLOAK_ISSUER, aud: 'agent-core', typ: 'Bearer', sub,
       exp: Math.floor(Date.now() / 1000) + 3600,
       ...claims,
     })).toString('base64url');

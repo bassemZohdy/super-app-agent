@@ -1,6 +1,6 @@
 # Target architecture: Option A, Agent-Centric Super App
 
-> Implemented demo boundary: [ADR-0010](../adr/ADR-0010-provider-simulators-and-redis-demo.md) adds provider REST APIs, service credentials, SQLite and Redis conversations. These support the target below; they do not implement a durable workflow engine, production consent, genuine LangGraph or official protocol adapters.
+> Implemented demo boundary: [ADR-0010](../adr/ADR-0010-provider-simulators-and-redis-demo.md) adds provider REST APIs, service credentials, SQLite and Redis conversations. A bounded LangGraph approval graph, Redis checkpoints and core MCP now complement those boundaries. Schedulers/compensation, production consent and official UI adapters remain targets.
 
 **Status:** **Proposed**—not implemented by the current demonstration. This describes design direction for future ADRs and implementation plans, not current production readiness.
 
@@ -35,7 +35,7 @@ flowchart TB
     Policy --> Domains
 ```
 
-*This diagram is a desired decomposition. It does not assert the current repo runs a real LangGraph, MCP or A2A gateway.*
+*This diagram is a desired decomposition. It does not assert a model-selected planner, general workflow engine or A2A gateway; current graph/MCP boundaries are in ADR-0011.*
 
 ## Platform responsibility split
 
@@ -83,4 +83,4 @@ HITL authorization must use immutable server-side quotations, actor+subject bind
 5. **Standards UI:** official AG-UI/A2UI bindings, vetted renderer catalog, mobile/web parity.
 6. **Operations:** HA/DR, monitoring, load testing, offline/air-gap packaging if required.
 
-See [TODO](../../TODO.md), [security](../../SECURITY.md) and ADRs for current decision status.
+See [TODO](../../TODO.md), [security](../../SECURITY.md), [current demo evidence](../reports/2026-10-24-demo-completion.md) and ADRs for implemented boundaries and current decisions.

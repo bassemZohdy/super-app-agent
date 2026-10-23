@@ -1,1 +1,16 @@
-{"name":"@superapp/backend-kit","version":"1.0.0","private":true,"type":"module","scripts":{"build":"tsc --noEmit"},"dependencies":{"@superapp/protocol-core":"*"},"devDependencies":{"@types/node":"^22.10.0","typescript":"^5.7.0"}}
+{
+  "name": "@superapp/backend-kit",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@superapp/protocol-core": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0"
+  }
+}

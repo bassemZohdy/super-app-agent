@@ -16,6 +16,6 @@ Without `SESSION_STORE=redis`, the legacy map and replay journal remain process-
 
 Both modes retain slow-consumer limits: 256 KiB queued/writable output per listener, at most five local listeners/session, incremental UTF-8 parsing, and exponential reconnect from 500 ms to 10 seconds. The five-listener count is process-local, not a cluster quota. Snapshots restore a surface, while the session API restores transcript history separately.
 
-Flutter currently uses HTTP responses and saved-session restoration rather than a native SSE reader. Immediate cancellation of every open stream on Keycloak revocation is not implemented; token expiry bounds existing connections.
+Flutter now uses a Dart SSE reader with incremental UTF-8/multiline parsing, bearer headers, cursor reset, fresh authorization on reconnect, exponential backoff and cancellation on lifecycle/account/logout. A 401/403 stops reconnect and requests sign-in. Parser/reconnect/cancellation tests pass; real native device/proxy execution remains unverified. Immediate cancellation of every open stream on Keycloak revocation is not implemented; token expiry bounds existing connections.
 
-Verification: `services/test/event-stream.test.ts`, `test/integration/redis-sessions.ts`, `npm run demo:verify`, and the [current report](../reports/2026-10-23-provider-demo.md).
+Verification: `services/test/event-stream.test.ts`, `test/integration/redis-sessions.ts`, `npm run demo:verify`, and the [current report](../reports/2026-10-24-demo-completion.md).

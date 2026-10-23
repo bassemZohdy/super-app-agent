@@ -1,9 +1,9 @@
 # ADR-0006 — Session state, UI events and security boundaries
 
-> Current demo implementation update (23 October 2026): see [ADR-0010](ADR-0010-provider-simulators-and-redis-demo.md) and the [provider guide](../demo/provider-backends.md). Earlier implementation descriptions below record the prior fixture baseline. The integrated demo now has REST provider adapters, Keycloak browser/service authentication and Redis sessions; LangGraph, production consent and standards migration remain targets.
+> Current demo implementation update (24 October 2026): see [ADR-0010](ADR-0010-provider-simulators-and-redis-demo.md) and the [provider guide](../demo/provider-backends.md). The implementation sections below describe the retained fixture path and integrated path where applicable. The integrated demo now has REST provider adapters, Keycloak browser/service authentication and Redis sessions. A real LangGraph approval graph with Redis checkpoints and authenticated core MCP now run; model-selected planning, production consent and UI standards migration remain targets.
 
 **Status:** **Partial protections implemented after PR #1; production security pending.**
-**Reviewed:** 2026-10-23.
+**Reviewed:** 2026-10-24.
 
 ## Context
 
@@ -17,18 +17,17 @@ Agent-first civic journeys span identity, conversation, UI actions and potential
 - Treat domain resource authorization, delegated consent, immutable transaction quotations, distributed idempotency, audit and revocation as separate mandatory controls.
 - Use a typed event contract; for production, support durable event ordering/replay and per-session/per-user access control.
 
-## Implemented after PR #1
+## Implemented demo controls
 
-`auth.ts` verifies RS256 tokens using configured JWKS, exact issuer, audience and expiration. `DEMO_AUTH=true` admits a synthetic identity only outside `NODE_ENV=production`. `index.ts` stores process-local session owner, SSE subscriber sets, active transition coordination and surface UUID revisions; guards selected action payload fields and limits some inputs; allows configured CORS origins. React/Angular/Flutter hardcoded forged JWTs were replaced with a local demo marker.
+Shared verification enforces RS256 issuer/audience, bounded finite times, access-token type, issuer-scoped JWKS rotation/cooldown and configured online introspection. Browser shells use PKCE/refresh/logout and header-authenticated SSE. Application APIs verify user roles/account membership; providers verify service audience/client/role and account-owned SQLite resources. Redis provides subject/account binding, TTL, renewed leases, fenced saves and shared replay. Action requests require the current approval revision, five-minute expiry, canonical view digest and every offered payload field. Cancellation invalidates the pending continuation. Fixture mode retains the explicit nonproduction `DEMO_AUTH` bypass and process-local shared data.
 
 ## Unresolved
 
-- No client OIDC/PKCE login or production authenticated streaming.
-- Global in-memory state with no TTL or multi-node durability.
-- No domain-level policy check or verifiable user-consent evidence.
-- No durable transaction idempotency, partial-failure recovery or audit.
-- Keycloak realm sample retains insecure development settings and seeded credentials.
-- Agentgateway config allows wildcard CORS and uses a floating image tag.
+- Native Flutter PKCE/SSE, production browser session design and online revocation.
+- Global quotas, HA/backup/crash recovery and production retention/encryption.
+- Signed user delegation, immutable quotes, consent/revocation and audit.
+- Cross-service atomicity and authenticated payment/provider reconciliation.
+- Known local credentials, HTTP/start-dev and the candidate gateway configuration must not become production defaults.
 
 This ADR is **not** a security certification. See [SECURITY.md](../../SECURITY.md).
 

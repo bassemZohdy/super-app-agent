@@ -1,9 +1,9 @@
 # ADR-0007 — Agent reasoning runtime and model inference separation
 
-> Current demo implementation update (23 October 2026): see [ADR-0010](ADR-0010-provider-simulators-and-redis-demo.md) and the [provider guide](../demo/provider-backends.md). Earlier implementation descriptions below record the prior fixture baseline. The integrated demo now has REST provider adapters, Keycloak browser/service authentication and Redis sessions; LangGraph, production consent and standards migration remain targets.
+> Current demo implementation update (24 October 2026): see [ADR-0010](ADR-0010-provider-simulators-and-redis-demo.md) and the [provider guide](../demo/provider-backends.md). The implementation sections below describe the retained fixture path and integrated path where applicable. The integrated demo now has REST provider adapters, Keycloak browser/service authentication and Redis sessions. A real LangGraph approval graph with Redis checkpoints and authenticated core MCP now run; model-selected planning, production consent and UI standards migration remain targets.
 
-**Status:** **Model preview adapter implemented; LangGraph orchestration remains a target.**
-**Reviewed:** 2026-10-23.
+**Status:** **LangGraph approval runtime and grounded replies implemented; model-selected planning remains a target.**
+**Reviewed:** 2026-10-24.
 
 ## Context
 
@@ -18,14 +18,10 @@ Model inference (text completion) is different from maintaining a stateful, perm
 
 ## As built
 
-`services/agent-core/src/langgraph/graph.ts` is a large **handwritten static class**, routing on English substring matches and calling simulators directly. The package does **not** depend on LangGraph. `invokeOpenRouterChat` is called only when enabled and configured; its response is **ignored** for selecting a domain or tool.
+A real LangGraph `StateGraph` now wraps the deterministic service router with prepare, persisted review interrupt and execute nodes. Integrated mode uses bounded Redis checkpoints; fixtures use MemorySaver. Normal restart recovery resumes an outstanding approval. Model-selected routing, schedules and general workflow compensation are not implemented. See [runtime details](../architecture/agent-runtime.md).
 
-`openrouter.ts` defaults to `openrouter/free`, uses `max_tokens=300` and a 20-second timeout, and rejects paid model IDs unless `OPENROUTER_ALLOW_PAID_MODELS=true`. With no key, it returns a demo fallback and makes no network request. `OPENROUTER_MODEL` can be set to an available fixed `:free` model.
+OpenRouter supplies grounded text with bounded context/output/time, official HTTPS, zero-priced provider routing and per-actor call limits. The current key is rejected with HTTP 401. Manual bundled routes bypass the model and retain the same approval checks.
 
-## Missing implementation
+## Consequences
 
-Genuine graph state/checkpointing, model-decided tool invocation, secure tool schemas, human-in-the-loop persisted interrupts, multi-agent routing, contextual evaluation, tenant-specific memory and budget/cost observability.
-
-**Consequence:** the current app must be described as **deterministic simulation with optional LLM preview**, not an autonomous LangGraph agent.
-
-See [agent runtime](../architecture/agent-runtime.md).
+Describe the app as a checkpointed LangGraph approval demo with deterministic service coordination and optional generated conversation. It is not an autonomous planner or general durable workflow platform. [Demo target decision](ADR-0011-local-demo-target.md) records the accepted boundary.

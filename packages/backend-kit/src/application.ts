@@ -1,3 +1,4 @@
+import { HttpPolicy, HttpError, readJsonBody } from './http-policy.ts';
 import http from 'node:http';
 import { join } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
@@ -150,9 +151,11 @@ export async function integratedRequest(service: string, actor: Actor, method: s
 }
 const successfulWithoutDuplicate = (data: any): Result => ({ status: 200, data });
 export function createApplicationServer(service: string, legacy: Legacy) {
-  return http.createServer(async (req, res) => {
+  const policy = new HttpPolicy();
+  return http.createServer({ maxHeaderSize: 16384, requestTimeout: 15000, headersTimeout: 10000 }, async (req, res) => {
     const send = (status: number, data: any) => { res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(data)); };
     try {
+      const release = policy.admit(req.socket.remoteAddress || 'unknown'); res.once('finish', release); res.once('close', release);
       const url = new URL(req.url || '/', 'http://application');
       const query = Object.fromEntries(url.searchParams);
       const integrated = process.env.PROVIDER_INTEGRATION === 'true';
@@ -165,14 +168,13 @@ export function createApplicationServer(service: string, legacy: Legacy) {
         actor = actorFor({ sub: user.sub, preferred_username: user.preferred_username, name: user.name }, typeof account === 'string' ? account : undefined, req.headers.authorization);
         if (typeof req.headers['x-request-id'] === 'string') actor.requestId = req.headers['x-request-id'].slice(0, 200);
       }
-      let raw = ''; for await (const chunk of req) { raw += chunk; if (Buffer.byteLength(raw) > 65536) return send(413, { error: 'Request body too large' }); }
-      const body = raw ? JSON.parse(raw) : {};
+      const body = await readJsonBody(req);
       if (integrated && url.pathname !== '/accounts' && service !== 'service-telecom') {
         const invalid = validateRequest(service, req.method || 'GET', url.pathname, query, body);
         if (invalid) return send(invalid.status, invalid.data);
       }
       const result = integrated ? await integratedRequest(service, actor!, req.method || 'GET', url.pathname, query, body, legacy) : legacy(req.method || 'GET', url.pathname, query, body);
       send(result.status, result.data);
-    } catch (error) { send(error instanceof SyntaxError ? 400 : 503, { success: false, code: 'REQUEST_FAILED', error: error instanceof SyntaxError ? 'Invalid JSON body' : 'Request could not be completed.' }); }
+    } catch (error) { res.setHeader('Connection', 'close'); send(error instanceof HttpError ? error.status : error instanceof SyntaxError ? 400 : 503, { success: false, code: 'REQUEST_FAILED', error: error instanceof HttpError ? error.message : error instanceof SyntaxError ? 'Invalid JSON body' : 'Request could not be completed.' }); }
   });
 }
