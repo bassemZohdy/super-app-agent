@@ -1,5 +1,11 @@
 # Documentation changelog
 
+## 2026-10-23 — P1-12 dispatch and response handling (partial)
+
+- Omit absent selections, initialize choices from the active surface, reset on revision replacement and reject ambiguous multi-group dispatch. Preserve advertised action parameters in Angular/Flutter.
+- Validate web surfaces, read non-2xx bodies, show errors/warning surfaces, clear loading on all request outcomes and prevent duplicate local requests. Deduplicate current HTTP/SSE surface revisions.
+- 77 tests and 14 forced JS build tasks pass. Browser/native validation, full form/component parity, event ordering and connection state remain open. [Evidence](reports/2026-10-23-p1-12-dispatch.md).
+
 ## 2026-10-23 — P0-10 session coordination
 
 - Merge P0-09/P0-12 into main; refresh backlog baseline.

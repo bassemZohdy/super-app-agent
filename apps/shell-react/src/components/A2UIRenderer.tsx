@@ -1,16 +1,18 @@
+import { choiceDefaults, surfaceActionPayload } from '../../../../packages/protocol-core/src/surface-client.ts';
 import React, { useState, useContext, createContext } from 'react';
 import type { UIComponentNode } from '../../../../packages/protocol-core/src/index.ts';
 
 interface SurfaceFormState {
-  selectedChoice: string;
-  setSelectedChoice: (choice: string) => void;
+  choices: Record<string, string>;
+  setChoice: (group: string, choice: string) => void;
+  view?: UIComponentNode;
   formValues: Record<string, any>;
   setFormValue: (key: string, value: any) => void;
 }
 
 const SurfaceFormContext = createContext<SurfaceFormState>({
-  selectedChoice: '',
-  setSelectedChoice: () => {},
+  choices: {},
+  setChoice: () => {},
   formValues: {},
   setFormValue: () => {},
 });
@@ -27,14 +29,8 @@ function SurfaceCardWrapper({
   node: UIComponentNode;
   onDispatchAction: (action: string, payload: Record<string, any>) => void;
 }) {
-  // Find initial choice from first ChoiceGroup child
-  const choiceGroupChild = node.children?.find((c) => c.type === 'ChoiceGroup');
-  const initialChoice =
-    choiceGroupChild?.properties?.selectedId ||
-    choiceGroupChild?.properties?.options?.[0]?.id ||
-    '';
-
-  const [selectedChoice, setSelectedChoice] = useState<string>(initialChoice);
+  const [choices, setChoices] = useState(() => choiceDefaults(node));
+  const setChoice = (group: string, choice: string) => setChoices(prev => ({ ...prev, [group]: choice }));
   const [formValues, setFormValues] = useState<Record<string, any>>({});
 
   const setFormValue = (key: string, value: any) => {
@@ -48,7 +44,7 @@ function SurfaceCardWrapper({
 
   return (
     <SurfaceFormContext.Provider
-      value={{ selectedChoice, setSelectedChoice, formValues, setFormValue }}
+      value={{ choices, setChoice, view: node, formValues, setFormValue }}
     >
       <div
         className="ag-surface-card"
@@ -76,7 +72,7 @@ function SurfaceCardWrapper({
 }
 
 export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchAction }) => {
-  const { selectedChoice, setSelectedChoice, formValues, setFormValue } =
+  const { choices, setChoice, view, formValues, setFormValue } =
     useContext(SurfaceFormContext);
 
   switch (node.type) {
@@ -140,7 +136,7 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
 
     case 'ChoiceGroup': {
       const options = node.properties?.options || [];
-      const currentSelected = selectedChoice || node.properties?.selectedId || options[0]?.id;
+      const currentSelected = choices[node.id];
 
       return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
@@ -150,7 +146,7 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
               <div
                 key={opt.id}
                 className={`ag-choice-item ${isSelected ? 'selected' : ''}`}
-                onClick={() => setSelectedChoice(opt.id)}
+                onClick={() => setChoice(node.id, opt.id)}
                 style={{
                   display: 'flex',
                   justifyContent: 'space-between',
@@ -455,6 +451,7 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
       return (
         <button
           className="ag-btn"
+          disabled={node.properties?.disabled === true}
           onClick={() => {
             const eventBinding = node.onEvents?.find((e) => e.event === 'onPress');
             if (eventBinding) {
@@ -462,12 +459,13 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
                 onDispatchAction('LAUNCH_MINIAPP', eventBinding.payload);
               } else {
                 const action = eventBinding.payload.action || 'submit';
-                const payload = {
-                  ...eventBinding.payload,
-                  selectedChoice,
-                  ...formValues,
-                };
-                onDispatchAction(action, payload);
+                try {
+                  if (!view) throw new Error('No active surface.');
+                  const payload = surfaceActionPayload(view, eventBinding, choices, formValues);
+                  onDispatchAction(action, payload);
+                } catch (error) {
+                  onDispatchAction('CLIENT_ERROR', { error: (error as Error).message });
+                }
               }
             }
           }}
@@ -497,3 +495,4 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
       );
   }
 };
+
