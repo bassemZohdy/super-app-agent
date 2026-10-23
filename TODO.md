@@ -1,294 +1,135 @@
-# SuperApp Agent Backlog & Implementation Tracker
+# Super App Agent — remaining work backlog
 
-> **Tracking progress for the next-generation agentic SuperApp platform with AG-UI / A2-UI protocols, polyglot frontends (React / Angular / Flutter), and microservice-driven mini-apps.**
+**Reviewed: 23 October 2026.** Scope: agent-core, five domain simulators, capability catalog, React/Angular/Flutter, four mini-apps, custom protocols, model client, identity/gateway configuration, containers, scripts, tests and architecture documentation.
 
----
+**Reviewed code:** `254b4882719c4464395c9fb79e921837d5cde634` on `docs/full-project-refresh-20261023`. PR #3 was merged into that branch; PR #2 is still open against `main` (`85ae71a`). Features below must not be reported as available on `main` until that integration is complete. This is a backlog review, not an implementation or production certification.
 
-## 📊 High-Level Status Dashboard
+Existing task IDs are preserved. New findings extend those tasks or receive new IDs; completed work is separated from remaining work. Historical demo checkmarks remain in [the archived backlog](docs/history/demo-backlog-pre-production.md).
 
-| Phase | Description | Status | Progress |
-|:---|:---|:---:|:---:|
-| **Phase 1** | Architecture, Protocols & Schemas (`protocol-core`, `ui-tokens`) | ✅ Completed | 100% |
-| **Phase 2** | Backend Microservices Cluster (`ride`, `food`, `wallet`, `catalog`) | ✅ Completed | 100% |
-| **Phase 3** | Backend Agent Gateway & Cognitive Platform (`agent-gateway`) | ✅ Completed | 100% |
-| **Phase 4** | Multi-Flavor Frontend Host Shells (`react`, `angular`, `flutter`) | ✅ Completed | 100% |
-| **Phase 5** | Federated Mini-Apps / Microfrontends (`miniapp-*`) | ✅ Completed | 100% |
-| **Phase 6** | Composite Agent Workflows & Cross-Domain Orchestration | ✅ Completed | 100% |
-| **Phase 7** | Verification, Automated Testing & Documentation Polish | ✅ Completed | 100% |
-| **Phase 8** | User Profile, UI Personalization & Keycloak Auth Security | ✅ Completed | 100% |
-| **Phase 9** | Smart City Transformation (DubaiNow & TAMM Integration) | ✅ Completed | 100% |
+## Current baseline and verification limits
 
----
+| Area | Available in reviewed code | Remaining boundary |
+| --- | --- | --- |
+| Agent runtime | Keyword routing and static surfaces through `SuperAppAgentGraph` | No real LangGraph graph, model-driven planning or durable workflow |
+| Domain services | Five modules with local HTTP handlers and shared fixtures | No real providers, per-user domain isolation or durable records; core calls imported functions |
+| Capability discovery | 32 versioned definitions, schemas, risk/consent metadata, list/detail endpoints | Metadata is not enforced on invocation; nested outputs remain extensible |
+| Browser shells | React/Angular bundles; shared authenticated fetch SSE client | Both supply demo tokens; UI behavior and end-user login remain unverified |
+| Flutter | HTTP intent/action calls and partial widget renderer | **No SSE subscription exists in `main.dart`**; native projects/builds and parity remain unverified |
+| Mini-apps | Four locally imported HTML modules | Manual actions depend on the concierge surface; no independent secure runtime |
+| Identity/stream | RS256 ingress validation, subject-bound sessions, bounded process-local replay/backpressure | No revocation, tenant partition, durable ownership or full login lifecycle |
+| Deployment | Dockerfiles, Compose, seeded Keycloak realm, gateway YAML | Container dependencies/startup and gateway traffic path are not proven |
 
-## 🗂️ Detailed Backlog
+Review-time `npm test`: **49 passed, 0 failed, 0 skipped**. `npm run lint` exits successfully but reports **zero executed tasks**. Earlier [release evidence](docs/reports/2026-10-23-release-gates.md) records 14 successful JS workspace build tasks; this review did not rerun the build, Keycloak, containers, Flutter or a browser. Passing simulations do not establish business correctness.
 
-### Phase 1: Architecture, Protocols & Schemas
+### Confirmed defects to turn into regression tests
 
-- [x] **1.1 Architectural Decisions & Specifications**
-  - [x] Draft ADR-0001 (SuperApp and Mini-App Ecosystem)
-  - [x] Draft ADR-0002 (AG-UI and A2-UI Declarative Protocols)
-  - [x] Draft ADR-0003 (Backend Agent Microservices Architecture)
-  - [x] Draft ADR-0004 (Microfrontend and Mini-App Runtime Strategy)
-  - [x] Draft ADR-0005 (Multi-Flavor Frontend Adapters: React, Angular, Flutter)
-  - [x] Draft ADR-0006 (State Management, Security, and Event Bus)
-  - [x] Draft ADR-0007 (LangGraph Agentic Platform & OpenRouter Gateway)
-  - [x] Draft ADR-0008 (Adoption of agentgateway.dev Edge Data Plane)
-- [x] **1.2 `@superapp/protocol-core` Protocol Package**
-  - [x] Define AG-UI Component Types schema (`SurfaceCard`, `Heading`, `Text`, `Badge`, `ChoiceGroup`, `Button`, `FormInput`, `MetricWidget`, `MapViewer`, `DataTable`, `MiniAppEmbed`)
-  - [x] Define A2-UI message types (`HANDSHAKE`, `STREAM_DELTA`, `RENDER_SURFACE`, `EVENT_TRIGGER`, `LAUNCH_MINIAPP`)
-  - [x] Add strict validation helpers and schema unit tests for all AG-UI primitives
-  - [x] Support PATCH and APPEND surface update modes in schema definitions
-- [x] **1.3 `@superapp/ui-tokens` Design Token Library**
-  - [x] Core design tokens in JSON (`colors`, `spacing`, `radii`, `breakpoints`)
-  - [x] Base CSS variables theme sheet
-  - [x] Typography scale, responsive layout tokens, and dark mode variant tokens
+These probes used synthetic fixtures in an isolated local Node process with live inference disabled; no real payment/provider was contacted.
 
----
+| Observed behavior | Source | Backlog |
+| --- | --- | --- |
+| `/pay/unified` accepts an item amount of `-10` and increases the wallet balance by 10 | `services/service-wallet/src/index.ts` | P0-09 |
+| `/wallet/topup` accepts the string `Infinity` | `services/service-wallet/src/index.ts` | P0-09 |
+| Fine payment returns domain HTTP 400 for insufficient funds, but the core returns 200 with `police_fines_settled_card` | `services/agent-core/src/langgraph/graph.ts` | P0-12 |
+| Extending an unknown parking ticket modifies the first existing meter | `services/service-ride/src/index.ts` | P1-13, P0-03 |
+| A wallet action with `selectedChoice: ''` returns 403; the React renderer includes that field even when no choice exists | Renderer + `agent-core/src/index.ts` | P1-12 |
+| `validateA2UIMessage` throws for a render envelope with `data: null` | `packages/protocol-core/src/a2-ui.ts` | P1-14 |
 
-### Phase 2: Domain Microservices Cluster
+## Execution order
 
-- [x] **2.1 Mobility & Ride Service (`service-ride` :4001)**
-  - [x] Basic Fastify/Node service scaffold and healthcheck
-  - [x] REST endpoints: `/rides/options`, `/rides/book`
-  - [x] Basic MCP tool definitions (`ride_getOptions`, `ride_bookCab`, `ride_trackStatus`)
-  - [x] Add ride simulation state machine (Requested -> Dispatched -> In Transit -> Completed)
-  - [x] Add live driver telemetry tracking endpoint (`/rides/track/:id`)
-  - [x] Add unit and endpoint tests
-- [x] **2.2 Food & Dining Service (`service-food` :4002)**
-  - [x] Basic Fastify/Node service scaffold and healthcheck
-  - [x] REST endpoints: `/restaurants/search`, `/orders/create`
-  - [x] Basic MCP tool definitions (`food_searchRestaurants`, `food_createOrder`, `food_trackOrder`)
-  - [x] Expand restaurant catalog with categorized menus, dietary tags, and pricing
-  - [x] Add order tracking state machine (Received -> Kitchen -> Out for Delivery -> Delivered)
-  - [x] Add unit and endpoint tests
-- [x] **2.3 Payments & Wallet Service (`service-wallet` :4003)**
-  - [x] Basic Fastify/Node service scaffold and healthcheck
-  - [x] REST endpoints: `/wallet/balance`, `/wallet/pay`
-  - [x] Basic MCP tool definitions (`wallet_getBalance`, `wallet_authorizePayment`, `wallet_getTransactions`)
-  - [x] Add ledger transaction history endpoint (`/wallet/transactions`)
-  - [x] Add funds top-up endpoint (`/wallet/topup`) with idempotency check
-  - [x] Add unit and endpoint tests
-- [x] **2.4 Mini-App Registry & Catalog Service (`service-catalog` :4004)**
-  - [x] Fastify/Node service scaffold and healthcheck
-  - [x] Mini-app manifest list endpoint (`/miniapps`)
-  - [x] Add dynamic tool catalog endpoint for Agent Gateway tool registration (`/tools`)
-  - [x] Add mini-app permission and configuration endpoint
+1. **Correctness first:** P0-09, P0-12, P0-10 and P1-12/P1-13. Fix false success, invalid money/resource inputs, stale actions and broken UI dispatch before adding autonomy.
+2. **Identity and service boundary:** P0-01/P0-13, P1-02, P0-03, P1-10 and P0-04. Mini-app/manual and agent paths must share the same authorization rules.
+3. **Durability and transactions:** P0-05/P0-06 with P1-04; add restart, replay, timeout and partial-failure tests.
+4. **Agent and UI capability:** P1-03/P1-05, P1-06/P1-07/P1-08/P1-09; proceed against approved architecture/version choices and measured needs.
+5. **Release validation:** close P0-07/P0-08/P0-11/P0-14 and applicable P2 work. Build/scan/test automation may be prepared, but do not re-enable disabled GitHub workflows without explicit user instruction.
 
----
+P0 = blocks use with real users, identity, money or government records. P1 = required platform functionality/correctness. P2 = broader engineering and experience work; applicable accessibility, privacy and operational requirements still gate the intended release.
 
-### Phase 3: Backend Agent Gateway & Cognitive Platform
+## P0 — Security, financial correctness and release blockers
 
-- [x] **3.1 A2-UI Protocol Broker (`services/agent-gateway` :4000)**
-  - [x] Fastify/Node server scaffold with CORS and healthcheck
-  - [x] SSE streaming endpoint (`/api/a2ui/stream`)
-  - [x] Intent ingestion endpoint (`/api/a2ui/intent`)
-  - [x] Interactive action trigger endpoint (`/api/a2ui/action`)
-  - [x] In-memory session checkpointer and subscriber registry
-- [x] **3.2 LangGraph Multi-Agent Platform**
-  - [x] Intent evaluation and supervisor domain routing
-  - [x] Dynamic AG-UI generator for single-domain and composite workflows
-  - [x] Microservice tool bindings (direct tool execution across ride, food, wallet, and catalog)
-  - [x] Human-In-The-Loop (HITL) interrupt handling for user confirmation steps
-  - [x] Contextual AG-UI surface reducer translating multi-tool results into rich UI trees
-- [x] **3.3 Model Inference Gateway (OpenRouter Client)**
-  - [x] OpenRouter fetch wrapper with fallback simulator mode
-  - [x] Dynamic model switching configuration (`claude-3.5-sonnet`, `gemini-2.0-flash`, `gpt-4o`)
-  - [x] Robust JSON schema verification for AG-UI surfaces
-- [x] **3.4 Edge Proxy Integration (`services/agentgateway`)**
-  - [x] Declarative config file (`config.yaml`) for LLM proxy, budget, and MCP tools
-- [x] **3.5 Service Disambiguation & Renaming (`agent-gateway` → `agent-core` / `super-app-agent`)**
-  - [x] Rename `services/agent-gateway` directory to `services/agent-core` to resolve naming clash with `agentgateway` (agentgateway.dev Rust data plane)
-  - [x] Update `docker-compose.yml` service and container names (`agent-gateway` → `agent-core`, `container_name: superapp-agent-core`)
-  - [x] Update package name `@superapp/agent-gateway` → `@superapp/agent-core` in `package.json` and monorepo workspace references
-  - [x] Update environment variables (e.g. `PORT_GATEWAY` / `PORT_AGENT_CORE`), frontend proxies, and Dockerfile paths
-  - [x] Align architecture documentation, diagrams, and ADRs (ADR-0003, ADR-0007, ADR-0008, system overview)
+- [ ] **P0-01 — Real end-user login in retained shells.** Implement Authorization Code + PKCE, in-memory token handling, refresh/expiry, logout, account switching and appropriate mobile redirects. Configure shell token audience/scopes and remove production demo tokens/identity badges. Source: `apps/*`, `services/keycloak/realm-export.json`. **Done when:** real end-user login works through intent, action and stream, and logout/account switch clears surfaces, history and listeners. Service-account token tests alone are insufficient.
 
----
+- [ ] **P0-02 — Complete authenticated stream lifecycle (partial).** Backend/web bearer checks, replay bounds and fetch client exist. Add the missing Flutter stream subscription, replay/reconnect/cancellation and matching lifecycle behavior. Connect real token refresh/reauthentication and visible connection/error status in all retained shells. Test idle disconnect, expiry, slow clients and proxy buffering. Durable cross-instance replay belongs to P0-05. **Done when:** real identity/browser/native interruption tests pass; no token appears in URLs. See [stream contract](docs/architecture/event-stream.md).
 
-### Phase 4: Multi-Flavor Frontend Host Shells
+- [ ] **P0-03 — Enforce authorization at every domain boundary.** Replace globally shared user fixtures with subject/tenant-owned resources; verify actor, subject, tenant, resource, scopes and consent at HTTP/tool boundaries as well as core ingress. Protect profile/prompt-context and private discovery; restrict direct domain exposure/CORS. Propagate identity without trusting client-selected user IDs. Source: `services/service-*/src/index.ts`, graph direct imports. **Done when:** user/tenant A cannot read or mutate B's resources through any available path, including internal calls and manual mini-apps.
 
-- [x] **4.1 React 18 Host Shell (`apps/shell-react` :3000)**
-  - [x] Vite + React 18 scaffold with responsive split-screen layout
-  - [x] SSE stream subscription with live reasoning delta display
-  - [x] Complete `A2UIRenderer` for `SurfaceCard`, `Heading`, `Text`, `ChoiceGroup`, `MetricWidget`, `Button`, `MapViewer`, `DataTable`, `Badge`, `FormInput`, `MiniAppEmbed`
-  - [x] Mobile-first responsive optimizations (bottom sheet drawer, compact concierge dock)
-  - [x] Tab switching between Conversational Concierge and Direct Mini-App views
-  - [x] Quick prompt suggestion chips and audio transcription simulator
-- [x] **4.2 Angular 18 Host Shell (`apps/shell-angular` :3001)**
-  - [x] Angular 18 standalone component shell with Signals
-  - [x] SSE connection and intent dispatching
-  - [x] Native AG-UI dynamic component renderer in Angular
-  - [x] Responsive split-pane layout matching React shell features
-  - [x] Action dispatch loop and suggestion chips
-- [x] **4.3 Flutter Host Shell (`apps/shell-flutter` :3002)**
-  - [x] Flutter cross-platform mobile & desktop scaffold
-  - [x] Material 3 dual-pane responsive layout and HTTP intent dispatch
-  - [x] Complete Flutter AG-UI Widget Factory for dynamic component rendering
-  - [x] Live SSE / HTTP streaming listener with real-time thought display
-  - [x] Interactive action dispatcher and suggestion chips
+- [ ] **P0-04 — Bind mutation approval to the complete server quote.** Use an immutable approval ID/revision bound to subject, actor, action/capability, selected resource, amount/currency, recipient, parameters and expiry. Validate required fields, not only the five currently protected payload keys; scope choices to the relevant action/group. Omitting or changing a bound value must not select a default resource. **Done when:** stale, replayed, modified, cross-user and cross-resource approvals are rejected; cancellation and consent revocation prevent execution. Depends on P0-03/P1-10; concurrency is P0-10.
 
----
+- [ ] **P0-05 — Durable session ownership and recovery.** Persist subject/tenant binding, conversation/checkpoints, approval references, event cursor and workflow version; define TTL/deletion, retention and migrations. Bound current session/owner/consumed-action maps and message history; allocate unpredictable session IDs, coordinate replicas and rehydrate after restart. **Done when:** restart/failover cannot transfer ownership, replay an effect or lose an outstanding approval; expired sessions are reclaimed. Token/JWKS rotation is tracked separately in P0-13.
 
-### Phase 5: Federated Mini-Apps (Microfrontends)
+- [ ] **P0-06 — Durable payment/idempotency and reconciliation.** Replace fixture ledger mutations with domain-owned transactions, idempotency keys and outbox/state transitions. Derive totals from authoritative quotes; remove the simulated card fallback that resets balance to 250. Prevent unified settlement plus subsequent fine payment from double-debiting or claiming inconsistent agency settlement. Define compensation/refund/manual reconciliation for partial effects. **Done when:** repeated/reordered requests and crashes settle each business operation once, ledger totals reconcile, and unsuccessful steps remain visible/recoverable. Depends on P0-09/P0-12 and P1-04.
 
-- [x] **5.1 Ride Mini-App (`mini-apps/miniapp-ride`)**
-  - [x] Manifest definition and basic mount/unmount lifecycle
-  - [x] Interactive route and pickup/dropoff selector
-  - [x] Vehicle tier choice cards with fare calculation
-  - [x] Live driver tracking simulation with map interface
-  - [x] Event dispatch bridge back to host shell
-- [x] **5.2 Food Mini-App (`mini-apps/miniapp-food`)**
-  - [x] Manifest definition and basic mount/unmount lifecycle
-  - [x] Restaurant browsing and search
-  - [x] Menu items selection and cart management
-  - [x] Checkout flow and live order status tracker
-  - [x] Event dispatch bridge back to host shell
-- [x] **5.3 Wallet Mini-App (`mini-apps/miniapp-wallet`)**
-  - [x] Manifest definition and basic mount/unmount lifecycle
-  - [x] Digital Platinum card preview and balance display
-  - [x] Quick top-up action buttons (+$20, +$50, +$100)
-  - [x] Recent transactions ledger list
-  - [x] Event dispatch bridge back to host shell
+- [ ] **P0-07 — Make deployments executable and separate demo/production profiles.** Agent-core's Dockerfile omits the domain modules its graph imports; React's omits imported mini-apps and does not install Vite/dependencies. Repair build contexts, locked installs, source/build entry points and frontend binding/asset serving. Add readiness/health checks, graceful shutdown, persistent identity/domain stores, non-root execution and least-privilege network/secrets configuration. Pin tested runtime/gateway images; remove seeded credentials, wildcard origins and `start-dev` from production. Default local demo binds to loopback (`dev-backend.ts` currently binds `0.0.0.0`). **Done when:** clean-image Compose startup and the chosen production deployment pass smoke/restart checks without host `node_modules`, and secrets are injected externally. Remote core/domain semantics depend on P1-02.
 
----
+- [ ] **P0-08 — Close actual release verification gaps (partial).** Preserve existing 49-test and 14-build evidence; rerun on the integrated release commit. Execute `npm run test:keycloak` on Docker, browser interactions for React/Angular, and Flutter analyze/test/build on supported targets. Extend identity integration beyond two service accounts to real shell PKCE, audience rejection, expiry, rotation/revocation and ownership isolation. Add independent HTTP/container tests; imported handler tests do not exercise deployment. **Done when:** recorded results identify commit, versions, target, commands and exceptions; no required gate is skipped or inferred from a green build. Current Docker/browser/Flutter environment limitations are recorded in the [release report](docs/reports/2026-10-23-release-gates.md).
 
-### Phase 6: Composite Workflows & Orchestration
+- [ ] **P0-09 — Enforce runtime input validation and money invariants.** Apply schemas in actual domain/core/tool handlers, including nested fields, finite numbers, strict parsing, positive bounded amounts, currency and precision/minor-unit rules, valid quantities/durations and required resource IDs. Reject unknown fields and malformed preferences rather than coercing arbitrary objects/strings. Source: wallet/top-up/unified settlement, parking/EV, food orders and profile handlers; catalog schemas currently run only in tests. **Done when:** negative/NaN/infinite/overflow/string-coercion amounts, invalid durations and malformed nested payloads return controlled 4xx without state changes. Add regressions for both confirmed financial probes.
 
-- [x] **6.1 Multi-Service Composite Journeys**
-  - [x] "Book ride + Order food" composite workflow:
-    - User asks: *"Book a cab to Downtown Restaurant and order pizza for delivery there"*
-    - Agent parallelizes / sequences tool calls across `service-ride` and `service-food`
-    - Returns composite AG-UI surface with two tabs/cards
-  - [x] "Pay with Wallet" integrated checkout:
-    - HITL card prompts user to confirm total amount
-    - Upon click, agent invokes `service-wallet` to deduct balance and issues confirmation
-- [x] **6.2 Error Handling & Resilience**
-  - [x] Graceful fallback when microservices or LLM gateway are offline
-  - [x] Validation error reporting via `A2UI_CLIENT_ERROR`
-  - [x] Client reconnection handling for SSE stream drops
+- [ ] **P0-10 — Serialize session transitions and make action consumption recoverable.** Introduce a unique surface/approval revision and atomic compare-and-set or per-session execution coordination. Current shared mutable state and timestamp/action key do not coordinate concurrent intent/action requests, can collide, and consume an action before its execution outcome is known. **Done when:** concurrent requests, multiple tabs and retries cannot act on a replaced surface or produce duplicate effects; definitive failure and uncertain outcome have explicit retry/reconciliation behavior. Domain idempotency remains P0-06.
 
----
+- [ ] **P0-11 — Bound and harden HTTP/JWKS/stream resource use.** Add per-user/IP/tenant and total request/stream quotas, global session/listener limits, byte-based body limits and read/processing deadlines across all services. Return controlled 413/429 errors, handle aborted/malformed requests and wrap asynchronous handlers safely. Domain bodies currently accumulate without a cap; the core destroys oversized requests rather than returning 413. Test HTTP method/content-type/Origin handling and close-time listener/timer cleanup. **Done when:** slow uploads, session churn, oversized payloads and connection floods remain within defined budgets and cannot terminate the server.
 
-### Phase 7: Verification, Automated Testing & Polish
+- [ ] **P0-12 — Propagate domain failures and report truthful outcomes.** Check every domain result before creating success surfaces, receipts or subsequent effects. Fine payment, parking extension and composite journeys currently ignore failures; a rejected fine payment was reproduced as a successful core response. Define pending/succeeded/failed/partially-completed states with stable error codes and retry guidance. **Done when:** insufficient funds, unavailable services, rejected quotes and partial settlements never show paid/cleared/connected status; later irreversible steps stop or compensate as specified.
 
-- [x] **7.1 Monorepo Build & Dependency Management**
-  - [x] Ensure scripts for building, testing, and running backend and frontends work seamlessly
-  - [x] Add unified local development runner script (`scripts/dev-backend.ts`)
-- [x] **7.2 End-to-End Automated Test Suite & Multi-Service Verification**
-  - [x] Protocol validation test suite in `packages/protocol-core` (6 tests)
-  - [x] API integration tests across all 4 microservices in `services/test/microservices.test.ts` (4 tests)
-  - [x] Agent Core cognitive engine test suite in `services/test/agent-core.test.ts` (7 tests)
-  - [x] End-to-end composite user journey runner in `test/e2e-workflow.test.ts` (1 test)
-  - [x] Full-coverage realistic E2E life scenarios in `test/e2e-life-scenarios.test.ts` (7 tests):
-    - [x] Scenario 1: Commuter Morning Rush (Ride Hailing & Real-Time Telemetry Tracking)
-    - [x] Scenario 2: Evening Dinner Delivery (Food Discovery & Kitchen Prep)
-    - [x] Scenario 3: Zero-Trust Wallet Management (Balance, Ledger & Fast Top-Up)
-    - [x] Scenario 4: Composite Multi-Agent Orchestration (Ride + Food + Wallet HITL Checkout)
-    - [x] Scenario 5: Concierge Ecosystem & Mini-App Catalog Exploration
-    - [x] Scenario 6: Financial Guardrail (Insufficient Balance Protection)
-    - [x] Scenario 7: A2-UI Protocol Validation & Rejection Guardrails
-  - [x] Life scenarios flight recorder (`scripts/record-e2e-scenarios.ts` / `npm run test:record`)
-  - [x] Comprehensive execution recording transcript in `docs/reports/E2E_LIFE_SCENARIOS_RECORDING.md`
-  - [x] Monorepo single-command automated test runner (`npm test`: **25 tests passing in <180ms**)
-- [x] **7.3 Documentation & Demo Guide**
-  - [x] Comprehensive architecture and ADR documentation
-  - [x] Step-by-step setup and quick-start instructions in README.md
+- [ ] **P0-13 — Harden access-token and signing-key lifecycle.** Validate access-token type and required permissions in addition to signature/claims; scope JWKS caches to issuer/config, constrain unknown-key refreshes, deduplicate fetches and test key rotation/outages. Enforce finite/valid time claims and claim/header limits; define revocation/logout and allowed clock skew. Review demo bypass and fail closed in shared/production profiles. **Done when:** wrong token type/scope/issuer/audience, revoked tokens, repeated unknown `kid` values and rotation races are covered against real Keycloak. Extends the auth/key-management portions previously bundled in P0-05.
 
----
+- [ ] **P0-14 — Protect citizen data and produce auditable mutation records.** Minimize/redact identity/profile, premises/vehicle identifiers and secrets before model calls, progress events, logs or recordings. `generatePromptContext` currently includes a full identity/assets fixture and is sent to OpenRouter when preview is enabled. Define provider-egress consent/policy, encryption/access/retention/deletion and tamper-evident approval/effect audit records with correlation IDs. **Done when:** allowed data destinations are enforced, user A's records never appear in B's context, and each mutation can be traced to actor, consent, quote and result without logging credentials. Audit platform operations/retention automation continues under P2-02/P2-03.
 
-### Phase 8: User Profile, UI Personalization & Keycloak Auth Security
+## P1 — Complete the agent-centric product and integration boundaries
 
-- [x] **8.1 Service Disambiguation & Docker Compose Finalization**
-  - [x] Verify `docker-compose.yml` uses `agent-core` exclusively (`superapp-agent-core`, `services/agent-core/Dockerfile`)
-  - [x] Add `service-profile` (:4005) and `keycloak` (:8085) container definitions to `docker-compose.yml`
-  - [x] Update `.env.example` with `PORT_AGENT_CORE`, `PORT_SERVICE_PROFILE`, and Keycloak OIDC environment variables
-  - [x] Federate `service-profile` MCP tools in `services/agentgateway/config.yaml`
-- [x] **8.2 User Profile & Preferences Microservice (`services/service-profile` :4005)**
-  - [x] Fastify/Node service scaffold with healthcheck (`/health`)
-  - [x] Profile metadata endpoint (`GET /profile`) with VIP loyalty tier, name, avatar
-  - [x] Preferences endpoint (`GET /profile/preferences`, `POST /profile/preferences`) for dietary (Vegetarian/Spicy), mobility (EV/Comfort), and UI theme
-  - [x] Dynamic LLM prompt context endpoint (`GET /profile/prompt-context`)
-  - [x] MCP tool declarations (`profile_getProfile`, `profile_getPreferences`, `profile_updatePreferences`, `profile_getPromptContext`)
-  - [x] Unit and endpoint tests for `service-profile`
-- [x] **8.3 UI Personalization & Adaptive A2-UI Generation**
-  - [x] Inject user profile context into `SuperAppAgentGraph` supervisor reasoning
-  - [x] Personalize Ride AG-UI card (pre-select preferred vehicle tier e.g. Tesla EV / Comfort Sedan)
-  - [x] Personalize Food AG-UI card (pre-filter and highlight dishes matching user dietary preferences with badge)
-  - [x] Personalize Wallet AG-UI card (display user's Gold VIP loyalty badge and custom benefits)
-  - [x] Interactive preference update loop (`update_preferences`) allowing runtime UI adaptation
-- [x] **8.4 Keycloak Auth Server & OIDC Security Flow**
-  - [x] Keycloak 24 container configuration with pre-imported `superapp` realm and client
-  - [x] Keycloak realm export definition (`services/keycloak/realm-export.json`) with demo user (`bassem`) and roles (`superapp-user`, `superapp-vip`)
-  - [x] JWT / OIDC token authentication middleware in `agent-core` (`services/agent-core/src/auth.ts`) validating Bearer tokens
-  - [x] Update frontend host shells (React, Angular, Flutter) with authenticated user profile chip and token propagation
-- [x] **8.5 E2E Personalization & Security Life Scenario Verification**
-  - [x] Add E2E Life Scenario 8: User Profile Personalization & Adaptive UI
-  - [x] Add E2E Life Scenario 9: Keycloak OIDC Token Authentication & Security Rejection
-  - [x] Update `scripts/dev-backend.ts` to boot `service-profile` alongside other microservices
-  - [x] Re-run all automated tests and flight recorder (`npm test` & `npm run test:record`)
+- [ ] **P1-02 — Introduce typed authenticated domain adapters.** Remove direct business-handler imports from the graph; use one capability invocation contract for core, workflow and manual UI paths, with server-side schema enforcement, identity propagation, deadlines, cancellation and typed errors. Keep an explicit in-process simulator adapter for tests. **Done when:** independent service deployments work and the core cannot accidentally bypass domain policy or execute a second private fixture store. Depends on the completed P1-01 discovery; works with P0-03/P0-09/P0-12.
 
----
+- [ ] **P1-03 — Implement the selected real agent runtime.** Resolve ADR-0009/runtime choices explicitly, then implement actual nodes, typed tools, bounded planning, conversation context, checkpoints and HITL interrupts. Model output may choose only authorized capabilities; add clarification and out-of-scope behavior instead of guessing/defaulting. Replace monolithic keyword routing incrementally behind evaluated interfaces. **Done when:** a permitted multi-turn task uses runtime/tool/checkpoint APIs and resumes correctly; a class/path named LangGraph is not sufficient evidence.
 
-### Phase 9: Smart City Platform Transformation (DubaiNow & TAMM Integration)
+- [ ] **P1-04 — Add durable deterministic workflow execution.** Define the executor boundary to the agent with versioned workflow/task IDs, retries/backoff, timeouts/circuit breaking, cancellation, durable waits/HITL, schedules/events and compensation. Proactive work requires revocable resource/budget/time-bound grants. **Done when:** a cross-domain journey and a scheduled/waiting journey resume after process/host failure and reconcile partial effects. Select the engine through an ADR; do not treat a proposal or YAML file as an executable workflow.
 
-- [x] **9.1 Architectural & Domain Specification (DubaiNow & TAMM Reference)**
-  - [x] Transform generic consumer services into authentic Smart City pillars: Smart Mobility (RTA/Mawaqif/Salik), Smart Utilities (DEWA/ADDC), Citizen Payments & Police Fines (DubaiPay/TAMM Pay & Dubai Police), and Housing & Tenancy (Ejari/Tawtheeq)
-  - [x] Update ADR-0001 and ADR-0003 with Smart City Civic Services specifications
-  - [x] Update MCP tool definitions in `services/agentgateway/config.yaml` for smart city tools
-- [x] **9.2 Smart Mobility Microservice (`service-mobility` / `service-ride` :4001)**
-  - [x] Smart Parking management (RTA Dubai & Mawaqif Abu Dhabi): zone discovery (Zone 302A Downtown, Zone 101B Business Bay), tariff calculation, meter activation (`/mobility/parking/activate`), live meter countdown, and extension (`/mobility/parking/extend`)
-  - [x] Road toll system (Salik / Darb): balance check (`/mobility/salik/balance`), recent toll gate trips (`/mobility/salik/passings` Al Safa, Al Barsha), and instant auto-recharge (`/mobility/salik/recharge`)
-  - [x] EV Green Charger network: GPS coordinates finder for DEWA EV chargers (`/mobility/ev/chargers`), plug availability (Type 2, 50kW DC Fast), and charging session initiation (`/mobility/ev/start`)
-- [x] **9.3 Smart Utilities Microservice (`service-utilities` / `service-food` :4002)**
-  - [x] Electricity and water smart premise telemetry (DEWA / ADDC): consumption breakdown in kWh and imperial gallons (`/utilities/consumption`)
-  - [x] Monthly utility bill calculation with housing municipality fee and sewerage (`/utilities/bill`)
-  - [x] Bill settlement endpoint with green energy credit allocation (`/utilities/pay`)
-  - [x] Green Living Eco-Advice advisor calculating rooftop solar credits and off-peak savings (`/utilities/eco-advice`)
-- [x] **9.4 Citizen Pay & Government Wallet (`service-citizenpay` / `service-wallet` :4003)**
-  - [x] Smart City digital citizen wallet (DubaiPay / TAMM Pay) stored-value ledger & instant top-up
-  - [x] Dubai Police & Abu Dhabi Police traffic fine management: radar speeding & parking overstay query (`/fines/check`) and instant settlement with early discount (`/fines/pay`)
-  - [x] Unified multi-agency settlement checkout with cryptographic transaction receipt (`/pay/unified`)
-- [x] **9.5 UAE PASS Digital Identity & Housing (`service-profile` :4005 & `service-catalog` :4004)**
-  - [x] UAE PASS citizen profile model: Emirates ID (`784-1988-1234567-1`), Golden Visa residency status, registered vehicle plates (`Dubai B-74892` Tesla Model Y EV), registered premises (`DEWA 201948201`, Ejari `EJR-2026-948102`)
-  - [x] Ejari / Tawtheeq tenancy contract verification and renewal simulation
-  - [x] Dynamic LLM prompt context generator tailored for the autonomous Smart City Citizen Concierge
-- [x] **9.6 Cognitive Smart City Orchestrator (`agent-core` :4000)**
-  - [x] Smart city intent classifier: Parking, Salik, DEWA, Police Fines, Ejari Tenancy, Civic Incidents
-  - [x] Composite Multi-Agency Life Journeys:
-    - *Journey 1: Monthly Civic Living Reconciliation (DEWA utility bill + Dubai Police fine + DubaiPay unified checkout)*
-    - *Journey 2: Moving-In Golden Path (Ejari contract validation + DEWA smart meter activation + RTA residential parking)*
-    - *Journey 3: Smart Commute & Green EV Session (Salik balance check + EV charger reservation + Zone 302A parking)*
-    - *Journey 4: Civic Incident Reporting (Street defect / leak reporting with MapViewer coordinates and municipality ticket dispatch)*
-  - [x] AG-UI Surface builders for Parking Meters with live countdown, DEWA consumption widgets, fine data tables, and UAE PASS Golden Visa badges
-- [x] **9.7 Polyglot Smart City Frontends (React, Angular, Flutter)**
-  - [x] Transform frontend shells into **SmartCity Now • Unified Citizen Agent** (DubaiNow / TAMM aesthetic)
-  - [x] Display verified UAE PASS digital citizen badge (`🛡️ UAE PASS • Bassem Zohdy • 🌟 Golden Visa`) in headers
-  - [x] Smart City suggestion chips, active parking meter countdown badges, and microfrontend tabs (`MOBILITY`, `UTILITIES`, `CITIZEN PAY`)
-- [x] **9.8 Verification, Automated Testing & Flight Recording**
-  - [x] Update unit tests for Smart City microservices (`npm test`)
-  - [x] Update realistic Smart City E2E life scenarios in `test/e2e-life-scenarios.test.ts`
-  - [x] Execute flight recorder and generate `docs/reports/E2E_LIFE_SCENARIOS_RECORDING.md`
-  - [x] Record fresh HD screen recording video (`docs/recordings/videos/superapp-e2e-scenarios.webm`) with Playwright & Google Chrome
-  - [x] Commit and push all changes to GitHub
+- [ ] **P1-05 — Evaluate models and enforce actual cost/safety budgets.** Use a fixed civic/legacy/ambiguous/multilingual task set with tool-selection accuracy, completion rate, approval violations, token use, total cost per successful task and latency. Keep no-key deterministic tests and free-first live tests; make paid use explicit and capped across retries/fallbacks. Restrict provider endpoints, validate outputs and handle rate limits/outages. **Done when:** model choice affects evaluated permitted plans, token/task budgets are enforced and a free-model failure never silently enables paid inference. Current preview discards model output; its 300 output-token cap is not a complete spend budget.
 
----
+- [ ] **P1-06 — Implement standard AG-UI/A2UI adapters and shared rendering.** Pin protocol versions, separate lifecycle events from UI descriptions and provide the generic Lit Web Component plus Flutter-native renderer described by the target architecture. Define component negotiation, supported versions, action binding, navigation, data binding and update semantics. Keep a clearly named compatibility adapter for custom envelopes during migration. **Done when:** official fixtures/conformance and web/native parity tests pass, including static/service-generated and agent-proposed UI. Angular retention and renderer reuse should be explicit rather than maintaining three divergent implementations by default.
 
-## Phase 10 — Production readiness (OPEN; do not confuse demo completion with release readiness)
+- [ ] **P1-07 — Implement real MCP; add A2A only for a demonstrated remote-agent need.** Replace `GET /mcp` descriptor JSON with supported initialization, tool discovery/call transport, schemas, authentication and errors; reconcile catalog/tool names. Catalog currently lacks the `/mcp` route referenced by gateway YAML. Define remote-agent identities, delegated authority and cancellation before A2A execution. **Done when:** independent reference clients invoke authorized tools successfully and reject unauthorized calls; document A2A as deferred if no remote-agent requirement is selected.
 
-The preceding phases track the **demo acceptance scope only**. The following items are pending before production:
+- [ ] **P1-08 — Validate the actual gateway path.** Select a tested agentgateway version/schema, resolve Compose command/config/startup dependency issues and replace mismatched tool names/transports. Route the chosen LLM/MCP/remote-agent paths through it; core currently calls OpenRouter directly and does not use `AGENTGATEWAY_URL` for inference. Verify auth, quotas, budgets, policy failures and telemetry in traffic tests. **Done when:** the configured gateway demonstrably handles traffic and enforces the advertised rules; unsupported features remain explicitly unimplemented.
 
-- [x] Reject forged/demo JWTs by default; validate Keycloak RS256 signatures, issuer, audience and expiry
-- [x] Scope sessions to authenticated users; reject actions not represented on current surface
-- [x] Add local-only demo opt-in, multi-listener SSE, UI payload limits, and restricted CORS / local ports
-- [x] Default optional OpenRouter preview to free inference and block paid models without explicit opt-in
-- [x] Add regression test coverage for authentication, access controls and model spend policy (**execution pending**)
-- [ ] Real OIDC/PKCE frontend login (React, Angular, Flutter) and authenticated production SSE
-- [ ] Real domain-level authorization, consent, delegated identity, and tenant isolation
-- [ ] Durable session/checkpoint state, event replay, retries and distributed idempotency
-- [ ] Atomic/composable multi-agency settlement with compensation, audit and authorization proof
-- [ ] Actual LangGraph agent orchestration instead of keyword routing; model output currently unused
-- [ ] Official AG-UI + A2UI adapters and cross-platform renderer parity tests
-- [ ] Container/version pinning, security scanning, Keycloak integration, production load testing
-- [ ] Run full `npm test`, `npm run build`, and real Keycloak end-to-end tests before merge
+- [ ] **P1-09 — Implement a secure mini-app runtime and manifest lifecycle.** Choose and document embedded-module versus independently deployed Web Component loading; do not assume Module Federation exists. Add complete manifests (housing currently has none), stable routes, compatibility, permissions, integrity/signature/trust policy, version rollout/rollback and allowlisted host bridge. Replace unused example remote URLs and substring-based app selection. **Done when:** an authorized app can be discovered/launched/unmounted predictably and incompatible/untrusted modules cannot gain host/token privileges. Manual business execution is P1-11.
 
-See [SECURITY.md](SECURITY.md).
+- [ ] **P1-10 — Implement consent and delegated authority lifecycle.** Store user/tenant-bound grants with capability/resource scope, allowed actions, limits, expiry, actor/delegator chain and grant/revoke history. Re-evaluate current authority on every effect, including scheduled tasks and sub-agent calls; show view/update/revoke controls. **Done when:** users can inspect/revoke grants and revocation prevents pending/new actions without relying on the model or a catalog metadata flag. Works with P0-03/P0-04/P0-13/P0-14.
+
+- [ ] **P1-11 — Make manual mini-app journeys work independently of concierge state.** Route direct navigation through the same governed adapters and quote/approval flow as the agent. Current mini-app events call `/api/a2ui/action`, which requires an existing matching concierge surface; a fresh tab cannot perform a valid independent journey. Fix `SALIK_RECHARGED` being mapped to `extend_parking`, and remove optimistic wallet increments before confirmed success. **Done when:** parking, toll recharge, utilities, fines, wallet and housing work from direct navigation without first prompting the agent; failed operations do not update balances/status.
+
+- [ ] **P1-12 — Repair renderer/action/UI state correctness.** Omit absent/empty `selectedChoice`; track choices/forms per group and surface revision and reset stale values when replacing a surface. Forward binding parameters and action types in Angular/Flutter (currently largely action-name-only), honor disabled states and implement or reject unsupported components/navigation. Validate responses before rendering; show non-2xx/401/403/409/429 errors, stop loading indicators, prevent duplicate clicks and deduplicate HTTP/SSE updates. Replace hardcoded connected/verified/success/countdown labels with actual state. **Done when:** real browser/native actions reproduce all supported journeys and adversarial/stale selections cannot change another action's resource. Never weaken the backend action guard to make the UI pass.
+
+- [ ] **P1-13 — Correct resource and domain semantics.** Return controlled not-found/validation failures for unknown drivers, restaurants/items, bookings, orders, parking tickets and chargers instead of choosing the first fixture or fabricating tracking. Propagate the approved parking ticket into extension; filter fines/assets by the authorized selected resource. Derive tariffs/durations, balances, discounts, receipts and move-in status from domain state; use explicit currency/units across civic AED and legacy examples. Split mobility/utilities/payments/fines/housing/identity ownership or document transitional mappings. **Done when:** operations affect exactly the selected owned resource and unsupported/unknown resources never silently succeed. Input and access enforcement remain P0-09/P0-03.
+
+- [ ] **P1-14 — Make protocol/catalog contracts enforceable and consistent.** Guard malformed/null envelopes without exceptions; validate per-event/component properties, action types, unique IDs, total node/payload budgets and session/version consistency at ingress and renderer boundaries. Extend capability outputs beyond permissive object/success envelopes, include required mutation resource/quote data and define error schemas/version evolution. Generate or check tool/schema mappings from one contract source so catalog, `/mcp`, gateway and frontends cannot drift. **Done when:** malformed/fuzzed payloads fail safely and contract tests prove success/error semantics and references, not merely schema compilation. P1-01 remains complete for discovery metadata only.
+
+- [ ] **P1-15 — Finalize deployment and external integration scope.** Record retained shells, target hosting/OpenShift requirements, network/air-gap profile, actual provider owners, user journeys and allowed autonomy modes in ADRs with acceptance criteria. Replace placeholder agency/UAE PASS/payment endpoints with scoped provider adapters only when contracts, test environments and credentials are available. If offline operation is selected, package images/dependencies/renderer assets and self-hosted inference without external fonts/avatars/provider calls. **Done when:** each release scenario identifies its real versus simulated dependencies and testable deployment profile; no unselected provider/agent integration is claimed complete.
+
+## P2 — Engineering, experience and operating quality
+
+- [ ] **P2-01 — Accessibility, localization and device quality.** Add Arabic/RTL, locale-aware dates/currency, translation catalogs, keyboard/focus/screen-reader labels, error announcements, touch targets and responsive/device checks. Define safe offline/read-only behavior and reconnect UX; never queue financial effects blindly. Validate Flutter lifecycle/disposal, navigation and native platform capabilities. **Done when:** an agreed supported-component/journey matrix passes accessibility and device tests; unsupported features are communicated.
+
+- [ ] **P2-02 — Observability, capacity and recovery operations.** Propagate request/run/workflow/tool/approval IDs, emit structured redacted logs/metrics/traces, and define readiness versus liveness. Set measurable latency/throughput/error SLOs, load/soak/chaos tests, backpressure alerts, HA/failover and backup/restore RPO/RTO procedures. **Done when:** operators can diagnose a partial journey, detect stuck tasks and restore durable state using tested runbooks.
+
+- [ ] **P2-03 — Supply-chain and release automation.** Run dependency/image/secret scans and triage actual findings; generate SBOMs, pin supported toolchains, sign artifacts and enforce review/release evidence with rollback. Automate audit retention/access policies. Prepare local/opt-in CI commands for all retained stacks; **do not enable/re-enable GitHub Actions without explicit user instruction**. **Done when:** a release can be reproduced and its provenance, scan disposition and rollback are reviewable. Initial deployment security remains P0-07/P0-08.
+
+- [ ] **P2-04 — Developer contracts and documentation upkeep.** Publish versioned OpenAPI/MCP/A2A examples only for implemented interfaces; add developer/provider onboarding and compatibility/migration guides. Reconcile README/ADRs/package descriptions/recorders with the reviewed runtime: Flutter is HTTP-only today, protocol names are custom, several UI/recorder assertions overstate integration, and earlier report branch status is historical. **Done when:** documented commands and capabilities match executable source and release evidence; generated docs are checked for drift.
+
+- [ ] **P2-05 — Add meaningful code-quality and test gates.** Configure real lint/format/static checks (`npm run lint` currently runs zero tasks), remove unused dependencies/imports and unsafe `any` at trust boundaries, and make package exports/entry points consistent with source execution versus emitted builds. Add isolated fixtures and negative/failure/concurrency/restart tests for this review's findings, plus true HTTP/browser/container/native tests. Catalog tests must not count an arbitrary error response or fabricated fallback as proof that a capability works. **Done when:** intended checks actually execute, defective business behavior fails tests, and every retained stack has an explicit tested boundary.
+
+- [ ] **P2-06 — Reproducible tooling and developer lifecycle.** Make ports/hosts/base URLs configurable consistently across runner, shells, Compose and mobile; clarify build-time versus runtime frontend configuration and remove unused env placeholders. Pin Node/npm/Flutter expectations, resolve package-manager/workspace conventions, and add reliable start/stop/cleanup and opt-in recording commands with synthetic data. **Done when:** a clean checkout starts and stops documented targets without implicit local assets, stale processes, leaked generated secrets or regenerating misleading recordings.
+
+## Completed foundations — retain, do not reimplement
+
+- [x] **P1-01 — Capability discovery metadata:** 32 stable IDs, versions/owners, input/output schemas, risk/consent declarations, `/capabilities`, detail lookup and linked `/tools` entries; simulator contract checks pass. Invocation enforcement is P0-09/P1-02/P1-14.
+- [x] Initial ingress RS256 issuer/audience/expiry validation, subject-bound session/action guard and free-model/paid-opt-in defaults. Production lifecycle and domain authority remain open above.
+- [x] Backend/web portion of P0-02: bearer fetch transport, bounded process-local journal, replay/reset/snapshots, expiry/backpressure and regression coverage. Do not confuse this with Flutter or durable replay.
+- [x] P0-08 foundation: recorded 49-test/14-workspace build baseline and isolated real-Keycloak runner/test source. Actual Keycloak, visual/native and deployment release gates remain unchecked.
+- [x] Documentation index, as-built/target separation, ADR review, production warnings, historical demo archive and dated command evidence. This backlog review adds remaining defects and closure criteria; it does not fix them.
+
+## Completion policy
+
+Each implementation PR must reference task IDs, update their status, identify dependencies and attach passing evidence for its actual target. Preserve IDs and history when splitting tasks. Partial completion stays unchecked with the completed boundary stated. For dependent tasks, build against the documented contract early, but do not mark end-to-end integration complete until dependencies are proven.
+
+A generated surface, mock receipt, declared test, compiled schema, gateway YAML or green type-check is not proof of a real integration, business success or production authorization. Record commit/version/environment, positive and negative results and known exceptions. Do not estimate completion percentage from checkbox counts.
+
+References: [documentation index](docs/INDEX.md), [security](SECURITY.md), [target architecture](docs/architecture/target-architecture.md), [release evidence](docs/reports/2026-10-23-release-gates.md).

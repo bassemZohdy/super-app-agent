@@ -1,4 +1,5 @@
-import { Component, signal, OnInit } from '@angular/core';
+import { connectEventStream } from '../../../../packages/protocol-core/src/sse-client.ts';
+import { Component, signal, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import type { AGUISurfacePayload, A2UIMessageEnvelope, UIComponentNode } from '../../../../packages/protocol-core/src/index.ts';
 
@@ -159,7 +160,8 @@ import type { AGUISurfacePayload, A2UIMessageEnvelope, UIComponentNode } from '.
     .empty { max-width: 800px; margin: 40px auto; border: 2px dashed #cbd5e1; border-radius: 16px; padding: 80px 20px; text-align: center; color: #64748b; }
   `]
 })
-export class AppComponent implements OnInit {
+export class AppComponent implements OnInit, OnDestroy {
+  private streamController = new AbortController();
   messages = signal<Array<{ role: string; text: string }>>([
     { role: 'assistant', text: 'Welcome to SuperApp Angular Shell! Ask me to book a ride, order food, or check your wallet.' }
   ]);
@@ -170,22 +172,23 @@ export class AppComponent implements OnInit {
   keycloakToken = 'demo-local'; // local demo only
 
   ngOnInit() {
-    try {
-      const sse = new EventSource(`http://localhost:4000/api/a2ui/stream?sessionId=${this.sessionId}&demo=1`);
-      sse.onmessage = (event) => {
-        const data: A2UIMessageEnvelope = JSON.parse(event.data);
-        if (data.type === 'A2UI_STREAM_DELTA') {
-          this.delta.set(data.data.text);
-        } else if (data.type === 'A2UI_RENDER_SURFACE') {
+    void connectEventStream({
+      url: `http://localhost:4000/api/a2ui/stream?sessionId=${this.sessionId}`,
+      getToken: () => this.keycloakToken,
+      signal: this.streamController.signal,
+      onMessage: (data) => {
+        if (data.type === 'A2UI_STREAM_DELTA') this.delta.set(data.data.text);
+        else if (data.type === 'A2UI_RENDER_SURFACE') {
           this.delta.set(null);
           this.surface.set(data.data.surface);
-          this.messages.update((m) => [...m, { role: 'assistant', text: 'Prepared interactive surface for your request.' }]);
+          this.messages.update(m => [...m, { role: 'assistant', text: 'Prepared interactive surface for your request.' }]);
         }
-      };
-    } catch (e) {
-      console.warn('SSE stream unavailable', e);
-    }
+      },
+      onError: error => console.warn('Event stream unavailable', error.message),
+    });
   }
+
+  ngOnDestroy() { this.streamController.abort(); }
 
   async sendIntent(text: string) {
     if (!text.trim()) return;
@@ -250,3 +253,4 @@ export class AppComponent implements OnInit {
     }
   }
 }
+

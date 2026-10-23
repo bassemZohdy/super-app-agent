@@ -1,206 +1,109 @@
-# SuperApp Agent: End-to-End System Architecture
+# As-built system architecture
 
-## 1. Executive Summary
+**Snapshot:** `main` after PR #1 (23 October 2026). This document describes the checked-in code, not an aspirational platform. For the future architecture see [target-architecture](target-architecture.md).
 
-The **SuperApp Agent** is an enterprise-grade prototype demonstrating an AI-orchestrated multi-service application (SuperApp) hosting autonomous **Mini-Apps** (Mobility, Food, Payments). Unlike traditional SuperApps that rely purely on rigid navigation directories, this system introduces a **Backend Agent as the central Concierge and UI Orchestrator**. 
+## Summary
 
-The backend agent is orchestrated by an **Agentic Platform powered by LangGraph / LangChain**, using **OpenRouter** as the underlying **Model Inference Gateway** (providing System-1 raw LLM reasoning from Claude 3.5 Sonnet, GPT-4o, or Gemini 2.0). The agent communicates with client applications using two specialized protocols:
-- **AG-UI (Agent-Generated UI / Adaptive Generative UI)**: A declarative JSON schema that enables the agent to dynamically build layouts, choice groups, cards, data visualizations, and interactive widgets on-the-fly.
-- **A2-UI (Agent-to-User Interface Protocol)**: A bi-directional, streaming wire protocol (over SSE / WebSocket) supporting real-time thought streaming, UI surface replacement/patching, and action loop execution.
-
-The frontend is architected as a **polyglot multi-flavor ecosystem**, offering reference implementations in **React 18**, **Angular 18**, and **Flutter**, all supporting **mobile-first responsive design** with **desktop side-by-side split viewports**.
+The demonstration puts a Concierge-style user interface over five **in-process business simulators**. The top-level user interaction is HTTP plus custom SSE events. A class named `SuperAppAgentGraph` performs keyword matching, invokes imported functions, constructs surfaces, and pauses in practice by presenting action buttons. It is not an installed LangGraph StateGraph and has no durable checkpointing.
 
 ```mermaid
 flowchart TB
-    subgraph Clients ["Multi-Flavor Client Applications"]
-        ReactApp["React 18 Host\n(Web & Mobile PWA)"]
-        AngularApp["Angular 18 Host\n(Web & Mobile PWA)"]
-        FlutterApp["Flutter Host\n(iOS, Android, Web)"]
+    subgraph Clients["Sample clients"]
+      React["React 18 shell :3000"]
+      Angular["Angular 18 shell :3001"]
+      Flutter["Flutter sample (web/mobile)"]
     end
-
-    subgraph MFEHub ["Microfrontend & Mini-App Runtime"]
-        FederationHost["Module Federation Engine"]
-        ComponentRegistry["AG-UI Universal Registry"]
-        MiniAppA["Mini-App: Ride & Mobility"]
-        MiniAppB["Mini-App: Food & Grocery"]
-        MiniAppC["Mini-App: Wallet & Payments"]
+    Core["agent-core :4000<br/>HTTP intent/action + custom SSE<br/>RS256 JWT or explicit local demo"]
+    State["Process memory<br/>sessions / owners / listeners / consumed actions"]
+    Rules["SuperAppAgentGraph<br/>keyword routing + UI builders"]
+    LLM["OpenRouter API<br/>optional free preview only"]
+    subgraph Business["Simulated domain modules"]
+      Mobility["service-ride<br/>mobility/parking/Salik"]
+      Utility["service-food<br/>food + utilities"]
+      Money["service-wallet<br/>wallet + civic fines"]
+      Registry["service-catalog<br/>mini-app catalog + housing"]
+      Profile["service-profile<br/>demo user preferences"]
     end
-
-    ReactApp --> FederationHost
-    AngularApp --> FederationHost
-    FlutterApp --> ComponentRegistry
-    FederationHost --> MiniAppA
-    FederationHost --> MiniAppB
-    FederationHost --> MiniAppC
-
-    subgraph Network ["Wire Protocol (A2-UI)"]
-        A2UIStream["Streaming SSE & WebSocket Channels\n(Handshake, Streaming Deltas, Action Dispatch)"]
-    end
-
-    Clients <--> Network
-
-    subgraph EdgeGateway ["Edge Ingress: agentgateway.dev (Rust Data Plane)"]
-        EdgeAuth["Edge JWT / OAuth Validator"]
-        EdgeRateLimit["Token Bucket Rate Limiting (CEL)"]
-        OTelIngress["Distributed Tracing & Metrics"]
-    end
-
-    Network <--> EdgeGateway
-
-    subgraph BackendGateway ["A2-UI Protocol Broker & BFF (:4000)"]
-        Ingress["Fastify / Node.js BFF"]
-        A2UIProtocolEngine["A2-UI Protocol Engine & SSE Broker"]
-        HITLCoordinator["Human-In-The-Loop Coordinator"]
-    end
-
-    EdgeGateway <--> BackendGateway
-
-    subgraph AgentPlatform ["AgentCore: LangGraph Agentic Platform"]
-        SupervisorRouter["Supervisor Concierge Agent\n(LangGraph StateGraph Root)"]
-        Checkpointer["Session Memory & Checkpointer\n(Thread State & Interrupts)"]
-        
-        subgraph DomainWorkerAgents ["Domain Worker Subagents"]
-            RideAgent["Ride Worker Agent"]
-            FoodAgent["Food Worker Agent"]
-            WalletAgent["Wallet Worker Agent"]
-        end
-
-        SupervisorRouter <--> Checkpointer
-        SupervisorRouter --> DomainWorkerAgents
-
-        AGUIReducer["AG-UI Schema Generator & State Reducer"]
-        DomainWorkerAgents --> AGUIReducer
-    end
-
-    BackendGateway <--> AgentPlatform
-
-    subgraph AgentMesh ["agentgateway.dev (Agent Data Plane & MCP Federation)"]
-        MCPHub["MCP Tool Federation\n(Model Context Protocol)"]
-        ModelProxy["OpenRouter Proxy & Failover"]
-        SpendGovernor["Token Budgeting & Spend Guard"]
-    end
-
-    AgentPlatform <--> AgentMesh
-
-    subgraph LLMGateway ["Model Inference Gateway"]
-        OpenRouterClient["OpenRouter API Gateway Client\n(Claude 3.5 Sonnet / GPT-4o / Gemini)"]
-    end
-
-    AgentMesh <-->|Filtered & Budgeted Calls| LLMGateway
-
-    subgraph MicroservicesCluster ["Domain Microservices Ecosystem (MCP Servers)"]
-        RideService["Ride Service (:4001)\n(MCP: drivers, booking, tracking)"]
-        FoodService["Food Service (:4002)\n(MCP: menus, orders, kitchens)"]
-        WalletService["Wallet Service (:4003)\n(MCP: balance, ledger, checkout)"]
-        CatalogService["Mini-App Catalog (:4004)\n(Manifests, Versioning, Tool Specs)"]
-    end
-
-    AgentMesh --> RideService
-    AgentMesh --> FoodService
-    AgentMesh --> WalletService
-    SupervisorRouter --> CatalogService
-    AGUIReducer --> A2UIProtocolEngine
+    React <--> Core
+    Angular <--> Core
+    Flutter <--> Core
+    Core --> State
+    Core --> Rules
+    Rules --> Mobility
+    Rules --> Utility
+    Rules --> Money
+    Rules --> Registry
+    Rules --> Profile
+    Rules -. enabled only .-> LLM
 ```
 
----
+The business functions are imported directly from `services/*/src/index.ts` into `services/agent-core/src/langgraph/graph.ts`. Starting each module's HTTP server does not mean the graph communicates over HTTP or MCP.
 
-## 2. Structural Layering & Component Breakdown
+## Component inventory
 
-### 2.1 Backend Layer (Agent Gateway, LangGraph Core & Microservices)
-1. **Agent Core (`services/agent-core`)**:
-   - Acts as the single entry-point for frontend clients.
-   - Handles the initial `A2UI_HANDSHAKE`, establishing device constraints (screen size, platform, supported components).
-   - Manages stateful conversational sessions and translates client interactions into agent executions.
-2. **AgentCore Orchestration Platform (LangGraph / LangChain)**:
-   - **StateGraph Architecture**: Cyclical execution graph with supervisor-subagent delegation.
-   - **Human-In-The-Loop**: LangGraph interrupts pause execution when user action is required on the UI (e.g., checkout confirmation), resuming upon `A2UI_EVENT_TRIGGER`.
-   - **Checkpointers**: Preserves conversational thread state and mini-app execution context across sessions.
-3. **Model Inference Gateway (OpenRouter)**:
-   - Configured via `OPENROUTER_API_KEY` in `.env`.
-   - Provides System-1 raw LLM completions (Claude 3.5, GPT-4o, Gemini 2.0). OpenRouter acts strictly as the model provider, while LangGraph manages the agentic brain, state, tools, and execution graphs.
-4. **Domain Microservices (`services/service-*`)**:
-   - **`service-ride`**: Manages vehicle types, pricing algorithms, driver availability, and route simulation.
-   - **`service-food`**: Manages restaurant listings, dynamic menus, dietary filters, and delivery tracking.
-   - **`service-wallet`**: Manages secure transactions, digital payment tokens, and balance verification.
-   - **`service-catalog`**: Central registry of all installed mini-apps and their corresponding OpenAPI tool definitions.
+| Component | As-built responsibility | Important caveat |
+| --- | --- | --- |
+| `agent-core/src/index.ts` | `/health`, `POST /api/a2ui/intent`, `POST /api/a2ui/action`, `GET /api/a2ui/stream` | Custom protocol, process-local state and stream listeners |
+| `agent-core/src/auth.ts` | Verify RS256 JWKS tokens and issuer/audience/expiry; nonproduction opt-in demo identity | No user-facing PKCE, downstream delegation or token revocation |
+| `agent-core/src/langgraph/graph.ts` | Keyword intent router; scenario orchestration; static UI builders/actions | No LangGraph package/graph/checkpointer; model output not used |
+| `agent-core/src/openrouter.ts` | Optional model completion preview; free-router default | Not tool-calling or LLM-driven planning |
+| `service-ride` | Ride/parking/Salik/EV simulation | Shared process-scoped state; civic functions are fixtures |
+| `service-food` | Food and utility-bill simulation | Function/domain names do not match clean business boundaries |
+| `service-wallet` | Wallet/fines/payment simulation | Not a financial transaction system; combined settlement not atomic |
+| `service-catalog` | Mini-app metadata, 32 versioned capability contracts, demo Ejari/move-in and tool listings | Example remote URLs and descriptors, not validated remote runtime |
+| `service-profile` | Demo profile/preferences/prompts | No durable, per-user profile isolation |
+| `packages/protocol-core` | Project-defined UI component tree and SSE envelopes | Not official AG-UI/A2UI conformance |
+| `services/agentgateway/config.yaml` | Aspirational gateway config | No proof the config runs with selected image or that graph traffic flows through it |
+| `services/keycloak/realm-export.json` | Development-only realm seed | Includes insecure local credentials/open origins; not production ready |
 
----
+## Runtime topologies
 
-### 2.2 Frontend Layer (Multi-Flavor & Microfrontends)
-1. **Host Shells (`apps/shell-*`)**:
-   - **`shell-react`**: React 18 + Vite + Tailwind CSS + Module Federation host.
-   - **`shell-angular`**: Angular 18 + Standalone Components + Native Federation host.
-   - **`shell-flutter`**: Flutter 3.x cross-platform application with dynamic widget reflection.
-2. **Mini-App Remotes (`mini-apps/*`)**:
-   - Independent microfrontend modules that can be loaded dynamically into the host shells.
-   - Packaged with standard Web Component wrappers for cross-framework compatibility.
-3. **Responsive Side-by-Side Dual Pane**:
-   - **Mobile Mode**: Stacked card flow with persistent agent trigger and bottom sheet.
-   - **Desktop/Tablet Mode**: Left pane displays conversational agent reasoning and AG-UI summaries; right pane displays the active, immersive mini-app canvas (maps, menus, transaction histories).
+### In-process development runner
 
----
+`npm run dev:backend` loads `scripts/dev-backend.ts`, starts six Node HTTP servers in one process and calls business functions directly. React can connect independently with `npm run dev:react`. Identity defaults to *reject*: add `DEMO_AUTH=true` locally to use the mock shell. This runner does not launch the Compose gateway or Keycloak.
 
-## 3. Communication Flows
+### Docker Compose (configured, not release certified)
 
-### 3.1 Initial Handshake and Capability Discovery
-1. The client connects to `GET /api/a2ui/connect` via Server-Sent Events.
-2. Client sends `A2UI_HANDSHAKE` declaring its platform (`react`, `angular`, or `flutter`), viewport category (`mobile`, `tablet`, `desktop`), and available component registry (`SurfaceCard`, `ChoiceGroup`, `MapViewer`).
-3. The Agent Gateway caches the client capabilities in the session context so that the LLM is instructed only to output components the client can render.
+`docker-compose.yml` describes five services, agent-core, a Keycloak dev instance, an agentgateway container and React frontend. Backend host bindings are loopback-only by default. The graph's direct imports mean there is still *no verified data-plane integration*. The gateway image is unpinned `latest`, the configuration declares sample MCP servers, and gateway listener CORS currently contains a wildcard. Validation of actual startup, config schema and protocol interoperability is open.
 
-### 3.2 Conversational Action Execution Loop
-```mermaid
-sequenceDiagram
-    autonumber
-    User->>Client: "Order a spicy pizza and call a ride home"
-    Client->>Gateway: POST /api/a2ui/intent { sessionId, prompt }
-    Gateway->>Agent: Prompt + Session History + Available Tools
-    Agent->>OpenRouter: LLM Completion (with tools: search_food, get_rides)
-    OpenRouter-->>Agent: ToolCall(search_food, {query: "spicy pizza"})
-    Agent->>FoodService: GET /restaurants/search?query=spicy+pizza
-    FoodService-->>Agent: 200 OK [Pizza Napoli, Diavola $16]
-    Agent->>OpenRouter: LLM Completion (Result fed back)
-    OpenRouter-->>Agent: Output AG-UI Card (Food selection + Ride prompt)
-    Agent-->>Gateway: AG-UI Surface Schema
-    Gateway-->>Client: SSE: A2UI_RENDER_SURFACE
-    Client->>User: Displays interactive card with "Order & Continue to Ride"
-```
+### Published deployment
 
----
+**None demonstrated by source.** There are no documented persistent store/migration or production rollout manifests in this snapshot.
 
-## 4. Repository Structure Plan
+## Request and action lifecycle
 
-```
-super-app-agent/
-├── .env.example                     # OpenRouter API Key & Microservice ports
-├── package.json                     # Monorepo root scripts & workspaces
-├── pnpm-workspace.yaml              # PNPM workspace definition
-├── turbo.json                       # Turborepo build & dev pipeline configuration
-├── docker-compose.yml               # Container orchestrator for all microservices & hosts
-│
-├── docs/                            # Comprehensive documentation & ADRs
-│   ├── adr/                         # Architectural Decision Records
-│   └── architecture/                # Deep-dive architecture & protocol specs
-│
-├── packages/                        # Shared libraries
-│   ├── protocol-core/               # AG-UI schema, A2-UI protocol types, validation (Zod)
-│   ├── ui-tokens/                   # Shared design tokens, CSS variables, typography
-│   ├── react-a2ui/                  # React AG-UI renderer & hook library
-│   └── angular-a2ui/                # Angular AG-UI renderer & directive library
-│
-├── services/                        # Backend Microservices
-│   ├── agent-core/                  # Main A2-UI Ingress & OpenRouter Agent Core (:4000)
-│   ├── service-ride/                # Mobility Microservice (:4001)
-│   ├── service-food/                # Food & Dining Microservice (:4002)
-│   ├── service-wallet/              # Payments & Wallet Microservice (:4003)
-│   └── service-catalog/             # Mini-App Registry & Tool Discovery (:4004)
-│
-├── apps/                            # Frontend Host Shells
-│   ├── shell-react/                 # React 18 Host Shell (Web & Responsive Mobile)
-│   ├── shell-angular/               # Angular 18 Host Shell (Web & Responsive Mobile)
-│   └── shell-flutter/               # Flutter 3.x Host Shell (Cross-platform)
-│
-└── mini-apps/                       # Federated Mini-App Remotes
-    ├── miniapp-ride/                # Ride Mini-App Remote
-    ├── miniapp-food/                # Food Mini-App Remote
-    └── miniapp-wallet/              # Wallet Mini-App Remote
-```
+1. Frontend sends `POST /api/a2ui/intent` with `sessionId` and text. The backend requires a valid identity, limits text length, associates the session ID with the authenticated subject, and uses its in-memory state map.
+2. `SuperAppAgentGraph.executeIntent` inspects words in the prompt. It optionally calls OpenRouter with profile context when both API key and `ENABLE_LIVE_LLM=true` are set; the **result is ignored** for selecting actions.
+3. The graph calls TypeScript domain functions directly, derives an example UI tree and stores it as `state.currentSurface`.
+4. Backend returns JSON and broadcasts `A2UI_RENDER_SURFACE`/`A2UI_STREAM_DELTA` to subscribers of that session. The SSE endpoint also issues a handshake ACK and keepalive.
+5. User clicks an offered surface action; frontend posts `/api/a2ui/action`. Backend validates identity/owner, whether the action appears on the current surface, certain bound resource fields, and blocks reusing the same surface+action in that process.
+6. `resumeWithAction` runs a hardcoded conditional branch and renders the next surface.
+
+**Not implemented:** durable interrupts/resume, exactly-once effects, ordered replay, cross-node routing, quote-bound payment approval, service-side user/consent authorization, transaction compensation, proactive/autonomous journeys.
+
+## Boundaries and data classification
+
+- **Control:** project-owned HTML/native shells, custom declarative UI, and UI button actions.
+- **Identity:** mock `demo-local` only by explicit opt-in in nonproduction; signed JWT verification for configured issuer/audience.
+- **State:** global process maps (`sessions`, `sessionOwners`, `sseClients`, `consumedActions`) and module-level simulator variables; restart loses state.
+- **Trust:** displayed UI is not authority. Only actual domain policies and auditable delegated consent can authorize business mutations (future).
+- **Data:** demo records and amounts are fictional examples. No verified connection to UAE PASS, DubaiNow, TAMM, DEWA, Police, Salik or a real wallet.
+
+## Technology mapping
+
+- Frontends: React 18/Vite; Angular 18 sample; Flutter/Dart sample.
+- Backend: Node.js/TypeScript, built-in HTTP server; Fastify appears as a declared dependency in some service packages, not as evidence that agent-core uses Fastify.
+- Tests: Node test runner with type-stripping.
+- Model access: optional OpenRouter compatible completion call.
+- Target engines and protocols: LangGraph, AG-UI, A2UI, MCP, A2A, agentgateway.dev. These are **future integration tasks**, not a statement of implemented compliance.
+
+## See also
+
+- [Service contracts](service-contracts.md)
+- [Agent-runtime behavior](agent-runtime.md)
+- [Frontend/mini-app guide](frontend-and-miniapps.md)
+- [Security](../../SECURITY.md)
+- [Target architecture](target-architecture.md)
+
+
+Current transport bounds and replay behavior are specified in the [stream contract](event-stream.md). Latest build/test execution is recorded in the [release-gate report](../reports/2026-10-23-release-gates.md).

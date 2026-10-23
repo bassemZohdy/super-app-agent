@@ -1,79 +1,26 @@
-# ADR-0001: SuperApp and Mini-App Architecture with Agentic Concierge
+# ADR-0001 — Super App ecosystem with an agent-first Concierge
 
-## Status
-Accepted / Under Review
+**Status:** Accepted as **product direction**, **partially demonstrated**; production implementation pending.
+**Reviewed:** 2026-10-23. See [ADR-0009](ADR-0009-agent-first-with-bounded-authority.md) for the refined autonomy boundary.
 
 ## Context
-Modern digital ecosystems often evolve from single-purpose applications into multi-service SuperApps (similar to WeChat, Grab, Tata Neu, Alipay). A SuperApp hosts a multitude of independent domain experiences, commonly known as **Mini-Apps** (e.g., Ride Hailing, Food Delivery, Banking, Booking, eCommerce, Healthcare).
 
-Traditional SuperApps rely on rigid hierarchical navigation menus, category grids, and deep-link routing. In this project, we are building a next-generation **Agentic SuperApp**:
-1. **Agent Concierge**: An autonomous backend agent orchestrates user intentions, context, and multi-step workflows across mini-apps.
-2. **Mini-App Ecosystem**: Independent teams develop, release, and deploy mini-apps independently without redeploying the core host shell.
-3. **Multi-Platform & Multi-Flavor**: The SuperApp must support mobile-responsive web (PWA / desktop web side-by-side) and native/hybrid mobile viewports using multiple frontend technologies (Angular, React, and Flutter).
-4. **Agent-Managed UI**: The agent decides which mini-app or UI fragment to present, how to combine mini-app capabilities into a single seamless composite view, and handles conversational + direct-manipulation hybrid interactions.
+Conventional Super Apps expose catalogs of separate mini-apps. This project experiments with one Concierge conversation that can organize tasks across mobility, utilities, housing, citizen payments and user preferences. The experience should still work when a user opens a dedicated app directly.
 
 ## Decision
 
-We adopt a **Host-Shell & Mini-App Ecosystem** governed by a central **Backend Agent Orchestrator**:
+- Make a **Concierge Agent the default journey coordinator and discovery experience**, not the owner of every service.
+- Treat mini-apps as independently governed capabilities and UI surfaces. The shell is responsible for identity UX, navigation, lifecycle and approved device APIs.
+- Permit the agent to request a UI screen, capability invocation or approved deterministic workflow. It may not grant its own permissions or bypass domain checks.
+- Offer manual navigation as an always-available alternative to model-driven interaction.
+- Enforce separation between service capability description, UI representation, invocation semantics and resource permissions.
 
-```mermaid
-flowchart TD
-    User([User Mobile / Web]) --> SuperAppShell["SuperApp Host Shell\n(React / Angular / Flutter)"]
-    
-    subgraph HostContainer ["Host Shell Container"]
-        AuthModule["Authentication & Session"]
-        MiniAppRuntime["Mini-App Sandbox & Lifecycle Manager"]
-        AgentUIBridge["AG-UI / A2-UI Protocol Engine"]
-        GlobalBus["Cross-App Event & State Bus"]
-    end
-    
-    SuperAppShell --> HostContainer
-    AgentUIBridge <--> BackendAgent["Backend Agent Gateway\n(LangGraph Core + OpenRouter Inference)"]
+## Current evidence
 
-    subgraph MiniApps ["Mini-App Ecosystem"]
-        RideApp["Mini-App: Mobility & Transit"]
-        FoodApp["Mini-App: Food & Grocery"]
-        FinanceApp["Mini-App: Wallet & Payments"]
-        CustomApp["Mini-App: Generative Custom Dynamic"]
-    end
+`apps/shell-react` contains chat plus mini-app tabs; `services/agent-core/src/langgraph/graph.ts` composes example actions and screens using keywords and direct calls to simulators. `services/service-catalog` lists apps and example remote URLs. These are not independent provider integrations, real agent discovery or production MFE deployments.
 
-    MiniAppRuntime --> RideApp
-    MiniAppRuntime --> FoodApp
-    MiniAppRuntime --> FinanceApp
-    MiniAppRuntime --> CustomApp
-```
+## Consequences and trade-offs
 
-### 1. Host Shell Responsibilities
-- **Lifecycle & Security Isolation**: Mounts, unmounts, sandboxes, and governs mini-apps.
-- **Agent Communication Channel**: Connects over WebSocket / HTTP SSE to the Agent backend.
-- **Protocol Dispatcher (AG-UI & A2-UI)**: Parses declarative UI payloads streamed or dispatched by the agent and renders them using native component registries or federated mini-app remotes.
-- **Universal Navigation & Dock**: Provides standard host chrome (search bar, agent microphone/text prompt bar, notification hub, universal auth profile).
+**Benefits:** task-centric journeys, shared capability contracts, less user navigation, optional adaptive UI. **Costs:** model error handling, coordinated recovery, lifecycle complexity, consent clarity and observability across domains.
 
-### 2. Mini-App Specification & Packaging
-Each Mini-App satisfies a standardized lifecycle interface:
-- `bootstrap(container, context)`
-- `mount(container, props)`
-- `unmount(container)`
-- `handleAgentIntent(intent, payload)`
-
-Mini-apps are packaged either as:
-- **Web Remotes (Module Federation / Web Components)**: For Web & Mobile PWA (React & Angular).
-- **Embedded Federated Packages**: For Flutter environments (Flutter Add-to-App or dynamic Dart code push / server-driven component mapping).
-
-### 3. Agent-Driven Mini-App Orchestration
-Rather than the user manually hunting through nested menus, the agent performs:
-1. **Intent Recognition & Slot Filling**: E.g., *"Book a cab to Downtown Restaurant and reserve a table for two at 8 PM"*.
-2. **Multi-App Composition**: The Agent splits the goal into two sub-tasks (Mobility Mini-App + Restaurant Reservation Mini-App) and can present a composite UI card combining both experiences side-by-side.
-3. **Progressive Disclosure**: Mini-app views start as compact cards (A2-UI widgets) and can expand into full-screen mini-app runtimes upon request.
-
-## Consequences
-
-### Positive
-- **Independent Team Velocity**: Domain teams develop, test, and deploy mini-apps independently without redeploying the shell.
-- **Context-Aware Unified Experience**: The Agent bridges boundaries between services, removing silos.
-- **Omni-Channel Consistency**: Unified protocol allows React, Angular, and Flutter hosts to render identical agent-driven workflows.
-
-### Negative / Trade-offs
-- **Complexity in State Synchronization**: Managing cross-mini-app state and auth tokens requires a secure Event Bus.
-- **Bundle Size & Asset Isolation**: Multiple frontend frameworks in a single runtime can lead to high memory footprint if not carefully sandboxed (mitigated by Module Federation and shared runtime dependencies, or running Flutter/Web in isolated view controllers).
-- **Latency**: Agent round-trips via LLMs must be optimized using streaming SSE, prompt caching, and fast local intent resolvers.
+**Follow-up:** implement versioned capability registry and domain-verified authorization; test direct/manual and agent-first paths. See [target architecture](../architecture/target-architecture.md).

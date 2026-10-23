@@ -8,7 +8,7 @@ test('agent-core: health check endpoint', async () => {
   const res = await executeCoreRequest('GET', '/health');
   assert.strictEqual(res.status, 200);
   assert.strictEqual(res.data.service, 'agent-core');
-  assert.strictEqual(res.data.agentCore, 'LangGraph');
+  assert.strictEqual(res.data.agentCore, 'deterministic-demo-router');
 });
 
 test('agent-core: ride intent classifies correctly and returns valid AG-UI surface', async () => {
