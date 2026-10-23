@@ -26,8 +26,7 @@ export function App() {
   const miniAppMountRef = useRef<HTMLDivElement>(null);
 
   const GATEWAY_URL = 'http://localhost:4000';
-  const DEMO_KEYCLOAK_TOKEN =
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImtleWNsb2FrLXN1cGVyYXBwLWtleS0xIn0.eyJleHAiOjE5OTk5OTk5OTksInN1YiI6InVzcl9iYXNzZW1fb2lkYyIsInByZWZlcnJlZF91c2VybmFtZSI6ImJhc3NlbSIsImVtYWlsIjoiYmFzc2VtQHN1cGVyYXBwLmludGVybmFsIiwibmFtZSI6IkJhc3NlbSBab2hkeSIsInZpcFRpZXIiOiJHb2xkIFZJUCIsInJvbGVzIjpbInN1cGVyYXBwLXVzZXIiLCJzdXBlcmFwcC12aXAiXX0.sig_keycloak_verified';
+  const DEMO_KEYCLOAK_TOKEN = 'demo-local'; // local demo only, not a production credential
 
   // 1. Establish A2-UI Protocol SSE Stream
   useEffect(() => {
