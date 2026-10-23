@@ -30,9 +30,16 @@ services:
     environment:
       - PORT=4000
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
-      - OPENROUTER_MODEL=${OPENROUTER_MODEL:-anthropic/claude-3.5-sonnet}
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL:-openrouter/free}
       - AGENTGATEWAY_URL=http://agentgateway:8080
       - KEYCLOAK_URL=http://keycloak:8080
+      - KEYCLOAK_ISSUER=${KEYCLOAK_ISSUER:-http://localhost:8085/realms/superapp}
+      - KEYCLOAK_AUDIENCE=${KEYCLOAK_AUDIENCE:-agent-core}
+      - KEYCLOAK_JWKS_URL=http://keycloak:8080/realms/superapp/protocol/openid-connect/certs
+      - DEMO_AUTH=${DEMO_AUTH:-false}
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3000}
+      - ENABLE_LIVE_LLM=${ENABLE_LIVE_LLM:-false}
+      - OPENROUTER_ALLOW_PAID_MODELS=${OPENROUTER_ALLOW_PAID_MODELS:-false}
       - NODE_ENV=development
     depends_on:
       - service-ride
