@@ -29,7 +29,7 @@ export interface ActionBinding {
 }
 
 export interface UIStyle {
-  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'success';
+  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'warning' | 'success';
   padding?: 'none' | 'small' | 'medium' | 'large';
   direction?: 'horizontal' | 'vertical';
   spacing?: 'none' | 'small' | 'medium' | 'large';
