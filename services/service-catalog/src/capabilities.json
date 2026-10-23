@@ -1,0 +1,2563 @@
+[
+  {
+    "id": "mobility.ride.options",
+    "name": "ride_getOptions",
+    "version": "1.0.0",
+    "owner": "service-ride",
+    "description": "ride getOptions (simulated domain contract)",
+    "availability": "simulation-only",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "destination": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "success": {
+              "const": true
+            },
+            "destination": {
+              "type": "string",
+              "minLength": 1
+            },
+            "options": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            }
+          },
+          "required": [
+            "success",
+            "destination",
+            "options"
+          ],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": true
+        }
+      ]
+    },
+    "risk": {
+      "level": "public",
+      "mutates": false,
+      "requiresConfirmation": false
+    },
+    "consent": {
+      "required": false,
+      "scopes": [],
+      "subjectBound": false,
+      "delegationAllowed": false
+    },
+    "execution": {
+      "transport": "http",
+      "method": "GET",
+      "path": "/rides/options",
+      "inputLocation": "query"
+    },
+    "exampleInput": {}
+  },
+  {
+    "id": "mobility.ride.book",
+    "name": "ride_bookCab",
+    "version": "1.0.0",
+    "owner": "service-ride",
+    "description": "ride bookCab (simulated domain contract)",
+    "availability": "simulation-only",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "driverId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "pickup": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dropoff": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "driverId"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "success": {
+              "const": true
+            },
+            "booking": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "success",
+            "booking"
+          ],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": true
+        }
+      ]
+    },
+    "risk": {
+      "level": "financial",
+      "mutates": true,
+      "requiresConfirmation": true
+    },
+    "consent": {
+      "required": true,
+      "scopes": [
+        "mobility.ride.book:execute"
+      ],
+      "subjectBound": true,
+      "delegationAllowed": false
+    },
+    "execution": {
+      "transport": "http",
+      "method": "POST",
+      "path": "/rides/book",
+      "inputLocation": "body"
+    },
+    "exampleInput": {
+      "driverId": "drv_1"
+    }
+  },
+  {
+    "id": "mobility.ride.track",
+    "name": "ride_trackStatus",
+    "version": "1.0.0",
+    "owner": "service-ride",
+    "description": "ride trackStatus (simulated domain contract)",
+    "availability": "simulation-only",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "bookingId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "bookingId"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "success": {
+              "const": true
+            },
+            "booking": {
+              "type": "object"
+            },
+            "bookingId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "status": {
+              "type": "string",
+              "minLength": 1
+            },
+            "currentLocation": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "success",
+            "currentLocation"
+          ],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": true
+        }
+      ]
+    },
+    "risk": {
+      "level": "personal-data",
+      "mutates": false,
+      "requiresConfirmation": false
+    },
+    "consent": {
+      "required": true,
+      "scopes": [
+        "mobility.ride.track:read"
+      ],
+      "subjectBound": true,
+      "delegationAllowed": false
+    },
+    "execution": {
+      "transport": "http",
+      "method": "GET",
+      "path": "/rides/track/{bookingId}",
+      "inputLocation": "path"
+    },
+    "exampleInput": {
+      "bookingId": "demo-booking"
+    }
+  },
+  {
+    "id": "dining.restaurants.search",
+    "name": "food_searchRestaurants",
+    "version": "1.0.0",
+    "owner": "service-food",
+    "description": "food searchRestaurants (simulated domain contract)",
+    "availability": "simulation-only",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "success": {
+              "const": true
+            },
+            "count": {
+              "type": "number"
+            },
+            "restaurants": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            }
+          },
+          "required": [
+            "success",
+            "count",
+            "restaurants"
+          ],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": true
+        }
+      ]
+    },
+    "risk": {
+      "level": "public",
+      "mutates": false,
+      "requiresConfirmation": false
+    },
+    "consent": {
+      "required": false,
+      "scopes": [],
+      "subjectBound": false,
+      "delegationAllowed": false
+    },
+    "execution": {
+      "transport": "http",
+      "method": "GET",
+      "path": "/restaurants/search",
+      "inputLocation": "query"
+    },
+    "exampleInput": {}
+  },
+  {
+    "id": "dining.order.create",
+    "name": "food_createOrder",
+    "version": "1.0.0",
+    "owner": "service-food",
+    "description": "food createOrder (simulated domain contract)",
+    "availability": "simulation-only",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "restaurantId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        },
+        "deliveryAddress": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "restaurantId",
+        "items"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "success": {
+              "const": true
+            },
+            "order": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "success",
+            "order"
+          ],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": true
+        }
+      ]
+    },
+    "risk": {
+      "level": "financial",
+      "mutates": true,
+      "requiresConfirmation": true
+    },
+    "consent": {
+      "required": true,
+      "scopes": [
+        "dining.order.create:execute"
+      ],
+      "subjectBound": true,
+      "delegationAllowed": false
+    },
+    "execution": {
+      "transport": "http",
+      "method": "POST",
+      "path": "/orders/create",
+      "inputLocation": "body"
+    },
+    "exampleInput": {
+      "restaurantId": "rest_1",
+      "items": [
+        "item_diavola"
+      ]
+    }
+  },
+  {
+    "id": "dining.order.track",
+    "name": "food_trackOrder",
+    "version": "1.0.0",
+    "owner": "service-food",
+    "description": "food trackOrder (simulated domain contract)",
+    "availability": "simulation-only",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "orderId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "orderId"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "success": {
+              "const": true
+            },
+            "order": {
+              "type": "object"
+            },
+            "orderId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "status": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "success"
+          ],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": true
+        }
+      ]
+    },
+    "risk": {
+      "level": "personal-data",
+      "mutates": false,
+      "requiresConfirmation": false
+    },
+    "consent": {
+      "required": true,
+      "scopes": [
+        "dining.order.track:read"
+      ],
+      "subjectBound": true,
+      "delegationAllowed": false
+    },
+    "execution": {
+      "transport": "http",
+      "method": "GET",
+      "path": "/orders/track/{orderId}",
+      "inputLocation": "path"
+    },
+    "exampleInput": {
+      "orderId": "demo-order"
+    }
+  },
+  {
+    "id": "citizenpay.wallet.balance",
+    "name": "wallet_getBalance",
+    "version": "1.0.0",
+    "owner": "service-wallet",
+    "description": "wallet getBalance (simulated domain contract)",
+    "availability": "simulation-only",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "success": {
+              "const": true
+            },
+            "balance": {
+              "type": "number"
+            },
+            "currency": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "success",
+            "balance",
+            "currency"
+          ],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": true
+        }
+      ]
+    },
+    "risk": {
+      "level": "personal-data",
+      "mutates": false,
+      "requiresConfirmation": false
+    },
+    "consent": {
+      "required": true,
+      "scopes": [
+        "citizenpay.wallet.balance:read"
+      ],
+      "subjectBound": true,
+      "delegationAllowed": false
+    },
+    "execution": {
+      "transport": "http",
+      "method": "GET",
+      "path": "/wallet/balance",
+      "inputLocation": "query"
+    },
+    "exampleInput": {}
+  },
+  {
+    "id": "citizenpay.wallet.pay",
+    "name": "wallet_authorizePayment",
+    "version": "1.0.0",
+    "owner": "service-wallet",
+    "description": "wallet authorizePayment (simulated domain contract)",
+    "availability": "simulation-only",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "amount": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "purpose": {
+          "type": "string",
+          "minLength": 1
+        },
+        "referenceId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "amount",
+        "purpose"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "success": {
+              "const": true
+            },
+            "transaction": {
+              "type": "object"
+            },
+            "remainingBalance": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "success",
+            "transaction",
+            "remainingBalance"
+          ],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": true
+        }
+      ]
+    },
+    "risk": {
+      "level": "financial",
+      "mutates": true,
+      "requiresConfirmation": true
+    },
+    "consent": {
+      "required": true,
+      "scopes": [
+        "citizenpay.wallet.pay:execute"
+      ],
+      "subjectBound": true,
+      "delegationAllowed": false
+    },
+    "execution": {
+      "transport": "http",
+      "method": "POST",
+      "path": "/wallet/pay",
+      "inputLocation": "body"
+    },
+    "exampleInput": {
+      "amount": 1,
+      "purpose": "Contract test"
+    }
+  },
+  {
+    "id": "citizenpay.wallet.transactions",
+    "name": "wallet_getTransactions",
+    "version": "1.0.0",
+    "owner": "service-wallet",
+    "description": "wallet getTransactions (simulated domain contract)",
+    "availability": "simulation-only",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "success": {
+              "const": true
+            },
+            "count": {
+              "type": "number"
+            },
+            "transactions": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            }
+          },
+          "required": [
+            "success",
+            "count",
+            "transactions"
+          ],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": true
+        }
+      ]
+    },
+    "risk": {
+      "level": "personal-data",
+      "mutates": false,
+      "requiresConfirmation": false
+    },
+    "consent": {
+      "required": true,
+      "scopes": [
+        "citizenpay.wallet.transactions:read"
+      ],
+      "subjectBound": true,
+      "delegationAllowed": false
+    },
+    "execution": {
+      "transport": "http",
+      "method": "GET",
+      "path": "/wallet/transactions",
+      "inputLocation": "query"
+    },
+    "exampleInput": {}
+  },
+  {
+    "id": "identity.profile.read",
+    "name": "profile_getProfile",
+    "version": "1.0.0",
+    "owner": "service-profile",
+    "description": "profile getProfile (simulated domain contract)",
+    "availability": "simulation-only",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "success": {
+              "const": true
+            },
+            "profile": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "success",
+            "profile"
+          ],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": true
+        }
+      ]
+    },
+    "risk": {
+      "level": "personal-data",
+      "mutates": false,
+      "requiresConfirmation": false
+    },
+    "consent": {
+      "required": true,
+      "scopes": [
+        "identity.profile.read:read"
+      ],
+      "subjectBound": true,
+      "delegationAllowed": false
+    },
+    "execution": {
+      "transport": "http",
+      "method": "GET",
+      "path": "/profile",
+      "inputLocation": "query"
+    },
+    "exampleInput": {}
+  },
+  {
+    "id": "identity.preferences.read",
+    "name": "profile_getPreferences",
+    "version": "1.0.0",
+    "owner": "service-profile",
+    "description": "profile getPreferences (simulated domain contract)",
+    "availability": "simulation-only",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "success": {
+              "const": true
+            },
+            "preferences": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "success",
+            "preferences"
+          ],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": true
+        }
+      ]
+    },
+    "risk": {
+      "level": "personal-data",
+      "mutates": false,
+      "requiresConfirmation": false
+    },
+    "consent": {
+      "required": true,
+      "scopes": [
+        "identity.preferences.read:read"
+      ],
+      "subjectBound": true,
+      "delegationAllowed": false
+    },
+    "execution": {
+      "transport": "http",
+      "method": "GET",
+      "path": "/profile/preferences",
+      "inputLocation": "query"
+    },
+    "exampleInput": {}
+  },
+  {
+    "id": "identity.preferences.update",
+    "name": "profile_updatePreferences",
+    "version": "1.0.0",
+    "owner": "service-profile",
+    "description": "profile updatePreferences (simulated domain contract)",
+    "availability": "simulation-only",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dietary": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "mobility": {
+          "type": "object"
+        },
+        "ui": {
+          "type": "object"
+        },
+        "conciergeTone": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "success": {
+              "const": true
+            },
+            "preferences": {
+              "type": "object"
+            },
+            "promptContext": {
+              "type": "string",
+              "minLength": 1
+            },
+            "message": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "success",
+            "preferences",
+            "promptContext",
+            "message"
+          ],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": true
+        }
+      ]
+    },
+    "risk": {
+      "level": "personal-data",
+      "mutates": true,
+      "requiresConfirmation": true
+    },
+    "consent": {
+      "required": true,
+      "scopes": [
+        "identity.preferences.update:execute"
+      ],
+      "subjectBound": true,
+      "delegationAllowed": false
+    },
+    "execution": {
+      "transport": "http",
+      "method": "POST",
+      "path": "/profile/preferences",
+      "inputLocation": "body"
+    },
+    "exampleInput": {}
+  },
+  {
+    "id": "identity.prompt-context.read",
+    "name": "profile_getPromptContext",
+    "version": "1.0.0",
+    "owner": "service-profile",
+    "description": "profile getPromptContext (simulated domain contract)",
+    "availability": "simulation-only",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "success": {
+              "const": true
+            },
+            "profile": {
+              "type": "object"
+            },
+            "preferences": {
+              "type": "object"
+            },
+            "promptContext": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "success",
+            "profile",
+            "preferences",
+            "promptContext"
+          ],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": true
+        }
+      ]
+    },
+    "risk": {
+      "level": "personal-data",
+      "mutates": false,
+      "requiresConfirmation": false
+    },
+    "consent": {
+      "required": true,
+      "scopes": [
+        "identity.prompt-context.read:read"
+      ],
+      "subjectBound": true,
+      "delegationAllowed": false
+    },
+    "execution": {
+      "transport": "http",
+      "method": "GET",
+      "path": "/profile/prompt-context",
+      "inputLocation": "query"
+    },
+    "exampleInput": {}
+  },
+  {
+    "id": "mobility.parking.zones",
+    "name": "mobility_getParkingZones",
+    "version": "1.0.0",
+    "owner": "service-ride",
+    "description": "mobility getParkingZones (simulated domain contract)",
+    "availability": "simulation-only",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "success": {
+              "const": true
+            },
+            "count": {
+              "type": "number"
+            },
+            "zones": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            }
+          },
+          "required": [
+            "success",
+            "count",
+            "zones"
+          ],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": true
+        }
+      ]
+    },
+    "risk": {
+      "level": "public",
+      "mutates": false,
+      "requiresConfirmation": false
+    },
+    "consent": {
+      "required": false,
+      "scopes": [],
+      "subjectBound": false,
+      "delegationAllowed": false
+    },
+    "execution": {
+      "transport": "http",
+      "method": "GET",
+      "path": "/mobility/parking/zones",
+      "inputLocation": "query"
+    },
+    "exampleInput": {}
+  },
+  {
+    "id": "mobility.parking.activate",
+    "name": "mobility_activateParking",
+    "version": "1.0.0",
+    "owner": "service-ride",
+    "description": "mobility activateParking (simulated domain contract)",
+    "availability": "simulation-only",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "zoneId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "durationHours": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "plateNumber": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "zoneId",
+        "durationHours",
+        "plateNumber"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "success": {
+              "const": true
+            },
+            "meter": {
+              "type": "object"
+            },
+            "message": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "success",
+            "meter",
+            "message"
+          ],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": true
+        }
+      ]
+    },
+    "risk": {
+      "level": "financial",
+      "mutates": true,
+      "requiresConfirmation": true
+    },
+    "consent": {
+      "required": true,
+      "scopes": [
+        "mobility.parking.activate:execute"
+      ],
+      "subjectBound": true,
+      "delegationAllowed": false
+    },
+    "execution": {
+      "transport": "http",
+      "method": "POST",
+      "path": "/mobility/parking/activate",
+      "inputLocation": "body"
+    },
+    "exampleInput": {
+      "zoneId": "zone_302a",
+      "durationHours": 1,
+      "plateNumber": "TEST 1"
+    }
+  },
+  {
+    "id": "mobility.parking.extend",
+    "name": "mobility_extendParking",
+    "version": "1.0.0",
+    "owner": "service-ride",
+    "description": "mobility extendParking (simulated domain contract)",
+    "availability": "simulation-only",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "ticketId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "additionalHours": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "ticketId",
+        "additionalHours"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "success": {
+              "const": true
+            },
+            "meter": {
+              "type": "object"
+            },
+            "message": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "success",
+            "meter",
+            "message"
+          ],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": true
+        }
+      ]
+    },
+    "risk": {
+      "level": "financial",
+      "mutates": true,
+      "requiresConfirmation": true
+    },
+    "consent": {
+      "required": true,
+      "scopes": [
+        "mobility.parking.extend:execute"
+      ],
+      "subjectBound": true,
+      "delegationAllowed": false
+    },
+    "execution": {
+      "transport": "http",
+      "method": "POST",
+      "path": "/mobility/parking/extend",
+      "inputLocation": "body"
+    },
+    "exampleInput": {
+      "ticketId": "test-ticket",
+      "additionalHours": 1
+    }
+  },
+  {
+    "id": "mobility.parking.active",
+    "name": "mobility_getActiveParking",
+    "version": "1.0.0",
+    "owner": "service-ride",
+    "description": "mobility getActiveParking (simulated domain contract)",
+    "availability": "simulation-only",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "success": {
+              "const": true
+            },
+            "meter": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "success",
+            "meter"
+          ],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": true
+        }
+      ]
+    },
+    "risk": {
+      "level": "personal-data",
+      "mutates": false,
+      "requiresConfirmation": false
+    },
+    "consent": {
+      "required": true,
+      "scopes": [
+        "mobility.parking.active:read"
+      ],
+      "subjectBound": true,
+      "delegationAllowed": false
+    },
+    "execution": {
+      "transport": "http",
+      "method": "GET",
+      "path": "/mobility/parking/active",
+      "inputLocation": "query"
+    },
+    "exampleInput": {}
+  },
+  {
+    "id": "mobility.toll.balance",
+    "name": "mobility_getTollBalance",
+    "version": "1.0.0",
+    "owner": "service-ride",
+    "description": "mobility getTollBalance (simulated domain contract)",
+    "availability": "simulation-only",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "success": {
+              "const": true
+            },
+            "balance": {
+              "type": "number"
+            },
+            "currency": {
+              "type": "string",
+              "minLength": 1
+            },
+            "tagId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "plateNumber": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "success",
+            "balance",
+            "currency",
+            "tagId",
+            "plateNumber"
+          ],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": true
+        }
+      ]
+    },
+    "risk": {
+      "level": "personal-data",
+      "mutates": false,
+      "requiresConfirmation": false
+    },
+    "consent": {
+      "required": true,
+      "scopes": [
+        "mobility.toll.balance:read"
+      ],
+      "subjectBound": true,
+      "delegationAllowed": false
+    },
+    "execution": {
+      "transport": "http",
+      "method": "GET",
+      "path": "/mobility/salik/balance",
+      "inputLocation": "query"
+    },
+    "exampleInput": {}
+  },
+  {
+    "id": "mobility.toll.recharge",
+    "name": "mobility_rechargeToll",
+    "version": "1.0.0",
+    "owner": "service-ride",
+    "description": "mobility rechargeToll (simulated domain contract)",
+    "availability": "simulation-only",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "amount": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "required": [
+        "amount"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "success": {
+              "const": true
+            },
+            "rechargedAmount": {
+              "type": "number"
+            },
+            "newBalance": {
+              "type": "number"
+            },
+            "tagId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "transactionId": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "success",
+            "rechargedAmount",
+            "newBalance",
+            "tagId",
+            "transactionId"
+          ],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": true
+        }
+      ]
+    },
+    "risk": {
+      "level": "financial",
+      "mutates": true,
+      "requiresConfirmation": true
+    },
+    "consent": {
+      "required": true,
+      "scopes": [
+        "mobility.toll.recharge:execute"
+      ],
+      "subjectBound": true,
+      "delegationAllowed": false
+    },
+    "execution": {
+      "transport": "http",
+      "method": "POST",
+      "path": "/mobility/salik/recharge",
+      "inputLocation": "body"
+    },
+    "exampleInput": {
+      "amount": 1
+    }
+  },
+  {
+    "id": "mobility.toll.passings",
+    "name": "mobility_getTollPassings",
+    "version": "1.0.0",
+    "owner": "service-ride",
+    "description": "mobility getTollPassings (simulated domain contract)",
+    "availability": "simulation-only",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "success": {
+              "const": true
+            },
+            "tagId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "passings": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            }
+          },
+          "required": [
+            "success",
+            "tagId",
+            "passings"
+          ],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": true
+        }
+      ]
+    },
+    "risk": {
+      "level": "personal-data",
+      "mutates": false,
+      "requiresConfirmation": false
+    },
+    "consent": {
+      "required": true,
+      "scopes": [
+        "mobility.toll.passings:read"
+      ],
+      "subjectBound": true,
+      "delegationAllowed": false
+    },
+    "execution": {
+      "transport": "http",
+      "method": "GET",
+      "path": "/mobility/salik/passings",
+      "inputLocation": "query"
+    },
+    "exampleInput": {}
+  },
+  {
+    "id": "mobility.ev.chargers",
+    "name": "mobility_getEVChargers",
+    "version": "1.0.0",
+    "owner": "service-ride",
+    "description": "mobility getEVChargers (simulated domain contract)",
+    "availability": "simulation-only",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "success": {
+              "const": true
+            },
+            "count": {
+              "type": "number"
+            },
+            "chargers": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            }
+          },
+          "required": [
+            "success",
+            "count",
+            "chargers"
+          ],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": true
+        }
+      ]
+    },
+    "risk": {
+      "level": "public",
+      "mutates": false,
+      "requiresConfirmation": false
+    },
+    "consent": {
+      "required": false,
+      "scopes": [],
+      "subjectBound": false,
+      "delegationAllowed": false
+    },
+    "execution": {
+      "transport": "http",
+      "method": "GET",
+      "path": "/mobility/ev/chargers",
+      "inputLocation": "query"
+    },
+    "exampleInput": {}
+  },
+  {
+    "id": "mobility.ev.start",
+    "name": "mobility_startEVSession",
+    "version": "1.0.0",
+    "owner": "service-ride",
+    "description": "mobility startEVSession (simulated domain contract)",
+    "availability": "simulation-only",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "chargerId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "plateNumber": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "chargerId",
+        "plateNumber"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "success": {
+              "const": true
+            },
+            "sessionId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "station": {
+              "type": "string",
+              "minLength": 1
+            },
+            "status": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "success",
+            "sessionId",
+            "station",
+            "status"
+          ],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": true
+        }
+      ]
+    },
+    "risk": {
+      "level": "financial",
+      "mutates": true,
+      "requiresConfirmation": true
+    },
+    "consent": {
+      "required": true,
+      "scopes": [
+        "mobility.ev.start:execute"
+      ],
+      "subjectBound": true,
+      "delegationAllowed": false
+    },
+    "execution": {
+      "transport": "http",
+      "method": "POST",
+      "path": "/mobility/ev/start",
+      "inputLocation": "body"
+    },
+    "exampleInput": {
+      "chargerId": "chg_1",
+      "plateNumber": "TEST 1"
+    }
+  },
+  {
+    "id": "utilities.consumption.read",
+    "name": "utilities_getConsumption",
+    "version": "1.0.0",
+    "owner": "service-food",
+    "description": "utilities getConsumption (simulated domain contract)",
+    "availability": "simulation-only",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "success": {
+              "const": true
+            },
+            "account": {
+              "type": "object"
+            },
+            "ecoStatus": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "success",
+            "account",
+            "ecoStatus"
+          ],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": true
+        }
+      ]
+    },
+    "risk": {
+      "level": "personal-data",
+      "mutates": false,
+      "requiresConfirmation": false
+    },
+    "consent": {
+      "required": true,
+      "scopes": [
+        "utilities.consumption.read:read"
+      ],
+      "subjectBound": true,
+      "delegationAllowed": false
+    },
+    "execution": {
+      "transport": "http",
+      "method": "GET",
+      "path": "/utilities/consumption",
+      "inputLocation": "query"
+    },
+    "exampleInput": {}
+  },
+  {
+    "id": "utilities.bill.read",
+    "name": "utilities_getBill",
+    "version": "1.0.0",
+    "owner": "service-food",
+    "description": "utilities getBill (simulated domain contract)",
+    "availability": "simulation-only",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "success": {
+              "const": true
+            },
+            "bill": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "success",
+            "bill"
+          ],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": true
+        }
+      ]
+    },
+    "risk": {
+      "level": "personal-data",
+      "mutates": false,
+      "requiresConfirmation": false
+    },
+    "consent": {
+      "required": true,
+      "scopes": [
+        "utilities.bill.read:read"
+      ],
+      "subjectBound": true,
+      "delegationAllowed": false
+    },
+    "execution": {
+      "transport": "http",
+      "method": "GET",
+      "path": "/utilities/bill",
+      "inputLocation": "query"
+    },
+    "exampleInput": {}
+  },
+  {
+    "id": "utilities.bill.pay",
+    "name": "utilities_payBill",
+    "version": "1.0.0",
+    "owner": "service-food",
+    "description": "utilities payBill (simulated domain contract)",
+    "availability": "simulation-only",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "success": {
+              "const": true
+            },
+            "receipt": {
+              "type": "object"
+            },
+            "message": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "success",
+            "receipt",
+            "message"
+          ],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": true
+        }
+      ]
+    },
+    "risk": {
+      "level": "financial",
+      "mutates": true,
+      "requiresConfirmation": true
+    },
+    "consent": {
+      "required": true,
+      "scopes": [
+        "utilities.bill.pay:execute"
+      ],
+      "subjectBound": true,
+      "delegationAllowed": false
+    },
+    "execution": {
+      "transport": "http",
+      "method": "POST",
+      "path": "/utilities/pay",
+      "inputLocation": "body"
+    },
+    "exampleInput": {}
+  },
+  {
+    "id": "utilities.eco-advice.read",
+    "name": "utilities_getEcoAdvice",
+    "version": "1.0.0",
+    "owner": "service-food",
+    "description": "utilities getEcoAdvice (simulated domain contract)",
+    "availability": "simulation-only",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "success": {
+              "const": true
+            },
+            "premiseId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "advice": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "required": [
+            "success",
+            "premiseId",
+            "advice"
+          ],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": true
+        }
+      ]
+    },
+    "risk": {
+      "level": "personal-data",
+      "mutates": false,
+      "requiresConfirmation": false
+    },
+    "consent": {
+      "required": true,
+      "scopes": [
+        "utilities.eco-advice.read:read"
+      ],
+      "subjectBound": true,
+      "delegationAllowed": false
+    },
+    "execution": {
+      "transport": "http",
+      "method": "GET",
+      "path": "/utilities/eco-advice",
+      "inputLocation": "query"
+    },
+    "exampleInput": {}
+  },
+  {
+    "id": "citizenpay.fines.read",
+    "name": "citizenpay_getFines",
+    "version": "1.0.0",
+    "owner": "service-wallet",
+    "description": "citizenpay getFines (simulated domain contract)",
+    "availability": "simulation-only",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "plateNumber": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "success": {
+              "const": true
+            },
+            "plateNumber": {
+              "type": "string",
+              "minLength": 1
+            },
+            "fines": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            },
+            "totalPayable": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "success",
+            "plateNumber",
+            "fines",
+            "totalPayable"
+          ],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": true
+        }
+      ]
+    },
+    "risk": {
+      "level": "personal-data",
+      "mutates": false,
+      "requiresConfirmation": false
+    },
+    "consent": {
+      "required": true,
+      "scopes": [
+        "citizenpay.fines.read:read"
+      ],
+      "subjectBound": true,
+      "delegationAllowed": false
+    },
+    "execution": {
+      "transport": "http",
+      "method": "GET",
+      "path": "/fines/check",
+      "inputLocation": "query"
+    },
+    "exampleInput": {}
+  },
+  {
+    "id": "citizenpay.fines.pay",
+    "name": "citizenpay_payFines",
+    "version": "1.0.0",
+    "owner": "service-wallet",
+    "description": "citizenpay payFines (simulated domain contract)",
+    "availability": "simulation-only",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "success": {
+              "const": true
+            }
+          },
+          "required": [
+            "success"
+          ],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": true
+        }
+      ]
+    },
+    "risk": {
+      "level": "financial",
+      "mutates": true,
+      "requiresConfirmation": true
+    },
+    "consent": {
+      "required": true,
+      "scopes": [
+        "citizenpay.fines.pay:execute"
+      ],
+      "subjectBound": true,
+      "delegationAllowed": false
+    },
+    "execution": {
+      "transport": "http",
+      "method": "POST",
+      "path": "/fines/pay",
+      "inputLocation": "body"
+    },
+    "exampleInput": {}
+  },
+  {
+    "id": "citizenpay.unified.pay",
+    "name": "citizenpay_unifiedPay",
+    "version": "1.0.0",
+    "owner": "service-wallet",
+    "description": "citizenpay unifiedPay (simulated domain contract)",
+    "availability": "simulation-only",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "properties": {
+              "agency": {
+                "type": "string",
+                "minLength": 1
+              },
+              "purpose": {
+                "type": "string",
+                "minLength": 1
+              },
+              "amount": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "agency",
+              "purpose",
+              "amount"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "success": {
+              "const": true
+            },
+            "govTransactionHash": {
+              "type": "string",
+              "minLength": 1
+            },
+            "grandTotal": {
+              "type": "number"
+            },
+            "breakdown": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            }
+          },
+          "required": [
+            "success",
+            "govTransactionHash",
+            "grandTotal",
+            "breakdown"
+          ],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": true
+        }
+      ]
+    },
+    "risk": {
+      "level": "financial",
+      "mutates": true,
+      "requiresConfirmation": true
+    },
+    "consent": {
+      "required": true,
+      "scopes": [
+        "citizenpay.unified.pay:execute"
+      ],
+      "subjectBound": true,
+      "delegationAllowed": false
+    },
+    "execution": {
+      "transport": "http",
+      "method": "POST",
+      "path": "/pay/unified",
+      "inputLocation": "body"
+    },
+    "exampleInput": {
+      "items": [
+        {
+          "agency": "Demo",
+          "purpose": "Contract test",
+          "amount": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "citizenpay.wallet.topup",
+    "name": "wallet_topup",
+    "version": "1.0.0",
+    "owner": "service-wallet",
+    "description": "wallet topup (simulated domain contract)",
+    "availability": "simulation-only",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "amount": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "amount"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "success": {
+              "const": true
+            },
+            "transaction": {
+              "type": "object"
+            },
+            "newBalance": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "success",
+            "transaction",
+            "newBalance"
+          ],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": true
+        }
+      ]
+    },
+    "risk": {
+      "level": "financial",
+      "mutates": true,
+      "requiresConfirmation": true
+    },
+    "consent": {
+      "required": true,
+      "scopes": [
+        "citizenpay.wallet.topup:execute"
+      ],
+      "subjectBound": true,
+      "delegationAllowed": false
+    },
+    "execution": {
+      "transport": "http",
+      "method": "POST",
+      "path": "/wallet/topup",
+      "inputLocation": "body"
+    },
+    "exampleInput": {
+      "amount": 1
+    }
+  },
+  {
+    "id": "housing.ejari.read",
+    "name": "housing_getEjari",
+    "version": "1.0.0",
+    "owner": "service-catalog",
+    "description": "housing getEjari (simulated domain contract)",
+    "availability": "simulation-only",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "success": {
+              "const": true
+            },
+            "contract": {
+              "type": "object"
+            },
+            "verifiedAgency": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "success",
+            "contract",
+            "verifiedAgency"
+          ],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": true
+        }
+      ]
+    },
+    "risk": {
+      "level": "personal-data",
+      "mutates": false,
+      "requiresConfirmation": false
+    },
+    "consent": {
+      "required": true,
+      "scopes": [
+        "housing.ejari.read:read"
+      ],
+      "subjectBound": true,
+      "delegationAllowed": false
+    },
+    "execution": {
+      "transport": "http",
+      "method": "GET",
+      "path": "/housing/ejari",
+      "inputLocation": "query"
+    },
+    "exampleInput": {}
+  },
+  {
+    "id": "housing.move-in.execute",
+    "name": "housing_moveIn",
+    "version": "1.0.0",
+    "owner": "service-catalog",
+    "description": "housing moveIn (simulated domain contract)",
+    "availability": "simulation-only",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "success": {
+              "const": true
+            },
+            "journey": {
+              "type": "string",
+              "minLength": 1
+            },
+            "ejariContract": {
+              "type": "string",
+              "minLength": 1
+            },
+            "dewaConnected": {
+              "type": "object"
+            },
+            "residentialParking": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "success",
+            "journey",
+            "ejariContract",
+            "dewaConnected",
+            "residentialParking"
+          ],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": true
+        }
+      ]
+    },
+    "risk": {
+      "level": "high-impact",
+      "mutates": true,
+      "requiresConfirmation": true
+    },
+    "consent": {
+      "required": true,
+      "scopes": [
+        "housing.move-in.execute:execute"
+      ],
+      "subjectBound": true,
+      "delegationAllowed": false
+    },
+    "execution": {
+      "transport": "http",
+      "method": "POST",
+      "path": "/housing/move-in",
+      "inputLocation": "body"
+    },
+    "exampleInput": {}
+  }
+]

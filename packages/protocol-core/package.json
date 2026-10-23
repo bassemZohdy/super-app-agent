@@ -11,6 +11,7 @@
     "./a2-ui": "./src/a2-ui.ts"
   },
   "scripts": {
-    "test": "node --experimental-strip-types test/protocol.test.ts"
+    "test": "node --experimental-strip-types test/protocol.test.ts",
+    "build": "tsc --noEmit"
   }
 }
