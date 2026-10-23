@@ -20,9 +20,11 @@
     "test": "node --experimental-strip-types --import ./scripts/test-env.ts --test packages/protocol-core/test/*.ts services/test/*.ts test/*.ts",
     "test:record": "node --experimental-strip-types scripts/record-e2e-scenarios.ts",
     "test:video": "node --experimental-strip-types scripts/record-video-scenarios.ts",
-    "lint": "turbo run lint"
+    "lint": "turbo run lint",
+    "test:keycloak": "node --experimental-strip-types scripts/test-keycloak.ts"
   },
   "devDependencies": {
+    "ajv": "8.17.1",
     "playwright": "^1.64.1",
     "turbo": "^2.4.0",
     "typescript": "^5.7.0"
@@ -42,5 +44,6 @@
     "flutter"
   ],
   "author": "Bassem Reda Zohdy <bassem.zohdy@gmail.com>",
-  "license": "MIT"
+  "license": "MIT",
+  "packageManager": "npm@11.9.0"
 }

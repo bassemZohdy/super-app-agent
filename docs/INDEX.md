@@ -29,7 +29,7 @@ Updated **23 October 2026** following security-hardening PR #1 on `main`.
 | [0008](adr/ADR-0008-adoption-of-agentgateway-dev.md) | Agent gateway | Configuration candidate; compatibility must be proven |
 | [0009](adr/ADR-0009-agent-first-with-bounded-authority.md) | Option A agent-first authority boundaries | Proposed for architectural review |
 
-[Documentation change history](CHANGELOG.md)
+[Documentation change history](CHANGELOG.md) · [Current execution evidence](reports/2026-10-23-release-gates.md) · [Event stream contract](architecture/event-stream.md)
 
 ## Evidence and provenance
 
@@ -37,3 +37,4 @@ Updated **23 October 2026** following security-hardening PR #1 on `main`.
 - [Historical scenario transcript](reports/E2E_LIFE_SCENARIOS_RECORDING.md) and [recording viewer](recordings/index.html) describe a demonstration at the time recorded. Neither certifies the security-hardening changes after PR #1.
 - Old detailed demo backlog retained at [historical backlog](history/demo-backlog-pre-production.md); current work is [TODO.md](../TODO.md).
 - External specifications: [AG-UI](https://github.com/ag-ui-protocol/ag-ui), [A2UI](https://a2ui.org/), [MCP](https://modelcontextprotocol.io/) and [A2A](https://a2a-protocol.org/). Do not infer conformance from the use of names.
+

@@ -15,8 +15,8 @@
 | --- | --- | --- |
 | Five domain simulator modules | Implemented (demo) | In-process calls; global fixture data, no verified agencies |
 | React shell + mini-app examples | Implemented (demo) | Direct source imports; no remote signed MFE loader |
-| Angular and Flutter sample shells | Implemented (demo) | Build/behavior parity not evidenced in current review |
-| Custom UI/event protocol | Implemented (demo) | Not official AG-UI or A2UI |
+| Angular and Flutter sample shells | Angular build verified; Flutter demo only | Angular bundle passes; visual/runtime parity and Flutter execution pending |
+| Custom UI/event protocol | Implemented (demo); web transport regression verified | Signed HTTP SSE/replay/expiry tests pass; not official AG-UI or A2UI |
 | JWT validation and session/action guard | Implemented (demo baseline) | RS256/JWKS, process-local, no production browser login |
 | Gateway configuration | Configured | Actual supported YAML/schema and traffic path not demonstrated |
 | Optional OpenRouter preview | Implemented (demo) | Free by default; model output does not route journeys |
@@ -29,17 +29,26 @@
 ### P0 — Fix before any real user, money, identity or government data
 
 - [ ] **P0-01** Implement production React/Flutter (and Angular if retained) OIDC Authorization Code + PKCE flows; token lifecycle, logout/revocation; remove demo markers from production release.
-- [ ] **P0-02** Authenticated, resumable, user-scoped SSE with real bearer handling, origin policy, stream backpressure, event IDs and replay.
+- [ ] **P0-02** Authenticated, resumable, user-scoped SSE — **web/backend implementation verified, release validation partial**.
+  - [x] Bearer header/ownership/origin checks, event IDs, bounded replay and slow-consumer backpressure; signed-token HTTP tests pass.
+  - [x] Shared React/Angular fetch stream with token getter, UTF-8 parser, cursor/reset, reconnect and cleanup.
+  - [ ] Real end-user token lifecycle/browser smoke (P0-01), Flutter replay parity and real Keycloak execution. Durable multi-instance replay is P0-05.
+  - Evidence: [stream contract](docs/architecture/event-stream.md), [release-gate report](docs/reports/2026-10-23-release-gates.md).
 - [ ] **P0-03** Enforce subject/resource/tenant authorization in each domain service, including propagation of actor/delegator identity and consent scopes.
 - [ ] **P0-04** Introduce resource-and-quote-bound HITL user authorization for mutations; bind approval to amount, recipient, time window, resource and immutable server quote.
 - [ ] **P0-05** Durable session/workflow persistence, TTL, key rotation/revocation strategy, rehydration and multi-instance session ownership.
 - [ ] **P0-06** Domain-owned durable idempotency, outbox/transactional guarantees, partial-failure compensation and reconciliation for composite payments.
 - [ ] **P0-07** Remove seeded credentials/unrestricted origins from production identity/gateway configs; pin supported images, harden secrets and deployment permissions.
-- [ ] **P0-08** Run and record baseline `npm test` / `npm run build` / React UI smoke + isolated real Keycloak integration; fix failures. No passed result was produced by this docs-only change.
+- [ ] **P0-08** Release verification — **partially complete**.
+  - [x] Clean `npm ci`, 49/49 tests, forced build across all 14 JS workspaces (React/Angular bundles included); baseline failures fixed.
+  - [x] Add isolated `npm run test:keycloak` runner and real-issuer HTTP/SSE integration test, using generated service-account secrets and disposable realm.
+  - [ ] Execute real Keycloak gate (Docker unavailable here); it must pass before production claims.
+  - [ ] React visual smoke (Chromium download failed here), Flutter validation and broader end-user PKCE coverage.
+  - Recorded outputs and exceptions: [release-gate report](docs/reports/2026-10-23-release-gates.md).
 
 ### P1 — Make the agent-centric concept real
 
-- [ ] **P1-01** Define capability IDs, input/output schemas, risk metadata, owner, version and consent requirements in the catalog.
+- [x] **P1-01** Define capability IDs, input/output schemas, risk metadata, owner, version and consent requirements in the catalog. **Verified discovery scope:** 32 versioned definitions, `/capabilities` + ID lookup, `/tools` IDs/version, Ajv compilation and simulator response checks. Nested output objects remain extensible. Runtime enforcement/remote invocation remain P1-02/P0-03/P1-10; metadata grants no authority.
 - [ ] **P1-02** Decouple graph from direct business imports with authenticated, typed adapter interfaces.
 - [ ] **P1-03** Integrate genuine LangGraph or selected runtime (real graph nodes, tool schemas, checkpoints, interrupts); ensure model output can influence *permitted* plans.
 - [ ] **P1-04** Add deterministic durable workflow executor for cross-domain sequences, scheduled tasks, retries, cancellation and proactive jobs.
@@ -64,10 +73,11 @@
 - [x] Revisit ADR-0001 through ADR-0008 and add agent-first ADR-0009 as **Proposed**.
 - [x] Document authentication, free-model test policy and production blockers.
 - [x] Preserve historical demo task checklist and label recordings historical.
-- [ ] Attach actual command/CI outputs, dependency verification and reproducible runtime validation to the next release gate.
+- [x] Attach actual command outputs, clean locked dependency installation, reproducible verification commands and explicit blocked gates in the [dated report](docs/reports/2026-10-23-release-gates.md). Browser/Keycloak/Flutter gates remain open above.
 
 ## Completion policy
 
 A task cannot be marked verified solely by documentation, a test declaration, an accepted ADR, a passing mock test, or a gateway YAML file. Provide CI execution link or a dated manual test report showing target environment, results and known exceptions.
 
 References: [Documentation index](docs/INDEX.md), [SECURITY.md](SECURITY.md), [target architecture](docs/architecture/target-architecture.md).
+

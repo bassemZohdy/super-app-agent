@@ -50,7 +50,7 @@ The business functions are imported directly from `services/*/src/index.ts` into
 | `service-ride` | Ride/parking/Salik/EV simulation | Shared process-scoped state; civic functions are fixtures |
 | `service-food` | Food and utility-bill simulation | Function/domain names do not match clean business boundaries |
 | `service-wallet` | Wallet/fines/payment simulation | Not a financial transaction system; combined settlement not atomic |
-| `service-catalog` | Mini-app metadata, demo Ejari/move-in and tool listings | Example remote URLs and descriptors, not validated remote runtime |
+| `service-catalog` | Mini-app metadata, 32 versioned capability contracts, demo Ejari/move-in and tool listings | Example remote URLs and descriptors, not validated remote runtime |
 | `service-profile` | Demo profile/preferences/prompts | No durable, per-user profile isolation |
 | `packages/protocol-core` | Project-defined UI component tree and SSE envelopes | Not official AG-UI/A2UI conformance |
 | `services/agentgateway/config.yaml` | Aspirational gateway config | No proof the config runs with selected image or that graph traffic flows through it |
@@ -104,3 +104,6 @@ The business functions are imported directly from `services/*/src/index.ts` into
 - [Frontend/mini-app guide](frontend-and-miniapps.md)
 - [Security](../../SECURITY.md)
 - [Target architecture](target-architecture.md)
+
+
+Current transport bounds and replay behavior are specified in the [stream contract](event-stream.md). Latest build/test execution is recorded in the [release-gate report](../reports/2026-10-23-release-gates.md).

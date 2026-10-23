@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { capabilities } from './capabilities.ts';
 
 export interface MiniAppManifest {
   id: string;
@@ -196,6 +197,17 @@ export function executeCatalogRequest(
     return { status: 200, data: { success: true, miniApp: found } };
   }
 
+  // Versioned capability discovery; authorization enforcement remains P0-03/P1-10.
+  if (normMethod === 'GET' && pathname === '/capabilities') {
+    return { status: 200, data: { schemaVersion: '1.0.0', capabilities } };
+  }
+  if (normMethod === 'GET' && pathname.startsWith('/capabilities/')) {
+    const id = pathname.slice('/capabilities/'.length);
+    const capability = capabilities.find(item => item.id === id);
+    return capability ? { status: 200, data: { capability } }
+      : { status: 404, data: { error: 'Capability not found', id } };
+  }
+
   // 4. Federated Tools Aggregator for Agent Gateway
   if (normMethod === 'GET' && pathname === '/tools') {
     return {
@@ -207,21 +219,13 @@ export function executeCatalogRequest(
           name: app.name,
           mcpEndpoint: app.mcpEndpoint,
         })),
-        registeredTools: [
-          { domain: 'ride', name: 'ride_getOptions', description: 'Get available ride options, ETAs, and fares' },
-          { domain: 'ride', name: 'ride_bookCab', description: 'Book a ride with selected tier or driver' },
-          { domain: 'ride', name: 'ride_trackStatus', description: 'Track real-time location and ETA of an active ride booking' },
-          { domain: 'food', name: 'food_searchRestaurants', description: 'Search available restaurants, cuisines, and dish menus' },
-          { domain: 'food', name: 'food_createOrder', description: 'Place food delivery order to restaurant kitchen' },
-          { domain: 'food', name: 'food_trackOrder', description: 'Track kitchen preparation and delivery progress of an order' },
-          { domain: 'wallet', name: 'wallet_getBalance', description: 'Fetch user current wallet balance and currency code' },
-          { domain: 'wallet', name: 'wallet_authorizePayment', description: 'Authorize and deduct payment amount from wallet' },
-          { domain: 'wallet', name: 'wallet_getTransactions', description: 'Fetch recent ledger transactions and receipts' },
-          { domain: 'profile', name: 'profile_getProfile', description: 'Fetch authenticated user profile, tier, and avatar' },
-          { domain: 'profile', name: 'profile_getPreferences', description: 'Fetch dietary, mobility, and UI theme preferences' },
-          { domain: 'profile', name: 'profile_updatePreferences', description: 'Update user preferences dynamically' },
-          { domain: 'profile', name: 'profile_getPromptContext', description: 'Fetch personalized system prompt instructions' },
-        ],
+        registeredTools: capabilities.map(capability => ({
+          domain: capability.name.split('_')[0],
+          name: capability.name,
+          description: capability.description,
+          capabilityId: capability.id,
+          version: capability.version,
+        })),
       },
     };
   }
@@ -281,3 +285,4 @@ if (process.argv[1]?.endsWith('service-catalog/src/index.ts')) {
     console.log(`📦 Mini-App Catalog Service listening on port ${PORT}`);
   });
 }
+

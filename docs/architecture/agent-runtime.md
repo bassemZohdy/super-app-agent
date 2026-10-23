@@ -25,7 +25,7 @@ The agent-core API checks that the event action was present on the latest surfac
 
 ### Persistence
 
-`SuperAppAgentState` stores `sessionId`, messages, active domain, optional current surface, pending action, checkpoint ID and metadata. The latter fields are mostly placeholders. Session map, SSE listeners and consumed-action set live in the Node process. Restart loses them and there is no long-running schedule, resumed external event, event log or transactional outbox.
+`SuperAppAgentState` stores `sessionId`, messages, active domain, optional current surface, pending action, checkpoint ID and metadata. The latter fields are mostly placeholders. Session map, SSE listeners and consumed-action set live in the Node process. Restart loses them. SSE has a bounded process-local replay journal, but no durable event log, long-running schedule, resumed external workflow event or transactional outbox.
 
 ## Model interface
 
@@ -59,7 +59,7 @@ Safety is a domain policy, not merely a model prompt. â€œAgent selected a toolâ€
 
 ## Evolution gates
 
-- Define a versioned capability registry and independent domain tool interface.
+- Use the versioned capability registry now exposed by service-catalog in independent authenticated domain tool interfaces (P1-02); discovery metadata alone is implemented.
 - Implement a real agent framework/runtime (e.g. LangGraph) behind an adapter; confirm the actual dependency and use its genuine checkpoints/interrupts.
 - Introduce durable workflow execution where required, separate from nondeterministic agent planning.
 - Add user-bound consent, transaction quote, domain authorization and audit before mutable civic/finance actions.
@@ -67,3 +67,4 @@ Safety is a domain policy, not merely a model prompt. â€œAgent selected a toolâ€
 - Replace custom UI/event boundaries with standards-compatible AG-UI + A2UI adapters.
 
 See [target architecture](target-architecture.md) and [backlog](../../TODO.md).
+

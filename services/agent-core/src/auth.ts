@@ -3,7 +3,7 @@
  * Production uses RS256 JWKS validation. Demo identities are explicitly opt-in
  * and NEVER accepted in NODE_ENV=production.
  */
-import { createPublicKey, verify as verifySignature } from 'node:crypto';
+import { createPublicKey, verify as verifySignature, type JsonWebKey } from 'node:crypto';
 
 export interface KeycloakUserClaims {
   sub: string;
@@ -13,6 +13,7 @@ export interface KeycloakUserClaims {
   roles: string[];
   vipTier: string;
   isVip: boolean;
+  expiresAt?: number;
 }
 export interface AuthVerificationResult {
   authenticated: boolean;
@@ -91,7 +92,7 @@ export async function verifyKeycloakToken(authHeader: string | undefined): Promi
     const roles: string[] = Array.isArray(payload.realm_access?.roles) ? payload.realm_access.roles : [];
     const isVip = roles.includes('superapp-vip');
     return { authenticated: true, user: {
-      sub: payload.sub,
+      sub: payload.sub, expiresAt: payload.exp * 1000,
       preferred_username: String(payload.preferred_username || payload.sub),
       email: String(payload.email || ''),
       name: String(payload.name || payload.preferred_username || payload.sub),
@@ -101,3 +102,4 @@ export async function verifyKeycloakToken(authHeader: string | undefined): Promi
     return denied('Invalid or unverifiable Keycloak access token');
   }
 }
+

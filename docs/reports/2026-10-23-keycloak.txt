@@ -1,0 +1,6 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> super-app-agent-monorepo@1.0.0 test:keycloak
+> node --experimental-strip-types scripts/test-keycloak.ts
+
+Real Keycloak gate requires a running Docker daemon. No tests were executed.

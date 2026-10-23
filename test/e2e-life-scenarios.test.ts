@@ -321,7 +321,13 @@ test('E2E Life Scenario 8: User Profile Personalization & Adaptive AG-UI Surface
   assert.ok(vipBadge);
   assert.ok(vipBadge.properties.text.includes('Gold VIP Member'));
 
-  // 5. User updates preferences via action
+  // 5. Open the profile surface before invoking its advertised preference action.
+  const profileIntent = await executeCoreRequest('POST', '/api/a2ui/intent', {}, {
+    sessionId, text: 'Show my profile preferences',
+  });
+  assert.strictEqual(profileIntent.status, 200);
+
+  // User updates preferences via action
   const updateActionRes = await executeCoreRequest('POST', '/api/a2ui/action', {}, {
     sessionId,
     action: 'update_preferences',
