@@ -21,13 +21,31 @@ function ownsSession(sessionId: string, sub: string): boolean {
   sessionOwners.set(sessionId, sub);
   return true;
 }
-function isSurfaceActionAllowed(state: SuperAppAgentState, action: string): boolean {
-  const walk = (node: any): boolean =>
-    (node.onEvents || []).some((binding: any) =>
-      binding.actionType === 'AGENT_ACTION_DISPATCH' && binding.payload?.action === action
-    ) || (node.children || []).some(walk);
-  return !!state.currentSurface && walk(state.currentSurface.view);
+// An allowed action is not permission to change financial or resource values.
+function isSurfaceActionAllowed(state: SuperAppAgentState, action: string, payload: Record<string, any>): boolean {
+  if (!state.currentSurface) return false;
+  const bindings: Array<Record<string, any>> = [];
+  const choices = new Set<string>();
+  const walk = (node: any) => {
+    if (node.type === 'ChoiceGroup') {
+      for (const option of node.properties?.options || []) choices.add(option.id);
+    }
+    for (const event of node.onEvents || []) {
+      if (event.actionType === 'AGENT_ACTION_DISPATCH' && event.payload?.action === action) {
+        bindings.push(event.payload);
+      }
+    }
+    for (const child of node.children || []) walk(child);
+  };
+  walk(state.currentSurface.view);
+  if (payload.selectedChoice !== undefined && !choices.has(payload.selectedChoice)) return false;
+  const protectedFields = ['amount', 'durationHours', 'zoneId', 'plateNumber', 'ticketId'];
+  return bindings.some(binding => protectedFields.every(field =>
+    payload[field] === undefined || (binding[field] !== undefined &&
+      JSON.stringify(payload[field]) === JSON.stringify(binding[field]))
+  ));
 }
+const consumedActions = new Set<string>();
 
 export function getOrCreateSession(sessionId: string): SuperAppAgentState {
   if (!sessions.has(sessionId)) {
@@ -126,7 +144,7 @@ export async function executeGatewayRequest(
       return { status: 403, data: { error: 'Session belongs to a different user' } };
     }
     const session = getOrCreateSession(body.sessionId);
-    if (!isSurfaceActionAllowed(session, body.action)) {
+    if (!isSurfaceActionAllowed(session, body.action, body.payload || {})) {
       return { status: 403, data: { error: 'Action is not authorized for the current UI surface' } };
     }
     if (!body.payload || typeof body.payload !== 'object' || Array.isArray(body.payload)) {
@@ -135,6 +153,13 @@ export async function executeGatewayRequest(
     if (authResult.user) {
       (session as any).user = authResult.user;
     }
+    // Prevent accidental double execution of the same surface action in this process.
+    // Durable idempotency remains the responsibility of the transactional service.
+    const actionKey = body.sessionId + ':' + session.currentSurface!.timestamp + ':' + body.action;
+    if (consumedActions.has(actionKey)) {
+      return { status: 409, data: { error: 'Action already submitted for this surface' } };
+    }
+    consumedActions.add(actionKey);
     const onDelta = (text: string) =>
       broadcast(body.sessionId, createA2UIMessage('A2UI_STREAM_DELTA', body.sessionId, {
         phase: 'TOOL_EXECUTION', text,
