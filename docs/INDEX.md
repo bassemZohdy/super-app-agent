@@ -27,6 +27,9 @@ Updated **23 October 2026** following security-hardening PR #1 on `main`.
 | [0006](adr/ADR-0006-state-security-and-event-bus.md) | State/security | Initial guards implemented; production guarantees pending |
 | [0007](adr/ADR-0007-agentic-platform-langgraph-and-llm-gateway.md) | Cognitive runtime | LangGraph is an architectural target, not installed |
 | [0008](adr/ADR-0008-adoption-of-agentgateway-dev.md) | Agent gateway | Configuration candidate; compatibility must be proven |
+| [0009](adr/ADR-0009-agent-first-with-bounded-authority.md) | Option A agent-first authority boundaries | Proposed for architectural review |
+
+[Documentation change history](CHANGELOG.md)
 
 ## Evidence and provenance
 

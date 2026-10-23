@@ -1,3 +1,5 @@
+> **Historical recording notice (documentation review: 2026-10-23).** This transcript documents earlier *simulated* scenarios and is not a test result for the merged security-hardening changes. References to official agencies, verified citizen identity, payments or “live” services describe fabricated fixtures, not actual third-party service confirmation. The project uses custom UI/events rather than official AG-UI/A2UI. See [current testing](../development/testing.md) and [security](../../SECURITY.md).
+>
 # 🎬 SuperApp Agent: End-to-End Life Scenarios Flight Recording
 
 > **Comprehensive recording transcript of realistic end-to-end user journeys executed across the SuperApp platform, AG-UI declarative renderer, A2-UI streaming protocol, and microservice mesh.**
