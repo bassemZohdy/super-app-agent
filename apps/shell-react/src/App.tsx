@@ -1,3 +1,4 @@
+import { connectEventStream } from '../../../packages/protocol-core/src/sse-client.ts';
 import React, { useState, useEffect, useRef } from 'react';
 import type { AGUISurfacePayload, A2UIMessageEnvelope } from '../../../packages/protocol-core/src/index.ts';
 import { A2UIRenderer } from './components/A2UIRenderer.tsx';
@@ -25,20 +26,17 @@ export function App() {
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const miniAppMountRef = useRef<HTMLDivElement>(null);
 
-  const GATEWAY_URL = 'http://localhost:4000';
+  const GATEWAY_URL = import.meta.env.VITE_GATEWAY_URL || 'http://localhost:4000';
   const DEMO_KEYCLOAK_TOKEN = 'demo-local'; // local demo only, not a production credential
 
   // 1. Establish A2-UI Protocol SSE Stream
   useEffect(() => {
-    let eventSource: EventSource | null = null;
-    try {
-      eventSource = new EventSource(
-        `${GATEWAY_URL}/api/a2ui/stream?sessionId=${sessionId}&demo=1`
-      );
-
-      eventSource.onmessage = (event) => {
-        try {
-          const envelope: A2UIMessageEnvelope = JSON.parse(event.data);
+    const controller = new AbortController();
+    void connectEventStream({
+      url: `${GATEWAY_URL}/api/a2ui/stream?sessionId=${sessionId}`,
+      getToken: () => DEMO_KEYCLOAK_TOKEN,
+      signal: controller.signal,
+      onMessage: (envelope: A2UIMessageEnvelope) => {
           if (envelope.type === 'A2UI_STREAM_DELTA') {
             setThinkingDelta(envelope.data.text);
           } else if (envelope.type === 'A2UI_RENDER_SURFACE') {
@@ -56,17 +54,10 @@ export function App() {
             else if (appId.includes('citizenpay') || appId.includes('wallet')) setActiveTab('citizenpay');
             else if (appId.includes('housing')) setActiveTab('housing');
           }
-        } catch (err) {
-          console.error('Failed to parse SSE payload', err);
-        }
-      };
-    } catch (e) {
-      console.warn('SSE stream unavailable on local environment', e);
-    }
-
-    return () => {
-      eventSource?.close();
-    };
+      },
+      onError: (error) => console.warn('Event stream unavailable', error.message),
+    });
+    return () => controller.abort();
   }, [sessionId]);
 
   useEffect(() => {
@@ -618,3 +609,4 @@ export function App() {
 }
 
 export default App;
+

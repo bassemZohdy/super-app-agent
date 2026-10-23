@@ -21,11 +21,11 @@ Security issues should be assessed against actual source/deployment, not against
 
 **Demo bypass:** `DEMO_AUTH=true` and `NODE_ENV !== production` permit synthetic `demo-local` identity (including requests without bearer token). This is for isolated localhost demonstrations **only**. Never configure it on shared environments or any public network.
 
-**Session authorization:** an in-memory map associates a session ID to subject `sub`. SSE holds a Set of listeners per session, cleans up on close, and sends heartbeats. None of this is durable or cross-replica.
+**Session authorization:** an in-memory map associates a session ID to subject `sub`. SSE verifies bearer tokens and ownership, rejects disallowed origins, expires connections, and supports replay/snapshots. Replay is bounded to 100 events/session, 1,000 sessions, 8 MiB total and five-minute idle retention; five listeners/session and 256 KiB pending output/listener limit slow consumers. None of this is durable or cross-replica; owner/session/action maps still need lifecycle limits.
 
 **Action authorization:** agent-core checks whether the action is represented by the active surface, validates selected UI choices, and protects certain submitted fields (amount, duration, zone, plate, ticket) from client edits. Repeated same-surface actions are rejected in one process. **These checks cannot establish payment consent, prevent races across processes or enforce domain ownership.**
 
-**CORS/network:** agent-core uses `CORS_ORIGINS` allowlist for HTTP/SSE. Compose exposes demo backend and Keycloak host ports only on 127.0.0.1. The separate agentgateway YAML has wildcard CORS and has not been validated as an active enforcement path.
+**CORS/network:** agent-core rejects requests with a disallowed Origin and uses the `CORS_ORIGINS` allowlist for HTTP/SSE, with `Vary: Origin`. Requests without Origin still require API authentication. CORS does not replace authorization. Compose exposes demo backend and Keycloak host ports only on 127.0.0.1. The separate agentgateway YAML has wildcard CORS and has not been validated as an active enforcement path.
 
 **LLM spend:** no key = no network inference; live preview is off by default and free-model routing is default. Paid models require opt-in, and no automatic paid fallback is configured. This guards **model spend**, not privacy or prompt safety.
 
@@ -37,11 +37,11 @@ Security issues should be assessed against actual source/deployment, not against
 | Critical | Domain simulator state shared without per-user authorization; agent calls domain handlers directly | Subject/tenant-aware domain service APIs; enforcement at resource boundaries |
 | Critical | Fake wallet/fines/utility/pay flows can appear successful without reliable transaction guarantees | Server-derived immutable quotes, real payment authority, durable idempotency, compensation, receipts, audit |
 | High | Session and duplicate state only in memory | Durable scoped session/claim-state store, TTL, revocation, per-tenant partitioning |
-| High | Event transport uses local demo marker in current shells; no production authenticated stream/replay | Authenticated fetch-based SSE/WebSocket, reconnect snapshot/event sequence and ownership checks |
+| High | Browser shells still supply demo tokens; replay is process-local; Flutter has no new replay adapter | OIDC token lifecycle, Flutter parity, durable replay and multi-instance ownership |
 | High | UI schema/action validation is only partial | Official schema and semantic policies, limits, fuzzing, renderer sandboxes |
 | High | Prompt injection, data exfiltration and tool privilege misuse not evaluated for a real agent | Capability allowlists, input/output safety evaluation, trace-level audit, approved access envelopes |
 | High | Floating agentgateway image, unverified config and wildcard CORS | Version pinning, validated deployment tests, explicit origins, least privilege |
-| Medium | Unbounded process memory maps/event subscribers on heavy load | Session TTL, request/stream limits, quotas, backpressure, monitoring |
+| Medium | Session/owner/action maps remain unbounded despite bounded replay/listener queues | Session TTL, per-user and total connection quotas, rate limits, monitoring |
 | Medium | No formal official protocol conformance | AG-UI/A2UI/MCP compatibility test harnesses |
 
 ## Local-only safety rules
@@ -65,3 +65,4 @@ Security issues should be assessed against actual source/deployment, not against
 - Actual passing builds, security tests against real Keycloak, and signed review of release evidence.
 
 This is an engineering risk summary, not a penetration test or compliance assessment. See [TODO](TODO.md) and [architecture](docs/architecture/system-overview.md).
+

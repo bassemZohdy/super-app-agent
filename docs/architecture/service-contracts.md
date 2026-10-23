@@ -6,8 +6,8 @@
 
 | HTTP | Path | Behavior |
 | --- | --- | --- |
-| GET | `/health` | Public health JSON; historical `agentCore: "LangGraph"` marker is **not actual runtime proof** |
-| GET | `/api/a2ui/stream?sessionId=...` | Custom SSE events, auth requirement; local `demo=1` bypass available only with explicit `DEMO_AUTH=true` |
+| GET | `/health` | Public health JSON; `agentCore: "deterministic-demo-router"` reflects the current runtime |
+| GET | `/api/a2ui/stream?sessionId=...` | Bearer-authenticated SSE, bounded process-local replay via `Last-Event-ID`, expiry, origin and backpressure checks; see [stream contract](event-stream.md) |
 | POST | `/api/a2ui/intent` | Body `{ sessionId, text, handshake? }`; require auth, user-bind session, deterministic classification |
 | POST | `/api/a2ui/action` | Body `{ sessionId, action, payload }`; existing authorized surface required |
 
@@ -29,10 +29,18 @@ curl -X POST http://localhost:4000/api/a2ui/intent \
 | `service-ride` | 4001 | `GET /mobility/parking/zones`, `POST /mobility/parking/activate`, `POST /mobility/parking/extend`, `GET /mobility/salik/balance`, `POST /mobility/salik/recharge`, `GET /mobility/ev/chargers`, `GET /rides/options`, `POST /rides/book` | Includes mobility and legacy ride examples |
 | `service-food` | 4002 | `GET /utilities/bill`, `GET /utilities/consumption`, `POST /utilities/pay`, `GET /restaurants/search`, `POST /orders/create` | Utilities grouped with food for demo convenience, not a recommended bounded context |
 | `service-wallet` | 4003 | `GET /fines/check`, `POST /fines/pay`, `POST /pay/unified`, `GET /wallet/balance`, `GET /wallet/transactions`, `POST /wallet/pay`, `POST /wallet/topup` | Shared fixture ledger; combined agencies are **not** an atomic distributed transaction |
-| `service-catalog` | 4004 | `GET /miniapps`, `GET /tools`, `GET /housing/ejari`, `POST /housing/move-in` | Catalog and housing mixed for demo |
+| `service-catalog` | 4004 | `GET /miniapps`, `GET /tools`, `GET /capabilities`, `GET /capabilities/:id`, `GET /housing/ejari`, `POST /housing/move-in` | Catalog and housing mixed for demo |
 | `service-profile` | 4005 | `GET /profile`, `GET /profile/preferences`, `POST /profile/preferences`, `GET /profile/prompt-context` | Mutable demo preferences, not a per-subject persistent database |
 
 Paths have some short aliases; the canonical examples above are taken from the code. Do not infer REST response stability or full authorization from them.
+
+### Versioned capabilities (P1-01)
+
+`GET /capabilities` returns `schemaVersion: "1.0.0"` and 32 definitions from `services/service-catalog/src/capabilities.json`. `GET /capabilities/:id` resolves a stable dotted ID. `/tools` keeps its discovery envelope and adds capability IDs/version to every entry.
+
+Each definition includes owner service, semantic version, input/output JSON Schemas, risk, mutation/confirmation flags, subject-bound consent scopes, delegation policy, HTTP mapping and a synthetic example. Inputs reject undeclared fields in contract validation; output envelopes describe success/error shapes while nested domain objects remain extensible. All 32 schemas are compiled and checked against simulator responses by Ajv in tests.
+
+This is discovery metadata. **The current graph and domain handlers do not enforce these schemas, scopes or consent requirements.** Authenticated typed adapters (P1-02), domain enforcement (P0-03) and consent lifecycle (P1-10) must apply them before real invocation. The registry does not advertise an MCP/A2A transport or authorize its callers. Version output contract changes explicitly; do not silently reuse an ID/version for incompatible semantics.
 
 ### Tool “MCP” descriptors
 
@@ -59,6 +67,7 @@ These examples reference government brands to illustrate integration use cases. 
 2. Define versioned OpenAPI schemas for REST and/or real MCP tool contracts with authorization/consent metadata.
 3. Move calls to authenticated network interfaces with service identity, trace propagation and timeouts.
 4. Enforce business policies at each domain boundary, not only inside the agent.
-5. Add capability registry versioning, tenant isolation, approval receipts and audit traces.
+5. Apply the versioned capability registry in typed adapters; add tenant isolation, approval receipts and audit traces.
 
 See [target architecture](target-architecture.md).
+

@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { EventJournal, StreamWriter, eventFrame } from './event-stream.ts';
 import {
   createA2UIMessage,
   type A2UIHandshakePayload,
@@ -12,7 +13,9 @@ import { verifyKeycloakToken, isDemoAuthEnabled } from './auth.ts';
 export const sessions = new Map<string, SuperAppAgentState>();
 const sessionOwners = new Map<string, string>();
 export const sseClients = new Map<string, Set<(msg: A2UIMessageEnvelope) => void>>();
+export const eventJournal = new EventJournal();
 function broadcast(sessionId: string, msg: A2UIMessageEnvelope) {
+  eventJournal.append(sessionId, msg);
   for (const listener of sseClients.get(sessionId) || []) listener(msg);
 }
 function ownsSession(sessionId: string, sub: string): boolean {
@@ -66,6 +69,9 @@ export async function executeGatewayRequest(
   headers: Record<string, string | undefined> = {}
 ): Promise<{ status: number; data: any }> {
   const normMethod = method.toUpperCase();
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return { status: 400, data: { error: 'Request body must be a JSON object' } };
+  }
 
   // 1. Healthcheck (public, no auth required)
   if (normMethod === 'GET' && pathname === '/health') {
@@ -74,7 +80,7 @@ export async function executeGatewayRequest(
       data: {
         status: 'ok',
         service: 'agent-core',
-        agentCore: 'LangGraph',
+        agentCore: 'deterministic-demo-router',
         edgeProxy: 'agentgateway.dev',
         activeSessions: sessions.size,
         timestamp: new Date().toISOString(),
@@ -201,7 +207,8 @@ function sendJson(req: http.IncomingMessage, res: http.ServerResponse, statusCod
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': allowedOrigin(req.headers.origin),
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, Last-Event-ID',
+    'Vary': 'Origin',
   });
   res.end(JSON.stringify(data));
 }
@@ -210,11 +217,17 @@ export const server = http.createServer(async (req, res) => {
   const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
   const method = req.method || 'GET';
 
+  if (req.headers.origin && allowedOrigin(req.headers.origin) === 'null') {
+    sendJson(req, res, 403, { error: 'Origin is not allowed' });
+    return;
+  }
+
   if (method === 'OPTIONS') {
     res.writeHead(204, {
       'Access-Control-Allow-Origin': allowedOrigin(req.headers.origin),
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, Last-Event-ID',
+      'Vary': 'Origin',
     });
     return res.end();
   }
@@ -228,47 +241,64 @@ export const server = http.createServer(async (req, res) => {
       (demo ? 'Bearer demo-local' : undefined);
     const authResult = await verifyKeycloakToken(authHeader);
     if (!authResult.authenticated) {
-      sendJson(req, authResult.statusCode || 401, { error: authResult.error, authenticated: false });
+      sendJson(req, res, authResult.statusCode || 401, { error: authResult.error, authenticated: false });
       return;
     }
 
     const sid = url.searchParams.get('sessionId');
     if (!sid || !/^[a-zA-Z0-9_-]{8,128}$/.test(sid)) {
-      sendJson(req, 400, { error: 'Valid sessionId is required' });
+      sendJson(req, res, 400, { error: 'Valid sessionId is required' });
       return;
     }
     if (!ownsSession(sid, authResult.user!.sub)) {
-      sendJson(req, 403, { error: 'Session belongs to a different user' });
+      sendJson(req, res, 403, { error: 'Session belongs to a different user' });
       return;
     }
 
+    const cursor = req.headers['last-event-id'];
+    const replay = typeof cursor === 'string' && cursor ? eventJournal.after(sid, cursor) : [];
+    if (replay === undefined) {
+      sendJson(req, res, 409, { error: 'Replay cursor expired or unknown', code: 'STREAM_RESET_REQUIRED' });
+      return;
+    }
+    const subscribers = sseClients.get(sid) || new Set();
+    if (subscribers.size >= 5) {
+      sendJson(req, res, 429, { error: 'Too many streams for this session' });
+      return;
+    }
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
+      'Cache-Control': 'no-cache, no-transform',
       'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
       'Access-Control-Allow-Origin': allowedOrigin(req.headers.origin),
+        'Vary': 'Origin',
     });
-
-    const listener = (msg: A2UIMessageEnvelope) => {
-      res.write(`data: ${JSON.stringify(msg)}\n\n`);
-    };
-
-    const subscribers = sseClients.get(sid) || new Set();
+    const writer = new StreamWriter(res);
+    const listener = (msg: A2UIMessageEnvelope) => writer.send(eventFrame(msg));
     subscribers.add(listener);
     sseClients.set(sid, subscribers);
-    const heartbeat = setInterval(() => res.write(': keepalive\n\n'), 20_000);
-
-    // Initial handshake ACK
+    const heartbeat = setInterval(() => writer.send(': keepalive\n\n'), 20_000);
+    // Reauthenticate each connection and close it at token expiry (or after 5 minutes).
+    const lifetime = Math.min(300_000, (authResult.user!.expiresAt ?? Date.now() + 300_000) - Date.now());
+    const expiry = setTimeout(() => res.end(), Math.max(0, lifetime));
     const ack = createA2UIMessage('A2UI_HANDSHAKE_ACK', sid, {
-      status: 'connected',
-      supportedProtocols: ['AG-UI/1.0', 'A2-UI/1.0'],
-      sessionId: sid,
+      status: 'connected', supportedProtocols: ['superapp-custom/1.0'], sessionId: sid,
       user: authResult.user,
     });
-    res.write(`data: ${JSON.stringify(ack)}\n\n`);
-
-    req.on('close', () => {
+    // Handshakes and initial snapshots have no cursor: only journaled events are resumable.
+    writer.send(`retry: 1000\ndata: ${JSON.stringify(ack)}\n\n`);
+    if (cursor) for (const event of replay) listener(event);
+    else {
+      const surface = sessions.get(sid)?.currentSurface;
+      if (surface) writer.send(`data: ${JSON.stringify(createA2UIMessage('A2UI_RENDER_SURFACE', sid, {
+        mode: 'REPLACE', surface,
+      }))}\n\n`);
+    }
+    res.once('close', () => {
       clearInterval(heartbeat);
+      clearTimeout(expiry);
+      writer.close();
       subscribers.delete(listener);
       if (!subscribers.size) sseClients.delete(sid);
     });
@@ -292,16 +322,16 @@ export const server = http.createServer(async (req, res) => {
       try {
         const body = bodyText ? JSON.parse(bodyText) : {};
         const result = await executeGatewayRequest(method, url.pathname, query, body, headers);
-        sendJson(req, result.status, result.data);
+        sendJson(req, res, result.status, result.data);
       } catch (e: any) {
-        sendJson(req, e instanceof SyntaxError ? 400 : 500, {
+        sendJson(req, res, e instanceof SyntaxError ? 400 : 500, {
           error: e instanceof SyntaxError ? 'Invalid JSON body' : 'Request processing failed',
         });
       }
     });
   } else {
     const result = await executeGatewayRequest(method, url.pathname, query, {}, headers);
-    sendJson(req, result.status, result.data);
+    sendJson(req, res, result.status, result.data);
   }
 });
 
@@ -313,3 +343,4 @@ if (process.argv[1]?.endsWith('agent-core/src/index.ts')) {
     console.log(`🚀 SuperApp Agent Core listening on port ${PORT}`);
   });
 }
+
