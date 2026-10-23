@@ -114,3 +114,8 @@ Actual HTTP/SSE handler emits handshake ACK, stream deltas and render surface me
 6. Add capability handshake negotiation, version pinning, locale/accessibility, update/reconciliation semantics, error handling and frontend conformance tests.
 
 See [ADR-0002](../adr/ADR-0002-ag-ui-and-a2-ui-declarative-protocols.md) and [frontend guide](frontend-and-miniapps.md).
+
+
+## Current stream recovery
+
+The authenticated web/backend stream now has event IDs, bounded replay, snapshots, expiry and slow-consumer bounds. See the [wire contract](event-stream.md). This remains the custom envelope above; Flutter parity, end-user OIDC login and durable/multi-instance replay remain open.

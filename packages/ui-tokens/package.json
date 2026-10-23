@@ -9,5 +9,8 @@
     ".": "./src/index.ts",
     "./theme.css": "./src/theme.css",
     "./tokens.json": "./src/tokens.json"
+  },
+  "scripts": {
+    "build": "tsc --noEmit"
   }
 }

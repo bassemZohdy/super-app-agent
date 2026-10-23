@@ -59,7 +59,7 @@ npm run dev:react
 
 Open http://localhost:3000. Backend health: http://localhost:4000/health. If `DEMO_AUTH` is not enabled, the React demo marker will be rejected, by design. Never set `DEMO_AUTH=true` for a public deployment or use real personal/payment data.
 
-Other scripts: `npm run dev:angular`, `npm run dev:flutter`, `npm run build` and `npm run test:record`. These require their respective toolchains and are **not guaranteed validated** by this documentation update. The legacy recorded scenarios are historical artifacts, not evidence of current production security.
+Other scripts: `npm run dev:angular`, `npm run dev:flutter`, `npm run build` and `npm run test:record`. The Node/TypeScript build (including React and Angular bundles) and 49 automated tests pass in the [dated verification report](docs/reports/2026-10-23-release-gates.md). Flutter, browser smoke and real Keycloak execution remain open. The legacy recorded scenarios are historical artifacts, not evidence of current production security.
 
 ## Optional LLM preview: free-first
 
@@ -108,7 +108,7 @@ The demo can run without the separate agentgateway container; direct service imp
 
 - **Mock services and fixtures:** names such as DubaiNow, TAMM, UAE PASS, DEWA, Salik and Dubai Police are *scenario references*, not evidence of connectivity, authorization or official endorsement.
 - **Sessions:** state/duplicate-action tracking is in memory only and vanishes on restart. UI action checks do not replace domain authorization or explicit transaction consent.
-- **Authentication:** `DEMO_AUTH` simulates one local user; production-mode verification of RS256 JWTs exists, but browser shells do not yet implement full OIDC/PKCE or authenticated production SSE.
+- **Authentication:** `DEMO_AUTH` simulates one local user; production-mode verification of RS256 JWTs exists, but browser shells do not yet implement full OIDC/PKCE. React/Angular now use an authenticated fetch-based SSE client, but still supply a local demo token until login is implemented.
 - **Frontend federation:** mini-apps are imported into shells; manifests contain example remote URLs but an independently deployed, secure MFE registry/loader is not shown by this source.
 - **Models:** OpenRouter is the optional inference service. The cognitive runtime remains deterministic, not multi-agent planning.
 - **Gateway:** the YAML represents an architectural candidate and does not prove that its deployed image accepts the configuration or implements the declared policies.
@@ -120,3 +120,4 @@ For real identity, delegated consent, payments, or citizen records, all blockers
 The [ADRs](docs/adr/) document decisions and proposals, each labeled according to implementation maturity. New features should include tests, contract updates, and matching documentation; do not mark a target capability “implemented” solely because a manifest or diagram mentions it.
 
 License: MIT (as declared in `package.json`).
+
