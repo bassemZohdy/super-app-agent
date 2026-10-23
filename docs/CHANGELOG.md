@@ -1,5 +1,13 @@
 # Documentation changelog
 
+## 2026-10-23 — P0-12 domain failure and partial-outcome propagation
+
+- Route graph domain calls through checked result handling with per-request effect tracking; do not render success for rejected operations, thrown writes or incomplete receipts.
+- Return stable FAILED / PARTIALLY_COMPLETED / UNKNOWN outcomes, matching failure surfaces over HTTP/SSE, completed-step summaries and refresh/reconciliation guidance. Stop later effects after failure; do not silently compensate or retry.
+- Mark move-in plans pending approval before activation; skip empty fine settlements in composite simulation.
+- Correct the positive fine-payment E2E scenario to provision sufficient fixture funds and assert fines actually clear. Add nine regression groups for real rejection, partial effects, ambiguous writes, malformed receipts, outages, request isolation, HTTP/SSE agreement and proposal-only planning.
+- 67 tests and 14 forced JS build tasks pass; [evidence](reports/2026-10-23-p0-12-domain-failures.md). Durable idempotency, payment fallback/currency semantics and actual reconciliation remain P0-06/P0-10.
+
 ## 2026-10-23 — P0-09 runtime validation and money invariants
 
 - Merged PR #2 to main, including PR #3 and the remaining-task review backlog.

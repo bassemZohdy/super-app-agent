@@ -2,11 +2,13 @@ import type { AGUISurfacePayload, UIComponentNode } from '../../../../packages/p
 import type { SuperAppAgentState, DomainCategory } from './state.ts';
 import { invokeOpenRouterChat, getOpenRouterConfig } from '../openrouter.ts';
 
-import { executeRideRequest } from '../../../service-ride/src/index.ts';
-import { executeFoodRequest } from '../../../service-food/src/index.ts';
-import { executeWalletRequest } from '../../../service-wallet/src/index.ts';
-import { executeCatalogRequest } from '../../../service-catalog/src/index.ts';
-import { executeProfileRequest, type UserProfile, type UserPreferences } from '../../../service-profile/src/index.ts';
+import { callDomain } from '../domain-operations.ts';
+import type { UserProfile, UserPreferences } from '../../../service-profile/src/index.ts';
+const executeRideRequest = (method: string, path: string, query: Record<string, string> = {}, body: any = {}) => callDomain('ride', method, path, query, body);
+const executeFoodRequest = (method: string, path: string, query: Record<string, string> = {}, body: any = {}) => callDomain('food', method, path, query, body);
+const executeWalletRequest = (method: string, path: string, query: Record<string, string> = {}, body: any = {}) => callDomain('wallet', method, path, query, body);
+const executeCatalogRequest = (method: string, path: string, query: Record<string, string> = {}, body: any = {}) => callDomain('catalog', method, path, query, body);
+const executeProfileRequest = (method: string, path: string, query: Record<string, string> = {}, body: any = {}) => callDomain('profile', method, path, query, body);
 
 export class SuperAppAgentGraph {
   /**
@@ -100,7 +102,7 @@ export class SuperAppAgentGraph {
         state.messages.push({
           id: `msg_${Date.now() + 1}`,
           role: 'assistant',
-          content: `Welcome to your new home in ${ejariRes.data.contract.property.building}! Your Ejari contract is active, DEWA smart meter is connected with deposit waived for Golden Visa holders, and residential parking is ready.`,
+          content: `Prepared a demo move-in proposal for ${ejariRes.data.contract.property.building}. Review and confirm before activating services; no move-in effects have run yet.`,
           timestamp: Date.now(),
         });
       } else if (lower.includes('pizza') && lower.includes('ride')) {
@@ -445,7 +447,8 @@ export class SuperAppAgentGraph {
         { agency: 'RTA Salik', purpose: 'Demo toll recharge', amount: 100 },
       ] });
       executeFoodRequest('POST', '/utilities/pay', {}, { billId: executeFoodRequest('GET', '/utilities/bill').data.bill.billId });
-      executeWalletRequest('POST', '/fines/pay', {}, { fineIds: executeWalletRequest('GET', '/fines/check').data.fines.map((fine: any) => fine.fineId) });
+      const remainingFineIds = executeWalletRequest('GET', '/fines/check').data.fines.map((fine: any) => fine.fineId);
+      if (remainingFineIds.length) executeWalletRequest('POST', '/fines/pay', {}, { fineIds: remainingFineIds });
       executeRideRequest('POST', '/mobility/salik/recharge', {}, { amount: 100 });
 
       state.currentSurface = {
@@ -1495,7 +1498,7 @@ export class SuperAppAgentGraph {
           {
             type: 'Heading',
             id: 'movein_heading',
-            properties: { text: `🏠 Ejari Move-In Golden Path • Unit ${contract.property.unitNumber}`, level: 2 },
+            properties: { text: `🏠 Move-In Plan — Awaiting Confirmation • Unit ${contract.property.unitNumber}`, level: 2 },
           },
           {
             type: 'Badge',
@@ -1509,7 +1512,7 @@ export class SuperAppAgentGraph {
             type: 'Text',
             id: 'movein_desc',
             properties: {
-              text: `Automated tenancy activation for ${contract.tenantName} at ${contract.property.building}, ${contract.property.community}:`,
+              text: `Proposed demo tenancy activation for ${contract.tenantName} at ${contract.property.building}, ${contract.property.community}:`,
             },
           },
           {
@@ -1526,8 +1529,8 @@ export class SuperAppAgentGraph {
             id: 'dewa_connection_metric',
             properties: {
               label: 'DEWA Smart Meter Activation',
-              value: 'Deposit Waived (0.00 AED)',
-              subtext: `Premise ${contract.property.premiseId} • Golden Visa Benefit`,
+              value: 'Pending approval',
+              subtext: `Premise ${contract.property.premiseId} • Demo deposit-waiver proposal`,
               trend: 'up',
             },
           },
@@ -1536,8 +1539,8 @@ export class SuperAppAgentGraph {
             id: 'rta_permit_metric',
             properties: {
               label: 'RTA Residential Parking Permit',
-              value: 'Zone 302A Permit Included',
-              subtext: 'Automated municipal issuance linked to Emirates ID',
+              value: 'Pending approval',
+              subtext: 'Proposed Zone 302A residential parking',
               trend: 'up',
             },
           },
