@@ -1,5 +1,7 @@
 # Target architecture: Option A, Agent-Centric Super App
 
+> Implemented demo boundary: [ADR-0010](../adr/ADR-0010-provider-simulators-and-redis-demo.md) adds provider REST APIs, service credentials, SQLite and Redis conversations. These support the target below; they do not implement a durable workflow engine, production consent, genuine LangGraph or official protocol adapters.
+
 **Status:** **Proposed**—not implemented by the current demonstration. This describes design direction for future ADRs and implementation plans, not current production readiness.
 
 ## Goal and decision boundary

@@ -1,3 +1,4 @@
+import { BrowserAuth } from '../../../../packages/protocol-core/src/oidc-client.ts';
 import { VoiceClient, type VoiceState } from '../../../../packages/protocol-core/src/voice-client.ts';
 import { checkedSurface, choiceDefaults, readCoreResponse, surfaceActionPayload } from '../../../../packages/protocol-core/src/surface-client.ts';
 import { connectEventStream } from '../../../../packages/protocol-core/src/sse-client.ts';
@@ -10,27 +11,21 @@ import type { AGUISurfacePayload, A2UIMessageEnvelope, UIComponentNode } from '.
   standalone: true,
   imports: [CommonModule],
   template: `
-    <div class="angular-shell-container">
+    <div *ngIf="authReady() && loginRequired()" class="sign-in-screen"><h1>Your city. Your account.</h1><p>Sign in to manage personal and household services.</p><p *ngIf="authError()" role="alert">{{ authError() }}</p><button (click)="signIn()">Sign in with Keycloak</button><small>Demo users: bassem or demo-commuter. Password: demo123.</small></div>
+    <div *ngIf="!authReady()" class="sign-in-screen" role="status">Preparing your city workspace…</div>
+    <div *ngIf="authReady() && !loginRequired()" class="angular-shell-container">
       <header class="header">
-        <div style="display: flex; align-items: center; gap: 12px;">
-          <div class="logo" style="background: #059669;">DXB</div>
-          <div>
-            <div style="font-weight: 700; font-size: 15px;">SmartCity Now • Angular 18</div>
-            <div style="font-size: 11px; color: #94a3b8;">Unified Citizen Platform • A2-UI Protocol Engine</div>
-          </div>
-        </div>
-        <div style="display: flex; align-items: center; gap: 8px; background: #064e3b; border: 1px solid #059669; border-radius: 20px; padding: 4px 12px; font-size: 12px; color: #f8fafc;">
-          <span>🛡️ Bassem Zohdy</span>
-          <span style="background: #f59e0b; color: #78350f; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 10px;">🌟 Golden Visa</span>
-        </div>
-        <div class="status">Local demo gateway (:4000)</div>
-        <div class="balance">💳 Wallet: 250.00 AED</div>
+        <a class="city-brand" href="#conversation">cityside<span>Your everyday, connected.</span></a>
+        <span class="header-caption">Your city concierge</span>
+        <select class="account-select" aria-label="Current account" [value]="accountId" [disabled]="pending" (change)="switchAccount($any($event.target).value)"><option *ngFor="let account of accounts()" [value]="account.id">{{ account.label }}</option></select><button *ngIf="auth?.signedIn" class="account" (click)="auth?.logout()">Sign out</button>
+        <div class="status" role="status">{{ connectionLabel() }}</div>
+        <button class="account" [disabled]="pending" (click)="sendIntent('Show my citizen profile')">{{ userName().slice(0, 1) }} <span>{{ userName() }}</span></button>
       </header>
 
       <div class="main-layout">
         <!-- Left Pane: Conversational Concierge -->
-        <aside class="agent-pane">
-          <div class="pane-header">💬 Rashid • Smart City Citizen Concierge (LangGraph)</div>
+        <aside class="agent-pane" id="conversation">
+          <div class="pane-header">Rashid, your city concierge</div>
 
           <div class="messages">
             <div *ngFor="let m of messages()" class="msg" [class.user]="m.role === 'user'">
@@ -39,28 +34,24 @@ import type { AGUISurfacePayload, A2UIMessageEnvelope, UIComponentNode } from '.
             <div *ngIf="delta()" class="delta">⚡ {{ delta() }}</div>
           </div>
 
-          <!-- Suggestion Chips -->
           <div class="suggestion-chips">
-            <button (click)="sendIntent('Park in Zone 302A Downtown Dubai')">🅿️ Park in Zone 302A</button>
-            <button (click)="sendIntent('Check my DEWA electricity and water bill for premise DEWA-201948201')">⚡ Settle DEWA Bill</button>
-            <button (click)="sendIntent('Check my Dubai Police traffic radar fines for plate Dubai B-74892')">👮 Clear Police Fines</button>
-            <button (click)="sendIntent('I just signed my Ejari lease, connect my utilities and issue parking for Unit 1402')">🏠 Ejari Move-In</button>
-            <button (click)="sendIntent('Pay my DEWA electricity bill, settle my police radar fines, and recharge my Salik tag')">🏛️ Unified DubaiPay</button>
-            <button (click)="sendIntent('Show my UAE PASS citizen profile and registered vehicles and premises')">🛡️ UAE PASS Profile</button>
+            <button [disabled]="pending" (click)="sendIntent('Show parking zones in Downtown Dubai')">Find parking</button>
+            <button [disabled]="pending" (click)="sendIntent('Check my DEWA electricity and water bill')">Check my bills</button>
+            <button [disabled]="pending" (click)="sendIntent('Show my wallet balance')">My wallet</button>
+            <button [disabled]="pending" (click)="sendIntent('I signed my Ejari lease, help me move in')">Moving in</button>
           </div>
-
-          <div style="padding: 10px; font-size: 12px;">
-            <button [disabled]="!voice?.canListen" [attr.aria-pressed]="voiceState() === 'listening'" (click)="toggleMicrophone()">{{ voiceState() === 'listening' ? 'Stop microphone' : 'Use microphone' }}</button>
-            <select aria-label="Voice language" [value]="voiceLanguage" (change)="setVoiceLanguage($any($event.target).value)">
-              <option value="en-US">English</option><option value="ar-AE">Arabic</option>
-            </select>
-            <label><input type="checkbox" [checked]="readReplies" [disabled]="!voice?.canSpeak" (change)="setReadReplies($any($event.target).checked)" /> Read replies aloud</label>
-            <button *ngIf="voiceState() !== 'idle'" (click)="voice?.cancel()">Cancel voice</button>
-            <div role="status" aria-live="polite">{{ voiceError() || (voiceState() === 'listening' ? 'Listening. Review the transcript, then press Send.' : voiceState() === 'speaking' ? 'Speaking reply.' : !voice?.canListen ? 'Voice input unavailable; type your request.' : 'Voice input fills a draft. Review it, then press Send.') }}</div>
-            <small>Your browser may use its speech service. This app does not store audio. Arabic dictation depends on browser support; service requests currently use English.</small>
-          </div>
+          <details class="voice-settings">
+            <summary>Voice &amp; conversation settings</summary>
+            <div class="voice-controls">
+              <button [disabled]="pending || !voice?.canListen" [attr.aria-pressed]="voiceState() === 'listening'" (click)="toggleMicrophone()">{{ voiceState() === 'listening' ? 'Stop microphone' : 'Use microphone' }}</button>
+              <select aria-label="Voice language" [value]="voiceLanguage" (change)="setVoiceLanguage($any($event.target).value)"><option value="en-US">English</option><option value="ar-AE">Arabic</option></select>
+              <label><input type="checkbox" [checked]="readReplies" [disabled]="!voice?.canSpeak" (change)="setReadReplies($any($event.target).checked)" /> Read replies aloud</label>
+              <button *ngIf="voiceState() !== 'idle'" (click)="voice?.cancel()">Cancel voice</button>
+              <p role="status">{{ voiceError() || (voiceState() === 'listening' ? 'Listening. Review your draft, then press Send.' : 'Dictation fills a draft. Your browser may use its speech service.') }}</p>
+            </div>
+          </details>
           <div class="input-row">
-            <input type="text" aria-label="Chat message" maxlength="4000" placeholder="Ask the concierge..." [value]="draft()" (input)="voice?.cancel(); draft.set($any($event.target).value)" (keydown.enter)="sendIntent(draft()); draft.set('')" />
+            <input type="text" aria-label="Chat message" maxlength="4000" placeholder="Ask Rashid about your city…" [value]="draft()" (input)="voice?.cancel(); draft.set($any($event.target).value)" (keydown.enter)="sendIntent(draft()); draft.set('')" />
             <button [disabled]="pending" (click)="sendIntent(draft()); draft.set('')">Send</button>
           </div>
         </aside>
@@ -69,10 +60,10 @@ import type { AGUISurfacePayload, A2UIMessageEnvelope, UIComponentNode } from '.
         <section class="canvas-pane">
           <div class="canvas-header">
             <div>
-              <h2 style="font-size: 20px; font-weight: 700; margin: 0 0 4px 0;">Dynamic AG-UI Canvas</h2>
-              <div style="font-size: 13px; color: #64748b;">Server-driven generative UI rendered natively in Angular 18</div>
+              <h2 style="font-size: 20px; font-weight: 700; margin: 0 0 4px 0;">Your service workspace</h2>
+              <div style="font-size: 13px; color: #64748b;">Options and details, ready for you to review.</div>
             </div>
-            <span class="active-pill">Session stream</span>
+            <span class="active-pill">Demo services</span>
           </div>
 
           <div *ngIf="surface()" class="surface-container">
@@ -98,7 +89,8 @@ import type { AGUISurfacePayload, A2UIMessageEnvelope, UIComponentNode } from '.
                 <!-- ChoiceGroup -->
                 <div *ngIf="child.type === 'ChoiceGroup'" class="choice-group">
                   <div *ngFor="let opt of child.properties?.options" 
-                       class="choice-item" 
+                       class="choice-item" role="radio" tabindex="0" [attr.aria-checked]="choices()[child.id] === opt.id"
+                       (keydown.enter)="selectChoice(child.id, opt.id)" (keydown.space)="$event.preventDefault(); selectChoice(child.id, opt.id)"
                        [class.selected]="choices()[child.id] === opt.id"
                        (click)="selectChoice(child.id, opt.id)">
                     <div>
@@ -111,7 +103,7 @@ import type { AGUISurfacePayload, A2UIMessageEnvelope, UIComponentNode } from '.
 
                 <!-- MapViewer Simulated View -->
                 <div *ngIf="child.type === 'MapViewer'" class="map-viewer">
-                  <div class="map-tag">📍 Live Route Telemetry (GPS)</div>
+                  <div class="map-tag">Simulated locations</div>
                   <div style="display: flex; gap: 8px;">
                     <span *ngFor="let m of child.properties?.markers" class="map-pin">🚗 {{ m.title }}</span>
                   </div>
@@ -129,51 +121,50 @@ import type { AGUISurfacePayload, A2UIMessageEnvelope, UIComponentNode } from '.
           </div>
 
           <div *ngIf="!surface()" class="empty">
-            <div style="font-size: 36px; margin-bottom: 12px;">🪄</div>
-            <div style="font-weight: 700; font-size: 16px; margin-bottom: 6px;">Ready for Your Instructions</div>
-            <div style="font-size: 13px;">Type a query or tap a suggestion chip on the left to orchestrate multi-domain mini-apps.</div>
+            <div class="empty-emblem">✧</div>
+            <div style="font-weight: 700; font-size: 16px; margin-bottom: 6px;">A little help. A lot more city.</div>
+            <div style="font-size: 13px;">From your morning commute to your next move, let’s take care of it. Choose a service to get started.</div>
           </div>
         </section>
       </div>
     </div>
   `,
   styles: [`
-    .angular-shell-container { display: flex; flex-direction: column; height: 100vh; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    .header { height: 60px; background: #0f172a; color: white; display: flex; align-items: center; padding: 0 20px; justify-content: space-between; border-bottom: 1px solid #1e293b; }
-    .logo { background: #2563eb; color: #fff; border-radius: 8px; padding: 6px 10px; font-weight: 800; font-size: 14px; }
-    .status { font-size: 12px; color: #94a3b8; }
-    .balance { background: #064e3b; color: #6ee7b7; padding: 6px 14px; border-radius: 20px; font-weight: 700; font-size: 13px; }
-    .main-layout { display: flex; flex: 1; overflow: hidden; }
-    .agent-pane { width: 38%; min-width: 320px; background: #f8fafc; border-right: 1px solid #e2e8f0; display: flex; flex-direction: column; }
-    .pane-header { padding: 14px 18px; border-bottom: 1px solid #e2e8f0; background: #ffffff; font-weight: 700; font-size: 14px; color: #0f172a; }
-    .canvas-pane { flex: 1; padding: 24px; background: white; overflow-y: auto; }
-    .canvas-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; max-width: 800px; margin-left: auto; margin-right: auto; }
-    .active-pill { font-size: 11px; background: #dcfce7; color: #166534; padding: 4px 10px; border-radius: 12px; font-weight: 700; }
-    .messages { flex: 1; padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
-    .msg { padding: 10px 14px; border-radius: 12px; background: white; border: 1px solid #e2e8f0; max-width: 85%; font-size: 13px; line-height: 1.5; }
-    .msg.user { background: #2563eb; color: white; align-self: flex-end; border: none; }
-    .delta { font-style: italic; color: #92400e; padding: 10px 14px; background: #fef3c7; border-radius: 10px; font-size: 12px; }
-    .suggestion-chips { padding: 8px 14px; display: flex; gap: 6px; overflow-x: auto; background: #ffffff; border-top: 1px solid #f1f5f9; }
-    .suggestion-chips button { padding: 5px 10px; font-size: 11px; font-weight: 600; border-radius: 14px; background: #f1f5f9; border: 1px solid #cbd5e1; color: #334155; white-space: nowrap; cursor: pointer; }
-    .input-row { display: flex; gap: 8px; padding: 12px 14px; background: #ffffff; border-top: 1px solid #e2e8f0; }
-    .input-row input { flex: 1; padding: 10px 14px; border-radius: 8px; border: 1px solid #cbd5e1; outline: none; font-size: 13px; }
-    .input-row button { padding: 10px 16px; background: #2563eb; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 700; }
-    .surface-container { max-width: 800px; margin: 0 auto; }
-    .surface-card { border: 1px solid #e2e8f0; border-radius: 16px; padding: 24px; box-shadow: 0 4px 12px -2px rgba(0,0,0,0.05); background: #ffffff; }
-    .metric-widget { background: #f8fafc; border: 1px solid #e2e8f0; padding: 14px 18px; border-radius: 12px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
-    .metric-label { color: #64748b; font-size: 12px; font-weight: 600; text-transform: uppercase; }
-    .metric-val { font-weight: 800; font-size: 17px; color: #0f172a; }
-    .choice-group { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
-    .choice-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-radius: 10px; border: 1px solid #e2e8f0; cursor: pointer; }
-    .choice-item.selected { border: 2px solid #2563eb; background: #eff6ff; }
-    .map-viewer { height: 140px; background: #e2e8f0; border: 1px solid #cbd5e1; border-radius: 12px; margin-bottom: 16px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 10px; position: relative; }
-    .map-tag { position: absolute; bottom: 8px; right: 12px; font-size: 10px; color: #64748b; background: rgba(255,255,255,0.8); padding: 2px 6px; border-radius: 4px; }
-    .map-pin { background: white; padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-    .ag-action-btn { width: 100%; padding: 12px 18px; border-radius: 10px; font-weight: 700; font-size: 14px; background: #2563eb; color: #ffffff; border: none; cursor: pointer; margin-top: 10px; }
-    .empty { max-width: 800px; margin: 40px auto; border: 2px dashed #cbd5e1; border-radius: 16px; padding: 80px 20px; text-align: center; color: #64748b; }
+    .sign-in-screen { min-height: 100dvh; padding: 40px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 18px; background: #f0f5f8; text-align: center; }.sign-in-screen h1 { color: #285c76; font-size: 36px; }.sign-in-screen button { border: none; border-radius: 9px; background: #285c76; color: white; padding: 14px 24px; }.sign-in-screen small { color: #7d94a4; }.account-select { border: 1px solid #dbe6ed; background: white; color: #52788f; padding: 8px; border-radius: 7px; font-size: 11px; max-width: 140px; }
+    :host { display: block; color: #314d61; font-family: 'Avenir Next', Avenir, 'Segoe UI', sans-serif; }
+    * { box-sizing: border-box; }
+    button, input, select { font: inherit; } button { cursor: pointer; } button:disabled { opacity: .5; cursor: not-allowed; }
+    button:focus-visible, [tabindex]:focus-visible, summary:focus-visible, a:focus-visible { outline: 3px solid #77a5bb; outline-offset: 3px; }
+    .angular-shell-container { display: flex; flex-direction: column; height: 100dvh; background: #fff; }
+    .header { min-height: 82px; display: flex; align-items: center; gap: 25px; padding: 0 32px; border-bottom: 1px solid #e3ebf0; }
+    .city-brand { color: #254c64; font-size: 29px; font-weight: 700; text-decoration: none; letter-spacing: -1.2px; }.city-brand span { display: block; font-size: 9px; letter-spacing: 0; font-weight: 400; color: #8194a1; margin-top: 1px; }
+    .header-caption { font-size: 12px; color: #8398a6; border-left: 1px solid #e0e8ed; padding-left: 25px; }.status { margin-left: auto; font-size: 10px; color: #618c7a; }.account { border: none; border-radius: 20px; background: #eef3f7; color: #496b80; padding: 10px; font-size: 10px; }.account span { margin-left: 6px; }
+    .main-layout { display: flex; flex: 1; overflow: hidden; min-height: 0; }.agent-pane { width: 44%; min-width: 330px; display: flex; flex-direction: column; border-right: 1px solid #e3ebf0; }.pane-header { padding: 24px; font-size: 13px; font-weight: 600; border-bottom: 1px solid #edf1f4; }
+    .messages { flex: 1; overflow-y: auto; padding: 26px; display: flex; flex-direction: column; gap: 22px; }.msg { font-size: 13px; line-height: 1.9; max-width: 92%; white-space: pre-wrap; overflow-wrap: anywhere; }.msg.user { align-self: flex-end; background: #edf4f8; padding: 12px 16px; border-radius: 13px 13px 3px 13px; }.delta { font-size: 11px; color: #6e8b9d; line-height: 1.7; }
+    .suggestion-chips { display: flex; gap: 7px; padding: 15px 22px; overflow-x: auto; }.suggestion-chips button { border: 1px solid #dfe9ef; background: white; color: #658298; border-radius: 7px; padding: 8px 11px; white-space: nowrap; font-size: 10px; }.suggestion-chips button:hover { background: #f0f6fa; }
+    .voice-settings { margin: 0 24px 10px; font-size: 10px; color: #8297a4; }.voice-settings summary { cursor: pointer; padding: 7px 0; }.voice-controls { display: flex; flex-wrap: wrap; gap: 10px; padding: 12px 0; align-items: center; }.voice-controls button, .voice-controls select { border: 1px solid #dae5ec; background: white; color: #52778e; border-radius: 5px; padding: 7px; }.voice-controls p { font-size: 9px; line-height: 1.7; margin: 0; }
+    .input-row { display: flex; gap: 8px; margin: 0 22px 22px; border: 1px solid #d7e3eb; border-radius: 12px; padding: 10px; }.input-row:focus-within { border-color: #81a6bc; }.input-row input { flex: 1; min-width: 0; border: 0; outline: none; padding: 9px; font-size: 12px; color: #355a72; }.input-row button { border: none; border-radius: 7px; background: #285c76; color: white; padding: 9px 17px; font-size: 11px; }
+    .canvas-pane { flex: 1; min-width: 0; padding: 30px; background: #f7fafc; overflow-y: auto; }.canvas-header { display: flex; align-items: center; justify-content: space-between; gap: 15px; margin-bottom: 28px; }.canvas-header h2 { color: #355a70; font-size: 19px !important; }.active-pill { background: #e6eff4; color: #7493a6; border-radius: 5px; padding: 5px 9px; font-size: 9px; white-space: nowrap; }.surface-container { max-width: 730px; margin: auto; }.surface-card { border: 1px solid #e0e8ee; padding: 24px; border-radius: 14px; background: white; }.metric-widget { border-bottom: 1px solid #e5edf2; padding: 16px 0; display: flex; justify-content: space-between; gap: 15px; margin-bottom: 10px; }.metric-label { color: #879aa7; font-size: 11px; }.metric-val { color: #31576f; font-size: 19px; font-weight: 600; }.choice-group { display: flex; flex-direction: column; gap: 9px; margin: 17px 0; }.choice-item { display: flex; justify-content: space-between; gap: 12px; padding: 14px; border: 1px solid #e0e8ed; border-radius: 8px; cursor: pointer; }.choice-item.selected { border-color: #6291ab; background: #f0f7fb; }.map-viewer { min-height: 130px; background: #eaf2f7; border-radius: 10px; padding: 22px; color: #7492a5; margin-bottom: 18px; }.map-tag { font-size: 9px; margin-top: 15px; }.map-pin { font-size: 12px; }.ag-action-btn { width: 100%; padding: 13px; border: none; border-radius: 8px; color: white; background: #285c76; font-size: 12px; margin-top: 10px; }.empty { max-width: 500px; margin: 60px auto; text-align: left; padding: 30px; color: #8499a7; line-height: 1.9; }.empty-emblem { display: grid; place-items: center; height: 60px; width: 60px; border-radius: 18px; background: #e5eff5; color: #6092ad; font-size: 40px; margin-bottom: 26px; }.empty > div:nth-child(2) { font-size: 30px !important; line-height: 1.3; font-weight: 500 !important; color: #355a70; letter-spacing: -.9px; }
+    @media (max-width: 760px) { .header { padding: 15px 20px; min-height: 72px; gap: 14px; }.header-caption, .account span { display: none; }.header { flex-wrap: wrap; }.account-select { max-width: 135px; }.status { order: 3; width: 100%; text-align: right; }.main-layout { flex-direction: column; overflow-y: auto; }.agent-pane { width: 100%; min-width: 0; min-height: 50dvh; flex-shrink: 0; border-right: none; border-bottom: 1px solid #dfe8ee; }.messages { min-height: 100px; max-height: 40dvh; padding: 20px; }.canvas-pane { min-height: 340px; flex-shrink: 0; padding: 25px 20px; overflow: visible; }.canvas-header h2 { font-size: 16px !important; }.canvas-header > div > div { font-size: 11px !important; }.empty { margin: 0 auto; padding: 20px 5px; }.surface-card { padding: 18px; }.input-row input { font-size: 16px; }.status { font-size: 9px; }.account { flex-shrink: 0; } }
   `]
 })
 export class AppComponent implements OnInit, OnDestroy {
+  auth?: BrowserAuth;
+  authReady = signal(false);
+  loginRequired = signal(false);
+  authError = signal('');
+  userName = signal('Demo citizen');
+  accounts = signal<Array<{ id: string; label: string }>>([]);
+  accountId = '';
+  signIn() { void this.auth?.login().catch(error => this.authError.set(error.message)); }
+  async switchAccount(id: string) {
+    if (this.pending) return;
+    this.streamController.abort(); this.streamController = new AbortController();
+    this.accountId = id; this.sessionId = `ng_${crypto.randomUUID()}`;
+    this.messages.set([]); this.surface.set(null); this.choices.set({});
+    this.connectStream();
+  }
+  connectionLabel = signal('Connecting…');
   voice?: VoiceClient;
   voiceState = signal<VoiceState>('idle');
   voiceError = signal('');
@@ -190,7 +181,7 @@ export class AppComponent implements OnInit, OnDestroy {
   setReadReplies(value: boolean) { this.readReplies = value; if (!value) this.voice?.cancel(); }
   private streamController = new AbortController();
   messages = signal<Array<{ role: string; text: string }>>([
-    { role: 'assistant', text: 'Welcome to SuperApp Angular Shell! Ask me to book a ride, order food, or check your wallet.' }
+    { role: 'assistant', text: 'Marhaba, Bassem. I’m Rashid, your city concierge. Ask me about getting around, home essentials, payments or moving in.' }
   ]);
   delta = signal<string | null>(null);
   surface = signal<AGUISurfacePayload | null>(null);
@@ -216,22 +207,29 @@ export class AppComponent implements OnInit, OnDestroy {
   sessionId = `ng_${Date.now()}`;
   keycloakToken = 'demo-local'; // local demo only
 
-  ngOnInit() {
+  async ngOnInit() {
+    void fetch('http://localhost:4000/health').then(r => r.json()).then(data => this.connectionLabel.set(data.llm?.enabled ? 'OpenRouter ready' : 'Demo mode')).catch(() => this.connectionLabel.set('Gateway offline'));
     this.voice = new VoiceClient({ onTranscript: text => this.draft.set(text), onState: state => this.voiceState.set(state), onError: error => this.voiceError.set(error) });
     document.addEventListener('visibilitychange', this.visibilityHandler);
+    try {
+      const config = await (await fetch('http://localhost:4000/api/auth/config')).json();
+      this.auth = new BrowserAuth(config); await this.auth.completeLogin();
+      if (config.enabled && !this.auth.signedIn) { this.loginRequired.set(true); return; }
+      const response = await fetch('http://localhost:4000/api/accounts', { headers: { Authorization: `Bearer ${await this.auth.token()}` } });
+      if (!response.ok) throw new Error('Could not load your accounts. Sign in again.');
+      const data = await response.json(); this.accounts.set(data.accounts); this.accountId = data.accounts[0]?.id || ''; this.userName.set(data.user?.name || 'Demo citizen');
+      this.connectStream();
+    } catch (error) { this.authError.set((error as Error).message); this.loginRequired.set(true); }
+    finally { this.authReady.set(true); }
+  }
+  connectStream() {
     void connectEventStream({
-      url: `http://localhost:4000/api/a2ui/stream?sessionId=${this.sessionId}`,
-      getToken: () => this.keycloakToken,
-      signal: this.streamController.signal,
-      onMessage: (data) => {
+      url: `http://localhost:4000/api/a2ui/stream?sessionId=${this.sessionId}&accountId=${encodeURIComponent(this.accountId)}`,
+      getToken: () => this.auth?.token() || 'demo-local', signal: this.streamController.signal,
+      onMessage: data => {
         if (data.type === 'A2UI_STREAM_DELTA') this.delta.set(data.data.text);
-        else if (data.type === 'A2UI_RENDER_SURFACE') {
-          this.delta.set(null);
-          try { this.applySurface(data.data.surface); }
-          catch (error) { this.showError((error as Error).message); }
-        }
-      },
-      onError: error => console.warn('Event stream unavailable', error.message),
+        else if (data.type === 'A2UI_RENDER_SURFACE') { this.delta.set(null); try { this.applySurface(data.data.surface); } catch (error) { this.showError((error as Error).message); } }
+      }, onError: error => this.authError.set(error.message),
     });
   }
 
@@ -249,10 +247,11 @@ export class AppComponent implements OnInit, OnDestroy {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.keycloakToken}`
+          'Authorization': `Bearer ${await this.auth?.token() || 'demo-local'}`
         },
         body: JSON.stringify({
           sessionId: this.sessionId,
+          accountId: this.accountId,
           text,
           handshake: {
             platform: 'angular',
@@ -284,10 +283,11 @@ export class AppComponent implements OnInit, OnDestroy {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.keycloakToken}`
+          'Authorization': `Bearer ${await this.auth?.token() || 'demo-local'}`
         },
         body: JSON.stringify({
           sessionId: this.sessionId,
+          accountId: this.accountId,
           action,
           surfaceRevision: this.surface()?.revision,
           payload

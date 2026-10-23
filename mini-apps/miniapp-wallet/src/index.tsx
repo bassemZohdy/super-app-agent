@@ -15,13 +15,13 @@ export function mountWalletMiniApp(context: MiniAppBootstrapContext) {
             <div style="font-size: 12px; color: #64748b;">DubaiPay & Dubai Police HQ • gov.smartcity.citizenpay</div>
           </div>
         </div>
-        <span style="background: #ecfdf5; color: #065f46; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px;">
+        <span style="background: #edf5f8; color: #065f46; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px;">
           UAE PASS VAULT
         </span>
       </div>
 
       <!-- Digital Citizen Card -->
-      <div style="background: linear-gradient(135deg, #064e3b, #059669); border-radius: 14px; padding: 20px; color: #ffffff; margin-bottom: 20px; box-shadow: 0 10px 15px -3px rgba(5,150,105,0.25);">
+      <div style="background: linear-gradient(135deg, #224b61, #285c76); border-radius: 14px; padding: 20px; color: #ffffff; margin-bottom: 20px; box-shadow: 0 10px 15px -3px rgba(5,150,105,0.25);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
           <span style="font-size: 13px; font-weight: 600; opacity: 0.95;">DubaiPay Citizen Wallet</span>
           <span style="background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700;">🌟 Golden Visa</span>
@@ -40,7 +40,7 @@ export function mountWalletMiniApp(context: MiniAppBootstrapContext) {
         <button id="btn_topup_50" style="padding: 11px; border: 1.5px solid #cbd5e1; border-radius: 8px; background: #f8fafc; font-weight: 700; font-size: 13px; color: #0f172a; cursor: pointer; transition: all 0.15s ease;">
           +50 AED
         </button>
-        <button id="btn_topup_100" style="padding: 11px; border: 2px solid #059669; border-radius: 8px; background: #ecfdf5; font-weight: 700; font-size: 13px; color: #065f46; cursor: pointer; transition: all 0.15s ease;">
+        <button id="btn_topup_100" style="padding: 11px; border: 2px solid #285c76; border-radius: 8px; background: #edf5f8; font-weight: 700; font-size: 13px; color: #065f46; cursor: pointer; transition: all 0.15s ease;">
           +100 AED
         </button>
         <button id="btn_topup_200" style="padding: 11px; border: 1.5px solid #cbd5e1; border-radius: 8px; background: #f8fafc; font-weight: 700; font-size: 13px; color: #0f172a; cursor: pointer; transition: all 0.15s ease;">
@@ -77,7 +77,7 @@ export function mountWalletMiniApp(context: MiniAppBootstrapContext) {
       </div>
 
       <!-- Unified Checkout Link -->
-      <button id="btn_miniapp_pay_unified" style="width: 100%; padding: 13px; border-radius: 10px; background: #059669; color: #ffffff; font-weight: 700; border: none; font-size: 14px; cursor: pointer; transition: all 0.15s ease; box-shadow: 0 2px 6px rgba(5,150,105,0.25);">
+      <button id="btn_miniapp_pay_unified" style="width: 100%; padding: 13px; border-radius: 10px; background: #285c76; color: #ffffff; font-weight: 700; border: none; font-size: 14px; cursor: pointer; transition: all 0.15s ease; box-shadow: 0 2px 6px rgba(5,150,105,0.25);">
         🏛️ Unified Living Settlement (DEWA + Police + Salik • 940.40 AED)
       </button>
     </div>

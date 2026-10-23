@@ -1,0 +1,271 @@
+name: cityside-demo
+x-node: &node
+  image: node:24-alpine
+  working_dir: /app
+  volumes:
+    - .:/app:ro
+  restart: unless-stopped
+x-identity: &identity
+  KEYCLOAK_ISSUER: http://localhost:8085/realms/superapp
+  KEYCLOAK_JWKS_URL: http://keycloak:8080/realms/superapp/protocol/openid-connect/certs
+  KEYCLOAK_TOKEN_URL: http://keycloak:8080/realms/superapp/protocol/openid-connect/token
+  KEYCLOAK_AUDIENCE: agent-core
+  NODE_ENV: development
+x-providers: &providers
+  PROVIDER_RTA_URL: http://provider-rta:4101
+  PROVIDER_DEWA_URL: http://provider-dewa:4102
+  PROVIDER_ETISALAT_URL: http://provider-etisalat:4103
+  PROVIDER_DU_URL: http://provider-du:4104
+  PROVIDER_POLICE_URL: http://provider-police:4105
+  PROVIDER_DLD_URL: http://provider-dld:4106
+  PROVIDER_PAYMENTS_URL: http://provider-payments:4107
+services:
+  redis:
+    image: redis:8.2-alpine
+    command: [redis-server, --appendonly, 'yes', --appendfsync, everysec]
+    ports: ['127.0.0.1:6379:6379']
+    volumes: [redis-data:/data]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 3s
+      timeout: 2s
+      retries: 20
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.6.4
+    command: [start-dev, --import-realm]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      KC_HOSTNAME: http://localhost:8085
+      KC_HTTP_ENABLED: 'true'
+    ports: ['127.0.0.1:8085:8080']
+    volumes:
+      - ./services/keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+      - keycloak-data:/opt/keycloak/data
+  provider-rta:
+    <<: *node
+    command: [node, --experimental-strip-types, services/provider-simulator/src/index.ts]
+    environment:
+      <<: [*identity, *providers]
+      PROVIDER_ID: rta
+      PORT: '4101'
+      PROVIDER_DB_PATH: /data/rta.sqlite
+      PROVIDER_SETTLEMENT_SECRET: demo-settlements-secret
+    ports: ['127.0.0.1:4101:4101']
+    volumes:
+      - .:/app:ro
+      - rta-data:/data
+    depends_on: [keycloak]
+  provider-dewa:
+    <<: *node
+    command: [node, --experimental-strip-types, services/provider-simulator/src/index.ts]
+    environment:
+      <<: [*identity, *providers]
+      PROVIDER_ID: dewa
+      PORT: '4102'
+      PROVIDER_DB_PATH: /data/dewa.sqlite
+      PROVIDER_SETTLEMENT_SECRET: demo-settlements-secret
+    ports: ['127.0.0.1:4102:4102']
+    volumes:
+      - .:/app:ro
+      - dewa-data:/data
+    depends_on: [keycloak]
+  provider-etisalat:
+    <<: *node
+    command: [node, --experimental-strip-types, services/provider-simulator/src/index.ts]
+    environment:
+      <<: [*identity, *providers]
+      PROVIDER_ID: etisalat
+      PORT: '4103'
+      PROVIDER_DB_PATH: /data/etisalat.sqlite
+      PROVIDER_SETTLEMENT_SECRET: demo-settlements-secret
+    ports: ['127.0.0.1:4103:4103']
+    volumes:
+      - .:/app:ro
+      - etisalat-data:/data
+    depends_on: [keycloak]
+  provider-du:
+    <<: *node
+    command: [node, --experimental-strip-types, services/provider-simulator/src/index.ts]
+    environment:
+      <<: [*identity, *providers]
+      PROVIDER_ID: du
+      PORT: '4104'
+      PROVIDER_DB_PATH: /data/du.sqlite
+      PROVIDER_SETTLEMENT_SECRET: demo-settlements-secret
+    ports: ['127.0.0.1:4104:4104']
+    volumes:
+      - .:/app:ro
+      - du-data:/data
+    depends_on: [keycloak]
+  provider-police:
+    <<: *node
+    command: [node, --experimental-strip-types, services/provider-simulator/src/index.ts]
+    environment:
+      <<: [*identity, *providers]
+      PROVIDER_ID: police
+      PORT: '4105'
+      PROVIDER_DB_PATH: /data/police.sqlite
+      PROVIDER_SETTLEMENT_SECRET: demo-settlements-secret
+    ports: ['127.0.0.1:4105:4105']
+    volumes:
+      - .:/app:ro
+      - police-data:/data
+    depends_on: [keycloak]
+  provider-dld:
+    <<: *node
+    command: [node, --experimental-strip-types, services/provider-simulator/src/index.ts]
+    environment:
+      <<: [*identity, *providers]
+      PROVIDER_ID: dld
+      PORT: '4106'
+      PROVIDER_DB_PATH: /data/dld.sqlite
+      PROVIDER_SETTLEMENT_SECRET: demo-settlements-secret
+    ports: ['127.0.0.1:4106:4106']
+    volumes:
+      - .:/app:ro
+      - dld-data:/data
+    depends_on: [keycloak]
+  provider-payments:
+    <<: *node
+    command: [node, --experimental-strip-types, services/provider-simulator/src/index.ts]
+    environment:
+      <<: [*identity, *providers]
+      PROVIDER_ID: payments
+      PORT: '4107'
+      PROVIDER_DB_PATH: /data/payments.sqlite
+      PROVIDER_SETTLEMENT_SECRET: demo-settlements-secret
+    ports: ['127.0.0.1:4107:4107']
+    volumes:
+      - .:/app:ro
+      - payments-data:/data
+    depends_on: [keycloak]
+  service-ride:
+    <<: *node
+    command: [node, --experimental-strip-types, services/service-ride/src/index.ts]
+    environment:
+      <<: [*identity, *providers]
+      PORT: '4001'
+      PROVIDER_INTEGRATION: 'true'
+      SERVICE_CLIENT_SECRET: demo-ride-secret
+      APP_DATA_DIR: /data
+    ports: ['127.0.0.1:4001:4001']
+    volumes:
+      - .:/app:ro
+      - app-ride-data:/data
+    depends_on: [keycloak]
+  service-food:
+    <<: *node
+    command: [node, --experimental-strip-types, services/service-food/src/index.ts]
+    environment:
+      <<: [*identity, *providers]
+      PORT: '4002'
+      PROVIDER_INTEGRATION: 'true'
+      SERVICE_CLIENT_SECRET: demo-food-secret
+      APP_DATA_DIR: /data
+    ports: ['127.0.0.1:4002:4002']
+    volumes:
+      - .:/app:ro
+      - app-food-data:/data
+    depends_on: [keycloak]
+  service-wallet:
+    <<: *node
+    command: [node, --experimental-strip-types, services/service-wallet/src/index.ts]
+    environment:
+      <<: [*identity, *providers]
+      PORT: '4003'
+      PROVIDER_INTEGRATION: 'true'
+      SERVICE_CLIENT_SECRET: demo-wallet-secret
+      APP_DATA_DIR: /data
+    ports: ['127.0.0.1:4003:4003']
+    volumes:
+      - .:/app:ro
+      - app-wallet-data:/data
+    depends_on: [keycloak]
+  service-catalog:
+    <<: *node
+    command: [node, --experimental-strip-types, services/service-catalog/src/index.ts]
+    environment:
+      <<: [*identity, *providers]
+      PORT: '4004'
+      PROVIDER_INTEGRATION: 'true'
+      SERVICE_CLIENT_SECRET: demo-catalog-secret
+      APP_DATA_DIR: /data
+    ports: ['127.0.0.1:4004:4004']
+    volumes:
+      - .:/app:ro
+      - app-catalog-data:/data
+    depends_on: [keycloak]
+  service-profile:
+    <<: *node
+    command: [node, --experimental-strip-types, services/service-profile/src/index.ts]
+    environment:
+      <<: [*identity, *providers]
+      PORT: '4005'
+      PROVIDER_INTEGRATION: 'true'
+      SERVICE_CLIENT_SECRET: demo-profile-secret
+      APP_DATA_DIR: /data
+    ports: ['127.0.0.1:4005:4005']
+    volumes:
+      - .:/app:ro
+      - app-profile-data:/data
+    depends_on: [keycloak]
+  service-telecom:
+    <<: *node
+    command: [node, --experimental-strip-types, services/service-telecom/src/index.ts]
+    environment:
+      <<: [*identity, *providers]
+      PORT: '4006'
+      PROVIDER_INTEGRATION: 'true'
+      SERVICE_CLIENT_SECRET: demo-telecom-secret
+      APP_DATA_DIR: /data
+    ports: ['127.0.0.1:4006:4006']
+    volumes:
+      - .:/app:ro
+      - app-telecom-data:/data
+    depends_on: [keycloak]
+  agent-core:
+    <<: *node
+    command: [node, --experimental-strip-types, services/agent-core/src/index.ts]
+    environment:
+      <<: *identity
+      PORT: '4000'
+      DEMO_AUTH: 'false'
+      PROVIDER_INTEGRATION: 'true'
+      DOMAIN_TRANSPORT: http
+      SESSION_STORE: redis
+      REDIS_URL: redis://redis:6379
+      SESSION_TTL_SECONDS: ${SESSION_TTL_SECONDS:-3600}
+      KEYCLOAK_PUBLIC_ISSUER: http://localhost:8085/realms/superapp
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-openrouter/free}
+      ENABLE_LIVE_LLM: ${ENABLE_LIVE_LLM:-true}
+      OPENROUTER_ALLOW_PAID_MODELS: ${OPENROUTER_ALLOW_PAID_MODELS:-false}
+      SERVICE_RIDE_URL: http://service-ride:4001
+      SERVICE_FOOD_URL: http://service-food:4002
+      SERVICE_WALLET_URL: http://service-wallet:4003
+      SERVICE_CATALOG_URL: http://service-catalog:4004
+      SERVICE_PROFILE_URL: http://service-profile:4005
+      SERVICE_TELECOM_URL: http://service-telecom:4006
+    ports: ['127.0.0.1:4000:4000']
+    depends_on:
+      redis:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+volumes:
+  redis-data: {}
+  keycloak-data: {}
+  rta-data: {}
+  dewa-data: {}
+  etisalat-data: {}
+  du-data: {}
+  police-data: {}
+  dld-data: {}
+  payments-data: {}
+  app-ride-data: {}
+  app-food-data: {}
+  app-wallet-data: {}
+  app-catalog-data: {}
+  app-profile-data: {}
+  app-telecom-data: {}

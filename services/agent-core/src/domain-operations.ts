@@ -1,3 +1,4 @@
+import { actorContext } from '../../../packages/backend-kit/src/context.ts';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { executeRideRequest } from '../../service-ride/src/index.ts';
 import { executeFoodRequest } from '../../service-food/src/index.ts';
@@ -80,4 +81,41 @@ export function callDomain(service: keyof typeof domainHandlers, method: string,
 export function executionOutcome(steps: Step[]): Outcome {
   return steps.some(step => step.state === 'UNKNOWN' || step.state === 'PENDING') ? 'UNKNOWN'
     : steps.some(step => step.state === 'SUCCEEDED') ? 'PARTIALLY_COMPLETED' : 'FAILED';
+}
+
+
+/** HTTP transport is explicit; provider mode never silently falls back to shared fixtures. */
+export async function callDomainAsync(service: keyof typeof domainHandlers | 'telecom', method: string, path: string,
+  query: Record<string, string> = {}, body: any = {}): Promise<Result> {
+  if (process.env.DOMAIN_TRANSPORT !== 'http') {
+    if (process.env.PROVIDER_INTEGRATION === 'true') throw new DomainOperationError(503, 'DOMAIN_TRANSPORT_MISCONFIGURED', service);
+    if (service === 'telecom') throw new DomainOperationError(503, 'DOMAIN_UNAVAILABLE', service);
+    return callDomain(service, method, path, query, body);
+  }
+  const actor = actorContext.getStore();
+  if (!actor?.authorization) throw new DomainOperationError(401, 'AUTHENTICATION_REQUIRED', service);
+  const mutation = method.toUpperCase() !== 'GET';
+  if (mutation) await actor.assertLease?.();
+  const step: Step | undefined = mutation ? { service, method, path, state: 'PENDING' } : undefined;
+  if (step) context.getStore()?.push(step);
+  const ports = { ride: 4001, food: 4002, wallet: 4003, catalog: 4004, profile: 4005, telecom: 4006 };
+  const base = process.env[`SERVICE_${service.toUpperCase()}_URL`] || `http://localhost:${ports[service]}`;
+  const url = new URL(path, base); for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value);
+  let result: Result;
+  try {
+    const response = await fetch(url, { method, signal: AbortSignal.timeout(60000),
+      headers: { Authorization: actor.authorization, 'Content-Type': 'application/json', 'X-Account-Id': actor.accountId, 'X-Request-Id': actor.requestId },
+      ...(mutation ? { body: JSON.stringify(body) } : {}),
+    });
+    result = { status: response.status, data: await response.json() };
+  } catch {
+    if (step) step.state = 'UNKNOWN';
+    throw new DomainOperationError(503, mutation ? 'DOMAIN_OUTCOME_UNKNOWN' : 'DOMAIN_UNAVAILABLE', service);
+  }
+  const succeeded = result.status >= 200 && result.status < 300 && result.data?.success === true && !result.data.error &&
+    (!mutation || confirmedReceipt(service, path, result.data));
+  if (succeeded) { if (step) step.state = 'SUCCEEDED'; return result; }
+  const rejected = result.status >= 400 && result.status < 500 && result.data?.code !== 'PROVIDER_OUTCOME_UNKNOWN';
+  if (step) step.state = rejected ? 'FAILED' : 'UNKNOWN';
+  throw new DomainOperationError(rejected ? result.status : 503, rejected ? 'DOMAIN_REJECTED' : mutation ? 'DOMAIN_OUTCOME_UNKNOWN' : 'DOMAIN_UNAVAILABLE', service);
 }

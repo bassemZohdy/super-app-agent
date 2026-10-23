@@ -1,7 +1,6 @@
-FROM node:22-alpine AS runner
+FROM node:24-alpine
 WORKDIR /app
-COPY package*.json ./
-COPY services/service-catalog/ ./services/service-catalog/
-WORKDIR /app/services/service-catalog
+COPY . .
+RUN npm ci --omit=dev --ignore-scripts
 EXPOSE 4004
-CMD ["npm", "run", "dev"]
+CMD ["node", "--experimental-strip-types", "services/service-catalog/src/index.ts"]

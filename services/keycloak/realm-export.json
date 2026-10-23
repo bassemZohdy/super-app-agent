@@ -3,7 +3,7 @@
   "displayName": "SuperApp Agent Realm",
   "enabled": true,
   "sslRequired": "none",
-  "registrationAllowed": true,
+  "registrationAllowed": false,
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
   "resetPasswordAllowed": true,
@@ -22,6 +22,38 @@
       {
         "name": "admin",
         "description": "Platform administrator"
+      },
+      {
+        "name": "provider:rta",
+        "description": "Demo provider grant for rta"
+      },
+      {
+        "name": "provider:dewa",
+        "description": "Demo provider grant for dewa"
+      },
+      {
+        "name": "provider:etisalat",
+        "description": "Demo provider grant for etisalat"
+      },
+      {
+        "name": "provider:du",
+        "description": "Demo provider grant for du"
+      },
+      {
+        "name": "provider:police",
+        "description": "Demo provider grant for police"
+      },
+      {
+        "name": "provider:dld",
+        "description": "Demo provider grant for dld"
+      },
+      {
+        "name": "provider:payments",
+        "description": "Demo provider grant for payments"
+      },
+      {
+        "name": "provider:payments:read",
+        "description": "Demo provider grant for payments:read"
       }
     ]
   },
@@ -43,7 +75,28 @@
         "http://localhost:3002/*",
         "http://localhost:8080/*"
       ],
-      "webOrigins": ["*"]
+      "webOrigins": [
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://localhost:3002"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:3000/*##http://localhost:3001/*##http://localhost:3002/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "agent-core-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "agent-core",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
     },
     {
       "clientId": "agent-core",
@@ -51,6 +104,181 @@
       "enabled": true,
       "bearerOnly": true,
       "protocol": "openid-connect"
+    },
+    {
+      "clientId": "service-ride",
+      "name": "service-ride demo integration",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "demo-ride-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": true,
+      "protocolMappers": [
+        {
+          "name": "provider-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "provider-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "service-food",
+      "name": "service-food demo integration",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "demo-food-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": true,
+      "protocolMappers": [
+        {
+          "name": "provider-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "provider-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "service-wallet",
+      "name": "service-wallet demo integration",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "demo-wallet-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": true,
+      "protocolMappers": [
+        {
+          "name": "provider-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "provider-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "service-catalog",
+      "name": "service-catalog demo integration",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "demo-catalog-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": true,
+      "protocolMappers": [
+        {
+          "name": "provider-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "provider-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "service-profile",
+      "name": "service-profile demo integration",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "demo-profile-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": true,
+      "protocolMappers": [
+        {
+          "name": "provider-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "provider-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "service-telecom",
+      "name": "service-telecom demo integration",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "demo-telecom-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": true,
+      "protocolMappers": [
+        {
+          "name": "provider-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "provider-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "provider-settlements",
+      "name": "provider-settlements demo integration",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "demo-settlements-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": true,
+      "protocolMappers": [
+        {
+          "name": "provider-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "provider-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
     }
   ],
   "users": [
@@ -73,9 +301,16 @@
         "superapp-vip"
       ],
       "attributes": {
-        "vipTier": ["Gold VIP"],
-        "dietaryPreferences": ["Vegetarian", "Spicy Lover"],
-        "mobilityPreferences": ["EV Preferred"]
+        "vipTier": [
+          "Gold VIP"
+        ],
+        "dietaryPreferences": [
+          "Vegetarian",
+          "Spicy Lover"
+        ],
+        "mobilityPreferences": [
+          "EV Preferred"
+        ]
       }
     },
     {
@@ -96,9 +331,73 @@
         "superapp-user"
       ],
       "attributes": {
-        "vipTier": ["Standard"]
+        "vipTier": [
+          "Standard"
+        ]
       }
+    },
+    {
+      "username": "service-account-service-ride",
+      "enabled": true,
+      "serviceAccountClientId": "service-ride",
+      "realmRoles": [
+        "provider:rta",
+        "provider:payments"
+      ]
+    },
+    {
+      "username": "service-account-service-food",
+      "enabled": true,
+      "serviceAccountClientId": "service-food",
+      "realmRoles": [
+        "provider:dewa",
+        "provider:payments"
+      ]
+    },
+    {
+      "username": "service-account-service-wallet",
+      "enabled": true,
+      "serviceAccountClientId": "service-wallet",
+      "realmRoles": [
+        "provider:police",
+        "provider:dewa",
+        "provider:rta",
+        "provider:payments"
+      ]
+    },
+    {
+      "username": "service-account-service-catalog",
+      "enabled": true,
+      "serviceAccountClientId": "service-catalog",
+      "realmRoles": [
+        "provider:dld",
+        "provider:dewa",
+        "provider:rta"
+      ]
+    },
+    {
+      "username": "service-account-service-profile",
+      "enabled": true,
+      "serviceAccountClientId": "service-profile",
+      "realmRoles": []
+    },
+    {
+      "username": "service-account-service-telecom",
+      "enabled": true,
+      "serviceAccountClientId": "service-telecom",
+      "realmRoles": [
+        "provider:etisalat",
+        "provider:du",
+        "provider:payments"
+      ]
+    },
+    {
+      "username": "service-account-provider-settlements",
+      "enabled": true,
+      "serviceAccountClientId": "provider-settlements",
+      "realmRoles": [
+        "provider:payments:read"
+      ]
     }
   ]
 }
-

@@ -1,5 +1,7 @@
 # Voice and conversational chat
 
+> Current scope: browser dictation drafts and opt-in speech playback remain available after Keycloak login. React no longer auto-sends dictated messages. Server TTS remains an optional API; browser playback does not prove remote neural voice availability. Session storage and identity are described in the [provider guide](../demo/provider-backends.md).
+
 React and Angular now offer microphone dictation and optional spoken replies alongside typed chat and interactive surfaces. Flutter displays the same assistant text, with native speech support still a backlog item.
 
 ## Using the chat
@@ -20,7 +22,7 @@ The core already records turns in its process-local session. `conversation.ts` h
 
 ## Browser, privacy and validation boundaries
 
-Speech recognition availability varies by browser, device, security context and language. Use a supported browser on localhost or HTTPS. Some browsers send audio to their recognition service, so this feature is not an offline/on-device guarantee. The UI discloses that processing before activation; this app stores no raw audio. Submitted transcripts are handled like typed messages in the existing in-memory session. Browser/OS speech services may have their own processing policies.
+Speech recognition availability varies by browser, device, security context and language. Use a supported browser on localhost or HTTPS. Some browsers send audio to their recognition service, so this feature is not an offline/on-device guarantee. The UI discloses that processing before activation; this app stores no raw audio. Submitted transcripts are handled like typed messages in the selected account-bound session (Redis in integrated mode, memory in the fixture runner). Browser/OS speech services may have their own processing policies.
 
 Primary references: [SpeechRecognition](https://developer.mozilla.org/en-US/docs/Web/API/SpeechRecognition), [Web Speech usage](https://developer.mozilla.org/en-US/docs/Web/API/Web_Speech_API/Using_the_Web_Speech_API), [recognition errors](https://developer.mozilla.org/en-US/docs/Web/API/SpeechRecognitionErrorEvent/error).
 

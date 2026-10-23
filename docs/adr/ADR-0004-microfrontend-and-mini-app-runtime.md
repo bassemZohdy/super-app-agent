@@ -1,5 +1,7 @@
 # ADR-0004 — Mini-app presentation and deployment strategy
 
+> Current demo implementation update (23 October 2026): see [ADR-0010](ADR-0010-provider-simulators-and-redis-demo.md) and the [provider guide](../demo/provider-backends.md). Earlier implementation descriptions below record the prior fixture baseline. The integrated demo now has REST provider adapters, Keycloak browser/service authentication and Redis sessions; LangGraph, production consent and standards migration remain targets.
+
 **Status:** **Embedded mini-app demonstration implemented; independent MFE runtime proposed.**
 **Reviewed:** 2026-10-23.
 

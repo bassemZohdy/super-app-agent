@@ -56,7 +56,7 @@ function SurfaceCardWrapper({
   const isSuccess = node.style?.variant === 'success';
   const isWarning = node.style?.variant === 'warning';
   const borderColor = isSuccess ? '#bbf7d0' : isWarning ? '#fde68a' : '#e2e8f0';
-  const bgColor = isSuccess ? '#f0fdf4' : isWarning ? '#fffbeb' : '#ffffff';
+  const bgColor = isSuccess ? '#f0f7f8' : isWarning ? '#fffbeb' : '#ffffff';
 
   return (
     <SurfaceFormContext.Provider
@@ -178,8 +178,8 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
                   alignItems: 'center',
                   padding: '13px 16px',
                   borderRadius: '12px',
-                  border: isSelected ? '2px solid #059669' : '1.5px solid #e2e8f0',
-                  background: isSelected ? '#ecfdf5' : '#ffffff',
+                  border: isSelected ? '2px solid #285c76' : '1.5px solid #e2e8f0',
+                  background: isSelected ? '#edf5f8' : '#ffffff',
                   cursor: 'pointer',
                   transition: 'all 0.18s ease',
                 }}
@@ -191,7 +191,7 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
                       width: '20px',
                       height: '20px',
                       borderRadius: '50%',
-                      border: isSelected ? '6px solid #059669' : '2px solid #cbd5e1',
+                      border: isSelected ? '6px solid #285c76' : '2px solid #cbd5e1',
                       background: '#ffffff',
                       flexShrink: 0,
                       transition: 'all 0.15s ease',
@@ -296,7 +296,7 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
             >
               {node.properties?.label}
               {isInteractive && (
-                <span style={{ fontSize: '10px', background: '#ecfdf5', color: '#047857', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>
+                <span style={{ fontSize: '10px', background: '#edf5f8', color: '#1e4961', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>
                   TAP TO OPEN ↗
                 </span>
               )}
@@ -322,7 +322,8 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
             background: '#e2e8f0',
             border: '1px solid #cbd5e1',
             borderRadius: '12px',
-            height: '180px',
+            minHeight: '180px',
+            padding: '14px 4px 30px',
             marginBottom: '16px',
             position: 'relative',
             overflow: 'hidden',
@@ -355,7 +356,7 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
             <path
               d="M 60,130 Q 200,40 340,110 T 520,70"
               fill="none"
-              stroke="#059669"
+              stroke="#285c76"
               strokeWidth="4"
               strokeDasharray="6 4"
             />
@@ -364,9 +365,6 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
             {markers.map((m: any, i: number) => (
               <div
                 key={m.id || i}
-                role="button"
-                tabIndex={0}
-                className="ag-interactive-widget"
                 style={{
                   background: '#ffffff',
                   padding: '6px 12px',
@@ -400,15 +398,15 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
               fontWeight: 600,
             }}
           >
-            Live GPS Telemetry (Dubai / Abu Dhabi)
+            Simulated locations • Dubai / Abu Dhabi
           </div>
         </div>
       );
     }
 
     case 'DataTable': {
-      const columns = node.properties?.columns || [];
-      const rows = node.properties?.rows || [];
+      const columns = Array.isArray(node.properties?.columns) ? node.properties.columns : [];
+      const rows = Array.isArray(node.properties?.rows) ? node.properties.rows : [];
 
       return (
         <div
@@ -510,10 +508,10 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
           className="ag-interactive-widget"
           onClick={() => onDispatchAction('LAUNCH_MINIAPP', { miniAppId: appId })}
           style={{
-            border: '2px solid #059669',
+            border: '2px solid #285c76',
             borderRadius: '14px',
             padding: '20px',
-            background: 'linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)',
+            background: 'linear-gradient(135deg, #f0f7f8 0%, #edf5f8 100%)',
             marginBottom: '16px',
             cursor: 'pointer',
             boxShadow: '0 4px 12px rgba(5, 150, 105, 0.08)',
@@ -539,7 +537,7 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
             style={{
               padding: '9px 16px',
               borderRadius: '8px',
-              background: '#059669',
+              background: '#285c76',
               color: '#ffffff',
               border: 'none',
               fontWeight: 700,
@@ -560,9 +558,9 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
     case 'Button': {
       const variant = node.properties?.variant || 'primary';
       const isOutline = variant === 'outline';
-      const bg = isOutline ? '#ffffff' : '#059669';
-      const textCol = isOutline ? '#059669' : '#ffffff';
-      const border = isOutline ? '1.5px solid #059669' : 'none';
+      const bg = isOutline ? '#ffffff' : '#285c76';
+      const textCol = isOutline ? '#285c76' : '#ffffff';
+      const border = isOutline ? '1.5px solid #285c76' : 'none';
 
       const eventBinding = node.onEvents?.find((e) => e.event === 'onPress');
       const actionKey = eventBinding?.payload?.action || eventBinding?.actionType || 'action';

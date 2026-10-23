@@ -28,3 +28,10 @@ Thumbs.db
 
 # Angular CLI local cache
 .angular/
+
+# Persistent local demo databases and browser checks
+.data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+.playwright-mcp/

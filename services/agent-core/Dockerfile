@@ -1,10 +1,6 @@
-FROM node:22-alpine AS runner
+FROM node:24-alpine
 WORKDIR /app
-
-COPY package*.json ./
-COPY packages/ ./packages/
-COPY services/agent-core/ ./services/agent-core/
-
-WORKDIR /app/services/agent-core
+COPY . .
+RUN npm ci --omit=dev --ignore-scripts
 EXPOSE 4000
-CMD ["npm", "run", "dev"]
+CMD ["node", "--experimental-strip-types", "services/agent-core/src/index.ts"]

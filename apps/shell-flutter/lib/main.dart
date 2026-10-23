@@ -12,9 +12,16 @@ class SuperAppFlutter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'SuperApp Flutter Host',
+      title: 'Cityside — Your city concierge',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2563EB)),
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF285C76)),
+        scaffoldBackgroundColor: const Color(0xFFF7FAFC),
+        fontFamily: 'Avenir Next',
+        appBarTheme: const AppBarTheme(elevation: 0, centerTitle: false),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true, fillColor: Colors.white,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        ),
         useMaterial3: true,
       ),
       home: const SuperAppHomeScreen(),
@@ -33,18 +40,134 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen> {
   final List<Map<String, String>> _messages = [
     {
       'role': 'assistant',
-      'text': 'Welcome to SuperApp Flutter! Tap a suggestion chip or type instructions below to orchestrate mini-apps.'
+      'text': 'Marhaba, Bassem. I’m Rashid, your city concierge. Let’s take care of your commute, bills or next move.'
     }
   ];
   Map<String, dynamic>? _currentSurface;
   String? _thinkingDelta;
   final Map<String, String> _choices = {};
   bool _requestPending = false;
-  double _walletBalance = 142.50;
-  final String _sessionId = 'flutter_${DateTime.now().millisecondsSinceEpoch}';
-  final String _gatewayUrl = 'http://localhost:4000';
-  final String _keycloakToken = 'demo-local'; // local demo only
+  bool _showDetails = false;
+  String _connectionLabel = 'Connecting…';
+  String _sessionId = 'flutter_${DateTime.now().millisecondsSinceEpoch}';
+  final String _gatewayUrl = const String.fromEnvironment('GATEWAY_URL', defaultValue: 'http://localhost:4000');
+  String _keycloakToken = 'demo-local'; // local demo only
+  String? _refreshToken;
+  DateTime? _tokenExpiry;
+  bool _loginRequired = false;
+  bool _authReady = false;
+  String _userName = 'Demo citizen';
+  String _accountId = '';
+  String _demoUsername = 'bassem';
+  String? _authError;
+  String _issuer = 'http://localhost:8085/realms/superapp';
+  List<dynamic> _accounts = [];
   final TextEditingController _promptController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _checkConnection();
+    _initializeAuth();
+  }
+
+  Future<void> _initializeAuth() async {
+    try {
+      final response = await http.get(Uri.parse('$_gatewayUrl/api/auth/config'));
+      final config = jsonDecode(response.body);
+      _issuer = config['issuer'] ?? _issuer;
+      if (config['enabled'] == true) {
+        if (mounted) setState(() { _loginRequired = true; _authReady = true; });
+      } else {
+        await _loadAccounts();
+        if (mounted) setState(() => _authReady = true);
+      }
+    } catch (_) { if (mounted) setState(() { _authReady = true; _loginRequired = true; _authError = 'Could not load sign-in settings.'; }); }
+  }
+
+  // Local demo grant only. Browser shells use authorization code + PKCE.
+  Future<void> _signIn() async {
+    if (_requestPending) return;
+    setState(() { _requestPending = true; _authError = null; });
+    try {
+      final response = await http.post(Uri.parse('$_issuer/protocol/openid-connect/token'), body: {
+        'grant_type': 'password', 'client_id': 'superapp-shell',
+        'username': _demoUsername, 'password': 'demo123', 'scope': 'openid profile',
+      });
+      if (response.statusCode != 200) throw const FormatException('Demo sign-in failed.');
+      _acceptTokens(jsonDecode(response.body));
+      await _loadAccounts();
+      if (mounted) setState(() { _loginRequired = false; _messages.clear(); _currentSurface = null; _sessionId = 'flutter_${DateTime.now().microsecondsSinceEpoch}'; });
+    } catch (_) { if (mounted) setState(() => _authError = 'Demo sign-in failed. Check that Keycloak is ready.'); }
+    finally { if (mounted) setState(() => _requestPending = false); }
+  }
+
+  void _acceptTokens(dynamic tokens) {
+    _keycloakToken = tokens['access_token'];
+    _refreshToken = tokens['refresh_token'];
+    _tokenExpiry = DateTime.now().add(Duration(seconds: tokens['expires_in']));
+  }
+
+  Future<String> _authorization() async {
+    if (_tokenExpiry != null && DateTime.now().add(const Duration(seconds: 30)).isAfter(_tokenExpiry!)) {
+      final response = await http.post(Uri.parse('$_issuer/protocol/openid-connect/token'), body: {
+        'grant_type': 'refresh_token', 'client_id': 'superapp-shell', 'refresh_token': _refreshToken ?? '',
+      });
+      if (response.statusCode != 200) { if (mounted) setState(() => _loginRequired = true); throw const FormatException('Sign in again.'); }
+      _acceptTokens(jsonDecode(response.body));
+    }
+    return 'Bearer $_keycloakToken';
+  }
+
+  Future<void> _loadAccounts() async {
+    final response = await http.get(Uri.parse('$_gatewayUrl/api/accounts'), headers: {'Authorization': await _authorization()});
+    if (response.statusCode != 200) throw const FormatException('Account discovery failed.');
+    final data = jsonDecode(response.body);
+    if (mounted) setState(() { _accounts = data['accounts']; _accountId = _accounts.first['id']; _userName = data['user']?['name'] ?? _demoUsername; });
+  }
+
+  Future<void> _showSessions() async {
+    final response = await http.get(Uri.parse('$_gatewayUrl/api/sessions'), headers: {'Authorization': await _authorization()});
+    if (!mounted || response.statusCode != 200) return;
+    final sessions = (jsonDecode(response.body)['sessions'] as List).where((s) => s['accountId'] == _accountId).toList();
+    final selected = await showDialog<String>(context: context, builder: (context) => SimpleDialog(
+      title: const Text('Saved conversations'),
+      children: sessions.isEmpty ? [const Padding(padding: EdgeInsets.all(24), child: Text('No conversations yet.'))] : sessions.map((session) => SimpleDialogOption(
+        onPressed: () => Navigator.pop(context, session['sessionId'] as String), child: Text(session['title'] ?? 'Conversation'),
+      )).toList(),
+    ));
+    if (selected == null) return;
+    final restored = await http.get(Uri.parse('$_gatewayUrl/api/sessions/$selected'), headers: {'Authorization': await _authorization()});
+    if (!mounted || restored.statusCode != 200) return;
+    final data = jsonDecode(restored.body);
+    setState(() { _sessionId = selected; _currentSurface = null; _messages.clear();
+      for (final message in data['messages'] ?? []) { if (['user', 'assistant'].contains(message['role'])) _messages.add({'role': message['role'], 'text': message['content']}); }
+      if (data['surface'] != null) { _applySurface(data['surface']); if (_messages.isNotEmpty) _messages.removeLast(); }
+    });
+  }
+
+  Future<void> _signOut() async {
+    final refresh = _refreshToken;
+    setState(() { _keycloakToken = ''; _refreshToken = null; _tokenExpiry = null; _loginRequired = true; _messages.clear(); _currentSurface = null; _accounts = []; });
+    if (refresh != null) await http.post(Uri.parse('$_issuer/protocol/openid-connect/logout'), body: {'client_id': 'superapp-shell', 'refresh_token': refresh});
+  }
+
+  Future<void> _checkConnection() async {
+    try {
+      final response = await http.get(Uri.parse('$_gatewayUrl/health')).timeout(const Duration(seconds: 10));
+      if (response.statusCode != 200) throw const FormatException('Gateway unavailable');
+      final data = jsonDecode(response.body);
+      if (mounted) setState(() => _connectionLabel = data['llm']?['enabled'] == true ? 'OpenRouter ready' : 'Demo mode');
+    } catch (_) {
+      if (mounted) setState(() => _connectionLabel = 'Gateway offline');
+    }
+  }
+
+  @override
+  void dispose() {
+    _promptController.dispose();
+    super.dispose();
+  }
 
   void _applySurface(dynamic value) {
     if (value is! Map<String, dynamic> || value['version'] != '1.0.0' ||
@@ -101,7 +224,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen> {
     _requestPending = true;
     setState(() {
       _messages.add({'role': 'user', 'text': text});
-      _thinkingDelta = '🧠 Supervisor evaluating intent via LangGraph...';
+      _thinkingDelta = 'Preparing your request…';
     });
     _promptController.clear();
 
@@ -110,10 +233,11 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen> {
         Uri.parse('$_gatewayUrl/api/a2ui/intent'),
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer $_keycloakToken',
+          'Authorization': await _authorization(),
         },
         body: jsonEncode({
           'sessionId': _sessionId,
+          'accountId': _accountId,
           'text': text,
           'handshake': {
             'platform': 'flutter',
@@ -162,10 +286,11 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen> {
         Uri.parse('$_gatewayUrl/api/a2ui/action'),
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer $_keycloakToken',
+          'Authorization': await _authorization(),
         },
         body: jsonEncode({
           'sessionId': _sessionId,
+          'accountId': _accountId,
           'surfaceRevision': _currentSurface?['revision'],
           'action': action,
           'payload': bodyPayload,
@@ -186,80 +311,65 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDesktop = MediaQuery.of(context).size.width >= 768;
-
+    if (!_authReady) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (_loginRequired) return Scaffold(body: Center(child: SingleChildScrollView(padding: const EdgeInsets.all(32), child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 420), child: Column(mainAxisSize: MainAxisSize.min, children: [
+      const Icon(Icons.location_city_outlined, size: 48, color: Color(0xFF285C76)),
+      const SizedBox(height: 24), const Text('Your city. Your account.', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w600)),
+      const SizedBox(height: 18), const Text('Local demo sign-in through Keycloak'),
+      const SizedBox(height: 18), DropdownButtonFormField<String>(value: _demoUsername, items: const [DropdownMenuItem(value: 'bassem', child: Text('Bassem Zohdy')), DropdownMenuItem(value: 'demo-commuter', child: Text('Alex Commuter'))], onChanged: (value) => setState(() => _demoUsername = value!)),
+      if (_authError != null) Padding(padding: const EdgeInsets.all(12), child: Text(_authError!)),
+      const SizedBox(height: 20), FilledButton(onPressed: _requestPending ? null : _signIn, child: Text(_requestPending ? 'Signing in…' : 'Sign in to demo')),
+    ])))));
     return Scaffold(
       appBar: AppBar(
-        title: Row(
+        toolbarHeight: 76,
+        titleSpacing: 22,
+        title: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: const Color(0xFF059669),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: const Text('DXB', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 13)),
-            ),
-            const SizedBox(width: 10),
-            const Text('SmartCity Now • Flutter', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            Text('cityside', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 27, letterSpacing: -1.2)),
+            Text('Your everyday, connected.', style: TextStyle(fontSize: 10, color: Color(0xFF8297A5))),
           ],
         ),
-        backgroundColor: const Color(0xFF064E3B),
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF285C76),
         actions: [
-          Container(
-            margin: const EdgeInsets.symmetric(vertical: 10),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: const Color(0xFF047857),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFF059669)),
-            ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('🛡️ ', style: TextStyle(fontSize: 12)),
-                Text('Bassem ', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
-                Text('🌟 Golden Visa', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFFF59E0B))),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            margin: const EdgeInsets.only(right: 16),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-            decoration: BoxDecoration(
-              color: const Color(0xFF022C22),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              '💳 ${_walletBalance.toStringAsFixed(2)} AED',
-              style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF6EE7B7), fontSize: 13),
-            ),
-          ),
+          IconButton(tooltip: 'Saved conversations', onPressed: _requestPending ? null : _showSessions, icon: const Icon(Icons.history)),
+          IconButton(tooltip: 'Sign out', onPressed: _requestPending ? null : _signOut, icon: const Icon(Icons.logout)),
+          Center(child: Text(_connectionLabel, style: const TextStyle(fontSize: 10, color: Color(0xFF618C7A)))),
+          const SizedBox(width: 18),
         ],
       ),
-      body: isDesktop
-          ? Row(
-              children: [
-                Expanded(flex: 4, child: _buildAgentPane()),
-                const VerticalDivider(width: 1, color: Color(0xFFE2E8F0)),
-                Expanded(flex: 6, child: _buildCanvasPane()),
+      body: LayoutBuilder(builder: (context, constraints) {
+        if (constraints.maxWidth >= 850) {
+          return Row(children: [
+            Expanded(flex: 5, child: _buildAgentPane()),
+            const VerticalDivider(width: 1, color: Color(0xFFE2E8F0)),
+            Expanded(flex: 5, child: _buildCanvasPane()),
+          ]);
+        }
+        return Column(children: [
+          if (_accounts.isNotEmpty) Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: Row(children: [Expanded(child: Text(_userName, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12))), DropdownButton<String>(value: _accountId, items: _accounts.map((account) => DropdownMenuItem<String>(value: account['id'], child: Text(account['label'], style: const TextStyle(fontSize: 12)))).toList(), onChanged: _requestPending ? null : (value) => setState(() { _accountId = value!; _sessionId = 'flutter_${DateTime.now().microsecondsSinceEpoch}'; _messages.clear(); _currentSurface = null; }))])),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: SegmentedButton<bool>(
+              segments: const [
+                ButtonSegment(value: false, icon: Icon(Icons.chat_bubble_outline), label: Text('Concierge')),
+                ButtonSegment(value: true, icon: Icon(Icons.explore_outlined), label: Text('Service details')),
               ],
-            )
-          : Column(
-              children: [
-                Expanded(child: _buildCanvasPane()),
-                const Divider(height: 1, color: Color(0xFFE2E8F0)),
-                SizedBox(height: 340, child: _buildAgentPane()),
-              ],
+              selected: {_showDetails},
+              onSelectionChanged: (value) => setState(() => _showDetails = value.first),
             ),
+          ),
+          Expanded(child: _showDetails ? _buildCanvasPane() : _buildAgentPane()),
+        ]);
+      }),
     );
   }
 
   Widget _buildAgentPane() {
     return Container(
-      color: const Color(0xFFF8FAFC),
+      color: Colors.white,
       child: Column(
         children: [
           Container(
@@ -267,7 +377,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen> {
             color: Colors.white,
             width: double.infinity,
             child: const Text(
-              '💬 Autonomous Concierge (LangGraph)',
+              'Rashid, your city concierge',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0F172A)),
             ),
           ),
@@ -286,14 +396,14 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     constraints: const BoxConstraints(maxWidth: 320),
                     decoration: BoxDecoration(
-                      color: isUser ? const Color(0xFF2563EB) : Colors.white,
+                      color: isUser ? const Color(0xFF285C76) : Colors.white,
                       borderRadius: BorderRadius.circular(12),
                       border: isUser ? null : Border.all(color: const Color(0xFFE2E8F0)),
                       boxShadow: [
                         BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 4, offset: const Offset(0, 2)),
                       ],
                     ),
-                    child: Text(
+                    child: SelectableText(
                       msg['text'] ?? '',
                       style: TextStyle(
                         color: isUser ? Colors.white : const Color(0xFF0F172A),
@@ -325,12 +435,12 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             child: Row(
               children: [
-                _buildChip('🅿️ Park Zone 302A', 'Park in Zone 302A Downtown Dubai'),
-                _buildChip('⚡ DEWA Utilities', 'Check my DEWA electricity and water bill for premise DEWA-201948201'),
-                _buildChip('👮 Police Fines', 'Check my Dubai Police traffic radar fines for plate Dubai B-74892'),
-                _buildChip('🏠 Ejari Move-In', 'I just signed my Ejari lease, connect my utilities and issue parking for Unit 1402'),
-                _buildChip('🏛️ Unified DubaiPay', 'Pay my DEWA electricity bill, settle my police radar fines, and recharge my Salik tag'),
-                _buildChip('🛡️ UAE PASS', 'Show my UAE PASS citizen profile and registered vehicles and premises'),
+                _buildChip('Find parking', 'Park in Zone 302A Downtown Dubai'),
+                _buildChip('Check my bills', 'Check my DEWA electricity and water bill for premise DEWA-201948201'),
+                _buildChip('Traffic fines', 'Check my Dubai Police traffic radar fines for plate Dubai B-74892'),
+                _buildChip('Moving in', 'I just signed my Ejari lease, connect my utilities and issue parking for Unit 1402'),
+                _buildChip('Pay together', 'Pay my DEWA electricity bill, settle my police radar fines, and recharge my Salik tag'),
+                _buildChip('My profile', 'Show my UAE PASS citizen profile and registered vehicles and premises'),
               ],
             ),
           ),
@@ -343,7 +453,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen> {
                   child: TextField(
                     controller: _promptController,
                     decoration: const InputDecoration(
-                      hintText: 'Ask the concierge...',
+                      hintText: 'Ask Rashid about your city…',
                       border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(8))),
                       contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       isDense: true,
@@ -353,9 +463,9 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen> {
                 ),
                 const SizedBox(width: 8),
                 ElevatedButton(
-                  onPressed: () => _sendIntent(_promptController.text),
+                  onPressed: _requestPending ? null : () => _sendIntent(_promptController.text),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2563EB),
+                    backgroundColor: const Color(0xFF285C76),
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
@@ -374,7 +484,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen> {
       padding: const EdgeInsets.only(right: 6),
       child: ActionChip(
         label: Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
-        onPressed: () => _sendIntent(prompt),
+        onPressed: _requestPending ? null : () => _sendIntent(prompt),
         backgroundColor: const Color(0xFFF1F5F9),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
@@ -383,25 +493,25 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen> {
 
   Widget _buildCanvasPane() {
     if (_currentSurface == null) {
-      return Center(
+      return SingleChildScrollView(child: Center(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('🪄', style: TextStyle(fontSize: 40)),
+              const Icon(Icons.auto_awesome_outlined, size: 48, color: Color(0xFF7297AD)),
               const SizedBox(height: 12),
-              const Text('Ready for Instructions', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const Text('A little help. A lot more city.', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               const SizedBox(height: 6),
               Text(
-                'Type instructions on the left to compile server-driven AG-UI widgets.',
+                'From your morning commute to your next move. Ask Rashid and review your options here. City services use simulated data.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
               ),
             ],
           ),
         ),
-      );
+      ));
     }
 
     final view = _currentSurface!['view'] as Map<String, dynamic>;
@@ -424,7 +534,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen> {
     switch (type) {
       case 'SurfaceCard':
         return Card(
-          elevation: 2,
+          elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
             side: const BorderSide(color: Color(0xFFE2E8F0)),
@@ -463,7 +573,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen> {
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            color: const Color(0xFFF8FAFC),
+            color: Colors.white,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(color: const Color(0xFFE2E8F0)),
           ),
@@ -498,7 +608,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen> {
                   color: isSelected ? const Color(0xFFEFF6FF) : Colors.white,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: isSelected ? const Color(0xFF2563EB) : const Color(0xFFE2E8F0),
+                    color: isSelected ? const Color(0xFF285C76) : const Color(0xFFE2E8F0),
                     width: isSelected ? 2 : 1,
                   ),
                 ),
@@ -535,7 +645,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.directions_car, color: Color(0xFF2563EB)),
+                Icon(Icons.directions_car, color: Color(0xFF285C76)),
                 SizedBox(width: 8),
                 Text('📍 Live GPS Route View (Simulated)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               ],
@@ -559,7 +669,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen> {
                 _dispatchAction(action, Map<String, dynamic>.from(events[0]['payload'] ?? {}));
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2563EB),
+                backgroundColor: const Color(0xFF285C76),
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),

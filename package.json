@@ -21,9 +21,19 @@
     "test:record": "node --experimental-strip-types scripts/record-e2e-scenarios.ts",
     "test:video": "node --experimental-strip-types scripts/record-video-scenarios.ts",
     "lint": "turbo run lint",
-    "test:keycloak": "node --experimental-strip-types scripts/test-keycloak.ts"
+    "test:keycloak": "node --experimental-strip-types scripts/test-keycloak.ts",
+    "demo:up": "docker compose -f docker-compose.demo.yml up -d",
+    "demo:down": "docker compose -f docker-compose.demo.yml down",
+    "demo:logs": "docker compose -f docker-compose.demo.yml logs -f",
+    "demo:verify": "node --experimental-strip-types scripts/verify-demo-stack.ts",
+    "openapi:generate": "node --experimental-strip-types scripts/generate-provider-openapi.ts",
+    "test:redis": "node --experimental-strip-types --import ./scripts/test-env.ts --test test/integration/redis-sessions.ts",
+    "demo:realm": "node --env-file-if-exists=.env --experimental-strip-types scripts/configure-demo-keycloak.ts",
+    "demo:verify:journeys": "node --experimental-strip-types scripts/verify-demo-journeys.ts",
+    "demo:verify:restart": "node --experimental-strip-types scripts/verify-demo-restart.ts"
   },
   "devDependencies": {
+    "@apidevtools/swagger-parser": "^13.1.0",
     "ajv": "8.17.1",
     "playwright": "^1.64.1",
     "turbo": "^2.4.0",

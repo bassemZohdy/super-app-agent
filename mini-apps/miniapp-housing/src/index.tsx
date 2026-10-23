@@ -15,7 +15,7 @@ export function mountHousingMiniApp(context: MiniAppBootstrapContext) {
             <div style="font-size: 12px; color: #64748b;">Dubai Land Department & Tawtheeq • gov.smartcity.housing</div>
           </div>
         </div>
-        <span style="background: #ecfdf5; color: #065f46; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px;">
+        <span style="background: #edf5f8; color: #065f46; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px;">
           CONTRACT REGISTERED
         </span>
       </div>
@@ -40,23 +40,23 @@ export function mountHousingMiniApp(context: MiniAppBootstrapContext) {
       <!-- Autonomous Move-in Golden Path Highlights -->
       <div style="font-size: 13px; font-weight: 700; color: #334155; margin-bottom: 8px;">MOVE-IN GOLDEN PATH BUNDLE</div>
       <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px;">
-        <div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; font-size: 13px;">
+        <div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #f0f7f8; border: 1px solid #bbf7d0; border-radius: 8px; font-size: 13px;">
           <span>⚡</span>
           <div>
             <strong>DEWA Electricity & Water Connection:</strong>
-            <span style="color: #059669; font-weight: 600;"> Deposit Waived (Golden Visa benefit)</span>
+            <span style="color: #285c76; font-weight: 600;"> Deposit Waived (Golden Visa benefit)</span>
           </div>
         </div>
-        <div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; font-size: 13px;">
+        <div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #f0f7f8; border: 1px solid #bbf7d0; border-radius: 8px; font-size: 13px;">
           <span>🅿️</span>
           <div>
             <strong>RTA Residential Parking Permit:</strong>
-            <span style="color: #059669; font-weight: 600;"> Zone 302A Digital Permit Issued</span>
+            <span style="color: #285c76; font-weight: 600;"> Zone 302A Digital Permit Issued</span>
           </div>
         </div>
       </div>
 
-      <button id="btn_miniapp_confirm_movein" style="width: 100%; padding: 13px; border-radius: 10px; background: #059669; color: #ffffff; font-weight: 700; border: none; font-size: 14px; cursor: pointer; transition: all 0.15s ease; box-shadow: 0 2px 6px rgba(5,150,105,0.25);">
+      <button id="btn_miniapp_confirm_movein" style="width: 100%; padding: 13px; border-radius: 10px; background: #285c76; color: #ffffff; font-weight: 700; border: none; font-size: 14px; cursor: pointer; transition: all 0.15s ease; box-shadow: 0 2px 6px rgba(5,150,105,0.25);">
         🎉 Activate Move-In Golden Path Services
       </button>
     </div>

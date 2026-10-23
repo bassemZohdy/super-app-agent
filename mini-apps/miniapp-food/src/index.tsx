@@ -15,7 +15,7 @@ export function mountFoodMiniApp(context: MiniAppBootstrapContext) {
             <div style="font-size: 12px; color: #64748b;">DEWA Dubai & ADDC Abu Dhabi • gov.smartcity.utilities</div>
           </div>
         </div>
-        <span style="background: #ecfdf5; color: #065f46; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px;">
+        <span style="background: #edf5f8; color: #065f46; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px;">
           SMART METER CONNECTED
         </span>
       </div>
@@ -39,7 +39,7 @@ export function mountFoodMiniApp(context: MiniAppBootstrapContext) {
         <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px;">
           <div style="font-size: 11px; font-weight: 600; color: #64748b;">ELECTRICITY CONSUMPTION</div>
           <div style="font-size: 18px; font-weight: 800; color: #0f172a; margin-top: 4px;">480 kWh</div>
-          <div style="font-size: 11px; color: #059669; margin-top: 2px;">Low Emission Tier</div>
+          <div style="font-size: 11px; color: #285c76; margin-top: 2px;">Low Emission Tier</div>
         </div>
         <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px;">
           <div style="font-size: 11px; font-weight: 600; color: #64748b;">WATER CONSUMPTION</div>
@@ -69,11 +69,11 @@ export function mountFoodMiniApp(context: MiniAppBootstrapContext) {
         </div>
         <div style="display: flex; justify-content: space-between; padding: 12px 14px; background: #f8fafc; font-size: 14px; font-weight: 700;">
           <span>Total Outstanding Amount</span>
-          <span style="color: #059669; font-size: 16px;">420.40 AED</span>
+          <span style="color: #285c76; font-size: 16px;">420.40 AED</span>
         </div>
       </div>
 
-      <button id="btn_miniapp_pay_dewa" style="width: 100%; padding: 13px; border-radius: 10px; background: #059669; color: #ffffff; font-weight: 700; border: none; font-size: 14px; cursor: pointer; transition: all 0.15s ease; box-shadow: 0 2px 6px rgba(5,150,105,0.25);">
+      <button id="btn_miniapp_pay_dewa" style="width: 100%; padding: 13px; border-radius: 10px; background: #285c76; color: #ffffff; font-weight: 700; border: none; font-size: 14px; cursor: pointer; transition: all 0.15s ease; box-shadow: 0 2px 6px rgba(5,150,105,0.25);">
         ⚡ Settle DEWA Bill via DubaiPay (420.40 AED)
       </button>
     </div>

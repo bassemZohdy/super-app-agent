@@ -1,0 +1,180 @@
+{
+  "parkingZones": [
+    {
+      "id": "zone_302a",
+      "name": "Downtown Commercial (Burj Khalifa / Dubai Mall)",
+      "code": "302A",
+      "tariffPerHour": 4,
+      "hourlyRate": 4,
+      "availableSpots": 42,
+      "occupancy": "68%",
+      "lat": 25.1972,
+      "lng": 55.2744
+    },
+    {
+      "id": "zone_101b",
+      "name": "Business Bay Waterfront (Executive Towers)",
+      "code": "101B",
+      "tariffPerHour": 3,
+      "hourlyRate": 3,
+      "availableSpots": 85,
+      "occupancy": "42%",
+      "lat": 25.185,
+      "lng": 55.265
+    },
+    {
+      "id": "zone_204c",
+      "name": "Dubai Marina Promenade",
+      "code": "204C",
+      "tariffPerHour": 4,
+      "hourlyRate": 4,
+      "availableSpots": 15,
+      "occupancy": "85%",
+      "lat": 25.0805,
+      "lng": 55.1403
+    }
+  ],
+  "evChargerStations": [
+    {
+      "id": "chg_1",
+      "name": "DEWA Green Charger - Dubai Mall P3",
+      "operator": "DEWA Green Charger",
+      "plugTypes": [
+        "CCS2 Combo (DC)",
+        "Type 2 Mennekes (AC)"
+      ],
+      "powerKW": 50,
+      "status": "AVAILABLE",
+      "pricePerKWh": 0.29,
+      "lat": 25.1975,
+      "lng": 55.275
+    },
+    {
+      "id": "chg_2",
+      "name": "RTA City Walk Ultra-Fast Hub",
+      "operator": "RTA Express",
+      "plugTypes": [
+        "CCS2 Combo (DC)",
+        "CHAdeMO"
+      ],
+      "powerKW": 150,
+      "status": "AVAILABLE",
+      "pricePerKWh": 0.35,
+      "lat": 25.2085,
+      "lng": 55.262
+    },
+    {
+      "id": "chg_3",
+      "name": "DIFC Gate Avenue EV Station",
+      "operator": "DEWA Green Charger",
+      "plugTypes": [
+        "Type 2 Mennekes (AC)"
+      ],
+      "powerKW": 22,
+      "status": "AVAILABLE",
+      "pricePerKWh": 0.29,
+      "lat": 25.216,
+      "lng": 55.281
+    }
+  ],
+  "drivers": [
+    {
+      "id": "drv_1",
+      "name": "Alex M.",
+      "rating": 4.9,
+      "car": "Toyota Camry (Silver)",
+      "etaMinutes": 4,
+      "fare": 22,
+      "lat": 37.7749,
+      "lng": -122.4194
+    },
+    {
+      "id": "drv_2",
+      "name": "Sara K.",
+      "rating": 4.8,
+      "car": "Hyundai Sonata (White)",
+      "etaMinutes": 7,
+      "fare": 18.5,
+      "lat": 37.7785,
+      "lng": -122.415
+    },
+    {
+      "id": "drv_3",
+      "name": "Marcus Chen",
+      "rating": 4.95,
+      "car": "Tesla Model Y (Midnight Blue)",
+      "etaMinutes": 3,
+      "fare": 28,
+      "lat": 37.772,
+      "lng": -122.421
+    }
+  ],
+  "defaultUtilityAccount": {
+    "premiseId": "DEWA-201948201",
+    "accountNumber": "ACC-DEWA-94812",
+    "consumerName": "Bassem Zohdy",
+    "community": "Downtown Dubai",
+    "unit": "Residences 1, Unit 1402",
+    "activeContract": "EJR-2026-948102",
+    "smartMeterId": "SM-DXB-99824",
+    "electricity": {
+      "currentKWh": 480,
+      "slabTariff": "Green Slab (<=2000 kWh/mo)",
+      "ratePerKWh": 0.23,
+      "cost": 110.4
+    },
+    "water": {
+      "currentGallons": 1200,
+      "slabTariff": "Standard Slab (<=6000 gal/mo)",
+      "ratePerGallon": 0.035,
+      "cost": 42
+    },
+    "housingMunicipalityFee": 240,
+    "sewerageFee": 28,
+    "carbonOffsetKg": 142,
+    "rooftopSolarCreditKWh": 95,
+    "telemetry": {
+      "electricityKwh": 480,
+      "waterGallons": 1200,
+      "tariffSlab": "Green Slab (<=2000 kWh/mo)",
+      "carbonSavedKg": 142
+    }
+  },
+  "activeUtilityBill": {
+    "billId": "DEWA-2026-10-8492",
+    "premiseId": "DEWA-201948201",
+    "accountNumber": "ACC-DEWA-94812",
+    "billingMonth": "October 2026",
+    "electricityCost": 110.4,
+    "waterCost": 42,
+    "housingFee": 240,
+    "sewerageFee": 28,
+    "totalAmount": 420.4,
+    "currency": "AED",
+    "status": "UNPAID",
+    "dueDate": "2026-10-31",
+    "breakdown": {
+      "electricity": 110.4,
+      "water": 42,
+      "housingFee": 240,
+      "sewerage": 28
+    }
+  },
+  "defaultEjariContract": {
+    "contractNumber": "EJR-2026-948102",
+    "tenantName": "Bassem Zohdy",
+    "emiratesId": "784-1988-1234567-1",
+    "landlordName": "Emaar Properties PJSC",
+    "property": {
+      "community": "Downtown Dubai",
+      "building": "Downtown Residences 1",
+      "unitNumber": "Unit 1402",
+      "premiseId": "DEWA-201948201"
+    },
+    "annualRent": 96000,
+    "annualRentAED": 96000,
+    "startDate": "2026-11-01",
+    "endDate": "2027-10-31",
+    "status": "ACTIVE_REGISTERED"
+  }
+}
