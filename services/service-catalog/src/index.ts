@@ -1,6 +1,5 @@
 import { createApplicationServer } from '../../../packages/backend-kit/src/application.ts';
 import { validateRequest, toolSchema } from '../../../packages/protocol-core/src/request-validation.ts';
-import http from 'node:http';
 import { capabilities } from './capabilities.ts';
 
 export interface MiniAppManifest {
@@ -131,7 +130,7 @@ export const defaultEjariContract: EjariContract = {
 function handleCatalogRequest(
   method: string,
   pathname: string,
-  query: Record<string, string> = {},
+  _query: Record<string, string> = {},
   body: any = {}
 ): { status: number; data: any } {
   const normMethod = method.toUpperCase();
@@ -258,16 +257,6 @@ export function executeCatalogRequest(method: string, pathname: string, query: R
       parameters: toolSchema('service-catalog', tool.name) || tool.parameters }));
   }
   return result;
-}
-
-function sendJson(res: http.ServerResponse, statusCode: number, data: any) {
-  res.writeHead(statusCode, {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  });
-  res.end(JSON.stringify(data));
 }
 
 export const server = createApplicationServer('service-catalog', executeCatalogRequest);

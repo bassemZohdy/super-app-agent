@@ -6,7 +6,7 @@ import { checkedSurface, choiceDefaults, readCoreResponse, surfaceActionPayload 
 import { connectEventStream } from '../../../../packages/protocol-core/src/sse-client.ts';
 import { Component, signal, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import type { AGUISurfacePayload, A2UIMessageEnvelope, UIComponentNode } from '../../../../packages/protocol-core/src/index.ts';
+import type { AGUISurfacePayload, UIComponentNode } from '../../../../packages/protocol-core/src/index.ts';
 
 @Component({
   selector: 'app-root',
@@ -304,7 +304,7 @@ export class AppComponent implements OnInit, OnDestroy {
         })
       });
       await this.applyResponse(res);
-    } catch (e) {
+    } catch {
       this.delta.set(null);
       this.showError('Could not read the gateway response. Check status before retrying.');
     } finally { this.pending = false; this.delta.set(null); }
@@ -337,7 +337,7 @@ export class AppComponent implements OnInit, OnDestroy {
         })
       });
       await this.applyResponse(res);
-    } catch (e) {
+    } catch {
       this.delta.set(null);
       this.showError('Could not confirm the action result. Check status before retrying.');
     } finally { this.pending = false; this.delta.set(null); }

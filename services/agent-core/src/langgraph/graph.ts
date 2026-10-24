@@ -162,7 +162,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
         onProgress?.('🏠 Executing Move-In Golden Path: Verifying Ejari, connecting DEWA & issuing residential parking...');
         const ejariRes = await executeCatalogRequest('GET', '/housing/ejari');
         const dewaRes = await executeFoodRequest('GET', '/utilities/consumption');
-        const parkingRes = await executeRideRequest('GET', '/mobility/parking/zones');
+        await executeRideRequest('GET', '/mobility/parking/zones');
 
         state.currentSurface = this.buildMoveInSurface(state.sessionId, ejariRes.data.contract, dewaRes.data.account, profile);
         state.messages.push({
@@ -1263,7 +1263,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
     sessionId: string,
     bill: any,
     account: any,
-    profile?: UserProfile
+    _profile?: UserProfile
   ): AGUISurfacePayload {
     const slab = account?.telemetry?.tariffSlab || account?.electricity?.slabTariff || 'Green Slab (<=2000 kWh/mo)';
     const co2 = account?.telemetry?.carbonSavedKg ?? account?.carbonOffsetKg ?? 142.0;
@@ -1361,8 +1361,8 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
   private static buildPoliceFinesSurface(
     sessionId: string,
     finesData: any,
-    walletBalance: number,
-    profile?: UserProfile
+    _walletBalance: number,
+    _profile?: UserProfile
   ): AGUISurfacePayload {
     const discount = finesData.earlyDiscountAED ?? finesData.discountApplied ?? 46.0;
 
@@ -1537,8 +1537,8 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
   private static buildMoveInSurface(
     sessionId: string,
     contract: any,
-    account: any,
-    profile?: UserProfile
+    _account: any,
+    _profile?: UserProfile
   ): AGUISurfacePayload {
     const rent = contract.annualRentAED ?? contract.annualRent ?? 96000;
 
