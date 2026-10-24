@@ -1,6 +1,7 @@
 /** Payment contract v1. Additive, synthetic-account APIs; previews never authorize execution. */
-export const PAYMENT_CONTRACT_VERSION = '1.2.0';
+export const PAYMENT_CONTRACT_VERSION = '1.3.0';
 export const MAX_PAYMENT_MINOR = 100_000_000;
+export const WALLET_FUNDING_LIMITS = { minMinor: 100, maxMinor: 50000, balanceMaxMinor: 1000000, feeMinor: 0 } as const;
 export const cardPresets = [
   { id: 'approved', name: 'Everyday demo card', last4: '4242', behavior: 'APPROVE', limitMinor:200000 },
   { id: 'declined', name: 'Declined demo card', last4: '0002', behavior: 'DECLINE', limitMinor:200000 },
@@ -29,7 +30,15 @@ export type CardAuthorization={id:string;orderId:string;sourceId:string;amountMi
 export type PaymentAuthorizationReview={id:string;accountId:string;ownerSub:string;version:number;state:'AWAITING_APPROVAL'|'REQUIRES_ACTION'|'AUTHORIZED'|'CAPTURING'|'CAPTURED'|'RECONCILIATION_REQUIRED'|'SETTLED'|'FAILED'|'CANCELLED';approvalDigest:string;expiresAt:string;createdAt:string;approvedAt?:string;failureCode?:string;fundsCaptured:boolean;admissionId?:string;paymentId?:string;receipt?:{receiptNumber:string;obligationId:string;amountMinor:number;currency:'AED'};
   quote:{payable:Payable;billingAccount:BillingAccount;source:PaymentMethod;amountMinor:number;feeMinor:number;totalMinor:number;currency:'AED';createdAt:string;expiresAt:string};authorization?:CardAuthorization};
 export type PaymentDependency = { resourceType:'METHOD'|'BILLER';resourceId:string;dependentKind:'ORDER'|'HOLD'|'MANDATE';dependentId:string;status:'ACTIVE' };
-export type PaymentOverview = { contractVersion: string; accountId: string; previewOnly: boolean; dependencies: PaymentDependency[]; methods: PaymentMethod[]; defaultMethodId: string; presets: unknown[]; billingAccounts: BillingAccount[]; candidates: BillerCandidate[]; payables: Payable[]; orders?:PaymentAuthorizationReview[];cardBalances?:CardBalance[];wallet: { balanceMinor: number; heldMinor: number; availableMinor: number; currency: 'AED' } };
+export type WalletFundingOrder = {
+  id:string; accountId:string; ownerSub:string; version:number;
+  state:'AWAITING_APPROVAL'|'REQUIRES_ACTION'|'AUTHORIZED'|'SETTLED'|'FAILED'|'CANCELLED';
+  approvalDigest:string; createdAt:string; expiresAt:string; fundsCaptured:boolean; failureCode?:string;
+  quote:{source:PaymentMethod;amountMinor:number;feeMinor:number;totalMinor:number;currency:'AED';walletAccountId:string};
+  authorization?:CardAuthorization;
+  receipt?:{receiptNumber:string;amountMinor:number;feeMinor:number;currency:'AED';balanceMinor:number;capturedAt:string};
+};
+export type PaymentOverview = { contractVersion: string; accountId: string; previewOnly: boolean; dependencies: PaymentDependency[]; methods: PaymentMethod[]; defaultMethodId: string; presets: unknown[]; billingAccounts: BillingAccount[]; candidates: BillerCandidate[]; payables: Payable[]; orders?:PaymentAuthorizationReview[];fundingOrders?:WalletFundingOrder[];cardBalances?:CardBalance[];wallet: { balanceMinor: number; heldMinor: number; availableMinor: number; currency: 'AED' } };
 export const orderStates = ['DRAFT','AWAITING_APPROVAL','READY','REQUIRES_ACTION','AUTHORIZED','CAPTURED','SETTLING','SETTLED','FAILED','CANCELLED','RECONCILIATION_REQUIRED','REFUNDING','PARTIALLY_REFUNDED','REFUNDED'] as const;
 export const settlementStates = ['UNCLAIMED','CLAIMED','APPLIED','RELEASED','UNKNOWN'] as const;
 export const attemptStates = ['PENDING','REQUIRES_ACTION','AUTHORIZED','CAPTURED','DECLINED','VOIDED','UNKNOWN'] as const;
@@ -48,6 +57,7 @@ export const paymentSchemas = {
   archiveAccount: paymentObject({ billingAccountId: id, expectedVersion: version }),
   preview: paymentObject({ payableId: id, methodId: id, expectedMethodVersion: version }),
   createOrder:paymentObject({provider:{enum:['dewa','etisalat','du','police']},payableId:id,expectedPayableRevision:digestSchema,methodId:id,expectedMethodVersion:version}),
+  createWalletFunding:paymentObject({amountMinor:{type:'integer',minimum:WALLET_FUNDING_LIMITS.minMinor,maximum:WALLET_FUNDING_LIMITS.maxMinor},methodId:id,expectedMethodVersion:version}),
   approveOrder:paymentObject({expectedVersion:version,approvalDigest:digestSchema}),
   challengeOrder:paymentObject({expectedVersion:version,approvalDigest:digestSchema,challengeId:id,decision:{enum:['APPROVE','REJECT']}}),
   cancelOrder:paymentObject({expectedVersion:version}),

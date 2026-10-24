@@ -1,6 +1,6 @@
 # Payment journal and migration
 
-PAY-02 adds the payment provider's balanced journal and wallet projection checks. Current wallet top-ups, wallet/external-simulated captures and refunds use it. Saved-card order execution, card limits/challenges, settlement claims, recurring mandates and automatic services are separate unfinished tasks. [Payment setup](payment-accounts.md) · [Executed migration evidence](../reports/2026-10-24-payment-ledger.md).
+PAY-02 adds the payment provider's balanced journal and wallet projection checks. Current wallet top-ups, wallet/external-simulated captures and refunds use it. Saved-card bill execution, finite issuer/challenges, settlement claims and card-funded wallet credits now use guarded order paths; recurring mandates and automatic services remain separate unfinished tasks. [Payment setup](payment-accounts.md) · [Executed migration evidence](../reports/2026-10-24-payment-ledger.md).
 
 ## Stored records and invariants
 

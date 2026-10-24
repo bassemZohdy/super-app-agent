@@ -59,6 +59,9 @@ route('agent-core', 'POST', '/api/a2ui/action', coreAction);
 route('agent-core', 'POST', '/api/a2ui/cancel', object({ sessionId, accountId: id, surfaceRevision: coreAction.properties.surfaceRevision }, ['sessionId','surfaceRevision']));
 route('agent-core', 'GET', '/api/services', object({ accountId: id }));
 route('agent-core', 'GET', '/api/payments/overview', object({ accountId: id }, ['accountId']));
+route('agent-core','GET','/api/payments/wallet-funding-orders',object({accountId:id},['accountId']));
+route('agent-core','POST','/api/payments/wallet-funding-orders',withPaymentAccount(paymentSchemas.createWalletFunding));
+for(const [action,schema] of Object.entries({approve:paymentSchemas.approveOrder,challenge:paymentSchemas.challengeOrder,cancel:paymentSchemas.cancelOrder,execute:paymentSchemas.executeOrder}))route('agent-core','POST',`/api/payments/wallet-funding-orders/${action}`,withPaymentAccount(withOrderId(schema)));
 route('agent-core','GET','/api/payments/orders',object({accountId:id},['accountId']));
 for (const [path, schema] of Object.entries({
   methods: paymentSchemas.createMethod, 'methods/status': paymentSchemas.methodStatus, 'methods/default': paymentSchemas.defaultMethod,

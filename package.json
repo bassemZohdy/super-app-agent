@@ -54,7 +54,9 @@
     "simulator": "node --experimental-strip-types scripts/simulator.ts",
     "simulator:verify": "node --experimental-strip-types scripts/verify-simulator.ts",
     "demo:verify:inventory": "node --experimental-strip-types scripts/verify-payment-inventory.ts",
-    "demo:verify:payment-authorization": "node --experimental-strip-types scripts/e2e/payment-authorization.ts"
+    "demo:verify:payment-authorization": "node --experimental-strip-types scripts/e2e/payment-authorization.ts",
+    "demo:verify:wallet-funding": "node --experimental-strip-types scripts/e2e/wallet-funding.ts",
+    "record:wallet-funding": "node --experimental-strip-types scripts/e2e/wallet-funding.ts --record"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^13.1.0",

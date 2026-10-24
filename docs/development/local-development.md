@@ -97,3 +97,5 @@ Finite interactive authorization reviews are available without a new environment
 Current settlement uses five separate provider claim clients. `npm run demo:realm` reconciles their narrow roles; optional `PROVIDER_{NAME}_CLAIM_SECRET` values must match each source container and realm. The shared proof client stays read-only. [Settlement protocol, migration and recovery](settlement-claims.md).
 
 [Bill checkout](payment-checkout.md) is enabled for signed-in owners. Reload payments/source providers and food/wallet/telecom applications together when upgrading this contract; their legacy bill routes now use stored execution. The migration verifier performs this coordinated restart without clearing volumes.
+
+Saved-card wallet funding is available in React Payment accounts. After backend changes, use the serial `npm run demo:verify:payment-ledger` restart/preservation check, then `npm run demo:wait` and `npm run demo:verify:inventory`. [Funding guide](wallet-funding.md).

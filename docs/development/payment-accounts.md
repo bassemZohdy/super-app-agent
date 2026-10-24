@@ -1,6 +1,6 @@
 # Payment accounts and quote review
 
-Implemented: PAY-01–PAY-05 and PAY-09–PAY-12. React can manage owned synthetic cards/biller links and request a fresh non-executable payment review. Existing bill service payments use the same stored wallet-order flow; other service types retain their separate adapters. [Stored interactive authorization reviews](payment-authorization.md) now support finite wallet/card holds and one-time challenges. Bill capture/settlement is now available through a separate explicit Pay action; automatic rules remain disabled. [Full backlog](../../TODO.md#payment-accounts-and-automation-demo--planned-backlog) · [Design](../architecture/payment-automation-demo.md).
+Implemented: PAY-01–PAY-05 and PAY-09–PAY-13. React can manage owned synthetic cards/biller links and request a fresh non-executable payment review. Existing bill service payments use the same stored wallet-order flow; other service types retain their separate adapters. [Stored interactive authorization reviews](payment-authorization.md) now support finite wallet/card holds and one-time challenges. Bill capture/settlement is now available through a separate explicit Pay action; automatic rules remain disabled. [Full backlog](../../TODO.md#payment-accounts-and-automation-demo--planned-backlog) · [Design](../architecture/payment-automation-demo.md).
 
 The Bills & fines section shows source-owned revisions, due state, discount eligibility and closed cycles for linked accounts. Seeded prior-cycle history is explicitly labelled; withdrawn/expired/restricted obligations cannot be selected for review. [Payable API and lifecycle boundaries](payables.md).
 
@@ -21,7 +21,7 @@ The panel scrolls independently, stacks on small screens and returns focus to it
 
 ## Current APIs
 
-Core paths use the authenticated signed owner. GET requires `accountId` as a query parameter; POST includes it in JSON. Provider paths are under `/v1/accounts/{accountId}` and independently verify that owner. New provider OpenAPI is **2.5.0**, additive to the existing `/v1` financial routes.
+Core paths use the authenticated signed owner. GET requires `accountId` as a query parameter; POST includes it in JSON. Provider paths are under `/v1/accounts/{accountId}` and independently verify that owner. New provider OpenAPI is **2.6.0**, additive to the existing `/v1` financial routes.
 
 | Core route | Provider route / behavior |
 | --- | --- |
@@ -45,7 +45,7 @@ Dependency registration/release is server-internal, with no public mutation endp
 
 ## Compatibility and verification
 
-`packages/protocol-core/src/payments.ts` owns additive request/method/biller and future-order response schemas plus state vocabularies. The older full payment-order schema describes the broader full-order contract; the separate authorization-review API persists reviews and holds now. Existing wallet/top-up/capture/refund request shapes and old simulated funding flags remain unchanged for current flows; new saved-card IDs cannot be passed as legacy charge sources.
+`packages/protocol-core/src/payments.ts` owns additive request/method/biller and future-order response schemas plus state vocabularies. The older full payment-order schema describes the broader full-order contract; the separate authorization-review API persists reviews and holds now. Existing wallet/top-up/capture/refund request shapes and old simulated funding flag shapes remain compatible, with top-ups now resolving to persistent finite issuer cards; new saved-card IDs cannot be passed as legacy charge sources.
 
 ```bash
 npm run demo:verify:payment-accounts
@@ -54,6 +54,8 @@ npm run check
 
 The first command uses real local Keycloak, a separate React browser and isolated provider/SQLite state; it requires Keycloak/Redis running, Chrome and free ports 3002/14000–14107. It covers card setup/idempotency, ownership/invalid requests, verified linking, quote amount/source, unchanged funds, disable/default semantics, stale versions, account switching/reload, mobile width and keyboard focus. The extended verifier also checks lifecycle changes and revision-bound settlement against a separate isolated owner, asserting one exact journal debit. The payment-setup owner retains its initial funds. No physical microphone, cloud inference or normal demo database is used. [Executed evidence](../reports/2026-10-24-payment-accounts.md).
 
-The separate signed-owner settlement case now also verifies gateway APPLIED/ACK status, paid-refund/human-release denial, non-application release/refund and a separate du workload. It does not enable stored-review capture. [Settlement guards](settlement-claims.md).
+The separate signed-owner settlement case now also verifies gateway APPLIED/ACK status, paid-refund/human-release denial, non-application release/refund and a separate du workload. It now also exercises stored bill capture. [Settlement guards](settlement-claims.md).
 
 For DEWA/Etisalat/du, the stored review now offers explicit Pay after authorization/challenge and produces a confirmed bill receipt. Pending capture/settlement uses Inspect or resume on that same order. [Checkout and compatibility migration](payment-checkout.md).
+
+[Add wallet funds from a selected saved card](wallet-funding.md): owned source/amount review, explicit challenge/capture, balanced credit and a restored receipt.
