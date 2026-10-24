@@ -17,6 +17,9 @@ export interface MiniAppManifest {
   mcpEndpoint: string;
 }
 
+// MCP endpoint advertised for every mini-app; MCP_ENDPOINT overrides the local default (read at module load).
+const MCP_ENDPOINT = process.env.MCP_ENDPOINT || 'http://localhost:4000/mcp';
+
 export const miniApps: MiniAppManifest[] = [
   {
     id: 'gov.smartcity.mobility',
@@ -30,7 +33,7 @@ export const miniApps: MiniAppManifest[] = [
     trust: 'repository',
     description: 'RTA & Mawaqif smart parking meters, Salik toll management, and DEWA EV green chargers',
     permissions: [],
-    mcpEndpoint: 'http://localhost:4000/mcp',
+    mcpEndpoint: MCP_ENDPOINT,
   },
   {
     id: 'gov.smartcity.utilities',
@@ -44,7 +47,7 @@ export const miniApps: MiniAppManifest[] = [
     trust: 'repository',
     description: 'Electricity & water smart meter telemetry, billing, and Green Slab eco-tariffs',
     permissions: [],
-    mcpEndpoint: 'http://localhost:4000/mcp',
+    mcpEndpoint: MCP_ENDPOINT,
   },
   {
     id: 'gov.smartcity.citizenpay',
@@ -58,7 +61,7 @@ export const miniApps: MiniAppManifest[] = [
     trust: 'repository',
     description: 'Unified civic payments and fines settlement, and digital wallet',
     permissions: [],
-    mcpEndpoint: 'http://localhost:4000/mcp',
+    mcpEndpoint: MCP_ENDPOINT,
   },
   {
     id: 'gov.smartcity.housing',
@@ -72,7 +75,7 @@ export const miniApps: MiniAppManifest[] = [
     trust: 'repository',
     description: 'Tenancy contract management, automated DEWA connection, and residential parking permits',
     permissions: [],
-    mcpEndpoint: 'http://localhost:4000/mcp',
+    mcpEndpoint: MCP_ENDPOINT,
   },
   // Backward compatibility alias for legacy tests
   {
@@ -87,7 +90,7 @@ export const miniApps: MiniAppManifest[] = [
     trust: 'repository',
     description: 'Legacy ride hailing alias',
     permissions: [],
-    mcpEndpoint: 'http://localhost:4000/mcp',
+    mcpEndpoint: MCP_ENDPOINT,
   },
 ];
 
