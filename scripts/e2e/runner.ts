@@ -159,8 +159,8 @@ export async function runJourneys({ video }: { video: boolean }) {
 
     await begin('03', 'Parking: select, activate and extend', 'Review the account-owned vehicle and zone. Confirm two hours, then review the extension receipt.');
     await service('Mobility', 'parking_selection_card'); const beforeParking = await balance();
-    const option = nodes(current!.surface.view).find(node => node.type === 'ChoiceGroup')!.properties!.options.find((option: { id: string }) => option.id === 'zone_302a');
-    await page.locator('.ag-choice-item').filter({ hasText: option.title }).click(); await hold(pace.action);
+    const option = nodes(current!.surface.view).find(node => node.type === 'ChoiceGroup')!.properties!.options!.find((option: { id: string }) => option.id === 'zone_302a');
+    await page.locator('.ag-choice-item').filter({ hasText: option!.title }).click(); await hold(pace.action);
     await confirm('activate_parking', 'parking_active_card');
     assert.equal(await balance(), beforeParking - 800);
     const meter = (await api(1, '/mobility/parking/active')).meters[0]; assert.equal(meter.zoneId, 'zone_302a'); assert.equal(meter.durationHours, 2);

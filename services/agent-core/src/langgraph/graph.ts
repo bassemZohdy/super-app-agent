@@ -156,7 +156,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
             properties: { label: subscription.name, value: `${subscription.monthlyAmount} AED / month`, subtext: subscription.status } })),
           ...bills.flatMap((bill: any): UIComponentNode[] => [
             { type: 'MetricWidget', id: bill.billId, properties: { label: 'Current bill', value: `${bill.totalAmount} AED`, subtext: bill.status } },
-            ...(bill.status === 'UNPAID' ? [{ type: 'Button' as const, id: `pay_${bill.billId}`, properties: { label: `${process.env.PROVIDER_INTEGRATION==='true'?'Review funding for':'Pay'} ${bill.totalAmount} AED`, variant: 'primary' },
+            ...(bill.status === 'UNPAID' ? [{ type: 'Button' as const, id: `pay_${bill.billId}`, properties: { label: `${process.env.PROVIDER_INTEGRATION==='true'?'Review funding for':'Pay'} ${bill.totalAmount} AED`, variant: 'primary' as const },
               onEvents: [{ event: 'onPress' as const, actionType: 'AGENT_ACTION_DISPATCH' as const, payload: { action: 'pay_telecom_bill', provider, billId: bill.billId,...(bill.payableRevision?{expectedPayableRevision:bill.payableRevision,expectedAmountMinor:Math.round(bill.totalAmount*100)}:{}) } }] }] : []),
           ]),
         ] } };

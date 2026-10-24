@@ -87,6 +87,10 @@ function SurfaceCardWrapper({
   );
 }
 
+/** Dispatch name for an event: the payload's `action` when it is a non-empty string, otherwise 'submit'. */
+const actionNameOf = (payload: Record<string, unknown>): string =>
+  typeof payload.action === 'string' && payload.action ? payload.action : 'submit';
+
 export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchAction, isPending }) => {
   const { choices, setChoice, view, formValues, setFormValue, submittingAction, setSubmittingAction } =
     useContext(SurfaceFormContext);
@@ -264,7 +268,7 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
               if (onPressEvent.actionType === 'LAUNCH_MINIAPP') {
                 onDispatchAction('LAUNCH_MINIAPP', onPressEvent.payload);
               } else {
-                onDispatchAction(onPressEvent.payload.action || 'submit', onPressEvent.payload);
+                onDispatchAction(actionNameOf(onPressEvent.payload), onPressEvent.payload);
               }
             }
           }}
@@ -577,7 +581,7 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
               if (eventBinding.actionType === 'LAUNCH_MINIAPP') {
                 onDispatchAction('LAUNCH_MINIAPP', eventBinding.payload);
               } else {
-                const action = eventBinding.payload.action || 'submit';
+                const action = actionNameOf(eventBinding.payload);
                 setSubmittingAction(action);
                 try {
                   if (!view) throw new Error('No active surface.');

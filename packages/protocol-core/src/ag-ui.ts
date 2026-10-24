@@ -25,7 +25,7 @@ export type ActionType = 'AGENT_ACTION_DISPATCH' | 'LAUNCH_MINIAPP' | 'HOST_NAVI
 export interface ActionBinding {
   event: ActionEventName;
   actionType: ActionType;
-  payload: Record<string, any>;
+  payload: Record<string, unknown>;
 }
 
 export interface UIStyle {
@@ -68,7 +68,7 @@ export interface ChoiceOption {
   price?: string;
   badge?: string;
   icon?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface ChoiceGroupProperties {
@@ -120,20 +120,57 @@ export interface DataTableColumn {
 
 export interface DataTableProperties {
   columns: DataTableColumn[];
-  rows: Record<string, any>[];
+  rows: Record<string, unknown>[];
 }
 
 export interface MiniAppEmbedProperties {
   miniAppId: string;
   entryRoute?: string;
-  params?: Record<string, any>;
+  params?: Record<string, unknown>;
+  height?: string;
+}
+
+/**
+ * Flat view of every property a component may carry. Each field is optional
+ * because the set of fields depends on `UIComponentNode.type`; consumers must
+ * check the field they read.
+ */
+export interface UIComponentProperties {
+  text?: string;
+  level?: HeadingProperties['level'];
+  muted?: boolean;
+  size?: TextProperties['size'];
+  variant?: ButtonProperties['variant'] | BadgeProperties['variant'];
+  label?: string;
+  disabled?: boolean;
+  fullWidth?: boolean;
+  icon?: string;
+  name?: string;
+  selectedId?: string;
+  options?: ChoiceOption[];
+  placeholder?: string;
+  inputType?: FormInputProperties['inputType'];
+  defaultValue?: string;
+  value?: MetricWidgetProperties['value'];
+  subtext?: string;
+  trend?: MetricWidgetProperties['trend'];
+  center?: MapCoordinate;
+  zoom?: number;
+  markers?: MapMarker[];
+  routePolyline?: MapCoordinate[];
+  interactive?: boolean;
+  columns?: DataTableColumn[];
+  rows?: Record<string, unknown>[];
+  miniAppId?: string;
+  entryRoute?: string;
+  params?: Record<string, unknown>;
   height?: string;
 }
 
 export interface UIComponentNode {
   type: ComponentType;
   id: string;
-  properties?: Record<string, any>;
+  properties?: UIComponentProperties;
   style?: UIStyle;
   children?: UIComponentNode[];
   onEvents?: ActionBinding[];
@@ -155,6 +192,19 @@ export interface ValidationResult<T> {
   errors?: string[];
 }
 
+const EVENT_NAMES: readonly unknown[] = ['onPress', 'onChange', 'onSubmit'];
+const ACTION_TYPES: readonly unknown[] = ['AGENT_ACTION_DISPATCH', 'LAUNCH_MINIAPP', 'HOST_NAVIGATE'];
+
+/** True for non-null objects, including arrays (matches the `!x || typeof x !== 'object'` checks). */
+function isObjectLike(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object';
+}
+
+/** True for non-null, non-array objects. */
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return isObjectLike(value) && !Array.isArray(value);
+}
+
 /**
  * Validate a UIComponentNode recursively
  */
@@ -171,7 +221,7 @@ export function validateUIComponentNode(
     try { if (new TextEncoder().encode(JSON.stringify(node)).byteLength > 262144) return { success: false, errors: ['UI byte budget exceeded'] }; }
     catch { return { success: false, errors: ['UI must be serializable JSON'] }; }
   }
-  const n = node as Record<string, any>;
+  const n = node as Record<string, unknown>;
   if (typeof n.id === 'string') {
     if (budget.ids.has(n.id)) errors.push(`${path}: Duplicate component ID`);
     budget.ids.add(n.id);
@@ -179,14 +229,13 @@ export function validateUIComponentNode(
   if (typeof n.id !== 'string' || !n.id.trim() || n.id.length > 128) {
     errors.push(`${path}: Missing or invalid 'id' string`);
   }
-  if (!SUPPORTED_COMPONENT_TYPES.includes(n.type)) {
+  if (!SUPPORTED_COMPONENT_TYPES.some((type) => type === n.type)) {
     errors.push(`${path}: Invalid component type '${n.type}'. Expected one of: ${SUPPORTED_COMPONENT_TYPES.join(', ')}`);
   }
-  if (n.properties !== undefined &&
-      (!n.properties || typeof n.properties !== 'object' || Array.isArray(n.properties))) {
+  if (n.properties !== undefined && !isPlainRecord(n.properties)) {
     errors.push(`${path}.properties: Must be an object`);
   }
-  const props = n.properties || {};
+  const props: Record<string, unknown> = isObjectLike(n.properties) ? n.properties : {};
   if (n.type === 'Heading' || n.type === 'Text' || n.type === 'Badge') {
     if (typeof props.text !== 'string' || props.text.length > 4000) {
       errors.push(`${path}.properties.text: Must be a string (max 4000 chars)`);
@@ -200,20 +249,20 @@ export function validateUIComponentNode(
   }
   if (n.type === 'ChoiceGroup') {
     if (!Array.isArray(props.options) || props.options.length > 100 ||
-        props.options.some((o: any) => !o || typeof o.id !== 'string' || typeof o.title !== 'string')) {
+        props.options.some((o: unknown) => !isObjectLike(o) || typeof o.id !== 'string' || typeof o.title !== 'string')) {
       errors.push(`${path}.properties.options: Invalid choices`);
     }
   }
   if (n.type === 'MetricWidget' && (typeof props.label !== 'string' || !['string','number'].includes(typeof props.value) || (typeof props.value === 'number' && !Number.isFinite(props.value)))) errors.push(`${path}: Invalid metric`);
   if (n.type === 'MapViewer') {
-    const coordinate = (p: any) => p && typeof p === 'object' && Number.isFinite(p.lat) && p.lat >= -90 && p.lat <= 90 && Number.isFinite(p.lng) && p.lng >= -180 && p.lng <= 180;
-    if ((props.center !== undefined && !coordinate(props.center)) || (props.zoom !== undefined && (!Number.isFinite(props.zoom) || props.zoom < 0 || props.zoom > 22)) ||
-      (props.markers !== undefined && (!Array.isArray(props.markers) || props.markers.length > 100 || props.markers.some((p: any) => !coordinate(p) || typeof p.id !== 'string'))) ||
-      (props.routePolyline !== undefined && (!Array.isArray(props.routePolyline) || props.routePolyline.length > 1000 || props.routePolyline.some((p: any) => !coordinate(p))))) errors.push(`${path}: Invalid map coordinates`);
+    const coordinate = (p: unknown) => isObjectLike(p) && Number.isFinite(p.lat) && typeof p.lat === 'number' && p.lat >= -90 && p.lat <= 90 && Number.isFinite(p.lng) && typeof p.lng === 'number' && p.lng >= -180 && p.lng <= 180;
+    if ((props.center !== undefined && !coordinate(props.center)) || (props.zoom !== undefined && (typeof props.zoom !== 'number' || !Number.isFinite(props.zoom) || props.zoom < 0 || props.zoom > 22)) ||
+      (props.markers !== undefined && (!Array.isArray(props.markers) || props.markers.length > 100 || props.markers.some((p: unknown) => !coordinate(p) || !isObjectLike(p) || typeof p.id !== 'string'))) ||
+      (props.routePolyline !== undefined && (!Array.isArray(props.routePolyline) || props.routePolyline.length > 1000 || props.routePolyline.some((p: unknown) => !coordinate(p))))) errors.push(`${path}: Invalid map coordinates`);
   }
-  if (n.type === 'ChoiceGroup' && Array.isArray(props.options) && new Set(props.options.map((o: any) => o?.id)).size !== props.options.length) errors.push(`${path}: Duplicate choice IDs`);
+  if (n.type === 'ChoiceGroup' && Array.isArray(props.options) && new Set(props.options.map((o: unknown) => (isObjectLike(o) ? o.id : undefined))).size !== props.options.length) errors.push(`${path}: Duplicate choice IDs`);
   if (n.type === 'DataTable' && (!Array.isArray(props.columns) || !Array.isArray(props.rows) ||
-      props.columns.length > 100 || props.rows.length > 500 || props.columns.some((column: any) => !column || typeof column.key !== 'string' || !column.key || typeof column.title !== 'string') || props.rows.some((row: any) => !row || typeof row !== 'object' || Array.isArray(row)))) {
+      props.columns.length > 100 || props.rows.length > 500 || props.columns.some((column: unknown) => !isPlainRecord(column) || typeof column.key !== 'string' || !column.key || typeof column.title !== 'string') || props.rows.some((row: unknown) => !isPlainRecord(row)))) {
     errors.push(`${path}.properties: Invalid or oversized DataTable`);
   }
   if (n.type === 'MiniAppEmbed' && typeof props.miniAppId !== 'string') {
@@ -236,17 +285,17 @@ export function validateUIComponentNode(
     if (!Array.isArray(n.onEvents) || n.onEvents.length > 10) {
       errors.push(`${path}.onEvents: Must be an array (max 10 events)`);
     } else {
-      n.onEvents.forEach((evt: any, idx: number) => {
+      n.onEvents.forEach((evt: unknown, idx: number) => {
         const prefix = `${path}.onEvents[${idx}]`;
-        if (!evt || typeof evt !== 'object') {
+        if (!isObjectLike(evt)) {
           errors.push(`${prefix}: Must be an object`);
           return;
         }
-        if (!['onPress', 'onChange', 'onSubmit'].includes(evt.event)) errors.push(`${prefix}: Invalid event '${evt.event}'`);
-        if (!['AGENT_ACTION_DISPATCH', 'LAUNCH_MINIAPP', 'HOST_NAVIGATE'].includes(evt.actionType)) {
+        if (!EVENT_NAMES.some((name) => name === evt.event)) errors.push(`${prefix}: Invalid event '${evt.event}'`);
+        if (!ACTION_TYPES.some((name) => name === evt.actionType)) {
           errors.push(`${prefix}: Invalid actionType '${evt.actionType}'`);
         }
-        if (!evt.payload || typeof evt.payload !== 'object' || Array.isArray(evt.payload)) {
+        if (!isPlainRecord(evt.payload)) {
           errors.push(`${prefix}: Payload must be an object`);
         } else if (evt.actionType === 'AGENT_ACTION_DISPATCH' &&
             (typeof evt.payload.action !== 'string' || !evt.payload.action)) {
@@ -255,7 +304,7 @@ export function validateUIComponentNode(
       });
     }
   }
-  return errors.length ? { success: false, errors } : { success: true, data: n as UIComponentNode };
+  return errors.length ? { success: false, errors } : { success: true, data: node as UIComponentNode };
 }
 
 /**
@@ -268,7 +317,7 @@ export function validateAGUISurface(data: unknown): ValidationResult<AGUISurface
     return { success: false, errors: ['Payload must be an object'] };
   }
 
-  const payload = data as Record<string, any>;
+  const payload = data as Record<string, unknown>;
 
   if (payload.version !== '1.0.0') {
     errors.push(`Invalid version '${payload.version}'. Expected '1.0.0'`);
@@ -287,7 +336,7 @@ export function validateAGUISurface(data: unknown): ValidationResult<AGUISurface
   }
   if (payload.assistantMessage !== undefined) {
     const message = payload.assistantMessage;
-    if (!message || typeof message !== 'object' || typeof message.id !== 'string' || !message.id ||
+    if (!isObjectLike(message) || typeof message.id !== 'string' || !message.id ||
         typeof message.text !== 'string' || !message.text.trim() || message.text.length > 4000) {
       errors.push('Invalid assistant message');
     }
@@ -301,7 +350,7 @@ export function validateAGUISurface(data: unknown): ValidationResult<AGUISurface
     return { success: false, errors };
   }
 
-  return { success: true, data: payload as AGUISurfacePayload };
+  return { success: true, data: data as AGUISurfacePayload };
 }
 
 /**
@@ -348,7 +397,7 @@ export function createText(id: string, text: string, muted = false): UIComponent
 export function createButton(
   id: string,
   label: string,
-  actionPayload: Record<string, any>,
+  actionPayload: Record<string, unknown>,
   actionType: ActionType = 'AGENT_ACTION_DISPATCH',
   variant: UIStyle['variant'] = 'primary'
 ): UIComponentNode {

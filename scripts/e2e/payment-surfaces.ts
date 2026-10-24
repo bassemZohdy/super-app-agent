@@ -22,7 +22,7 @@ try{
   const service=async(name:string)=>{await respond('/api/manual/prepare',()=>page!.getByRole('button',{name,exact:true}).click());await review();};
   const act=async(action:string)=>{const n=nodes(surface.view).find(n=>n.onEvents?.some(e=>e.payload.action===action));assert.ok(n,`Expected ${action}`);await respond('/api/a2ui/action',()=>page!.getByRole('button',{name:n.properties!.label,exact:true}).click());await review();};
   const choose=async(name:string)=>{await page!.getByRole('radio').filter({hasText:name}).click();await review();await act('payment_surface_choose');};
-  const getOrder=async()=>{const overview=(await api('overview')).data;return overview.orders.find((o:any)=>o.id===nodes(surface.view).find(n=>n.id==='review_reference')!.properties!.text.split(' ')[1]);};
+  const getOrder=async()=>{const overview=(await api('overview')).data;return overview.orders.find((o:any)=>o.id===nodes(surface.view).find(n=>n.id==='review_reference')!.properties!.text!.split(' ')[1]);};
   const snapshot=async()=> (await api('overview')).data;
   const send=async(text:string)=>{await page!.getByRole('textbox',{name:'Message Rashid',exact:true}).fill(text);await respond('/api/a2ui/intent',()=>page!.getByRole('button',{name:'Send message',exact:true}).click());await review();};
   const forge=async(payload:Record<string,unknown>,action='payment_surface_authorize',bearer=token)=>{const r=await fetch(`${env!.coreUrl}/api/a2ui/action`,{method:'POST',headers:{Authorization:`Bearer ${bearer}`,'Content-Type':'application/json'},body:JSON.stringify({sessionId:surface.sessionId,accountId,surfaceRevision:surface.revision,action,payload}),signal:AbortSignal.timeout(30000)});return r.status;};
@@ -41,10 +41,10 @@ try{
   await act('payment_surface_refresh');assert.equal(surface.view.id,'payment_receipt_card');assert.equal((await snapshot()).orders.find((r:any)=>r.id===id).state,'SETTLED');assert.equal((await snapshot()).cardBalances.find((b:any)=>b.sourceId===card.id).spentMinor,42040);await outcome();
   await mkdir('docs/reports/assets',{recursive:true});await page.getByRole('complementary',{name:'Service details',exact:true}).screenshot({path:'docs/reports/assets/conversation-payment-receipt.png'});
   console.log('PASS: chosen challenged card, provider restart/session reload and actual lost settlement response recover the same capture; wallet unchanged.');
-  await service('Payments');await act('topup_wallet');assert.equal(nodes(surface.view).find(n=>n.type==='ChoiceGroup')!.properties!.options.length,1);await choose('Conversation challenge card');await act('payment_surface_authorize');await act('payment_surface_challenge');assert.equal((await snapshot()).wallet.balanceMinor,150000);await act('payment_surface_execute');assert.equal(surface.view.id,'payment_receipt_card');assert.equal((await snapshot()).wallet.balanceMinor,155000);await outcome();
+  await service('Payments');await act('topup_wallet');assert.equal(nodes(surface.view).find(n=>n.type==='ChoiceGroup')!.properties!.options!.length,1);await choose('Conversation challenge card');await act('payment_surface_authorize');await act('payment_surface_challenge');assert.equal((await snapshot()).wallet.balanceMinor,150000);await act('payment_surface_execute');assert.equal(surface.view.id,'payment_receipt_card');assert.equal((await snapshot()).wallet.balanceMinor,155000);await outcome();
   console.log('PASS: conversational wallet reload requires the selected saved-card challenge and captures before crediting exactly AED 50.');
   await send('Pay my DEWA bill, settle police fines and recharge my Salik tag');await act('confirm_smartcity_checkout');await choose('Conversation challenge card');await act('payment_surface_authorize');
-  const groupId=nodes(surface.view).find(n=>n.id==='review_reference')!.properties!.text.split(' ')[1];
+  const groupId=nodes(surface.view).find(n=>n.id==='review_reference')!.properties!.text!.split(' ')[1];
   for(let step=0;step<5&&surface.view.id!=='payment_receipt_card';step++){
     if(nodes(surface.view).some(n=>n.onEvents?.some(e=>e.payload.action==='payment_surface_challenge')))await act('payment_surface_challenge');
     else await act('payment_surface_execute');
