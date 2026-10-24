@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 25 October 2026 — named simulator failpoints (SIM-04)
+
+Add a named, process-local failpoint registry for the demo payment simulator. Three checkout boundaries (after admission, after a committed capture, after the provider settlement request) can lose their response once. Tests prove each recovers the original order with one debit and one payment. Callback-fault coverage already existed; scenario arming through guarded controls (SIM-05) remains open.
+
 ## 25 October 2026 — hourly model token budget (P1-05)
 
 Add a cumulative hourly token ceiling (40,000 estimated tokens per citizen, on top of the 30-call limit) to the local and hosted model clients. Estimates use the bounded input size plus the 192-token output reservation, and a test proves the cap binds before the call count does.

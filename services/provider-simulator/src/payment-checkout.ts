@@ -5,6 +5,7 @@ import type { PaymentOrders } from './payment-orders.ts';
 import type { PayableAdmission } from './payable-admissions.ts';
 import { SettlementError } from './payment-claims.ts';
 import { initializeRecoveryAudit,appendRecoveryAudit } from './recovery-audit.ts';
+import { hitFailpoint } from './failpoints.ts';
 export class PaymentCheckout{
   readonly orders:PaymentOrders;readonly client:ProviderClient;
   constructor(orders:PaymentOrders,client:ProviderClient){this.orders=orders;this.client=client;initializeRecoveryAudit(orders.store);}
@@ -31,12 +32,15 @@ export class PaymentCheckout{
         admission=prepared.admission;order=this.orders.attachAdmission(actor,id,admission);
       }else admission=(await this.client.call(provider,actor,'GET',`${base}/${order.admissionId}`)).admission;
       if(!order.fundsCaptured){
+        hitFailpoint('checkout.after-admission');
         if(admission.state!=='ADMITTED')admission=(await this.client.call(provider,actor,'POST',`${base}/${admission.id}/admit`,{},`order-admit:${id}`)).admission;
         order=this.orders.capture(actor,id,admission);
+        hitFailpoint('checkout.after-capture-commit');
       }
       admission=(await this.client.call(provider,actor,'GET',`${base}/${order.admissionId}`)).admission;
       if(admission.state!=='APPLIED'){
         await this.client.call(provider,actor,'POST',`${base}/${order.admissionId}/payments`,{paymentId:order.paymentId},`order-settlement:${id}`);
+        hitFailpoint('checkout.after-settlement-request');
         admission=(await this.client.call(provider,actor,'GET',`${base}/${order.admissionId}`)).admission;
       }
       this.orders.complete(actor,id,admission);return this.finish(actor,id);

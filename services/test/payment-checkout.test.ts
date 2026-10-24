@@ -84,3 +84,36 @@ test('order capture schema migration preserves old review IDs, snapshots and fin
   const ledger=new PaymentLedger(db),issuer=new PaymentIssuer(db),uses=new PaymentResourceUses(db),orders=new PaymentOrders(db,issuer,ledger,uses);assert.deepEqual(orders.get(actor,legacy.id),legacy);assert.ok(existsSync(path+'.before-order-capture-v2.sqlite'));assert.equal(ledger.summary(actor.accountId).balanceMinor,150000);
   const reopened=new AccountDatabase(path);t.after(()=>reopened.close());const restored=new PaymentOrders(reopened,new PaymentIssuer(reopened),new PaymentLedger(reopened),new PaymentResourceUses(reopened));assert.deepEqual(restored.get(actor,legacy.id),legacy);assert.equal(reopened.db.prepare('SELECT count(*) n FROM payment_authorization_orders').get()!.n,1);
 });
+
+// SIM-04: named failpoints lose the response at each durable boundary. Recovery must use the original order.
+import { armFailpoint, clearFailpoints, failpointFirings, FAILPOINTS } from '../provider-simulator/src/failpoints.ts';
+// Before capture the order stays CAPTURING with its obligation unknown (no replacement charge);
+// after a committed capture it moves to RECONCILIATION_REQUIRED.
+const expectedAt: Record<(typeof FAILPOINTS)[number], { state: string; fundsCaptured: boolean }> = {
+  'checkout.after-admission': { state: 'CAPTURING', fundsCaptured: false },
+  'checkout.after-capture-commit': { state: 'RECONCILIATION_REQUIRED', fundsCaptured: true },
+  'checkout.after-settlement-request': { state: 'RECONCILIATION_REQUIRED', fundsCaptured: true },
+};
+for (const point of FAILPOINTS) test(`failpoint ${point} loses the response once and recovers the original order without a second debit`, async t => {
+  clearFailpoints();
+  t.after(clearFailpoints);
+  const f = fixture(t);
+  armFailpoint(point, 1);
+  const pending = await f.checkout.execute(f.actor, f.approved.id, input(f.approved));
+  assert.equal(failpointFirings(point), 1);
+  assert.equal(pending.state, expectedAt[point].state);
+  assert.equal(pending.fundsCaptured, expectedAt[point].fundsCaptured);
+  const settled = await f.checkout.recover(f.actor, pending.id);
+  assert.equal(settled.state, 'SETTLED');
+  assert.equal(settled.id, pending.id);
+  assert.equal(f.effects(), 1);
+  assert.equal(f.payments.list(f.actor.accountId, 'transaction').length, 1);
+  assert.equal(f.gateway.issuer!.summary(f.actor.accountId, f.method.id).spentMinor, 42040);
+});
+
+test('failpoints reject unknown names and bad counts and stay inert when unarmed', () => {
+  clearFailpoints();
+  assert.throws(() => armFailpoint('checkout.unknown' as never), /Unknown failpoint/);
+  assert.throws(() => armFailpoint('checkout.after-admission', 0), /count/);
+  assert.equal(failpointFirings('checkout.after-admission'), 0);
+});
