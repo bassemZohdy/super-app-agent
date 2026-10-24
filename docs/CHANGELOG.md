@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 24 October 2026 — explicit conversational payment funding
+
+Deliver PAY-07 with source choice, immutable stored review, separate authorization/challenge/pay and original-order cancellation/recovery for manual/conversational bills, fines, wallet reload and civic checkout. Fix service-URL reload replacing restored reviews and challenged-group continuation replaying earlier progress. Update asserted journeys and add a paced signed browser matrix. [Guide](development/payment-surfaces.md) · [Evidence](reports/2026-10-24-payment-surfaces.md).
+
 ## 24 October 2026 — finite owner-approved mandate records
 
 Deliver AUTO-01 with strict six-family actor/audience/target/source policies, finite caps/counts/windows, exact owner approval, append-only versions and atomic lifecycle references. Verify signed ownership, changed terms, source guards, provider restart and zero consent-time money effects. Automatic execution remains disabled. [Guide](development/payment-mandates.md) · [Evidence](reports/2026-10-24-payment-mandates.md).

@@ -57,3 +57,5 @@ A consolidated reconciliation workbench, paginated statements, automatic rules a
 [Signed financial status events](payment-events.md) append with stored order/source transitions and arrive as owned inspection hints. Callbacks never authorize funds or replace authoritative provider lookup. SIM-03 now supplies named issuer scenarios; legacy event-path qualification keeps PAY-18 in progress.
 
 [Isolated issuer scenarios](issuer-scenarios.md) add operator-bound named outcomes and `AUTHORIZATION_PENDING`. Pending card capacity cannot capture/credit or dispatch later group lines; the original real-time deadline and separate customer execution remain enforced. Normal providers expose no run controls.
+
+[The conversational civic checkout](payment-surfaces.md) now binds its displayed unpaid revisions, toll target/version and total before opening the funding chooser. It stores one selected source, then requires separate group approval/payment. Per-child challenges remain explicit; continuation keys incorporate original child progress so an answered challenge can advance the same group.

@@ -76,11 +76,13 @@ export function App() {
     setSessionId(sid); sessionRef.current = sid; setMenuOpen(false); setMobilePanel(false);
     return sid;
   };
+  const restoredService = useRef<string>();
   const restoreConversation = async (sid: string, selectedAccount: string) => {
     const response = await fetch(`${GATEWAY_URL}/api/sessions/${encodeURIComponent(sid)}`, { headers: { Authorization: `Bearer ${await getToken()}` } });
     if (!response.ok) { resetConversation(selectedAccount); return; }
     const data = await response.json();
     if (data.accountId && data.accountId !== selectedAccount) return;
+    restoredService.current=data.serviceId;
     setSessionId(sid); sessionRef.current = sid;
     sessionStorage.setItem(`cityside.session.${selectedAccount}`, sid);
     revision.current = data.surface?.revision;
@@ -243,7 +245,7 @@ export function App() {
     if (!authReady || loginRequired || !accountId || initialRoute.current) return;
     initialRoute.current = true;
     const route = /^\/services\/([a-z]+)$/.exec(location.pathname)?.[1];
-    if (route) openService(route);
+    if (route && route!==restoredService.current) openService(route);
   }, [authReady, loginRequired, accountId]);
   const send = (text = draft) => {
     setPaymentAccountsOpen(false);

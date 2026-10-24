@@ -73,3 +73,5 @@ For DEWA/Etisalat/du, the stored review now offers explicit Pay after authorizat
 [Isolated issuer scenarios](issuer-scenarios.md) add operator-bound named outcomes and `AUTHORIZATION_PENDING`. Pending card capacity cannot capture/credit or dispatch later group lines; the original real-time deadline and separate customer execution remain enforced. Normal providers expose no run controls.
 
 [AUTO-01 finite consent records](payment-mandates.md) use the same signed owner and resource-use guards, with separate create/revise/approve/revoke/history APIs. They do not enable automatic execution or add a rule editor to this panel.
+
+[Conversational/manual funding reviews](payment-surfaces.md) reuse these stored order APIs. The service workspace now requires explicit funding selection, authorization and payment, and saved-card funding for wallet reload. It can link the current provider-verified biller during the disclosed review step.
