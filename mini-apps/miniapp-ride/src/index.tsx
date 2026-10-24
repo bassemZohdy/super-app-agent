@@ -96,7 +96,6 @@ export function mountRideMiniApp(context: MiniAppBootstrapContext) {
   const badge101 = context.container.querySelector('#zone_badge_101b') as HTMLElement | null;
   const activateBtn = context.container.querySelector('#btn_miniapp_activate_parking') as HTMLButtonElement | null;
   const rechargeBtn = context.container.querySelector('#btn_recharge_salik') as HTMLButtonElement | null;
-  const salikDisplay = context.container.querySelector('#salik_display_balance') as HTMLElement | null;
 
   const updateZoneSelection = (zone: 'zone_302a' | 'zone_101b') => {
     selectedZone = zone;
@@ -132,17 +131,14 @@ export function mountRideMiniApp(context: MiniAppBootstrapContext) {
     });
   });
 
+  // The host is expected to update the balance from its confirmed result; this module must not change the display itself.
   rechargeBtn?.addEventListener('click', () => {
     rechargeBtn.disabled = true;
-    rechargeBtn.innerHTML = '⏳ Recharging...';
+    rechargeBtn.innerHTML = '⏳ Request sent';
     setTimeout(() => {
-      if (salikDisplay) salikDisplay.textContent = '214.00 AED';
-      rechargeBtn.innerHTML = '✓ Recharged!';
-      setTimeout(() => {
-        rechargeBtn.disabled = false;
-        rechargeBtn.innerHTML = '+100 AED Recharge';
-      }, 1500);
-    }, 400);
+      rechargeBtn.disabled = false;
+      rechargeBtn.innerHTML = '+100 AED Recharge';
+    }, 1500);
 
     context.onDispatchEvent('SALIK_RECHARGED', {
       amount: 100,
