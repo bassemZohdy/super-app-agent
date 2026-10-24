@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 24 October 2026 — automation authority contract and broker hardening
+
+Complete AUTO-02 threat modeling and negative authority gates. Freeze reviewed legacy read permissions independently of OpenAPI growth, reject extra authority fields, require exact pending-job token bindings and fence terminal results. Document current-entitlement/shared-budget/permit requirements before scheduled spending; qualify real local Keycloak and isolated providers while preserving normal broker records. [Threat model](architecture/payment-automation-security.md) · [Evidence](reports/2026-10-24-automation-security.md).
+
 ## 24 October 2026 — paginated financial statements and consistent receipts
 
 Deliver PAY-20 with owned journal/activity snapshots, exact running balances, original masked funding/biller details and explicit capture/settlement/refund outcomes. Unify receipt facts and suppress completed styling for pending acknowledgement or unknown operations; enrich the retained wallet history without rewriting financial rows. Verify more than 100 records, source/link removal, partial funding return and restart/reload in a paced signed browser run. [Guide](development/payment-history.md) · [Evidence](reports/2026-10-24-payment-history.md).

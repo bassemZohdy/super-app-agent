@@ -121,7 +121,9 @@ Current wallet payments now append balanced journal entries, with one-time legac
 
 [Statements & funding history](docs/development/payment-history.md) now page posted journal effects and all payment activity, with exact running balances, original masked source/biller and separate pending/refund outcomes. [Paced recording](docs/recordings/payment-history/index.html).
 
-The [payment backlog](TODO.md#payment-accounts-and-automation-demo--planned-backlog) tracks 50 tasks: 22 slices delivered and 28 open. The remaining work covers automatic-caller reservation qualification, source/owner lifecycle, bounded autopay/automatic services and deterministic clock/failure simulation. [Full design](docs/architecture/payment-automation-demo.md).
+[Automation security review](docs/architecture/payment-automation-security.md) now defines the trusted admission/permit/budget boundary and hardens the existing broker against implicit permission growth, substituted authority and stale results. Scheduled spending remains disabled pending execution and lifecycle gates. [Executed checks](docs/reports/2026-10-24-automation-security.md).
+
+The [payment backlog](TODO.md#payment-accounts-and-automation-demo--planned-backlog) tracks 50 tasks: 23 slices delivered and 27 open. The remaining work covers automatic-caller reservation qualification, source/owner lifecycle, bounded autopay/automatic services and deterministic clock/failure simulation. [Full design](docs/architecture/payment-automation-demo.md).
 
 Use `npm run simulator:verify` to try the persisted preview-only business clock across separate processes. It emits descriptive due events and resets its isolated run without touching provider funds. [Commands and limits](docs/development/simulator.md) · [Lifecycle/scenario evidence](docs/reports/2026-10-24-lifecycle-simulator.md). Automatic execution and its scenario controls remain in the backlog.
 

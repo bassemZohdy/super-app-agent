@@ -85,3 +85,9 @@ The [PAY-19 workbench](docs/development/payment-reconciliation.md) accepts only 
 ## Financial history and receipt authority
 
 [PAY-20 history](docs/development/payment-history.md) independently checks signed ownership for every statement, cursor and original detail read. Opaque pagination positions convey no authorization. Sealed journal postings determine money totals; retained original charge/issuer/receipt evidence determines confirmation. Pending, partial and unknown operations cannot acquire a completed receipt from an amount, transaction label or group total. Original source/biller snapshots survive removal; legacy external records without a saved-card snapshot never receive an invented mask. The read model has no money action or arbitrary provider URL and does not rewrite stored financial rows.
+
+## Automation admission contract
+
+[The AUTO-02 review](docs/architecture/payment-automation-security.md) separates interactive consent, trusted job/quote derivation, budget reservation, controlled signing and provider admission. Current finite mandates remain non-executable. New OpenAPI routes cannot expand the broker’s explicit read profile; stored grants are revalidated at use. Unknown authority fields deny, token bindings require the exact live pending job and operation, and stale completion cannot overwrite a terminal result. A bound bearer can still race its exact intended request; fingerprint/context binding is not proof of sender possession.
+
+AUTO-03/PAY-08/PAY-21/AUTO-15 must implement and prove shared amount/count/payable/occurrence reservations, current owner/membership/source/target and policy epochs, no release of unknown outcomes, and the revoke-versus-admission boundary before scheduled money is enabled. The selected ASVS/LLM mapping is scoped engineering evidence, not a security approval or certification. Local-only identity/transport and production review gates remain unchanged.

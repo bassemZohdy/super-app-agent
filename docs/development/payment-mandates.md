@@ -54,3 +54,7 @@ npm run demo:verify:mandates
 ```
 
 The signed verification uses existing local Keycloak/Redis with temporary provider databases. It creates and explicitly approves all six policy families, checks retries/changed terms, wrong owners, service-token denial, source locks, revision/reapproval, historical restoration and actual provider restart, then revokes and removes the saved card. One synthetic parking payment sets up an owned session **before** the consent baseline; subsequent consent actions must leave wallet/transaction state identical. No model call or automatic service execution occurs. [Evidence](../reports/2026-10-24-payment-mandates.md).
+
+## Execution authority gate
+
+[The AUTO-02 threat model](../architecture/payment-automation-security.md) separates consent records from executable permits. Current owner/source/target and exact policy terms must be rechecked when future AUTO-03 reservations and credentials are derived. The current API always returns `executionEnabled:false`; adding a mandate reference to a legacy grant is rejected. Budget/count/occurrence reservations, current membership/owner epochs and the worker/revoke admission boundary remain implementation gates.
