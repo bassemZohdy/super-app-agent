@@ -45,6 +45,8 @@ Core accepts only fixed local inference hosts and paths. Callers cannot choose m
 
 Model requests use at most the latest 12 messages, a 24 KiB content budget, 192 output tokens, 45 seconds and 30 calls/hour per actor/account. Model prose never grants tool authority or bypasses confirmed service actions. Failures are visible; text/manual service controls remain available. Cancellation stops browser capture/upload/playback; an already-running server inference may finish within its bounded deadline.
 
+The conversation container explicitly probes `http://127.0.0.1:4201/health`; the pinned upstream image defaults to port 8080, which does not match this private service. A green container check confirms readiness, while `local-ai:verify` additionally proves real inference.
+
 For a readiness failure inspect `docker compose -f docker-compose.demo.yml logs voice conversation agent-core`. Missing models: rerun `local-ai:up`. Busy: wait or type. Permission denied: allow microphone only for the local app. Unsupported Arabic speech: use text. Do not publish inference ports or send real customer audio to this demo.
 
 [Voice architecture](../architecture/voice-and-conversation.md) · [Executed evidence](../reports/2026-10-24-local-ai.md) · [Original generated preview](../assets/voice/rashid-preview.wav).
