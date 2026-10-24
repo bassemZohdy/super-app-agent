@@ -33,6 +33,7 @@
     "demo:verify": "node --experimental-strip-types scripts/verify-demo-stack.ts",
     "openapi:generate": "node --experimental-strip-types scripts/generate-provider-openapi.ts",
     "openapi:generate:apps": "node --experimental-strip-types scripts/generate-application-openapi.ts",
+    "sbom:generate": "node --experimental-strip-types scripts/generate-sbom.ts",
     "test:redis": "node --experimental-strip-types --import ./scripts/test-env.ts --test test/integration/redis-sessions.ts",
     "demo:realm": "node --env-file-if-exists=.env --experimental-strip-types scripts/configure-demo-keycloak.ts",
     "demo:verify:journeys": "node --experimental-strip-types scripts/verify-demo-journeys.ts",
