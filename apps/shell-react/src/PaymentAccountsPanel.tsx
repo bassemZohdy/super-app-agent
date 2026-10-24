@@ -26,7 +26,7 @@ export function PaymentAccountsPanel({ gateway, accountId, getToken, onClose }: 
   async function load(signal = controller.current?.signal, expectedGeneration = generation.current) {
     const result = await api('overview', undefined, signal);
     if (alive.current && expectedGeneration === generation.current) {
-      setData(result);
+      setData(result);setPayable(current=>result.payables.some((p:{id:string;status:string})=>p.id===current&&p.status==='UNPAID')?current:'');
       if (!loaded.current) { loaded.current = true; setSource(result.defaultMethodId); }
       else setSource(current => result.methods.some((m: PaymentMethod) => m.id === current && m.status === 'ACTIVE') ? current : '');
     }
@@ -61,9 +61,9 @@ export function PaymentAccountsPanel({ gateway, accountId, getToken, onClose }: 
   const methodName = (m: PaymentMethod) => `${m.nickname}${m.last4 ? ` ·•••• ${m.last4}` : ''}`;
   const changeStatus = (m: PaymentMethod, status: string) => work(async () => { await mutate('methods/status', { methodId: m.id, expectedVersion: m.version, status }); setNotice('Card status saved. No funding fallback was selected.'); });
   const archive = (b: BillingAccount) => work(async () => { await mutate('billing-accounts/archive', { billingAccountId: b.id, expectedVersion: b.version }); setNotice('Biller link archived. Its history is retained.'); });
-  const reviewAction=(order:PaymentAuthorizationReview,action:'approve'|'challenge'|'cancel',extra:Record<string,unknown>={})=>work(async()=>{
-    const result=await mutate(`orders/${action}`,{orderId:order.id,expectedVersion:order.version,...(action==='cancel'?{}:{approvalDigest:order.approvalDigest}),...extra});
-    setNotice(result.order.failureCode?`Authorization stopped: ${result.order.failureCode}. No payment was captured.`:result.order.state==='AUTHORIZED'?'Funds reserved temporarily. No payment captured or bill settled.':result.order.state==='REQUIRES_ACTION'?'Complete the bound demo card challenge to continue.':'Authorization review cancelled. Holds released.');
+  const reviewAction=(order:PaymentAuthorizationReview,action:'approve'|'challenge'|'cancel'|'execute'|'recover',extra:Record<string,unknown>={})=>work(async()=>{
+    const result=await mutate(`orders/${action}`,{orderId:order.id,...(action==='recover'?{}:{expectedVersion:order.version,...(action==='cancel'?{}:{approvalDigest:order.approvalDigest})}),...extra});
+    setNotice(result.order.state==='SETTLED'?'Payment captured and confirmed by the provider.':result.order.fundsCaptured?'Funds captured; provider settlement needs reconciliation. Use the original order.':result.order.state==='CAPTURING'?'Capture admission is pending. Inspect or resume this same order; do not start another payment.':result.order.failureCode?`Authorization stopped: ${result.order.failureCode}. No payment was captured.`:result.order.state==='AUTHORIZED'?'Funds reserved temporarily. No payment captured or bill settled.':result.order.state==='REQUIRES_ACTION'?'Complete the bound demo card challenge to continue.':'Authorization review cancelled. Holds released.');
   });
   return <section id="payment-account-panel" className="payment-accounts" aria-label="Payment accounts">
     <header><div><p className="payment-eyebrow">Your payment setup</p><h2 ref={heading} tabIndex={-1}>Accounts &amp; funding</h2></div><button className="text-button" onClick={onClose}>Close payment accounts</button></header>
@@ -102,13 +102,13 @@ export function PaymentAccountsPanel({ gateway, accountId, getToken, onClose }: 
         </li>)}</ul>
         {!data.payables.some(p=>linked(p.provider,p.reference)) && <p>Link a biller account to view its obligations.</p>}
       </section>
-      <section className="payment-review" aria-label="Payment review"><h3>Review a payment</h3><p>Review the current bill or fine with your chosen source. This screen creates a preview only; existing wallet payments are available from the service navigation.</p>
+      <section className="payment-review" aria-label="Payment review"><h3>Review a payment</h3><p>Review the current bill or fine with your chosen source. For bills, save and approve the exact authorization review, then use Pay to complete payment. Fine capture remains unavailable here.</p>
         <label>Unpaid obligation<select value={payable} onChange={e => { setPayable(e.target.value); setPreview(undefined); }}><option value="">Choose a linked bill or fine</option>{currentPayables.map(p => <option key={p.id} value={p.id}>{p.label} · {formatAED(p.amountMinor)}</option>)}</select></label>
         <label>Payment source<select value={source} onChange={e => { setSource(e.target.value); setPreview(undefined); }}><option value="">Choose a funding source</option>{available.map(m => <option key={m.id} value={m.id}>{methodName(m)}</option>)}</select></label>
         <button disabled={busy || !payable || !currentMethod} onClick={() => void review()}>Review payment quote</button>
         {preview && <article aria-label="Payment quote preview"><h4>{preview.billingAccount.nickname}</h4><p>{preview.payable.label}</p><p>Funding: {methodName(preview.source)}</p><p>Amount: {formatAED(preview.amountMinor)} · Fees: {formatAED(preview.feeMinor)}</p><strong>Total: {formatAED(preview.totalMinor)}</strong><p>Review expires {new Date(preview.expiresAt).toLocaleTimeString()}. Preview only — this is not an approval or receipt.</p><button onClick={() => setPreview(undefined)}>Dismiss payment review</button><button disabled={busy} onClick={()=>void work(async()=>{await mutate('orders',{provider:preview.payable.provider,payableId:preview.payable.id,expectedPayableRevision:preview.payable.revision,methodId:preview.source.id,expectedMethodVersion:preview.source.version});setNotice('Authorization review saved. Read its exact terms before approving.');})}>Create authorization review</button></article>}
       </section>
-      <section aria-label="Authorization reviews" className="payment-review"><h3>Authorization reviews</h3><p>Approval reserves finite funds temporarily. Payment capture and provider settlement are not enabled here. Refresh to inspect expiry and current status.</p>
+      <section aria-label="Authorization reviews" className="payment-review"><h3>Authorization reviews</h3><p>Approval reserves finite funds temporarily. For bills, authorize first and then explicitly pay the exact total. Pending or captured operations retain their original identity for recovery. Refresh to inspect current status.</p>
         {!data.orders?.length&&<p>No stored authorization reviews yet.</p>}
         {data.orders?.map(order=><article key={order.id} aria-label={`Authorization review ${order.id}`}>
           <h4>{order.quote.billingAccount.nickname}</h4><p>{order.quote.payable.label}</p><p>Funding: {methodName(order.quote.source)} · source version {order.quote.source.version}</p>
@@ -116,7 +116,10 @@ export function PaymentAccountsPanel({ gateway, accountId, getToken, onClose }: 
           <p>Review expires {new Date(order.expiresAt).toLocaleTimeString()}</p>
           {order.state==='AWAITING_APPROVAL'&&<button disabled={busy} onClick={()=>void reviewAction(order,'approve')}>Approve authorization for {formatAED(order.quote.totalMinor)}</button>}
           {order.state==='REQUIRES_ACTION'&&<div><p>Demo card challenge: explicitly approve or reject this order and amount. No code or real card details are required.</p><button disabled={busy} onClick={()=>void reviewAction(order,'challenge',{challengeId:order.authorization?.challengeId,decision:'APPROVE'})}>Approve demo card challenge</button><button disabled={busy} onClick={()=>void reviewAction(order,'challenge',{challengeId:order.authorization?.challengeId,decision:'REJECT'})}>Reject demo card challenge</button></div>}
-          {order.state==='AUTHORIZED'&&<p>Funds reserved until {new Date(order.authorization!.expiresAt).toLocaleTimeString()}. No payment captured.</p>}
+          {order.state==='AUTHORIZED'&&<p>Funds reserved until {new Date(order.authorization!.expiresAt).toLocaleTimeString()}. No payment captured yet.</p>}
+          {order.state==='AUTHORIZED'&&order.quote.payable.kind==='BILL'&&<button disabled={busy} onClick={()=>void reviewAction(order,'execute')}>Pay {formatAED(order.quote.totalMinor)}</button>}
+          {['CAPTURING','CAPTURED','RECONCILIATION_REQUIRED'].includes(order.state)&&<div><p>{order.fundsCaptured?'Funds captured; this is not yet a paid-bill receipt.':'Capture status is pending. Do not start another payment.'}</p><button disabled={busy} onClick={()=>void reviewAction(order,'recover')}>Inspect or resume payment</button></div>}
+          {order.state==='SETTLED'&&order.receipt&&<section aria-label="Confirmed bill receipt"><strong>Bill paid · {formatAED(order.receipt.amountMinor)}</strong><p>Receipt {order.receipt.receiptNumber}</p><p>Paid from {methodName(order.quote.source)} · Provider confirmed</p></section>}
           {['AWAITING_APPROVAL','REQUIRES_ACTION','AUTHORIZED'].includes(order.state)&&<button disabled={busy} onClick={()=>void reviewAction(order,'cancel')}>Cancel authorization review</button>}
         </article>)}
       </section>

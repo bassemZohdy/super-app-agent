@@ -2,6 +2,7 @@ import { PaymentResourceUses } from './payment-resource-uses.ts';
 import { PaymentIssuer } from './payment-issuer.ts';
 import { PaymentOrders } from './payment-orders.ts';
 import { PaymentClaims } from './payment-claims.ts';
+import { PayableAdmissions } from './payable-admissions.ts';
 import { ProviderPayables, type PayableProvider } from './payables.ts';
 import { PaymentLedger } from './payment-ledger.ts';
 import { paymentRegistry } from './payment-registry.ts';
@@ -20,8 +21,8 @@ const ok = (data: Record<string, any>): ApiResult => ({ status: 200, data: { suc
 const minor = (amount: number) => Math.round(amount * 100);
 const major = (amount: number) => amount / 100;
 export class ProviderEngine {
-  readonly provider: ProviderId; readonly store: AccountDatabase; readonly ledger?: PaymentLedger; readonly resourceUses?: PaymentResourceUses; readonly payables?: ProviderPayables;readonly issuer?:PaymentIssuer;readonly orders?:PaymentOrders;readonly claims?:PaymentClaims;
-  constructor(provider: ProviderId, store: AccountDatabase, options: {businessClock?:()=>number;authorizationClock?:()=>number} = {}) { this.provider = provider; this.store = store; if (provider === 'payments') { this.ledger = new PaymentLedger(store,options.authorizationClock); this.resourceUses = new PaymentResourceUses(store);this.issuer=new PaymentIssuer(store,options.authorizationClock);this.orders=new PaymentOrders(store,this.issuer,this.ledger,this.resourceUses,options.authorizationClock);this.claims=new PaymentClaims(store); } if(['dewa','etisalat','du','police'].includes(provider)) this.payables=new ProviderPayables(store,provider as PayableProvider,options.businessClock); }
+  readonly provider: ProviderId; readonly store: AccountDatabase; readonly ledger?: PaymentLedger; readonly resourceUses?: PaymentResourceUses; readonly payables?: ProviderPayables;readonly issuer?:PaymentIssuer;readonly orders?:PaymentOrders;readonly claims?:PaymentClaims;readonly admissions?:PayableAdmissions;
+  constructor(provider: ProviderId, store: AccountDatabase, options: {businessClock?:()=>number;authorizationClock?:()=>number} = {}) { this.provider = provider; this.store = store; if (provider === 'payments') { this.ledger = new PaymentLedger(store,options.authorizationClock); this.resourceUses = new PaymentResourceUses(store);this.issuer=new PaymentIssuer(store,options.authorizationClock);this.orders=new PaymentOrders(store,this.issuer,this.ledger,this.resourceUses,options.authorizationClock);this.claims=new PaymentClaims(store); } if(['dewa','etisalat','du','police'].includes(provider)) {this.payables=new ProviderPayables(store,provider as PayableProvider,options.businessClock);this.admissions=new PayableAdmissions(store,this.payables,options.businessClock);} }
   seed(actor: Actor) {
     const db = this.store, account = actor.accountId;
     if (db.get(account, 'seed')) {
@@ -68,10 +69,20 @@ export class ProviderEngine {
   private proof(proof: any, merchant: string, reference: string, amountMinor: number) {
     if (!proof || proof.status !== 'CAPTURED' || proof.refunded || proof.merchant !== merchant || proof.reference !== reference || proof.amountMinor !== amountMinor) fail(409, 'INVALID_PAYMENT_PROOF', 'A matching captured payment is required.');
   }
-  execute(actor: Actor, method: string, path: string, body: any, proof?: any, payableSnapshot?:import('../../../packages/protocol-core/src/payments.ts').Payable): ApiResult {
+  execute(actor: Actor, method: string, path: string, body: any, proof?: any, payableSnapshot?:import('../../../packages/protocol-core/src/payments.ts').Payable,gatewayOrder?:import('../../../packages/protocol-core/src/payments.ts').PaymentAuthorizationReview): ApiResult {
     const db = this.store, a = actor.accountId, asset = assetsFor(a);
     const now = () => new Date().toISOString();
     if(this.payables) {
+      const route=/^\/payables\/([^/]+)\/admissions(?:\/([^/]+)(?:\/(admit|cancel|payments))?)?$/.exec(path);
+      if(route){
+        const payableId=decodeURIComponent(route[1]),id=route[2],action=route[3];
+        if(!id&&method==='POST')return ok({admission:this.admissions!.prepare(a,payableId,body)});
+        const admission=this.admissions!.get(a,id);if(admission.payable.id!==payableId)fail(409,'ADMISSION_MISMATCH','This reservation belongs to another obligation.');
+        if(method==='GET'&&!action)return ok({admission});
+        if(method==='POST'&&action==='admit')return ok({admission:this.admissions!.admit(a,id,gatewayOrder!)});
+        if(method==='POST'&&action==='cancel')return ok({admission:this.admissions!.cancel(a,id,gatewayOrder!)});
+        if(method==='POST'&&action==='payments')return ok(this.admissions!.settle(a,id,body.paymentId,proof));
+      }
       if(method === 'GET' && path === '/payables') return ok({payables:this.payables.list(a)});
       if(method === 'GET' && /^\/payables\/[^/]+$/.test(path)) { const payable=this.payables.get(a,decodeURIComponent(path.split('/')[2])); return ok({payable,settlementReference:this.payables.settlementReference(payable)}); }
       if(method === 'POST' && /^\/payables\/[^/]+\/reviews$/.test(path)) {
@@ -113,6 +124,7 @@ export class ProviderEngine {
         if (!charge) fail(404, 'NOT_FOUND', 'Payment not found.');
         if (charge.status !== 'CAPTURED' || charge.refunded) fail(409, 'NOT_REFUNDABLE', 'This payment cannot be refunded.');
         this.claims!.assertRefundable(a,charge.id);
+        if(charge.orderId)fail(409,'ORDER_REFUND_REQUIRES_RECONCILIATION','Stored-order refunds require the original-source reconciliation workflow.');
         const next = wallet.balanceMinor + (charge.source === 'wallet' ? charge.amountMinor : 0);
         if (next > 100_000_000) fail(409, 'BALANCE_LIMIT', 'Demo wallet balance limit exceeded.');
         charge.refunded = true; charge.refundedAt = now();
@@ -217,6 +229,7 @@ export class ProviderEngine {
     if (bill.status === 'PAID') fail(409, 'ALREADY_PAID', 'Bill is already settled.');
     if (bill.status !== 'UNPAID') fail(409,'PAYABLE_UNAVAILABLE','This bill is no longer payable.');
     const payable=this.payables!.list(account).find(p=>p.obligationId===billId)!;
+    this.payables!.assertUnreserved(account,payable.id);
     this.payables!.inspect(account,payable.id,payable.revision);
     if(payable.version! >= 1_000_000) fail(409,'VERSION_LIMIT','The obligation reached its demo revision limit.');
     this.proof(proof, this.provider, `bill:${billId}`, minor(bill.totalAmount));

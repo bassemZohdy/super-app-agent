@@ -1,6 +1,6 @@
 # Settlement claims and refund exclusion
 
-Existing provider settlement now admits a gateway claim before applying a captured payment. Gateway refund and claim admission serialize in the payments SQLite writer transaction. A pending/applied/unknown claim blocks refund; only durable provider non-application permits release. This fixes stale GET-proof/refund races in the current demo. Stored-order capture, provider payable reservation and supported business reversals remain separate PAY-06–PAY-10/PAY-17 work.
+Existing provider settlement now admits a gateway claim before applying a captured payment. Gateway refund and claim admission serialize in the payments SQLite writer transaction. A pending/applied/unknown claim blocks refund; only durable provider non-application permits release. This fixes stale GET-proof/refund races in the current demo. Stored bill capture and provider reservation now use this protocol through [bill checkout](payment-checkout.md). Supported business reversals remain PAY-17 work.
 
 ## Runtime flow
 

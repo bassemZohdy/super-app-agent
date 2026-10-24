@@ -153,7 +153,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
           ...bills.flatMap((bill: any): UIComponentNode[] => [
             { type: 'MetricWidget', id: bill.billId, properties: { label: 'Current bill', value: `${bill.totalAmount} AED`, subtext: bill.status } },
             ...(bill.status === 'UNPAID' ? [{ type: 'Button' as const, id: `pay_${bill.billId}`, properties: { label: `Pay ${bill.totalAmount} AED`, variant: 'primary' },
-              onEvents: [{ event: 'onPress' as const, actionType: 'AGENT_ACTION_DISPATCH' as const, payload: { action: 'pay_telecom_bill', provider, billId: bill.billId } }] }] : []),
+              onEvents: [{ event: 'onPress' as const, actionType: 'AGENT_ACTION_DISPATCH' as const, payload: { action: 'pay_telecom_bill', provider, billId: bill.billId,...(bill.payableRevision?{expectedPayableRevision:bill.payableRevision,expectedAmountMinor:Math.round(bill.totalAmount*100)}:{}) } }] }] : []),
           ]),
         ] } };
       state.messages.push({ id: `msg_${Date.now()}`, role: 'assistant', content: `Here are your ${provider} subscriptions and bills for the selected account. Review the bill before paying.`, timestamp: Date.now() });
@@ -323,7 +323,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
     onProgress?.(`⚡ Processing Smart City action: ${action}...`);
 
     if (action === 'pay_telecom_bill') {
-      const result = await executeTelecomRequest('POST', `/telecom/${payload.provider}/bills/${encodeURIComponent(payload.billId)}/payments`, {});
+      const result = await executeTelecomRequest('POST', `/telecom/${payload.provider}/bills/${encodeURIComponent(payload.billId)}/payments`, { ...(payload.expectedPayableRevision?{expectedPayableRevision:payload.expectedPayableRevision,expectedAmountMinor:payload.expectedAmountMinor}:{}) });
       state.currentSurface = { version: '1.0.0', sessionId: state.sessionId, timestamp: Date.now(), view: { type: 'SurfaceCard', id: 'telecom_receipt', children: [
         { type: 'Heading', id: 'receipt_title', properties: { text: 'Telecom bill paid' } },
         { type: 'Text', id: 'receipt_details', properties: { text: `${result.data.receipt.amountPaid} AED paid. Receipt: ${result.data.receipt.receiptNumber}` } },
@@ -425,7 +425,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
       };
     } else if (action === 'pay_utilities_bill' || action === 'pay_dewa_bill') {
       onProgress?.('⚡ Settling DEWA electricity & water bill via DubaiPay...');
-      const res = await executeFoodRequest('POST', '/utilities/pay', {}, { billId: (await executeFoodRequest('GET', '/utilities/bill')).data.bill.billId });
+      const res = await executeFoodRequest('POST', '/utilities/pay', {}, { billId: payload.billId,...(payload.expectedPayableRevision?{expectedPayableRevision:payload.expectedPayableRevision,expectedAmountMinor:payload.expectedAmountMinor}:{}) });
       const rcpt = res.data.receipt;
 
       state.currentSurface = {
@@ -1349,7 +1349,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
               {
                 event: 'onPress',
                 actionType: 'AGENT_ACTION_DISPATCH',
-                payload: { action: 'pay_utilities_bill' },
+                payload: { action: 'pay_utilities_bill',billId:bill.billId,...(bill.payableRevision?{expectedPayableRevision:bill.payableRevision,expectedAmountMinor:Math.round(bill.totalAmount*100)}:{}) },
               },
             ],
           },

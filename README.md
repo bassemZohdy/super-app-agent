@@ -111,15 +111,15 @@ Watch [the latest recording](http://localhost:3300) or open its [checked-in view
 
 ## Payment accounts and planned automation
 
-Open **Payment accounts** in React to save synthetic card presets, link provider-verified biller references and review a fresh quote with your chosen source. Prepaid/vehicle discovery, defaults, disabled cards, account switching, source versions and active-use removal guards are checked; the preview does not move funds. Linked bill/fine history now shows source-owned revisions, due/closed states and seeded prior cycles. Existing service payments still use the current wallet flow. [Guide and compatibility](docs/development/payment-accounts.md) · [Executed checks](docs/reports/2026-10-24-payment-accounts.md).
+Open **Payment accounts** in React to save synthetic card presets, link provider-verified biller references and review a fresh quote with your chosen source. Prepaid/vehicle discovery, defaults, disabled cards, account switching, source versions and active-use removal guards are checked; the preview does not move funds. Linked bill/fine history now shows source-owned revisions, due/closed states and seeded prior cycles. Bill service payments share the stored wallet-order flow. [Guide and compatibility](docs/development/payment-accounts.md) · [Executed checks](docs/reports/2026-10-24-payment-checkout.md).
 
-[Stored authorization reviews](docs/development/payment-authorization.md) now support explicit owner approval, finite card/wallet holds, one-time demo challenges and cancellation. Capture and bill settlement remain disabled for this flow. Run `npm run demo:verify:payment-authorization` for its isolated browser verification.
+[Stored authorization reviews](docs/development/payment-authorization.md) now support explicit owner approval, finite card/wallet holds, one-time demo challenges and cancellation. Bills now have a separate explicit Pay action with provider admission, capture, recovery and confirmed receipts. Run `npm run demo:verify:payment-authorization` for its isolated browser verification.
 
 Current wallet payments now append balanced journal entries, with one-time legacy balance migration and checked posted/held/available funds. [Journal and recovery guide](docs/development/payment-ledger.md) · [Live migration evidence](docs/reports/2026-10-24-payment-ledger.md).
 
-The [payment backlog](TODO.md#payment-accounts-and-automation-demo--planned-backlog) tracks 50 tasks: 6 foundation slices delivered and 44 open. The remaining work covers stored order/card execution, wallet/card bills and top-ups, bounded autopay/automatic services and deterministic clock/failure simulation. [Full design](docs/architecture/payment-automation-demo.md).
+The [payment backlog](TODO.md#payment-accounts-and-automation-demo--planned-backlog) tracks 50 tasks: 10 slices delivered and 40 open. The remaining work covers broader payable/review integration, wallet/mobile/toll top-ups, fines, refunds, bounded autopay/automatic services and deterministic clock/failure simulation. [Full design](docs/architecture/payment-automation-demo.md).
 
-Use `npm run simulator:verify` to try the persisted preview-only business clock across separate processes. It emits descriptive due events and resets its isolated run without touching provider funds. [Commands and limits](docs/development/simulator.md) · [Lifecycle/scenario evidence](docs/reports/2026-10-24-lifecycle-simulator.md). Capture, settlement and automatic execution remain in the backlog.
+Use `npm run simulator:verify` to try the persisted preview-only business clock across separate processes. It emits descriptive due events and resets its isolated run without touching provider funds. [Commands and limits](docs/development/simulator.md) · [Lifecycle/scenario evidence](docs/reports/2026-10-24-lifecycle-simulator.md). Other payable types, refunds/reversals and automatic execution remain in the backlog.
 
 ## Documentation
 
@@ -127,4 +127,6 @@ Use `npm run simulator:verify` to try the persisted preview-only business clock 
 
 License: MIT.
 
-[Settlement claims and refund guards](docs/development/settlement-claims.md) now protect existing provider payments from stale-proof/refund races. Old unrefunded captures are conservatively marked unknown until source reconciliation; the migration preserves balances and history. Stored-order capture and autopay remain open.
+[Settlement claims and refund guards](docs/development/settlement-claims.md) now protect existing provider payments from stale-proof/refund races. Old unrefunded captures are conservatively marked unknown until source reconciliation; the migration preserves balances and history. Bill capture is now enabled through approved orders; autopay remains open.
+
+[End-to-end wallet/card bill payments](docs/development/payment-checkout.md): authorize, explicitly Pay, inspect a provider-confirmed receipt, or recover the original pending payment. Existing conversational bill payments share the same wallet-order path.

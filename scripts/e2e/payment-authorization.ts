@@ -58,6 +58,25 @@ try{
   const staleDecision=await api('orders/approve',{orderId:stale.id,expectedVersion:stale.version,approvalDigest:stale.approvalDigest});assert.equal(staleDecision.status,409);assert.equal(staleDecision.data.code,'PAYABLE_CHANGED');
   assert.equal((await api('orders/cancel',{orderId:stale.id,expectedVersion:stale.version})).status,200);book.amend(accountId,payableId,changed.revision,{amountMinor:42040});
   const missing=await api('orders',{provider:'dewa',payableId:'dewa:bill:foreign-obligation',expectedPayableRevision:'a'.repeat(64),methodId:method.id,expectedMethodVersion:1});assert.equal(missing.status,404);
-  console.log('PASS: persisted decline/limit/expired source, private-clock authorization/approval expiry and wallet hold/void; real-time signed identity remains valid; no capture route');
+  console.log('PASS: persisted decline/limit/expired source, private-clock authorization/approval expiry and wallet hold/void; real-time identity remains valid; unsupported capture alias denies');
+  time=Date.now();const household=await account.locator('option').filter({hasText:'Household account'}).getAttribute('value');assert.ok(household);await account.selectOption(household);
+  await panel.getByText('No stored authorization reviews yet.',{exact:true}).waitFor();
+  await panel.getByRole('textbox',{name:'Card nickname',exact:true}).fill('Household challenge');await panel.getByRole('combobox',{name:'Demo card preset',exact:true}).selectOption('challenge');
+  response=responseFor('methods');await panel.getByRole('button',{name:'Add demo card',exact:true}).click();const householdCard=(await (await response).json()).method;
+  response=responseFor('billing-accounts');await panel.getByRole('button',{name:/^Link DEWA/}).click();await response;
+  const billSelect=panel.getByRole('combobox',{name:'Unpaid obligation',exact:true});await billSelect.locator('option').nth(1).waitFor({state:'attached'});await billSelect.selectOption((await billSelect.locator('option').nth(1).getAttribute('value'))!);
+  await panel.getByRole('combobox',{name:'Payment source',exact:true}).selectOption(householdCard.id);
+  response=responseFor('preview');await panel.getByRole('button',{name:'Review payment quote',exact:true}).click();await response;
+  response=responseFor('orders');await panel.getByRole('button',{name:'Create authorization review',exact:true}).click();const householdOrder=(await (await response).json()).order;
+  const householdArticle=panel.getByRole('article',{name:`Authorization review ${householdOrder.id}`,exact:true});
+  response=responseFor('orders/approve');await householdArticle.getByRole('button',{name:'Approve authorization for AED 420.40',exact:true}).click();await response;
+  response=responseFor('orders/challenge');await householdArticle.getByRole('button',{name:'Approve demo card challenge',exact:true}).click();await response;
+  response=responseFor('orders/execute');await householdArticle.getByRole('button',{name:'Pay AED 420.40',exact:true}).click();const executed=await response;assert.equal(executed.status(),200);const paid=(await executed.json()).order;assert.equal(paid.state,'SETTLED');assert.equal(paid.fundsCaptured,true);assert.equal(paid.receipt.amountMinor,42040);
+  await householdArticle.getByRole('region',{name:'Confirmed bill receipt',exact:true}).getByText('Bill paid · AED 420.40',{exact:true}).waitFor();
+  const householdSnapshot=await fetch(`${environment.coreUrl}/api/payments/overview?accountId=${household}`,{headers:{Authorization:`Bearer ${token}`}}).then(r=>r.json()) as any;
+  assert.equal(householdSnapshot.wallet.balanceMinor,150000);assert.equal(householdSnapshot.cardBalances.find((b:any)=>b.sourceId===householdCard.id).spentMinor,42040);assert.equal(householdSnapshot.cardBalances.find((b:any)=>b.sourceId===householdCard.id).heldMinor,0);assert.equal(householdSnapshot.dependencies.length,0);assert.equal(householdSnapshot.payables.find((p:any)=>p.id===paid.quote.payable.id).status,'PAID');
+  await householdArticle.scrollIntoViewIfNeeded();await panel.screenshot({path:'docs/reports/assets/payment-card-receipt.png'});
+  await page.reload();await page.getByRole('button',{name:'Payment accounts',exact:true}).click();if(await account.inputValue()!==household)await account.selectOption(household);await panel.getByRole('region',{name:'Confirmed bill receipt',exact:true}).getByText('Bill paid · AED 420.40',{exact:true}).waitFor();
+  console.log('PASS: explicit challenged card payment captures once, settles the admitted bill, preserves wallet funds and restores its confirmed receipt after reload');
 }catch(error){await mkdir('.data/payment-authorization',{recursive:true});await page?.screenshot({path:'.data/payment-authorization/failure.png',fullPage:true}).catch(()=>{});throw error;}
 finally{await browser?.close();await environment?.cleanup();}

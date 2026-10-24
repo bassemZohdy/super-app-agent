@@ -2,6 +2,7 @@
 import { createHash } from 'node:crypto';
 import type { AccountDatabase } from './database.ts';
 import { MAX_PAYMENT_MINOR, type Payable } from '../../../packages/protocol-core/src/payments.ts';
+import { assertPayableUnreserved } from './payable-admissions.ts';
 
 export type PayableProvider = 'dewa' | 'etisalat' | 'du' | 'police';
 export class PayableError extends Error {
@@ -32,7 +33,7 @@ export class ProviderPayables {
     const kind = this.provider === 'police' ? 'fine' : 'bill';
     return this.store.db.prepare("SELECT id,body FROM resources WHERE account_id=? AND kind=? ORDER BY CASE WHEN id='current' THEN 0 ELSE 1 END,rowid DESC").all(account,kind).map(row => ({ key: String(row.id), body: JSON.parse(String(row.body)) }));
   }
-  private describe(account: string, record: Stored): Payable {
+  private describe(account: string, record: Stored,at=this.clock()): Payable {
     const b = record.body, fine = this.provider === 'police', obligationId = fine ? b.fineId : b.billId;
     const reference = fine ? b.plateNumber : this.provider === 'dewa' ? b.accountNumber : b.subscriptionId;
     const version = b.payableVersion ?? 1;
@@ -42,7 +43,7 @@ export class ProviderPayables {
     if (!fine && fils(b.totalAmount) !== originalAmountMinor) return deny(409,'INVALID_PAYABLE','Provider amount representations disagree.');
     const quotedDiscount = fine ? money(Math.round(b.discountAmount * 100),true) : 0;
     if (fine && (Math.abs(quotedDiscount / 100 - b.discountAmount) > 1e-8 || quotedDiscount >= originalAmountMinor || fils(b.payableAmount) !== originalAmountMinor - quotedDiscount)) return deny(409,'INVALID_PAYABLE','Provider fine amounts disagree.');
-    const now = this.clock(), expired = b.status === 'UNPAID' && b.expiresAt !== undefined && Date.parse(b.expiresAt) <= now;
+    const now = at, expired = b.status === 'UNPAID' && b.expiresAt !== undefined && Date.parse(b.expiresAt) <= now;
     const discountEligible = fine && b.status === 'UNPAID' && quotedDiscount > 0 && !expired && (b.discountExpiresAt === undefined || Date.parse(b.discountExpiresAt) > now);
     const discountMinor = fine && b.status === 'PAID' ? originalAmountMinor - fils(b.paidAmount ?? b.payableAmount) : discountEligible ? quotedDiscount : 0;
     // Historical paid amounts retain the discount that was actually applied.
@@ -90,8 +91,16 @@ export class ProviderPayables {
   /** New execution flows must preflight this revision again before authorization/capture. */
   inspect(account: string, id: string, revision: string) { return this.current(account,id,revision).payable; }
   settlementReference(payable: Payable) { return `payable:${payable.revision}`; }
+  assertUnreserved(account:string,id:string){assertPayableUnreserved(this.store,account,id,this.clock);}
+  applyAdmitted(account:string,payable:Payable,paymentId:string,at:number){
+    const record=this.locate(account,payable.id),frozen=this.describe(account,record,at);
+    if(record.body.status!=='UNPAID'||frozen.revision!==payable.revision)return deny(409,'PAYABLE_CHANGED','The admitted obligation was changed outside its reservation.');
+    const body={...record.body,status:'PAID',payableVersion:this.next(payable.version!),receiptNumber:paymentId,paidAt:new Date(this.clock()).toISOString(),...(this.provider==='police'?{paidAmount:payable.amountMinor/100}:{})};
+    this.store.put(account,this.provider==='police'?'fine':'bill',body,record.key);return {payable:this.describe(account,{key:record.key,body}),receipt:{receiptNumber:paymentId,obligationId:payable.obligationId!,amountMinor:payable.amountMinor,currency:'AED' as const}};
+  }
   settle(account: string, id: string, revision: string, paymentId: string, proof: any) {
     return this.atomic(() => {
+      this.assertUnreserved(account,id);
       const {record,payable} = this.current(account,id,revision);
       if (!proof || proof.id !== paymentId || proof.accountId !== account || proof.currency !== 'AED' || proof.status !== 'CAPTURED' || proof.refunded || proof.merchant !== this.provider || proof.reference !== this.settlementReference(payable) || proof.amountMinor !== payable.amountMinor) return deny(409,'INVALID_PAYMENT_PROOF','A matching current-revision captured payment is required.');
       const body = {...record.body,status:'PAID',payableVersion:this.next(payable.version!),receiptNumber:paymentId,paidAt:new Date(this.clock()).toISOString(),...(this.provider === 'police'?{paidAmount:payable.amountMinor/100}:{})};
@@ -104,6 +113,7 @@ export class ProviderPayables {
   amend(account: string, id: string, revision: string, change: {amountMinor?:number;discountMinor?:number;discountExpiresAt?:string;dueDate?:string;expiresAt?:string;status?:'CANCELLED';paymentRestricted?:boolean}) {
     return this.atomic(() => {
       const record = this.locate(account,id), before = this.describe(account,record);
+      this.assertUnreserved(account,id);
       if(before.revision !== revision) return deny(409,'PAYABLE_CHANGED','The obligation changed. Review its current revision.');
       if(before.status !== 'UNPAID') return deny(409,'PAYABLE_UNAVAILABLE','A closed obligation cannot be amended or reopened.');
       const permitted=['amountMinor','discountMinor','discountExpiresAt','dueDate','expiresAt','status','paymentRestricted'];

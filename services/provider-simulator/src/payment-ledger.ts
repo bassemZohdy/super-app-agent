@@ -16,6 +16,7 @@ export class PaymentLedger {
   constructor(store:AccountDatabase, clock=()=>Date.now()) {
     this.store=store;this.clock=clock;
     if(store.db.isTransaction) throw new Error('Initialize the payment ledger before opening a business transaction.');
+    store.db.exec(`CREATE TABLE IF NOT EXISTS payment_hold_captures(account_id TEXT NOT NULL REFERENCES accounts(id),hold_reference TEXT NOT NULL,payment_id TEXT NOT NULL,amount_minor INTEGER NOT NULL,PRIMARY KEY(account_id,hold_reference),UNIQUE(account_id,payment_id));`);
     const exists=store.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='payment_migrations'").get();
     if(exists) {
       const version=store.db.prepare('SELECT MAX(version) AS version FROM payment_migrations').get() as {version:number|null};
@@ -146,4 +147,13 @@ export class PaymentLedger {
       this.store.db.prepare("UPDATE payment_wallet_holds SET status='VOIDED' WHERE account_id=? AND reference=? AND status='ACTIVE'").run(accountId,reference);return this.summary(accountId);
     });
   }
+  captureHold(accountId:string,reference:string,paymentId:string,amountMinor:number){return this.atomic(()=>{
+    this.amount(amountMinor);const prior=this.store.db.prepare('SELECT payment_id,amount_minor FROM payment_hold_captures WHERE account_id=? AND hold_reference=?').get(accountId,reference);
+    if(prior){if(prior.payment_id!==paymentId||prior.amount_minor!==amountMinor)fail('HOLD_CAPTURE_CONFLICT','This hold already has another capture.');return this.summary(accountId);}
+    this.summary(accountId);const hold=this.store.db.prepare('SELECT status,amount_minor,expires_at FROM payment_wallet_holds WHERE account_id=? AND reference=?').get(accountId,reference);
+    if(!hold||hold.status!=='ACTIVE'||hold.amount_minor!==amountMinor||Number(hold.expires_at)<=this.clock())fail('HOLD_UNAVAILABLE','A current exact wallet hold is required.');
+    // Existing hold schema uses VOIDED for a closed hold; this immutable capture link distinguishes consumption from cancellation.
+    this.voidHold(accountId,reference);this.record(accountId,'PAYMENT',`charge:${paymentId}`,amountMinor,'wallet');
+    this.store.db.prepare('INSERT INTO payment_hold_captures VALUES(?,?,?,?)').run(accountId,reference,paymentId,amountMinor);return this.summary(accountId);
+  });}
 }

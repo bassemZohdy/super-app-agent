@@ -496,11 +496,13 @@ test('E2E Life Scenario 12: Smart Utilities - DEWA Telemetry & Bill Settlement',
   const elecWidget = surface.view.children.find((c: any) => c.id === 'metric_elec');
   assert.ok(elecWidget.properties.value.includes('480 kWh'));
 
-  // 2. Citizen pays the bill via DubaiPay
+  // 2. Missing the offered resource is denied; payment echoes the exact reviewed binding.
+  const omitted=await executeCoreRequest('POST','/api/a2ui/action',{}, {sessionId,surfaceRevision:getOrCreateSession(sessionId).currentSurface?.revision,action:'pay_utilities_bill',payload:{}});assert.equal(omitted.status,403);
+  const binding=surface.view.children.find((node:any)=>node.onEvents?.some((event:any)=>event.payload?.action==='pay_utilities_bill')).onEvents.find((event:any)=>event.payload.action==='pay_utilities_bill').payload;
   const payRes = await executeCoreRequest('POST', '/api/a2ui/action', {}, {
     sessionId, surfaceRevision: getOrCreateSession(sessionId).currentSurface?.revision,
     action: 'pay_utilities_bill',
-    payload: {},
+    payload: {...binding},
   });
   assert.strictEqual(payRes.status, 200);
   const paidSurface = payRes.data.surface;

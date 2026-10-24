@@ -1,5 +1,5 @@
 /** Payment contract v1. Additive, synthetic-account APIs; previews never authorize execution. */
-export const PAYMENT_CONTRACT_VERSION = '1.1.0';
+export const PAYMENT_CONTRACT_VERSION = '1.2.0';
 export const MAX_PAYMENT_MINOR = 100_000_000;
 export const cardPresets = [
   { id: 'approved', name: 'Everyday demo card', last4: '4242', behavior: 'APPROVE', limitMinor:200000 },
@@ -26,10 +26,10 @@ export type PaymentPreview = {
 };
 export type CardBalance={sourceId:string;limitMinor:number;heldMinor:number;spentMinor:number;availableMinor:number;currency:'AED'};
 export type CardAuthorization={id:string;orderId:string;sourceId:string;amountMinor:number;currency:'AED';state:'REQUIRES_ACTION'|'AUTHORIZED'|'DECLINED'|'EXPIRED'|'VOIDED'|'CAPTURED';expiresAt:string;challengeId?:string;failureCode?:string};
-export type PaymentAuthorizationReview={id:string;accountId:string;ownerSub:string;version:number;state:'AWAITING_APPROVAL'|'REQUIRES_ACTION'|'AUTHORIZED'|'FAILED'|'CANCELLED';approvalDigest:string;expiresAt:string;createdAt:string;approvedAt?:string;failureCode?:string;fundsCaptured:false;
+export type PaymentAuthorizationReview={id:string;accountId:string;ownerSub:string;version:number;state:'AWAITING_APPROVAL'|'REQUIRES_ACTION'|'AUTHORIZED'|'CAPTURING'|'CAPTURED'|'RECONCILIATION_REQUIRED'|'SETTLED'|'FAILED'|'CANCELLED';approvalDigest:string;expiresAt:string;createdAt:string;approvedAt?:string;failureCode?:string;fundsCaptured:boolean;admissionId?:string;paymentId?:string;receipt?:{receiptNumber:string;obligationId:string;amountMinor:number;currency:'AED'};
   quote:{payable:Payable;billingAccount:BillingAccount;source:PaymentMethod;amountMinor:number;feeMinor:number;totalMinor:number;currency:'AED';createdAt:string;expiresAt:string};authorization?:CardAuthorization};
 export type PaymentDependency = { resourceType:'METHOD'|'BILLER';resourceId:string;dependentKind:'ORDER'|'HOLD'|'MANDATE';dependentId:string;status:'ACTIVE' };
-export type PaymentOverview = { contractVersion: string; accountId: string; previewOnly: true; dependencies: PaymentDependency[]; methods: PaymentMethod[]; defaultMethodId: string; presets: unknown[]; billingAccounts: BillingAccount[]; candidates: BillerCandidate[]; payables: Payable[]; orders?:PaymentAuthorizationReview[];cardBalances?:CardBalance[];wallet: { balanceMinor: number; heldMinor: number; availableMinor: number; currency: 'AED' } };
+export type PaymentOverview = { contractVersion: string; accountId: string; previewOnly: boolean; dependencies: PaymentDependency[]; methods: PaymentMethod[]; defaultMethodId: string; presets: unknown[]; billingAccounts: BillingAccount[]; candidates: BillerCandidate[]; payables: Payable[]; orders?:PaymentAuthorizationReview[];cardBalances?:CardBalance[];wallet: { balanceMinor: number; heldMinor: number; availableMinor: number; currency: 'AED' } };
 export const orderStates = ['DRAFT','AWAITING_APPROVAL','READY','REQUIRES_ACTION','AUTHORIZED','CAPTURED','SETTLING','SETTLED','FAILED','CANCELLED','RECONCILIATION_REQUIRED','REFUNDING','PARTIALLY_REFUNDED','REFUNDED'] as const;
 export const settlementStates = ['UNCLAIMED','CLAIMED','APPLIED','RELEASED','UNKNOWN'] as const;
 export const attemptStates = ['PENDING','REQUIRES_ACTION','AUTHORIZED','CAPTURED','DECLINED','VOIDED','UNKNOWN'] as const;
@@ -51,6 +51,8 @@ export const paymentSchemas = {
   approveOrder:paymentObject({expectedVersion:version,approvalDigest:digestSchema}),
   challengeOrder:paymentObject({expectedVersion:version,approvalDigest:digestSchema,challengeId:id,decision:{enum:['APPROVE','REJECT']}}),
   cancelOrder:paymentObject({expectedVersion:version}),
+  executeOrder:paymentObject({expectedVersion:version,approvalDigest:digestSchema}),
+  recoverOrder:paymentObject({}),
 };
 export const withOrderId=(schema:ReturnType<typeof paymentObject>)=>paymentObject({...schema.properties,orderId:id},[...schema.required,'orderId']);
 export const withPaymentAccount = (schema: ReturnType<typeof paymentObject>, write = true) => paymentObject({

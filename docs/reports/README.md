@@ -4,7 +4,8 @@ Evidence spans the `283521a` integrated baseline, payment setup `65fec3c`, journ
 
 | Evidence | Verified scope | Interpretation |
 | --- | --- | --- |
-| [Settlement/refund exclusion](2026-10-24-settlement-claims.md) | 180 tests, 18 builds; source/gateway race tests and real-Keycloak paid/refund/non-application checks | Existing HTTP claim/refund guard implemented; PAY-10 order-capture integration remains open |
+| [Wallet/card bill checkout](2026-10-24-payment-checkout.md) | 188 tests, 18 builds, twelve journeys, challenged-card receipt and wallet execution browsers | PAY-09–PAY-12 delivered; other payables/refunds/automation remain open |
+| [Settlement/refund exclusion](2026-10-24-settlement-claims.md) | 180 tests, 18 builds; source/gateway race tests and real-Keycloak paid/refund/non-application checks | Historical claim/refund guard evidence; later bill-checkout report covers order-capture integration |
 | [Stored authorization and issuer](2026-10-24-payment-authorization.md) | 171 tests, 18 builds, twelve journeys, setup/lifecycle browser and real-Keycloak challenge/holds/limits/expiry checks | PAY-05 delivered; capture/settlement, cross-path reservation and automation remain open |
 | [Provider-owned payable revisions](2026-10-24-payables.md) | 162 tests, 18 builds; source revision/lifecycle and isolated signed-owner settlement checks | PAY-06 progress; stored-order capture admission and claim/refund gates remain open |
 | [Lifecycle and preview simulation](2026-10-24-lifecycle-simulator.md) | 155 tests, 18 builds, twelve journeys, lifecycle/prepaid browser, and cross-process preview CLI | PAY-03/PAY-04 guard contracts and initial SIM-01; issuer/automation producers remain open |

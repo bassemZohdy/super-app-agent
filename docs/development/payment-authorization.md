@@ -1,6 +1,6 @@
 # Stored payment authorization and synthetic issuer
 
-PAY-05 adds finite synthetic card authorization and explicit owner challenges. React can now create a stored authorization review, approve its exact terms, complete/reject a challenge, inspect current funds holds and cancel. **This flow does not capture funds or settle a bill.** Stored-order capture/admission remains PAY-07–PAY-10 work. Existing provider HTTP settlements now use the [claim protocol](settlement-claims.md). Existing service payments retain their legacy wallet flow.
+PAY-05 adds finite synthetic card authorization and explicit owner challenges. React can now create a stored authorization review, approve its exact terms, complete/reject a challenge, inspect current funds holds and cancel. **Authorization alone does not capture or settle a bill.** A separate explicit Pay action now performs admitted bill capture/settlement. Existing provider HTTP settlements now use the [claim protocol](settlement-claims.md). Existing bill service payments now use the same stored wallet-order flow.
 
 ## Try it
 
@@ -10,9 +10,9 @@ PAY-05 adds finite synthetic card authorization and explicit owner challenges. R
 4. The Challenge preset displays **Approve demo card challenge** and **Reject demo card challenge** for that order/amount. No real OTP, PAN, CVV or card login is required. An unattended service cannot answer.
 5. Approval reserves available card limit or wallet funds for at most two minutes. The UI reports AUTHORIZED, never paid/settled. Reload restores the review. **Cancel authorization review** voids the hold and releases its related-item locks without changing posted funds. Refresh to inspect current expiry/status.
 
-Preset limits are AED 2,000 per synthetic card; the Limited preset has AED 100. The Declined preset always declines; Expired cards cannot be used. Limits account for pending challenges, active authorizations and confirmed issuer captures. New public reviews never capture; the trusted capture seam is tested for future PAY-09 integration. Limits are per saved synthetic source, not a shared bank credit line. Issuer refunds/limit restoration remain future work.
+Preset limits are AED 2,000 per synthetic card; the Limited preset has AED 100. The Declined preset always declines; Expired cards cannot be used. Limits account for pending challenges, active authorizations and confirmed issuer captures. Reviews capture only through the separately approved bill-execution action; capture consumes the exact authorization once. Limits are per saved synthetic source, not a shared bank credit line. Issuer refunds/limit restoration remain future work.
 
-The initial review lasts five minutes. A challenge/authorization lasts at most two minutes and never outlives the review. Expiry is persisted lazily on current reads/admission and releases holds/locks; there is no scheduler yet. A disabled/changed source cannot receive a new authorization. Existing holds stay conservative until cancelled/expired; changing a default never rewrites a stored review.
+The initial review lasts five minutes. A challenge/authorization lasts at most two minutes and never outlives the review. Before capture begins, expiry is persisted lazily on current reads/admission and releases holds/locks; there is no scheduler yet. A disabled/changed source cannot receive a new authorization. Existing holds stay conservative until cancelled/expired; changing a default never rewrites a stored review.
 
 ## APIs and persistence
 
@@ -35,7 +35,7 @@ Exact POST retries return their stored result without another effect. They can s
 
 ## Remaining integration boundaries
 
-The new reservation does not yet cover legacy service settlement or future automatic callers. Source GET preflight and a local hold are separate transactions; capture must first acquire the upcoming provider/obligation admission contract. No `/payment-orders/{id}/capture` endpoint exists. PAY-08/PAY-09/PAY-10 remain open for cross-path reservation, capture, stored-order claim integration and unknown-outcome reconciliation. This implementation does not grant recurring spend or activate a worker.
+The reservation covers current bill service settlement; other legacy service types and future automatic callers retain separate integration tasks. Source GET preflight and a local hold are separate transactions; bill capture first acquires provider admission. No free-standing `/payment-orders/{id}/capture` endpoint exists; approved bill execution uses `/execute`. Stored bill execution now integrates those reservations, capture and claims; broader cross-operation admission and recovery remain open. This implementation does not grant recurring spend or activate a worker.
 
 Runtime clocks default to real time. Tests can inject a private constructor-only authorization clock; no HTTP/env setting lets clients advance it. JWT/key/client validity continues using real security time. The separate preview scenario CLI cannot reach these funds or reviews. Execution-run clock integration remains future simulator work.
 
@@ -44,4 +44,6 @@ npm run demo:verify:payment-authorization
 npm run check
 ```
 
-The browser verifier needs local Keycloak/Redis, Chrome and the [isolated harness ports](payment-accounts.md). It exercises actual signed-owner HTTP/UI, deterministic private-clock expiry, owner/machine/replay/price denial, limited/declined/expired sources and unchanged posted funds. [Executed evidence](../reports/2026-10-24-payment-authorization.md).
+The browser verifier needs local Keycloak/Redis, Chrome and the [isolated harness ports](payment-accounts.md). It exercises actual signed-owner HTTP/UI, deterministic private-clock expiry, owner/machine/replay/price denial, limited/declined/expired sources, unchanged funds before capture and a confirmed challenged-card bill payment. [Latest execution evidence](../reports/2026-10-24-payment-checkout.md); [original authorization evidence](../reports/2026-10-24-payment-authorization.md).
+
+[Pay bills after authorization](payment-checkout.md) describes the explicit capture action, receipt and pending recovery states.

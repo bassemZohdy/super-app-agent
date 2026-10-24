@@ -18,7 +18,7 @@ export async function paymentOverview(actor: Actor, source = client): Promise<Pa
   for (const [provider,data] of [['etisalat',etisalatPrepaid],['du',duPrepaid]] as const) for (const line of data.lines) if(line.status === 'ACTIVE') candidates.push({provider,reference:line.lineId,label:`${provider} · ${line.name}`,balanceMinor:line.balanceMinor});
   for (const vehicle of vehicles.vehicles) if(vehicle.status === 'ACTIVE') candidates.push({provider:'police',reference:vehicle.plateNumber,label:`Traffic fines · ${vehicle.plateNumber}`});
   const payables: Payable[] = [...dewaBills.payables,...etisalatBills.payables,...duBills.payables,...fines.payables];
-  return { contractVersion: PAYMENT_CONTRACT_VERSION, accountId: actor.accountId, previewOnly: true, dependencies: [...methods.dependencies,...links.dependencies], methods: methods.methods, defaultMethodId: methods.defaultMethodId, presets: methods.presets,
+  return { contractVersion: PAYMENT_CONTRACT_VERSION, accountId: actor.accountId, previewOnly: false, dependencies: [...methods.dependencies,...links.dependencies], methods: methods.methods, defaultMethodId: methods.defaultMethodId, presets: methods.presets,
     billingAccounts: links.billingAccounts, candidates, payables, orders:orders.orders,cardBalances:methods.cardBalances, wallet: { balanceMinor: wallet.balanceMinor, heldMinor: wallet.heldMinor, availableMinor: wallet.availableMinor, currency: 'AED' } };
 }
 export function buildPaymentPreview(overview: PaymentOverview, input: { payableId: string; methodId: string; expectedMethodVersion: number }, now = Date.now()): PaymentPreview {
@@ -47,7 +47,7 @@ export async function handlePaymentAccounts(actor: Actor, method: string, path: 
     if(method==='POST'&&path==='/api/payments/orders') {
       const {accountId:_account,requestKey,...input}=body;return {status:200,data:await client.call('payments',actor,'POST','/payment-orders',input,`payment-orders:${requestKey}`)};
     }
-    const orderAction=/^\/api\/payments\/orders\/(approve|challenge|cancel)$/.exec(path);
+    const orderAction=/^\/api\/payments\/orders\/(approve|challenge|cancel|execute|recover)$/.exec(path);
     if(method==='POST'&&orderAction){
       const {accountId:_account,requestKey,orderId,...input}=body;return {status:200,data:await client.call('payments',actor,'POST',`/payment-orders/${encodeURIComponent(orderId)}/${orderAction[1]}`,input,`payment-orders:${requestKey}`)};
     }
