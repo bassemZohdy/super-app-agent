@@ -28,7 +28,7 @@ Existing task IDs are preserved. New findings extend those tasks or receive new 
 | Sessions | Redis ownership/account claims, TTL, renewed leases, fenced saves, shared replay | Single-node AOF crash window, global quotas, HA/backup and durable workflow semantics |
 | Deployment | Loopback-published reference demo, SQLite/Redis volumes, readiness polling | Source/dependency mounts; clean-image and production deployment hardening remain open |
 
-Current results are in the [evidence register](docs/reports/README.md). The latest delivered baseline passed 245 Node tests and 18 workspace builds; dated reports retain their earlier counts. Real local Keycloak/provider, Redis and restart checks pass. Flutter and browser results are explicitly scoped in that report. `npm run lint` now executes ESLint correctness rules; local Markdown-link and source-secret checks also run in `npm run check`.
+Current results are in the [evidence register](docs/reports/README.md). The latest delivered baseline passed 264 Node tests and 18 workspace builds; dated reports retain their earlier counts. Real local Keycloak/provider, Redis and restart checks pass. Flutter and browser results are explicitly scoped in that report. `npm run lint` now executes ESLint correctness rules; local Markdown-link and source-secret checks also run in `npm run check`.
 
 ### Confirmed defects and regression coverage
 
@@ -47,7 +47,7 @@ The original probes used isolated synthetic fixtures. Later regressions and loca
 
 ## Execution order
 
-**Next selected demo scope:** [Payment accounts and automation](#payment-accounts-and-automation-demo--planned-backlog), with 50 slices (15 delivered slices, 35 open) and its own risk-first dependency order. The list below retains the broader platform/release ordering.
+**Next selected demo scope:** [Payment accounts and automation](#payment-accounts-and-automation-demo--planned-backlog), with 50 slices (16 delivered slices, 34 open) and its own risk-first dependency order. The list below retains the broader platform/release ordering.
 
 1. **Retain correctness gates:** P0-09/P0-12/P0-10 are implemented; finish P1-12/P1-13/P1-14 parity and contract boundaries without weakening those guards.
 2. **Identity and service boundary:** P0-01/P0-13, P1-02, P0-03, P1-10 and P0-04. Mini-app/manual and agent paths must share the same authorization rules.
@@ -59,7 +59,7 @@ P0 = blocks use with real users, identity, money or government records. P1 = req
 
 ## Payment accounts and automation demo — planned backlog
 
-**Status: implementation in progress.** PAY-01–PAY-06, PAY-09–PAY-16 and initial preview-only SIM-01 are delivered. The other 35 items remain unchecked; see [execution evidence](docs/reports/2026-10-24-checkout-groups.md). Requested 24 October 2026. [Design and simulator boundaries](docs/architecture/payment-automation-demo.md) define the current-versus-planned behavior, account vocabulary, state machine, consent model and scenario matrix. This is the next local-demo workstream; original P0/P1/OBO tasks keep their separate acceptance criteria. No real cards, bank accounts, money or agency contracts are required. Production readiness is not implied.
+**Status: implementation in progress.** PAY-01–PAY-06, PAY-09–PAY-17 and initial preview-only SIM-01 are delivered. The other 34 items remain unchecked; see [execution evidence](docs/reports/2026-10-24-payment-refunds.md). Requested 24 October 2026. [Design and simulator boundaries](docs/architecture/payment-automation-demo.md) define the current-versus-planned behavior, account vocabulary, state machine, consent model and scenario matrix. This is the next local-demo workstream; original P0/P1/OBO tasks keep their separate acceptance criteria. No real cards, bank accounts, money or agency contracts are required. Production readiness is not implied.
 
 **Build order:** PAY-01–PAY-10 establish contracts/accounting/authorization; PAY-11–PAY-20 complete manual payments and recovery; PAY-21 coordinates source/account lifecycle with AUTO-01; AUTO-01–AUTO-07 establish consent/worker/dry-run before AUTO-08–AUTO-15 enable any automatic effect. Build SIM-01–SIM-05 alongside the earliest affected slices; SIM-06 and QA-01–QA-08 gate the complete demo. Every slice includes its relevant API/UI states and focused tests; the final QA tasks add cross-system assurance rather than postpone all testing. Items within a phase can proceed independently only when their stated dependencies are met.
 
@@ -71,14 +71,14 @@ Complete the remaining implementation slices in these checkpoints, preserving de
 
 | Backlog group | Total | Delivered | Open |
 | --- | ---: | ---: | ---: |
-| Payment accounts and execution, PAY | 21 | 14 | 7 |
+| Payment accounts and execution, PAY | 21 | 15 | 6 |
 | Consent and automatic services, AUTO | 15 | 0 | 15 |
 | Isolated simulation, SIM | 6 | 1 | 5 |
 | Acceptance and evidence, QA | 8 | 0 | 8 |
-| **Total** | **50** | **15** | **35** |
+| **Total** | **50** | **16** | **34** |
 
 1. **Manual-payment foundation:** finish PAY-07–PAY-08 after the delivered issuer/bill checkout slices, with the relevant SIM-02/SIM-03 fixtures. Review a current payable, bind the exact funding source, authorize finite funds and prove settlement/refund exclusion before enabling a new charge path.
-2. **Complete manual journeys:** PAY-17–PAY-20 and relevant SIM-04 faults. Bills, fines and each top-up target use the same owned order/receipt/recovery path. Finish source/owner lifecycle integration through PAY-21 when AUTO-01 exists.
+2. **Complete manual journeys:** PAY-18–PAY-20 and relevant SIM-04 faults. Bills, fines and each top-up target use the same owned order/receipt/recovery path. Finish source/owner lifecycle integration through PAY-21 when AUTO-01 exists.
 3. **Bounded automation:** AUTO-01–AUTO-07 establish explicit mandates, tested authority, durable jobs, scheduling and dry-run. Then AUTO-08–AUTO-15 add each opt-in service and revocation. Source defaults, saved cards and chat messages never activate a rule.
 4. **Operate and demonstrate:** finish SIM-05/SIM-06 controls/inspection and QA-01–QA-08 cross-system evidence. Run relevant negative checks during each slice; final QA is the integrated release gate, not the first testing pass.
 
@@ -135,7 +135,7 @@ All scenarios require persisted owned state, truthful pending/unknown outcomes a
 
 - [x] **PAY-16 — Select one explicit funding policy for grouped checkout.** **Owner:** orchestration/UI. **Modifies:** unified checkout and totals; **reuses:** child orders and per-payable guards. Start with one selected source for all eligible lines; do not imply atomic multi-provider settlement or silent split tender. **Done when:** already-paid items are excluded, each successful line has one debit/receipt, later failure preserves prior results, and retry resumes/reconciles affected lines without charging settled ones again. **Delivered:** Owner-bound groups freeze one source/version, exact current quotes, total/digest and child IDs; already-paid exclusion, sequential execution, per-line challenges, partial receipts and original-child recovery are implemented. Legacy unified checkout persists and resumes the original group/intent. Wallet/card success, limit failure, lost-response/concurrency/cancellation/reopen tests and three paced real-Keycloak browser cases pass. [Guide](docs/development/checkout-groups.md) · [Evidence](docs/reports/2026-10-24-checkout-groups.md). **Depends:** PAY-11, PAY-12, PAY-14, PAY-15.
 
-- [ ] **PAY-17 — Refund/reverse payments through their original source.** **Owner:** payments/providers/UI. **Modifies:** refund routes; **creates:** cumulative refund/reversal state. Support full/partial payment refunds within captured value only where the provider declares an eligible reversal; initial bill/fine partial settlement remains unsupported. **Done when:** retries cannot over-refund, card refunds do not credit the wallet, provider settlement cannot remain paid with an untracked restored balance, spent top-up funds are not refunded into a negative wallet, and uncertain reversals require reconciliation. **Depends:** PAY-09–PAY-15.
+- [x] **PAY-17 — Refund/reverse payments through their original source.** **Owner:** payments/providers/UI. **Modifies:** refund routes; **creates:** cumulative refund/reversal state. Support full/partial payment refunds within captured value only where the provider declares an eligible reversal; initial bill/fine partial settlement remains unsupported. **Done when:** retries cannot over-refund, card refunds do not credit the wallet, provider settlement cannot remain paid with an untracked restored balance, spent top-up funds are not refunded into a negative wallet, and uncertain reversals require reconciliation. **Delivered:** Exact owner refund reviews and cumulative caps, durable source APPLIED/REJECTED reversals, full bill/fine cancellation, partial unused toll/mobile return and available-wallet funding reversal are implemented. Original issuer/journal/claim/order/receipt updates commit together; unknown response/persistence recovery retains original IDs, card returns never credit wallets, and held/spent funds deny overdraft. Focused and real-Keycloak paced UI checks cover success, partial/retry and spent-funding denial. [Guide](docs/development/payment-refunds.md) · [Evidence](docs/reports/2026-10-24-payment-refunds.md). **Depends:** PAY-09–PAY-15.
 
 - [ ] **PAY-18 — Deliver authenticated asynchronous payment events.** **Owner:** integration/payments. **Creates:** transactional outbox, event IDs, signed local callbacks and deduplicating inbox; **reuses:** order lookup and existing private service boundaries. Persist effect/event publication together and apply events with order/version checks. **Done when:** delayed/duplicate/reordered/forged delivery cannot create funds or regress terminal state, restart resumes delivery, and callback payloads alone cannot assert bill settlement. **Depends:** PAY-08, PAY-09, SIM-03.
 

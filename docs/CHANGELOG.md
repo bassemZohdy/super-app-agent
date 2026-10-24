@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 24 October 2026 — original-source refunds after provider reversal
+
+Deliver PAY-17 with exact cumulative refund reviews, source-authoritative full bill/fine cancellation and partial unused recharge reversal, original-card returns and available-wallet funding reversal. Persist APPLIED/REJECTED source outcomes, retain unknown refund identities, and atomically post issuer/journal/history updates. Add paced success/partial/spent-funding-denial evidence. [Guide](development/payment-refunds.md) · [Evidence](reports/2026-10-24-payment-refunds.md).
+
 ## 24 October 2026 — durable one-source grouped checkout
 
 Deliver PAY-16 with exact group/source review, immutable child payments, sequential per-line authorization, challenges, partial receipts and same-child recovery. Persist original unified civic checkout plans to prevent fresh recharge on response-loss retry. Verify wallet/card success and partial card failure with a paced recording; retain refunds and automation as open work. [Guide](development/checkout-groups.md) · [Evidence](reports/2026-10-24-checkout-groups.md).

@@ -62,6 +62,8 @@ route('agent-core', 'GET', '/api/payments/overview', object({ accountId: id }, [
 route('agent-core','GET','/api/payments/wallet-funding-orders',object({accountId:id},['accountId']));
 route('agent-core','POST','/api/payments/wallet-funding-orders',withPaymentAccount(paymentSchemas.createWalletFunding));
 for(const [action,schema] of Object.entries({approve:paymentSchemas.approveOrder,challenge:paymentSchemas.challengeOrder,cancel:paymentSchemas.cancelOrder,execute:paymentSchemas.executeOrder}))route('agent-core','POST',`/api/payments/wallet-funding-orders/${action}`,withPaymentAccount(withOrderId(schema)));
+route('agent-core','POST','/api/payments/refunds',withPaymentAccount(paymentSchemas.createRefund));
+for(const [action,schema] of Object.entries({execute:paymentSchemas.executeOrder,recover:paymentSchemas.recoverOrder,cancel:paymentSchemas.cancelOrder}))route('agent-core','POST',`/api/payments/refunds/${action}`,withPaymentAccount(withOrderId(schema)));
 route('agent-core','POST','/api/payments/checkout-groups',withPaymentAccount(paymentSchemas.createCheckoutGroup));
 for(const [action,schema] of Object.entries({approve:paymentSchemas.approveOrder,execute:paymentSchemas.executeOrder,cancel:paymentSchemas.cancelOrder}))route('agent-core','POST',`/api/payments/checkout-groups/${action}`,withPaymentAccount(withOrderId(schema)));
 route('agent-core','GET','/api/payments/orders',object({accountId:id},['accountId']));

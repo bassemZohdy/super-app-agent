@@ -61,8 +61,8 @@ export function createProviderServer(provider: ProviderId, path: string, options
       const operation = routes.find(route => route.method === req.method && route.regex.test(operationPath));
       if (!operation || url.search) throw new ApiError(404, 'NOT_FOUND', 'Operation not found.');
       if(claimRoute&&!claimant)throw new ApiError(403,'CLAIM_CLIENT_REQUIRED','Only the exact provider settlement workload can change a claim.');
-      if(provider==='payments'&&(operationPath.startsWith('/payment-orders')||operationPath.startsWith('/wallet-funding-orders')||operationPath.startsWith('/checkout-groups'))&&!interactive)throw new ApiError(403,'INTERACTIVE_REVIEW_REQUIRED','Stored authorization reviews require the signed-in owner. Unattended actors cannot approve or answer challenges.');
-      if((operationPath.includes('/admissions')||operationPath==='/fine-selections'||operationPath==='/recharge-quotes')&&!interactive)throw new ApiError(403,'INTERACTIVE_ADMISSION_REQUIRED','Payable admission requires the current signed-in owner.');
+      if(provider==='payments'&&(operationPath.startsWith('/payment-orders')||operationPath.startsWith('/wallet-funding-orders')||operationPath.startsWith('/checkout-groups')||operationPath.startsWith('/payment-refunds'))&&!interactive)throw new ApiError(403,'INTERACTIVE_REVIEW_REQUIRED','Stored authorization reviews require the signed-in owner. Unattended actors cannot approve or answer challenges.');
+      if((operationPath.includes('/admissions')||operationPath==='/fine-selections'||operationPath==='/recharge-quotes'||operationPath.startsWith('/payment-reversals/'))&&!interactive)throw new ApiError(403,'INTERACTIVE_ADMISSION_REQUIRED','Payable admission requires the current signed-in owner.');
       const actor: Actor = { sub: subject, username: subject, name: typeof req.headers['x-user-name'] === 'string' ? Buffer.from(req.headers['x-user-name'], 'base64url').toString('utf8').slice(0, 200) : 'Demo citizen', accountId, requestId: '', authorization: interactive ? req.headers.authorization : undefined };
       let body: any = {};
       if (req.method === 'POST') {
@@ -80,12 +80,19 @@ export function createProviderServer(provider: ProviderId, path: string, options
       const fingerprint = createHash('sha256').update(JSON.stringify([req.method, operationPath, canonical(body),...(claimant?[claimant]:[])])).digest('hex');
       if (req.method === 'POST') {
         if (typeof rawKey !== 'string' || !/^[\x21-\x7e]{1,200}$/.test(rawKey)) throw new ApiError(400, 'IDEMPOTENCY_REQUIRED', 'Provide an Idempotency-Key of 1 to 200 ASCII characters.');
+        engine.refunds?.reserveRequest(accountId,key as string,fingerprint);
         const existing = store.db.prepare('SELECT fingerprint,status,body FROM idempotency WHERE account_id=? AND key=?').get(accountId, key as string) as any;
         if (existing) { if (existing.fingerprint !== fingerprint) throw new ApiError(409, 'IDEMPOTENCY_CONFLICT', 'This key was used with a different request.');if(!claimant){if(body.paymentId&&settlements)await settlements.retryConfirmation(accountId,body.paymentId);return send({ status: existing.status, data: JSON.parse(existing.body) });} }
       }
       // A delegated write with external payment proof is outside the initial bounded write profile.
       if (delegated && body.paymentId) throw new ApiError(403, 'WRITE_NOT_APPROVED', 'Delegated settlement is not enabled.');
       if(provider==='payments'&&operationPath==='/charges'&&(['dewa','etisalat','du'].includes(body.merchant)&&/^(bill|prepaid|recharge|payable|admission):/.test(body.reference)||body.merchant==='police'&&/^(fines|payable|admission):/.test(body.reference)||body.merchant==='rta'&&/^(salik|payable|admission):/.test(body.reference)))throw new ApiError(409,'STORED_BILL_ORDER_REQUIRED','Bill/fine captures now require an approved stored order; use the payment-order execution API.');
+      const refundAction=/^\/payment-refunds\/([^/]+)\/(execute|recover)$/.exec(operationPath);
+      if(engine.refunds&&req.method==='POST'&&refundAction){
+        const [,id,action]=refundAction;const refund=action==='execute'?await engine.refunds.execute(actor,id,body,payments):await engine.refunds.recover(actor,id,payments);
+        const result={status:200,data:{success:true,refund}};
+        store.transaction(()=>{const previous=store.db.prepare('SELECT fingerprint FROM idempotency WHERE account_id=? AND key=?').get(accountId,key as string);if(previous&&previous.fingerprint!==fingerprint)throw new ApiError(409,'IDEMPOTENCY_CONFLICT','This refund request has different terms.');store.db.prepare('INSERT INTO idempotency VALUES(?,?,?,?,?) ON CONFLICT(account_id,key) DO NOTHING').run(accountId,key as string,fingerprint,200,JSON.stringify(result.data));});return send(result);
+      }
       const groupAction=/^\/checkout-groups\/([^/]+)\/(approve|execute|cancel)$/.exec(operationPath);
       if(engine.groups&&checkout&&req.method==='POST'&&(operationPath==='/checkout-groups'||groupAction)){
         let result:ApiResult;
@@ -119,6 +126,8 @@ export function createProviderServer(provider: ProviderId, path: string, options
         if(!['dewa','etisalat','du','police','rta'].includes(targetProvider))throw new ApiError(400,'INVALID_PROVIDER','Choose a supported obligation provider.');
         payableSnapshot=(await payments.call(targetProvider,actor,'GET',`/payables/${encodeURIComponent(targetId)}`)).payable;
       }
+      let refundReview:import('../../../packages/protocol-core/src/payments.ts').PaymentRefund|undefined;
+      if(engine.reversals&&req.method==='POST'&&/^\/payment-reversals\/[^/]+$/.test(operationPath))refundReview=(await payments.call('payments',actor,'GET',`/payment-refunds/${encodeURIComponent(operationPath.split('/')[2])}`)).refund;
       const proof = body.paymentId ? (await payments.call('payments', actor, 'GET', `/charges/${encodeURIComponent(body.paymentId)}`)).charge : undefined;
       let gatewayOrder:import('../../../packages/protocol-core/src/payments.ts').PaymentAuthorizationReview|undefined;
       const admissionAction=/^\/payables\/[^/]+\/admissions\/([^/]+)\/(admit|cancel|finish)$/.exec(operationPath);
@@ -136,7 +145,7 @@ export function createProviderServer(provider: ProviderId, path: string, options
           if (proof && store.get(accountId, 'used-payment', proof.id)) throw new ApiError(409, 'PAYMENT_ALREADY_USED', 'This payment was already applied.');
         }
         const action=operationPath.split('/')[4],paymentId=operationPath.split('/')[2];
-        const result:ApiResult=claimant?{status:200,data:{success:true,...(action==='claim'?engine.claims!.claim(accountId,paymentId,claimant,body):action==='ack'?engine.claims!.acknowledge(accountId,paymentId,claimant,body):engine.claims!.release(accountId,paymentId,claimant,body))}}:engine.execute(actor, req.method || 'GET', operationPath, body, proof,payableSnapshot,gatewayOrder);
+        const result:ApiResult=claimant?{status:200,data:{success:true,...(action==='claim'?engine.claims!.claim(accountId,paymentId,claimant,body):action==='ack'?engine.claims!.acknowledge(accountId,paymentId,claimant,body):engine.claims!.release(accountId,paymentId,claimant,body))}}:engine.execute(actor, req.method || 'GET', operationPath, body, proof,payableSnapshot,gatewayOrder,refundReview);
         if (req.method === 'POST') {
           if (proof && result.data.success) store.put(accountId, 'used-payment', true, proof.id);
           store.db.prepare('INSERT INTO idempotency(account_id,key,fingerprint,status,body) VALUES(?,?,?,?,?) ON CONFLICT(account_id,key) DO UPDATE SET status=excluded.status,body=excluded.body').run(accountId, key as string, fingerprint, result.status, JSON.stringify(result.data));

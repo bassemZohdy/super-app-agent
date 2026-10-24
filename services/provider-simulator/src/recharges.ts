@@ -7,7 +7,7 @@ import { assertPayableUnreserved,rechargeTargetKey } from './payable-admissions.
 const deny=(code:string,message:string,status=409):never=>{throw new PayableError(status,code,message);};
 const hash=(v:unknown)=>createHash('sha256').update(JSON.stringify(v)).digest('hex');
 const amount=(n:number)=>Number.isSafeInteger(n)&&n>=0&&n<=MAX_PAYMENT_MINOR;
-type Quote={payable:Payable;intentId:string;expiresAt:string;receipt?:PaymentReceipt};
+type Quote={payable:Payable;intentId:string;expiresAt:string;receipt?:PaymentReceipt;refundedMinor?:number};
 export class ProviderRecharges {
   readonly store:AccountDatabase;readonly provider:RechargeProvider;readonly clock:()=>number;private sequence=0;
   constructor(store:AccountDatabase,provider:RechargeProvider,clock=Date.now){this.store=store;this.provider=provider;this.clock=clock;store.db.exec(`CREATE TABLE IF NOT EXISTS provider_recharge_quotes(id TEXT PRIMARY KEY,account_id TEXT NOT NULL REFERENCES accounts(id),intent_id TEXT NOT NULL,body TEXT NOT NULL,UNIQUE(account_id,intent_id));`);}
@@ -38,11 +38,22 @@ export class ProviderRecharges {
     this.store.db.prepare('INSERT INTO provider_recharge_quotes VALUES(?,?,?,?)').run(id,account,input.intentId,JSON.stringify({payable:p,intentId:input.intentId,expiresAt}));return p;
   });}
   get(account:string,id:string):Payable{
-    const q=this.saved(account,id),p=q.payable;if(q.receipt)return {...p,status:'PAID',dueState:'CLOSED',revision:hash([p.revision,'PAID'])};
+    const q=this.saved(account,id),p=q.payable;if(q.receipt){const status=q.refundedMinor===p.amountMinor?'CANCELLED':'PAID';return {...p,status,dueState:'CLOSED',revision:hash(q.refundedMinor?[p.revision,status,q.refundedMinor]:[p.revision,status])};}
     let changed=false;try{const t=this.target(account,p.reference);changed=t.status!=='ACTIVE'||t.version!==p.recharge!.targetVersion||t.balanceMinor!==p.recharge!.balanceBeforeMinor||!t.denominationsMinor.includes(p.amountMinor)||!amount(t.balanceMinor+p.amountMinor);}catch(e){if(!(e instanceof PayableError))throw e;changed=true;}
     const status=this.clock()>=Date.parse(q.expiresAt)?'EXPIRED':changed?'CANCELLED':'UNPAID';return status==='UNPAID'?p:{...p,status,dueState:status==='EXPIRED'?'EXPIRED':'CLOSED',revision:hash([p.revision,status])};
   }
   inspect(account:string,id:string,revision:string){const p=this.get(account,id);if(p.revision!==revision||p.status!=='UNPAID')return deny('PAYABLE_CHANGED','The recharge terms changed or expired. Review a new current quote.');return p;}
+  /** Provider policy: reverse only confirmed unused credit, within this original recharge's cumulative value. */
+  reverse(account:string,p:Payable,paymentId:string,amountMinor:number,expectedMinor:number){return this.atomic(()=>{
+    const q=this.saved(account,p.id),target=this.target(account,p.reference);
+    if(!q.receipt||q.receipt.receiptNumber!==paymentId||q.payable.revision!==p.revision||(q.refundedMinor||0)!==expectedMinor||!amount(amountMinor)||amountMinor<1||expectedMinor+amountMinor>p.amountMinor)return deny('REVERSAL_TERMS_CHANGED','Original recharge or cumulative reversal changed.');
+    assertPayableUnreserved(this.store,account,rechargeTargetKey(this.provider,p.reference),this.clock);
+    if(target.status!=='ACTIVE'||target.version>=1000000||target.balanceMinor<amountMinor)return deny('RECHARGE_CREDIT_UNAVAILABLE','The target is closed, exhausted or lacks unused credit for this reversal.');
+    const next=target.balanceMinor-amountMinor;
+    if(this.provider==='rta'){const raw=this.store.get(account,'salik');this.store.put(account,'salik',{...raw,balance:next/100,version:target.version+1});}
+    else{const raw=this.store.get(account,'prepaid-line',p.reference);this.store.put(account,'prepaid-line',{...raw,balanceMinor:next,version:target.version+1},p.reference);}
+    q.refundedMinor=expectedMinor+amountMinor;this.save(account,q);return {providerBalanceMinor:next};
+  });}
   applyAdmitted(account:string,p:Payable,paymentId:string,_at:number){return this.atomic(()=>{
     const q=this.saved(account,p.id),target=this.target(account,p.reference);
     if(q.receipt||q.payable.revision!==p.revision||target.status!=='ACTIVE'||target.version!==p.recharge!.targetVersion||target.balanceMinor!==p.recharge!.balanceBeforeMinor||!amount(target.balanceMinor+p.amountMinor))return deny('RECHARGE_TARGET_CHANGED','The admitted recharge needs source reconciliation.');
