@@ -1,8 +1,8 @@
 # Documentation index
 
-Updated **24 October 2026** for the integrated provider demo based on `0571413`, including the checkpointed runtime, authenticated MCP and subsequent validation/fixes. [Latest evidence](reports/2026-10-24-demo-completion.md).
+Updated **24 October 2026** against implementation commit `283521a`: provider/Redis demo, supported Keycloak delegation and internal open-source text/voice. Current execution evidence is grouped in [the evidence register](reports/README.md). Dated reports retain their original observations; proposed work is never counted as implemented.
 
-The bounded delegation extension is documented in [ADR-0012](adr/ADR-0012-secure-delegation-demo.md) and its [current execution evidence](reports/2026-10-24-delegation-demo.md); earlier baseline reports remain historical.
+The bounded delegation extension is documented in [ADR-0012](adr/ADR-0012-secure-delegation-demo.md). The latest delivered text/speech checks are in [the local AI report](reports/2026-10-24-local-ai.md).
 
 ## Reading order
 
@@ -18,6 +18,10 @@ The bounded delegation extension is documented in [ADR-0012](adr/ADR-0012-secure
 10. [Architectural decision records](adr/) — rationale, status and tradeoffs.
 
 [Secure identity delegation](development/delegation.md) — implemented bounded local broker/consent profile; [analysis](architecture/secure-identity-delegation.md), [evidence](reports/2026-10-24-delegation-demo.md) and [paced video](recordings/delegation/index.html). Production/security release approval remains pending.
+
+## Payment accounts and next demo work
+
+[Payment accounts and automation design](architecture/payment-automation-demo.md) defines linked biller accounts, wallet/cards, bounded automatic payments/services and an isolated simulator. [The 50-task backlog](../TODO.md#payment-accounts-and-automation-demo--planned-backlog) is the authoritative implementation checklist. PAY-01 is delivered; initial biller/card management is partial. [Current usage](development/payment-accounts.md) and [execution evidence](reports/2026-10-24-payment-accounts.md) distinguish live quote review from future funds movement. [Planning and cleanup record](reports/2026-10-24-payment-planning.md) distinguishes this pass from delivered functionality.
 
 ## ADR register
 
@@ -36,12 +40,12 @@ The bounded delegation extension is documented in [ADR-0012](adr/ADR-0012-secure
 | [0011](adr/ADR-0011-local-demo-target.md) | Delivery target | Accepted local demo; bundled routes, bounded graph, MCP and explicit exclusions |
 | [0012](adr/ADR-0012-secure-delegation-demo.md) | Supported JWT-grant delegation | Accepted bounded local demo; isolated broker, exact grants and online checks; production gates open |
 
-[Documentation change history](CHANGELOG.md) · [Current execution evidence](reports/2026-10-24-demo-completion.md) · [Event stream contract](architecture/event-stream.md)
+[Documentation change history](CHANGELOG.md) · [Current execution evidence](reports/README.md) · [Event stream contract](architecture/event-stream.md)
 
 ## Evidence and provenance
 
 - Source of truth: checked-in `package.json`, `docker-compose.demo.yml`, `services/**/src`, `apps/**`, `packages/protocol-core` and tests.
-- [Historical scenario transcript](reports/E2E_LIFE_SCENARIOS_RECORDING.md) and [recording viewer](recordings/index.html) describe a demonstration at the time recorded. Neither certifies the security-hardening changes after PR #1.
+- [Historical scenario transcript](reports/E2E_LIFE_SCENARIOS_RECORDING.md) describes the earlier fixture demonstration. The [current recording viewer](recordings/index.html) has twelve asserted provider journeys; the [delegation viewer](recordings/delegation/index.html) covers its separate dated broker profile. Recordings do not certify subsequent changes or production security.
 - Old detailed demo backlog retained at [historical backlog](history/demo-backlog-pre-production.md); current work is [TODO.md](../TODO.md).
 - [Local open-source text and voice setup](development/local-ai.md) — pinned models, internal modules, privacy, sources and licences.
 - [Local AI verification](reports/2026-10-24-local-ai.md) — actual inference and synthetic browser audio evidence.
@@ -55,6 +59,6 @@ The bounded delegation extension is documented in [ADR-0012](adr/ADR-0012-secure
 - [ADR-0010](adr/ADR-0010-provider-simulators-and-redis-demo.md): implemented local-demo boundaries.
 - [Provider OpenAPI contracts](../services/provider-simulator/openapi): generated, validated OpenAPI 3.1 JSON.
 - [Current video viewer](recordings/index.html) and [recording guide](development/recording.md): paced real-browser journeys, assertions and synthetic-data boundaries.
-- [Latest verification](reports/2026-10-24-demo-completion.md): actual tests, browser checks and remaining limitations.
+- [Evidence register](reports/README.md): current and historical results with their verified scope.
 
 Earlier dated reports, transcripts, videos and archived backlogs are historical evidence and are not overwritten by the new baseline.

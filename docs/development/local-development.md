@@ -85,3 +85,7 @@ The older `docker-compose.yml` and agentgateway YAML are compatibility/reference
 ## Delegated access
 
 The reference `demo:up` also reconciles the supported JWT-grant IdP, private-key broker client, scope policy and existing-user links. Applications forward signed interactive identity to providers; the independent broker holds its own grant/key volume. Open Delegated access in React/Angular or the Flutter shield control. [Full setup, contracts, verification and rollback](delegation.md). Use `npm run demo:delegation:realm` for a manual idempotent reconciliation, then sign in again if audiences changed. General service-header impersonation is denied in this reference profile.
+
+## Payment/automation planning status
+
+The running React demo now has saved synthetic card/biller-link management and quote review. It has no new card-funded execution, journal, autopay scheduler or business-clock controls yet. [Current payment setup](payment-accounts.md). [The design](../architecture/payment-automation-demo.md) and [backlog](../../TODO.md#payment-accounts-and-automation-demo--planned-backlog) define the next work. Do not invent new environment flags or reset live demo volumes to follow that plan; startup/migration/scenario commands will be documented as their implementation lands.

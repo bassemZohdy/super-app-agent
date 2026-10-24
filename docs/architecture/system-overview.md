@@ -48,4 +48,6 @@ The `dev:backend` runner and direct `execute*Request` exports remain a separate 
 
 A real LangGraph prepare/review/execute graph wraps the handwritten deterministic service router, with Redis-backed approval interrupts. Authenticated MCP and manual bundled routes enter the same guarded core. Private CPU llama.cpp/Qwen supplies conversational text; internal KittenTTS/Whisper supplies English speech and English/Arabic draft dictation. No hosted text/speech inference is used. Model prose has no transaction authority. [Local AI setup](../development/local-ai.md). UI/event envelopes are project-specific rather than official AG-UI/A2UI. Remote MFE federation, agentgateway compatibility, durable workflows and production consent are still targets.
 
-[Provider details and failure semantics](../demo/provider-backends.md) · [Authentication/security](../../SECURITY.md) · [Current verification](../reports/2026-10-24-demo-completion.md)
+[Provider details and failure semantics](../demo/provider-backends.md) · [Authentication/security](../../SECURITY.md) · [Execution evidence](../reports/README.md)
+
+The next [payment accounts/automation extension](payment-automation-demo.md) has delivered the first linked-biller/saved-method setup and non-executable preview slice in React. Durable payment orders/ledger, finite mandates, a worker and isolated scenario controls remain planned and are not part of this as-built diagram yet. [Current setup/API guide](../development/payment-accounts.md).

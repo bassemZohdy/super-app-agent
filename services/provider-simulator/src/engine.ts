@@ -1,3 +1,4 @@
+import { paymentRegistry } from './payment-registry.ts';
 import { randomUUID } from 'node:crypto';
 import { AccountDatabase } from './database.ts';
 import type { ProviderId } from './contracts.ts';
@@ -46,6 +47,8 @@ export class ProviderEngine {
     const db = this.store, a = actor.accountId, asset = assetsFor(a);
     const now = () => new Date().toISOString();
     if (this.provider === 'payments') {
+      const registry = paymentRegistry(db, a, method, path, body);
+      if (registry) return ok(registry);
       const wallet = db.get(a, 'wallet');
       if (method === 'GET' && path === '/wallet') return ok({ ...wallet, balance: major(wallet.balanceMinor) });
       if (method === 'GET' && path === '/transactions') { const transactions = db.list(a, 'transaction'); return ok({ transactions, count: transactions.length }); }

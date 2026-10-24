@@ -1,8 +1,8 @@
 /** Paced, asserted real demo UI recording. No traces, network dumps or token output. */
 import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
-import { mkdir, copyFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { basename, join } from 'node:path';
 const url = process.env.DELEGATION_APP_URL || 'http://localhost:3000';
 const stamp = new Date().toISOString().replace(/[:.]/g, '-');
 const dir = join('docs/recordings/delegation/runs', stamp);
@@ -61,8 +61,8 @@ try {
   const video = await page.video()?.path(); await browser.close();
   await writeFile(join(dir, 'chapters.json'), JSON.stringify({ successful, reviewMs: review, receiptMs: receipt, chapters, synthetic: true }, null, 2));
   if (successful && video) {
-    await copyFile(video, 'docs/recordings/delegation/latest.webm');
-    await writeFile('docs/recordings/delegation/index.html', '<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Cityside delegated access demo</title><style>body{font:16px system-ui;max-width:1100px;margin:40px auto;padding:20px;color:#24495f}video{width:100%}</style><h1>Delegated access — synthetic local demo</h1><p>Real Keycloak login, explicit bounded consent, broker/provider authorization, audit and withdrawal. Six-second reviews and eight-second result holds. This recording is demonstration evidence.</p><video controls preload="metadata" src="latest.webm"></video><p><a href="../index.html">Other demo recordings</a></p></html>');
+    const videoSource = `runs/${stamp}/${basename(video)}`;
+    await writeFile('docs/recordings/delegation/index.html', `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Cityside delegated access demo</title><style>body{font:16px system-ui;max-width:1100px;margin:40px auto;padding:20px;color:#24495f}video{width:100%}</style><h1>Delegated access — synthetic local demo</h1><p>Real Keycloak login, explicit bounded consent, broker/provider authorization, audit and withdrawal. Six-second reviews and eight-second result holds. This recording is demonstration evidence.</p><video controls preload="metadata" src="${videoSource}"></video><p><a href="../index.html">Other demo recordings</a></p></html>\n`);
     console.log(`PASS: paced delegation recording saved to ${dir}`);
   }
 }

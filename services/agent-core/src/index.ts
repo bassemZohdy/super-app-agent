@@ -1,3 +1,4 @@
+import { handlePaymentAccounts } from './payment-accounts.ts';
 import { manualServices } from './manual-services.ts';
 import { proxyDelegation } from '../../../packages/backend-kit/src/delegation-proxy.ts';
 import { HttpPolicy, HttpError, readJsonBody } from '../../../packages/backend-kit/src/http-policy.ts';
@@ -124,6 +125,8 @@ async function handleGatewayRequest(
     return { status: 403, data: { success: false, code: 'ACCOUNT_FORBIDDEN', error: 'This account does not belong to the signed-in user.' } };
   }
   const actor = actorFor(authResult.user!, accountId, authHeader);
+  const paymentAccounts = await handlePaymentAccounts(actor, normMethod, pathname, body);
+  if (paymentAccounts) return paymentAccounts;
   if (normMethod === 'GET' && pathname === '/api/services') return { status: 200, data: { success: true, services: manualServices.map(({ id, name }) => ({ id, name, route: `/services/${id}`, version: '1.0.0', runtime: 'bundled-surface' })) } };
   if (normMethod === 'GET' && pathname === '/api/accounts') {
     const accounts = process.env.PROVIDER_INTEGRATION === 'true'
