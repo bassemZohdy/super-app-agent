@@ -15,18 +15,19 @@ export class PaymentOrderError extends Error {
   constructor(status:number,code:string,message:string){super(message);this.status=status;this.code=code;}
 }
 const fail=(code:string,message:string,status=409):never=>{throw new PaymentOrderError(status,code,message);};
-const active=(order:Review)=>['AWAITING_APPROVAL','REQUIRES_ACTION','AUTHORIZED','CAPTURING','CAPTURED','RECONCILIATION_REQUIRED'].includes(order.state);
+const active=(order:Review)=>['AWAITING_APPROVAL','AUTHORIZATION_PENDING','REQUIRES_ACTION','AUTHORIZED','CAPTURING','CAPTURED','RECONCILIATION_REQUIRED'].includes(order.state);
 export class PaymentOrders {
   readonly store:AccountDatabase;readonly issuer:PaymentIssuer;readonly ledger:PaymentLedger;readonly uses:PaymentResourceUses;readonly clock:()=>number;private sequence=0;
   constructor(store:AccountDatabase,issuer:PaymentIssuer,ledger:PaymentLedger,uses:PaymentResourceUses,clock=Date.now){
     this.store=store;this.issuer=issuer;this.ledger=ledger;this.uses=uses;this.clock=clock;
     const old=store.db.prepare("SELECT sql FROM sqlite_master WHERE name='payment_authorization_orders'").get();
-    const migrate=!!old&&!String(old.sql).includes("'CAPTURING'");
-    if(migrate&&store.path!==':memory:'&&!existsSync(store.path+'.before-order-capture-v2.sqlite'))store.db.prepare('VACUUM INTO ?').run(store.path+'.before-order-capture-v2.sqlite');
+    const migrate=!!old&&!String(old.sql).includes("'AUTHORIZATION_PENDING'");
+    const backup=store.path+(String(old?.sql).includes("'CAPTURING'")?'.before-issuer-order-pending-v3.sqlite':'.before-order-capture-v2.sqlite');
+    if(migrate&&store.path!==':memory:'&&!existsSync(backup))store.db.prepare('VACUUM INTO ?').run(backup);
     this.atomic(()=>{if(migrate)store.db.exec('ALTER TABLE payment_authorization_orders RENAME TO payment_authorization_orders_v1;DROP INDEX IF EXISTS payment_active_obligation;DROP INDEX IF EXISTS payment_orders_account;');store.db.exec(`CREATE TABLE IF NOT EXISTS payment_authorization_orders(
       id TEXT PRIMARY KEY,account_id TEXT NOT NULL REFERENCES accounts(id),provider TEXT NOT NULL,payable_id TEXT NOT NULL,
-      state TEXT NOT NULL CHECK(state IN ('AWAITING_APPROVAL','REQUIRES_ACTION','AUTHORIZED','CAPTURING','CAPTURED','RECONCILIATION_REQUIRED','SETTLED','FAILED','CANCELLED')),expires_at INTEGER NOT NULL,body TEXT NOT NULL);
-      CREATE UNIQUE INDEX IF NOT EXISTS payment_active_obligation ON payment_authorization_orders(account_id,provider,payable_id) WHERE state IN ('AWAITING_APPROVAL','REQUIRES_ACTION','AUTHORIZED','CAPTURING','CAPTURED','RECONCILIATION_REQUIRED','SETTLED');
+      state TEXT NOT NULL CHECK(state IN ('AWAITING_APPROVAL','AUTHORIZATION_PENDING','REQUIRES_ACTION','AUTHORIZED','CAPTURING','CAPTURED','RECONCILIATION_REQUIRED','SETTLED','FAILED','CANCELLED')),expires_at INTEGER NOT NULL,body TEXT NOT NULL);
+      CREATE UNIQUE INDEX IF NOT EXISTS payment_active_obligation ON payment_authorization_orders(account_id,provider,payable_id) WHERE state IN ('AWAITING_APPROVAL','AUTHORIZATION_PENDING','REQUIRES_ACTION','AUTHORIZED','CAPTURING','CAPTURED','RECONCILIATION_REQUIRED','SETTLED');
       CREATE INDEX IF NOT EXISTS payment_orders_account ON payment_authorization_orders(account_id);`);if(migrate)store.db.exec('INSERT INTO payment_authorization_orders SELECT * FROM payment_authorization_orders_v1;DROP TABLE payment_authorization_orders_v1;');});
   }
   private atomic<T>(fn:()=>T):T{
@@ -53,11 +54,16 @@ export class PaymentOrders {
     order.state=state;if(code)order.failureCode=code;return this.save(order);
   }
   private sync(order:Review){
-    if(!['AWAITING_APPROVAL','REQUIRES_ACTION','AUTHORIZED'].includes(order.state))return order;
+    if(!['AWAITING_APPROVAL','AUTHORIZATION_PENDING','REQUIRES_ACTION','AUTHORIZED'].includes(order.state))return order;
     if(Date.parse(order.expiresAt)<=this.clock()||order.authorization&&Date.parse(order.authorization.expiresAt)<=this.clock())return this.close(order,'FAILED',order.authorization?'AUTHORIZATION_EXPIRED':'APPROVAL_EXPIRED');
+    if(order.state==='AUTHORIZATION_PENDING'&&order.authorization){
+      const auth=this.issuer.get(this.binding(order));order.authorization=auth;
+      if(auth.state==='DECLINED'||auth.state==='EXPIRED')return this.close(order,'FAILED',auth.failureCode||'AUTHORIZATION_EXPIRED');
+      if(auth.state==='AUTHORIZED'){order.state='AUTHORIZED';return this.save(order);}
+    }
     return order;
   }
-  refresh(actor:Actor){return this.atomic(()=>{if(!this.store.owns(actor.sub,actor.accountId))return fail('ACCOUNT_FORBIDDEN','This workspace does not belong to the owner.',403);const rows=this.store.db.prepare("SELECT body FROM payment_authorization_orders WHERE account_id=? AND state IN ('AWAITING_APPROVAL','REQUIRES_ACTION','AUTHORIZED')").all(actor.accountId);for(const row of rows)this.sync(JSON.parse(String(row.body)));});}
+  refresh(actor:Actor){return this.atomic(()=>{if(!this.store.owns(actor.sub,actor.accountId))return fail('ACCOUNT_FORBIDDEN','This workspace does not belong to the owner.',403);const rows=this.store.db.prepare("SELECT body FROM payment_authorization_orders WHERE account_id=? AND state IN ('AWAITING_APPROVAL','AUTHORIZATION_PENDING','REQUIRES_ACTION','AUTHORIZED')").all(actor.accountId);for(const row of rows)this.sync(JSON.parse(String(row.body)));});}
   get(actor:Actor,id:string){return this.atomic(()=>this.sync(this.owned(actor,id)));}
   list(actor:Actor){return this.atomic(()=>{this.refresh(actor);return this.store.db.prepare('SELECT body FROM payment_authorization_orders WHERE account_id=? ORDER BY rowid DESC LIMIT 100').all(actor.accountId).map(row=>JSON.parse(String(row.body)) as Review);});}
   private source(account:string,id:string,version:number){
@@ -74,7 +80,7 @@ export class PaymentOrders {
       this.refresh(actor);const payable=this.fresh(snapshot,input.provider,input.payableId,input.expectedPayableRevision),source=this.source(actor.accountId,input.methodId,input.expectedMethodVersion);
       const links=this.store.list(actor.accountId,'billing-account') as BillingAccount[],link=links.find(b=>b.status==='ACTIVE'&&b.provider===payable.provider&&b.reference===payable.reference);
       if(!link)return fail('BILLER_NOT_LINKED','Link this owned biller before creating an authorization review.');
-      if(this.store.db.prepare("SELECT id FROM payment_authorization_orders WHERE account_id=? AND provider=? AND payable_id=? AND state IN ('AWAITING_APPROVAL','REQUIRES_ACTION','AUTHORIZED','CAPTURING','CAPTURED','RECONCILIATION_REQUIRED','SETTLED')").get(actor.accountId,input.provider,input.payableId))return fail('PAYABLE_RESERVED','An active or settled order already reserves this obligation. Inspect it first.');
+      if(this.store.db.prepare("SELECT id FROM payment_authorization_orders WHERE account_id=? AND provider=? AND payable_id=? AND state IN ('AWAITING_APPROVAL','AUTHORIZATION_PENDING','REQUIRES_ACTION','AUTHORIZED','CAPTURING','CAPTURED','RECONCILIATION_REQUIRED','SETTLED')").get(actor.accountId,input.provider,input.payableId))return fail('PAYABLE_RESERVED','An active or settled order already reserves this obligation. Inspect it first.');
       const count=this.store.db.prepare('SELECT count(*) n FROM payment_authorization_orders WHERE account_id=?').get(actor.accountId) as {n:number};if(count.n>=100)return fail('ORDER_HISTORY_LIMIT','The local authorization-review history limit was reached.');
       const id=`order_${randomUUID()}`,createdAt=new Date(this.clock()).toISOString(),expiresAt=new Date(this.clock()+300000).toISOString();
       const quote={payable:structuredClone(payable),source:structuredClone(source),billingAccount:structuredClone(link),amountMinor:payable.amountMinor,feeMinor:0,totalMinor:payable.amountMinor,currency:'AED' as const,createdAt,expiresAt};
@@ -111,7 +117,7 @@ export class PaymentOrders {
           order.authorization=authorization;
         }
       }catch(e){if(e instanceof IssuerError||e instanceof PaymentOrderError||e instanceof PaymentLedgerError)return this.close(order,'FAILED',e.code);throw e;}
-      order.approvedAt=new Date(this.clock()).toISOString();order.state=order.authorization!.state==='REQUIRES_ACTION'?'REQUIRES_ACTION':'AUTHORIZED';
+      order.approvedAt=new Date(this.clock()).toISOString();order.state=order.authorization!.state==='PENDING'?'AUTHORIZATION_PENDING':order.authorization!.state==='REQUIRES_ACTION'?'REQUIRES_ACTION':'AUTHORIZED';
       this.uses.bind(actor.accountId,{resourceType:'METHOD',resourceId:order.quote.source.id,resourceVersion:order.quote.source.version,dependentKind:'HOLD',dependentId:order.authorization!.id});return this.save(order);
     });
   }

@@ -1,3 +1,4 @@
+import type { IssuerScenarios } from './issuer-scenarios.ts';
 import type { PaymentEvents } from './payment-events.ts';
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
@@ -7,6 +8,7 @@ export class AccountDatabase {
   readonly db: DatabaseSync;
   readonly path: string;
   events?:PaymentEvents;
+  issuerScenarios?:IssuerScenarios;
   constructor(path: string) {
     this.path = path;
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });

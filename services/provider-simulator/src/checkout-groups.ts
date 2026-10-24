@@ -48,6 +48,7 @@ export class CheckoutGroups {
     let state:CheckoutGroupView['state']='READY';
     if(!next)state='COMPLETED';
     else if(group.cancelledAt)state='CANCELLED';
+    else if(next.state==='AUTHORIZATION_PENDING')state='AUTHORIZATION_PENDING';
     else if(next.state==='REQUIRES_ACTION')state='REQUIRES_ACTION';
     else if(['CAPTURING','CAPTURED','RECONCILIATION_REQUIRED'].includes(next.state)||next.sourceFinalizationPending)state='RECONCILIATION_REQUIRED';
     else if(['FAILED','CANCELLED'].includes(next.state)||group.lastFailureCode)state=settled.length?'PARTIAL':'STOPPED';
@@ -68,7 +69,7 @@ export class CheckoutGroups {
   }
   async cancel(actor:Actor,id:string,expectedVersion:number,checkout:PaymentCheckout){
     // Fence new group dispatch before awaiting source cleanup. Captures retain their original recovery path.
-    this.atomic(()=>{const g=this.owned(actor,id);if(g.version!==expectedVersion)return fail('CHECKOUT_CHANGED','Refresh the checkout before cancelling.');if(!g.cancelledAt){g.cancelledAt=new Date(this.orders.clock()).toISOString();this.save(g);}for(const child of g.orderIds){const o=this.orders.get(actor,child);if(['AWAITING_APPROVAL','REQUIRES_ACTION','AUTHORIZED'].includes(o.state))this.orders.cancel(actor,o.id,o.version);}});
+    this.atomic(()=>{const g=this.owned(actor,id);if(g.version!==expectedVersion)return fail('CHECKOUT_CHANGED','Refresh the checkout before cancelling.');if(!g.cancelledAt){g.cancelledAt=new Date(this.orders.clock()).toISOString();this.save(g);}for(const child of g.orderIds){const o=this.orders.get(actor,child);if(['AWAITING_APPROVAL','AUTHORIZATION_PENDING','REQUIRES_ACTION','AUTHORIZED'].includes(o.state))this.orders.cancel(actor,o.id,o.version);}});
     for(const order of this.get(actor,id).orders)if(['CANCELLED','FAILED'].includes(order.state))await checkout.recover(actor,order.id);
     return this.get(actor,id);
   }

@@ -1,6 +1,6 @@
 # Signed financial status events
 
-PAY-18 now has a transactional outbox, signed local callbacks, a deduplicating inbox and an owned **Payment updates** view. This checkpoint covers stored payment orders, wallet-funding orders, refund orders, admitted provider application and provider reversal. PAY-18 remains unchecked until its named issuer-scenario dependency and remaining retained-path qualification pass. SIM-03/SIM-04/SIM-05, unattended execution and the consolidated PAY-19 workbench are separate tasks.
+PAY-18 now has a transactional outbox, signed local callbacks, a deduplicating inbox and an owned **Payment updates** view. This checkpoint covers stored payment orders, wallet-funding orders, refund orders, admitted provider application and provider reversal. PAY-18 remains unchecked until its remaining retained-path qualification passes; SIM-03 now supplies its named issuer-scenario dependency. SIM-03/SIM-04/SIM-05, unattended execution and the consolidated PAY-19 workbench are separate tasks.
 
 ## What the demo shows
 
@@ -31,7 +31,7 @@ sequenceDiagram
 
 ## Contract and authentication
 
-Payment contract **1.8.0**, payment-provider OpenAPI **2.11.0**; the source REST resource contracts remain unchanged. Event schema version is 1 in `packages/protocol-core/src/payment-events.ts`.
+Payment contract **1.9.0**, payment-provider OpenAPI **2.12.0**; the source REST resource contracts remain unchanged. Event schema version is 1 in `packages/protocol-core/src/payment-events.ts`.
 
 `GET /v1/accounts/{accountId}/payment-events` requires the interactive owner. `GET /api/payments/overview` includes `events`: gateway pending/failed delivery counts, received count and up to twenty current per-subject update views. Source-provider outboxes stay private; the gateway count does not claim to include every source's undelivered queue. Existing records receive no fabricated backfill events.
 
@@ -71,4 +71,6 @@ npm run record:payment-events
 
 The browser uses real local Keycloak/Redis with temporary SQLite, actual callback HTTP and disabled model calls. A private test-only transport hook loses exactly one settlement response after real source commit; no ordinary request/admin URL can enable it. Reviews/attention pause six seconds and confirmed receipts eight seconds. The publisher preserves the last successful viewer if a run fails.
 
-The fourteen focused tests cover transactional rollback at gateway/source, exact/forged/substituted callbacks, nonce/ID/version collisions, out-of-order and terminal/refunded states, two-connection leases, crash/reopen, backoff/exhaustion, lost acknowledgements and key rollover. Broader named issuer presets, operator-controlled fault/replay scenarios, event coverage for legacy raw captures/parking, full retained-shell parity and exhaustive integrated faults remain open. This checkpoint is not a complete PAY-18/SIM-03 acceptance claim.
+The fourteen focused tests cover transactional rollback at gateway/source, exact/forged/substituted callbacks, nonce/ID/version collisions, out-of-order and terminal/refunded states, two-connection leases, crash/reopen, backoff/exhaustion, lost acknowledgements and key rollover. Operator-controlled fault/replay scenarios, event coverage for legacy raw captures/parking, full retained-shell parity and exhaustive integrated faults remain open. This checkpoint is not a complete PAY-18 acceptance claim; the separate issuer-scenario guide records delivered SIM-03 criteria.
+
+[Isolated issuer scenarios](issuer-scenarios.md) add operator-bound named outcomes and `AUTHORIZATION_PENDING`. Pending card capacity cannot capture/credit or dispatch later group lines; the original real-time deadline and separate customer execution remain enforced. Normal providers expose no run controls.

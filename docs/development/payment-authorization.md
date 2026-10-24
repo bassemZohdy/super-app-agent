@@ -49,3 +49,5 @@ The browser verifier needs local Keycloak/Redis, Chrome and the [isolated harnes
 [Pay bills after authorization](payment-checkout.md) describes the explicit capture action, receipt and pending recovery states.
 
 [Exact-set fine payments](fine-checkout.md) reuse the same authorization, challenge and capture controls with shared constituent reservations.
+
+The isolated [issuer scenario profile](issuer-scenarios.md) adds a persisted PENDING issuer state and `AUTHORIZATION_PENDING` review. It is distinct from a human challenge, cannot capture, retains its real deadline and survives reopen. The operator can resolve only the exact original issuer wait; customer approval/execution and source/version checks remain independent.

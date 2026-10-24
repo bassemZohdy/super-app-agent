@@ -6,7 +6,7 @@ import { mkdtemp, mkdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, extname } from 'node:path';
 
-export async function startEnvironment(options:{authorizationClock?:()=>number}={}) {
+export async function startEnvironment(options:{authorizationClock?:()=>number;issuerOperatorSub?:string}={}) {
   const appPort = Number(process.env.E2E_APP_PORT || 3002);
   const corePort = Number(process.env.E2E_CORE_PORT || 14000);
   assert.ok([3000, 3001, 3002].includes(appPort), 'Use a free seeded Keycloak redirect port: 3000, 3001 or 3002');
@@ -66,9 +66,13 @@ export async function startEnvironment(options:{authorizationClock?:()=>number}=
     paymentClient.call=async(...args:Parameters<typeof normalPaymentCall>)=>{const result=await normalPaymentCall(...args);if(args[2]==='POST'&&args[3].endsWith('/payments')&&lostSettlementResponses.delete(args[0]))throw new UpstreamError(503,'PROVIDER_OUTCOME_UNKNOWN','Isolated test lost the response after actual source commit.');return result;};
     const { createProviderServer } = await import('../../services/provider-simulator/src/index.ts');
     const { providerIds } = await import('../../services/provider-simulator/src/contracts.ts');
+    let issuerScenario:import('../../services/provider-simulator/src/issuer-scenarios.ts').IssuerScenarioContext|undefined;
+    if(options.issuerOperatorSub){const {SimulationRuns}=await import('../../services/provider-simulator/src/simulation-run.ts');const runs=new SimulationRuns(join(dir,'issuer-run.sqlite'));databases.push(runs);const run=runs.create(options.issuerOperatorSub,'issuer-outcomes',Date.now(),crypto.randomUUID());issuerScenario={runId:run.id,operatorSub:options.issuerOperatorSub,root:dir};}
+    let paymentInstance:ReturnType<typeof createProviderServer>|undefined;
+
     for (const [index, name] of providerIds.entries()) {
-      const provider = createProviderServer(name, join(dir, `${name}.sqlite`),name==='payments'?{...options,paymentClient}:{});
-      providerStores.set(name, provider.store);
+      const provider = createProviderServer(name, join(dir, `${name}.sqlite`),name==='payments'?{authorizationClock:options.authorizationClock,paymentClient,issuerScenario}:{});
+      providerStores.set(name, provider.store);if(name==='payments')paymentInstance=provider;
       databases.push(provider.store.db); await listen(provider.server, corePort + 101 + index);
     }
     for (const [index, name] of ['ride', 'food', 'wallet', 'catalog', 'profile', 'telecom'].entries()) {
@@ -102,7 +106,11 @@ export async function startEnvironment(options:{authorizationClock?:()=>number}=
     }), appPort);
     const { PaymentResourceUses } = await import('../../services/provider-simulator/src/payment-resource-uses.ts');
     const { ProviderPayables } = await import('../../services/provider-simulator/src/payables.ts');
-    return { appUrl, coreUrl, corePort, cleanup,paymentEventRecords:(provider:string,account:string)=>providerStores.get(provider)!.db.prepare('SELECT body FROM payment_event_outbox WHERE account_id=? ORDER BY rowid').all(account).map(row=>JSON.parse(String(row.body)) as import('../../packages/protocol-core/src/payment-events.ts').PaymentEvent),loseNextSettlementResponse:(provider:string)=>{assert.ok(['dewa','etisalat','du','police','rta'].includes(provider));lostSettlementResponses.add(provider);},providerState: (provider: string, account: string, kind: string) => providerStores.get(provider)?.get(account, kind),
+    const restartPayments=async()=>{
+      assert.ok(paymentInstance);const old=paymentInstance;await new Promise<void>(done=>{old.server.closeAllConnections();old.server.close(()=>done());});old.store.close();servers.splice(servers.indexOf(old.server),1);databases.splice(databases.indexOf(old.store.db),1);
+      const next=createProviderServer('payments',join(dir,'payments.sqlite'),{authorizationClock:options.authorizationClock,paymentClient,issuerScenario});paymentInstance=next;providerStores.set('payments',next.store);databases.push(next.store.db);await listen(next.server,corePort+107);
+    };
+    return { appUrl, coreUrl, corePort, cleanup,issuerRunId:issuerScenario?.runId,restartPayments,paymentEventRecords:(provider:string,account:string)=>providerStores.get(provider)!.db.prepare('SELECT body FROM payment_event_outbox WHERE account_id=? ORDER BY rowid').all(account).map(row=>JSON.parse(String(row.body)) as import('../../packages/protocol-core/src/payment-events.ts').PaymentEvent),loseNextSettlementResponse:(provider:string)=>{assert.ok(['dewa','etisalat','du','police','rta'].includes(provider));lostSettlementResponses.add(provider);},providerState: (provider: string, account: string, kind: string) => providerStores.get(provider)?.get(account, kind),
       // Trusted test fixture only: no HTTP route can create/release lifecycle locks.
       bindPaymentUse: (account: string, binding: Parameters<InstanceType<typeof PaymentResourceUses>['bind']>[1]) => {
         const uses = new PaymentResourceUses(providerStores.get('payments')!); uses.bind(account,binding);

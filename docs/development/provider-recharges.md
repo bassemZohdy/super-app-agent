@@ -20,7 +20,7 @@ Source credit and its receipt commit atomically with source proof consumption/id
 
 ## APIs and persistence
 
-Payment contract **1.8.0**; payment-provider OpenAPI **2.11.0**; RTA **2.3.0**; Etisalat/du and Police **2.6.0**; DEWA **2.5.0**; DLD **2.0.0**.
+Payment contract **1.9.0**; payment-provider OpenAPI **2.12.0**; RTA **2.3.0**; Etisalat/du and Police **2.6.0**; DEWA **2.5.0**; DLD **2.0.0**.
 
 Provider routes are relative to `/v1/accounts/{accountId}`:
 
@@ -62,4 +62,6 @@ A current recharge preview can be included in [grouped checkout](checkout-groups
 
 [Original-source refunds](payment-refunds.md) now cancel eligible full bills/fine sets or reverse bounded unused recharge/funding value. Confirmed returns annotate original receipts and group children; uncertain reversals keep their original ID and do not restore funds.
 
-[Signed financial status events](payment-events.md) append with stored order/source transitions and arrive as owned inspection hints. Callbacks never authorize funds or replace authoritative provider lookup. Named issuer scenarios and legacy event-path qualification keep PAY-18 in progress.
+[Signed financial status events](payment-events.md) append with stored order/source transitions and arrive as owned inspection hints. Callbacks never authorize funds or replace authoritative provider lookup. SIM-03 now supplies named issuer scenarios; legacy event-path qualification keeps PAY-18 in progress.
+
+[Isolated issuer scenarios](issuer-scenarios.md) add operator-bound named outcomes and `AUTHORIZATION_PENDING`. Pending card capacity cannot capture/credit or dispatch later group lines; the original real-time deadline and separate customer execution remain enforced. Normal providers expose no run controls.

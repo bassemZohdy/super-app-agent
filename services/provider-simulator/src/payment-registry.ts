@@ -22,6 +22,7 @@ export function paymentRegistry(db: AccountDatabase, accountId: string, method: 
   };
   if (method === 'GET' && path === '/payment-methods') return { methods: methods(), dependencies: uses.list(accountId, 'METHOD'), defaultMethodId: db.get<string>(accountId, 'default-method') || 'wallet', presets: cardPresets };
   if (method === 'POST' && path === '/payment-methods') {
+    db.issuerScenarios?.assertUserPreset(body.preset);
     if (methods().filter(m => m.kind === 'card' && m.status !== 'REMOVED').length >= 20) return reject(409, 'METHOD_LIMIT', 'The demo supports up to 20 saved cards per account.');
     const preset = cardPresets.find(p => p.id === body.preset)!;
     const current = new Date();
@@ -37,6 +38,7 @@ export function paymentRegistry(db: AccountDatabase, accountId: string, method: 
   }
   if (method === 'POST' && path === '/payment-methods/status') {
     const item = getMethod(body.methodId, body.expectedVersion);
+    db.issuerScenarios?.assertUserStatus(accountId,item.id,body.status);
     if (item.kind === 'wallet') return reject(409, 'WALLET_FIXED', 'The wallet cannot be removed or disabled.');
     if (item.status === 'REMOVED' || item.status === 'EXPIRED' && body.status !== 'REMOVED') return reject(409, 'METHOD_UNAVAILABLE', 'This card cannot be reactivated.');
     if (body.status === 'REMOVED' && db.get(accountId, 'default-method') === item.id) return reject(409, 'DEFAULT_METHOD_IN_USE', 'Choose another default before removing this card.');

@@ -34,3 +34,7 @@ Each run advances by at most 31 days per command, spans at most 366 days, and su
 ## Evidence
 
 Seven unit/integration tests cover persistence/reopen, deterministic fixtures, ordered/idempotent events, owner/revision/bounds, scoped reset, two connections, provider-data containment even when sharing a test database, and real-time JWT behavior after a 31-day business jump. `simulator:verify` executes separate CLI processes and checks create/advance/status/replay/reset, invalid backward advance and exact fixture restoration. [Current evidence](../reports/2026-10-24-lifecycle-simulator.md) · [Full backlog](../../TODO.md#payment-accounts-and-automation-demo--planned-backlog).
+
+## Authenticated issuer outcomes
+
+[SIM-03 issuer scenarios](issuer-scenarios.md) reuse isolated run identity for a separate finite financial matrix. `npm run simulator:issuer` authenticates a startup-bound operator and customer, exercises all eight outcomes and restarts the pending provider before resolution. It does not advance this preview clock or enable controls on normal provider data. General scenario start/reset/export, role-managed control UI and broad failpoints retain SIM-04/SIM-05 gates.
