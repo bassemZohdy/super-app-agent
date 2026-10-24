@@ -6,8 +6,8 @@ interface SurfaceFormState {
   choices: Record<string, string>;
   setChoice: (group: string, choice: string) => void;
   view?: UIComponentNode;
-  formValues: Record<string, any>;
-  setFormValue: (key: string, value: any) => void;
+  formValues: Record<string, unknown>;
+  setFormValue: (key: string, value: unknown) => void;
   submittingAction: string | null;
   setSubmittingAction: (action: string | null) => void;
   isPending?: boolean;
@@ -25,7 +25,7 @@ const SurfaceFormContext = createContext<SurfaceFormState>({
 
 interface A2UIRendererProps {
   node: UIComponentNode;
-  onDispatchAction: (action: string, payload: Record<string, any>) => void;
+  onDispatchAction: (action: string, payload: Record<string, unknown>) => void;
   isPending?: boolean;
 }
 
@@ -35,12 +35,12 @@ function SurfaceCardWrapper({
   isPending,
 }: {
   node: UIComponentNode;
-  onDispatchAction: (action: string, payload: Record<string, any>) => void;
+  onDispatchAction: (action: string, payload: Record<string, unknown>) => void;
   isPending?: boolean;
 }) {
   const [choices, setChoices] = useState(() => choiceDefaults(node));
   const setChoice = (group: string, choice: string) => setChoices(prev => ({ ...prev, [group]: choice }));
-  const [formValues, setFormValues] = useState<Record<string, any>>({});
+  const [formValues, setFormValues] = useState<Record<string, unknown>>({});
   const [submittingAction, setSubmittingAction] = useState<string | null>(null);
 
   useEffect(() => {
@@ -49,7 +49,7 @@ function SurfaceCardWrapper({
     }
   }, [isPending]);
 
-  const setFormValue = (key: string, value: any) => {
+  const setFormValue = (key: string, value: unknown) => {
     setFormValues((prev) => ({ ...prev, [key]: value }));
   };
 
@@ -90,6 +90,10 @@ function SurfaceCardWrapper({
 /** Dispatch name for an event: the payload's `action` when it is a non-empty string, otherwise 'submit'. */
 const actionNameOf = (payload: Record<string, unknown>): string =>
   typeof payload.action === 'string' && payload.action ? payload.action : 'submit';
+
+/** Table cell content: strings and numbers render as text; other shapes render nothing rather than being cast. */
+const printableCell = (value: unknown): string | number | null =>
+  typeof value === 'string' || typeof value === 'number' ? value : null;
 
 export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchAction, isPending }) => {
   const { choices, setChoice, view, formValues, setFormValue, submittingAction, setSubmittingAction } =
@@ -160,7 +164,7 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
 
       return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
-          {options.map((opt: any) => {
+          {options.map((opt) => {
             const isSelected = currentSelected === opt.id;
             return (
               <div
@@ -366,7 +370,7 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
             />
           </svg>
           <div style={{ zIndex: 1, display: 'flex', flexWrap: 'wrap', gap: '8px', padding: '10px', justifyContent: 'center' }}>
-            {markers.map((m: any, i: number) => (
+            {markers.map((m, i) => (
               <div
                 key={m.id || i}
                 style={{
@@ -431,7 +435,7 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
           >
             <thead>
               <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                {columns.map((col: any) => (
+                {columns.map((col) => (
                   <th
                     key={col.key}
                     style={{ padding: '10px 14px', color: '#64748b', fontWeight: 600 }}
@@ -442,7 +446,7 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
               </tr>
             </thead>
             <tbody>
-              {rows.map((row: any, rIdx: number) => (
+              {rows.map((row, rIdx) => (
                 <tr
                   key={rIdx}
                   className="ag-table-row"
@@ -453,9 +457,9 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
                   onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f8fafc')}
                   onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                 >
-                  {columns.map((col: any) => (
+                  {columns.map((col) => (
                     <td key={col.key} style={{ padding: '11px 14px', color: '#1e293b' }}>
-                      {row[col.key]}
+                      {printableCell(row[col.key])}
                     </td>
                   ))}
                 </tr>
@@ -468,7 +472,8 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
 
     case 'FormInput': {
       const inputName = node.properties?.name || 'input';
-      const curVal = formValues[inputName] ?? (node.properties?.defaultValue || '');
+      const storedValue = formValues[inputName];
+      const curVal = typeof storedValue === 'string' ? storedValue : (node.properties?.defaultValue || '');
 
       return (
         <div style={{ marginBottom: '14px' }}>

@@ -5,7 +5,7 @@ export function choiceDefaults(view: UIComponentNode): Record<string, string> {
   const walk = (node: UIComponentNode) => {
     if (node.type === 'ChoiceGroup') {
       const options = node.properties?.options || [];
-      const selected = options.find((option: any) => option.id === node.properties?.selectedId) || options[0];
+      const selected = options.find((option) => option.id === node.properties?.selectedId) || options[0];
       if (selected) choices[node.id] = selected.id;
     }
     node.children?.forEach(walk);
@@ -16,7 +16,7 @@ export function choiceDefaults(view: UIComponentNode): Record<string, string> {
 
 /** Current dispatch contract supports one choice group per card; reject ambiguity. */
 export function surfaceActionPayload(view: UIComponentNode, binding: ActionBinding,
-  choices: Record<string, string>, formValues: Record<string, any> = {}): Record<string, any> {
+  choices: Record<string, string>, formValues: Record<string, unknown> = {}): Record<string, unknown> {
   if (binding.actionType !== 'AGENT_ACTION_DISPATCH') throw new Error('This navigation action is not supported in this shell.');
   const groups = Object.keys(choiceDefaults(view));
   if (groups.length > 1) throw new Error('This surface has multiple choice groups and requires an explicit action binding.');
@@ -27,7 +27,7 @@ export function surfaceActionPayload(view: UIComponentNode, binding: ActionBindi
     const selectedChoice = choices[groupId];
     let valid = false;
     const walk = (node: UIComponentNode) => {
-      if (node.id === groupId) valid = node.properties?.options?.some((option: any) => option.id === selectedChoice) === true;
+      if (node.id === groupId) valid = node.properties?.options?.some((option) => option.id === selectedChoice) === true;
       node.children?.forEach(walk);
     };
     walk(view);
