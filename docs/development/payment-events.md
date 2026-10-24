@@ -1,6 +1,6 @@
 # Signed financial status events
 
-PAY-18 now has a transactional outbox, signed local callbacks, a deduplicating inbox and an owned **Payment updates** view. This checkpoint covers stored payment orders, wallet-funding orders, refund orders, admitted provider application and provider reversal. PAY-18 remains unchecked until its remaining retained-path qualification passes; SIM-03 now supplies its named issuer-scenario dependency. SIM-03/SIM-04/SIM-05, unattended execution and the consolidated PAY-19 workbench are separate tasks.
+PAY-18 delivers a transactional outbox, signed local callbacks, a deduplicating inbox and owned **Payment updates**. Coverage includes stored orders/group children, wallet funding/refunds, admitted provider application/reversal, legacy raw capture/decline/refund and retained parking activation/extension/non-application. SIM-03 is delivered. Scripted fault controls, general scenario operation, unattended execution and the consolidated PAY-19 workbench retain their separate tasks.
 
 ## What the demo shows
 
@@ -31,7 +31,7 @@ sequenceDiagram
 
 ## Contract and authentication
 
-Payment contract **1.9.0**, payment-provider OpenAPI **2.13.0**; the source REST resource contracts remain unchanged. Event schema version is 1 in `packages/protocol-core/src/payment-events.ts`.
+Payment contract **1.10.0**, payment-provider OpenAPI **2.14.0**; source REST resource contracts remain unchanged. Stored-order/funding/refund events retain schema version **1**. The explicit `LEGACY_PAYMENT` variant uses schema version **2**; the receiver accepts both bounded variants. Old queued v1 bodies remain unchanged. Upgrade the receiver before v2 producers; older receivers reject v2 safely and do not acquire financial authority.
 
 `GET /v1/accounts/{accountId}/payment-events` requires the interactive owner. `GET /api/payments/overview` includes `events`: gateway pending/failed delivery counts, received count and up to twenty current per-subject update views. Source-provider outboxes stay private; the gateway count does not claim to include every source's undelivered queue. Existing records receive no fabricated backfill events.
 
@@ -55,9 +55,23 @@ The inbox verifies authentication, body, event ID, delivery nonce and exact orig
 
 Source notifications are deliberately inspection hints. Even an authenticated APPLIED payload cannot authorize a new financial effect or prove current bill settlement. Current ownership, consent, quote, hold, admission, provider status and original proof checks still apply at the interactive recovery endpoint. No unattended actor can answer challenges or inherit the user's bearer token from an event.
 
+## Legacy captures and parking
+
+`LEGACY_CAPTURE_CHANGED` events append in the same transaction as raw capture/decline/refund and its journal/resource writes. A separate monotonically increasing per-capture counter distinguishes capture and refund; startup never invents events for historical charges. Stored-order charges do not enter this variant.
+
+`LEGACY_SETTLEMENT_CHANGED` publishes a provider attempt's APPLIED or RELEASED decision in the same transaction as parking activation/extension or definitive non-application. Event persistence failure rolls back that provider effect; the existing admitted capture stays conservative and retries retain the original attempt. Re-acknowledgement reuses the same event rather than publishing another effect.
+
+Version 2 uses `captureDigest`, a hash of the original capture ID, workspace, amount, merchant, reference, source, currency and creation time. It explicitly forbids `approvalDigest` and admission fields: a legacy fingerprint is **not consent or delegation**. The gateway verifies an existing owned non-stored capture, exact payment/amount/fingerprint and, for source callbacks, the original provider/claim/attempt IDs and admitted claim state. An exactly bound signed APPLIED hint still cannot create a parking meter, acknowledge a claim or create a receipt. Conflicting APPLIED/RELEASED outcomes deny.
+
+Current legacy status comes from the capture/refund and gateway claim, never the notification: CAPTURED, DECLINED, RECONCILIATION_REQUIRED, SETTLED, RELEASED or REFUNDED. Refund/terminal state wins over late notifications. A merchant without source settlement tracking remains an unconfirmed capture; an event does not establish its service outcome.
+
+**Inspect original capture** calls owner-only `GET /api/payments/legacy-status?accountId=…&paymentId=…`. It reads the existing gateway capture and a fixed allowlisted provider's existing `/settlement-attempts/{paymentId}`, then re-reads the gateway claim. The provider may retry acknowledgement of that same committed attempt. No capture, new provider action, refund or balance edit is requested. Stored-order captures must use their original order path. Wrong owner/workspace and extra fields deny; source unavailability/absence stays explicit. The inspection panel displays capture, provider and gateway confirmation separately, without manufacturing a new service receipt. Broader recovery actions and audit remain PAY-19.
+
+[Legacy/parking recording](../recordings/legacy-payment-events/index.html) · [Executed qualification](../reports/2026-10-24-legacy-payment-events.md).
+
 ## Migration, inspection and rollback
 
-The additive `payment_event_outbox`, `payment_event_inbox`, `payment_event_deliveries` and `payment_event_views` tables leave existing resource/idempotency rows, journals, issuer records and balances unchanged. Startup does not turn historical records into new events. Outbox domain content is immutable; delivery lease/attempt metadata may advance normally across restarts.
+The additive `payment_event_outbox`, `payment_event_inbox`, `payment_event_deliveries`, `payment_event_views` and empty-on-upgrade `payment_legacy_event_versions` tables leave existing resource/idempotency rows, journals, issuer records and balances unchanged. Startup does not turn historical records into new events. Outbox domain content is immutable; delivery lease/attempt metadata may advance normally across restarts.
 
 Pause delivery by stopping its provider process when investigating; retain the database and original event IDs. Restart resumes pending work after lease expiry. Use owned current status and existing payment/refund recovery to resolve effects. A callback outage is not proof of non-application. Restore source and gateway state together; do not delete inbox deduplication history, reset balances, release financial fences or replay old events as new payment instructions. Before rolling back code, retain queued events and confirm that the older version tolerates the additive tables; rollback does not undo committed money effects.
 
@@ -67,10 +81,13 @@ Pause delivery by stopping its provider process when investigating; retain the d
 node --experimental-strip-types --import ./scripts/test-env.ts --test services/test/payment-events.test.ts
 npm run demo:verify:payment-events
 npm run record:payment-events
+node --experimental-strip-types --import ./scripts/test-env.ts --test services/test/legacy-payment-events.test.ts
+npm run demo:verify:legacy-payment-events
+npm run record:legacy-payment-events
 ```
 
 The browser uses real local Keycloak/Redis with temporary SQLite, actual callback HTTP and disabled model calls. A private test-only transport hook loses exactly one settlement response after real source commit; no ordinary request/admin URL can enable it. Reviews/attention pause six seconds and confirmed receipts eight seconds. The publisher preserves the last successful viewer if a run fails.
 
-The fourteen focused tests cover transactional rollback at gateway/source, exact/forged/substituted callbacks, nonce/ID/version collisions, out-of-order and terminal/refunded states, two-connection leases, crash/reopen, backoff/exhaustion, lost acknowledgements and key rollover. Operator-controlled fault/replay scenarios, event coverage for legacy raw captures/parking, full retained-shell parity and exhaustive integrated faults remain open. This checkpoint is not a complete PAY-18 acceptance claim; the separate issuer-scenario guide records delivered SIM-03 criteria.
+The original fourteen tests cover transactional rollback, authentication, substitution, nonce/ID/version conflicts, terminal/refund ordering, leases/reopen, backoff/exhaustion, lost acknowledgements and key rollover. Thirteen added tests cover legacy capture/refund atomicity, parking/extension/non-application, old occurrence time with fresh delivery authentication, original claim binding, duplicate/forged/delayed callbacks, v1/v2 separation, reopen/no backfill and read-only owner inspection. Signed HTTP qualification covers the retained parking paths and stored DEWA/Etisalat/du bills, fine sets, toll/prepaid recharges, funding and original-source refunds. [Current qualification](../reports/2026-10-24-legacy-payment-events.md) closes PAY-18 for current manual paths. General operator fault/replay controls, shell parity and automation races remain SIM-04/SIM-05 and QA tasks.
 
 [Isolated issuer scenarios](issuer-scenarios.md) add operator-bound named outcomes and `AUTHORIZATION_PENDING`. Pending card capacity cannot capture/credit or dispatch later group lines; the original real-time deadline and separate customer execution remain enforced. Normal providers expose no run controls.

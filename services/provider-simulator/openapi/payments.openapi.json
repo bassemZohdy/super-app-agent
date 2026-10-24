@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Demo Payment Gateway Simulator",
-    "version": "2.13.0",
+    "version": "2.14.0",
     "description": "Local synthetic API. Signed interactive user identity or broker-issued user token with current exact-operation grant required. JWT subject owns the account; caller user headers do not grant authority. A separate read-only settlement machine lane retrieves captured charge proofs. Legacy fixture mode is outside this reference security profile."
   },
   "servers": [
@@ -131,7 +131,10 @@
                     "pattern": "^evt_[a-f0-9-]{36}$"
                   },
                   "schemaVersion": {
-                    "const": 1
+                    "enum": [
+                      1,
+                      2
+                    ]
                   },
                   "producer": {
                     "enum": [
@@ -156,7 +159,8 @@
                         "enum": [
                           "PAYMENT",
                           "FUNDING",
-                          "REFUND"
+                          "REFUND",
+                          "LEGACY_PAYMENT"
                         ]
                       },
                       "id": {
@@ -184,7 +188,9 @@
                       "FUNDING_CHANGED",
                       "REFUND_CHANGED",
                       "PROVIDER_APPLIED",
-                      "PROVIDER_REVERSAL"
+                      "PROVIDER_REVERSAL",
+                      "LEGACY_CAPTURE_CHANGED",
+                      "LEGACY_SETTLEMENT_CHANGED"
                     ]
                   },
                   "state": {
@@ -195,6 +201,8 @@
                       "AUTHORIZED",
                       "CAPTURING",
                       "CAPTURED",
+                      "DECLINED",
+                      "RELEASED",
                       "RECONCILIATION_REQUIRED",
                       "SETTLED",
                       "FAILED",
@@ -213,6 +221,10 @@
                     "type": "object",
                     "properties": {
                       "approvalDigest": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      "captureDigest": {
                         "type": "string",
                         "pattern": "^[a-f0-9]{64}$"
                       },
@@ -245,10 +257,21 @@
                           "du",
                           "police"
                         ]
+                      },
+                      "claimId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 160,
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                      },
+                      "settlementAttemptId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 160,
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
                       }
                     },
                     "required": [
-                      "approvalDigest",
                       "amountMinor",
                       "currency"
                     ],
@@ -266,7 +289,95 @@
                   "occurredAt",
                   "binding"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "allOf": [
+                  {
+                    "if": {
+                      "properties": {
+                        "subject": {
+                          "properties": {
+                            "kind": {
+                              "const": "LEGACY_PAYMENT"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "then": {
+                      "properties": {
+                        "schemaVersion": {
+                          "const": 2
+                        },
+                        "type": {
+                          "enum": [
+                            "LEGACY_CAPTURE_CHANGED",
+                            "LEGACY_SETTLEMENT_CHANGED"
+                          ]
+                        },
+                        "binding": {
+                          "required": [
+                            "captureDigest",
+                            "paymentId"
+                          ],
+                          "not": {
+                            "anyOf": [
+                              {
+                                "required": [
+                                  "approvalDigest"
+                                ]
+                              },
+                              {
+                                "required": [
+                                  "admissionId"
+                                ]
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    "else": {
+                      "properties": {
+                        "schemaVersion": {
+                          "const": 1
+                        },
+                        "type": {
+                          "enum": [
+                            "ORDER_CHANGED",
+                            "FUNDING_CHANGED",
+                            "REFUND_CHANGED",
+                            "PROVIDER_APPLIED",
+                            "PROVIDER_REVERSAL"
+                          ]
+                        },
+                        "binding": {
+                          "required": [
+                            "approvalDigest"
+                          ],
+                          "not": {
+                            "anyOf": [
+                              {
+                                "required": [
+                                  "captureDigest"
+                                ]
+                              },
+                              {
+                                "required": [
+                                  "claimId"
+                                ]
+                              },
+                              {
+                                "required": [
+                                  "settlementAttemptId"
+                                ]
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  }
+                ]
               }
             }
           }

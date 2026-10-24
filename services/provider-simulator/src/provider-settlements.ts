@@ -1,3 +1,4 @@
+import { legacyCaptureDigest } from '../../../packages/backend-kit/src/legacy-payment-binding.ts';
 /** Source-side durable fence. A RELEASED attempt can never apply, even after a lost gateway response or restart. */
 import { createHash,randomUUID } from 'node:crypto';
 import type { AccountDatabase } from './database.ts';
@@ -5,21 +6,22 @@ import type { Actor } from '../../../packages/backend-kit/src/context.ts';
 import type { ApiResult } from './engine.ts';
 import { settlementFailure,type SettlementProvider } from './payment-claims.ts';
 import type { ClaimTransport } from './settlement-client.ts';
-type Attempt={attemptId:string;paymentId:string;reference:string;amountMinor:number;state:'PENDING'|'APPLIED'|'RELEASED';gatewayConfirmed:boolean;claimId?:string;receiptDigest?:string;response?:ApiResult};
+type Attempt={attemptId:string;paymentId:string;reference:string;amountMinor:number;state:'PENDING'|'APPLIED'|'RELEASED';gatewayConfirmed:boolean;captureDigest?:string;claimId?:string;receiptDigest?:string;response?:ApiResult};
 const hash=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 export class ProviderSettlements{
   readonly store:AccountDatabase;readonly provider:SettlementProvider;readonly gateway:ClaimTransport;
   constructor(store:AccountDatabase,provider:SettlementProvider,gateway:ClaimTransport){this.store=store;this.provider=provider;this.gateway=gateway;store.db.exec(`CREATE TABLE IF NOT EXISTS provider_settlement_attempts(account_id TEXT NOT NULL REFERENCES accounts(id),payment_id TEXT NOT NULL,fingerprint TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('PENDING','APPLIED','RELEASED')),body TEXT NOT NULL,PRIMARY KEY(account_id,payment_id));`);}
   private row(account:string,id:string){return this.store.db.prepare('SELECT fingerprint,body FROM provider_settlement_attempts WHERE account_id=? AND payment_id=?').get(account,id);}
   private attempt(account:string,id:string):Attempt|undefined{const row=this.row(account,id);return row?JSON.parse(String(row.body)):undefined;}
-  private save(account:string,attempt:Attempt){this.store.db.prepare('UPDATE provider_settlement_attempts SET state=?,body=? WHERE account_id=? AND payment_id=?').run(attempt.state,JSON.stringify(attempt),account,attempt.paymentId);return attempt;}
+  private save(account:string,attempt:Attempt){this.store.db.prepare('UPDATE provider_settlement_attempts SET state=?,body=? WHERE account_id=? AND payment_id=?').run(attempt.state,JSON.stringify(attempt),account,attempt.paymentId);
+    if(attempt.captureDigest&&attempt.claimId&&['APPLIED','RELEASED'].includes(attempt.state))this.store.events?.emit({accountId:account,subject:{kind:'LEGACY_PAYMENT',id:attempt.paymentId,version:1},type:'LEGACY_SETTLEMENT_CHANGED',state:attempt.state,binding:{captureDigest:attempt.captureDigest,paymentId:attempt.paymentId,amountMinor:attempt.amountMinor,currency:'AED',provider:this.provider,claimId:attempt.claimId,settlementAttemptId:attempt.attemptId}});return attempt;}
   private cached(account:string,key:string,fp:string):ApiResult|undefined{const row=this.store.db.prepare('SELECT fingerprint,status,body FROM idempotency WHERE account_id=? AND key=?').get(account,key);if(!row)return;if(row.fingerprint!==fp)return settlementFailure('IDEMPOTENCY_CONFLICT','This key has a different operation.');return {status:Number(row.status),data:JSON.parse(String(row.body))};}
   private prepare(account:string,fp:string,proof:any){return this.store.transaction(()=>{
     const row=this.row(account,proof.id);
     if(row){if(row.fingerprint!==fp)return settlementFailure('SETTLEMENT_ATTEMPT_CONFLICT','This payment is fenced to another provider operation.');const attempt=JSON.parse(String(row.body)) as Attempt;if(attempt.state==='APPLIED')return settlementFailure('PAYMENT_ALREADY_USED','This payment was already applied.');return attempt;}
     if(this.store.get(account,'used-payment',proof.id))return settlementFailure('PAYMENT_ALREADY_USED','This historical payment was already applied; inspect settlement status to reconcile its gateway claim.');
     if(proof.accountId!==account||proof.merchant!==this.provider)return settlementFailure('INVALID_PAYMENT_PROOF','The payment is not owned by this account/provider.');
-    const attempt:Attempt={attemptId:`settlement_${randomUUID()}`,paymentId:proof.id,reference:proof.reference,amountMinor:proof.amountMinor,state:'PENDING',gatewayConfirmed:false};
+    const attempt:Attempt={attemptId:`settlement_${randomUUID()}`,paymentId:proof.id,reference:proof.reference,amountMinor:proof.amountMinor,state:'PENDING',gatewayConfirmed:false,...(!proof.orderId?{captureDigest:legacyCaptureDigest(proof)}:{})};
     this.store.db.prepare('INSERT INTO provider_settlement_attempts VALUES(?,?,?,?,?)').run(account,proof.id,fp,attempt.state,JSON.stringify(attempt));return attempt;
   });}
   private async confirm(account:string,attempt:Attempt){

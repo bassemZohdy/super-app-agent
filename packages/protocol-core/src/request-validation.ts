@@ -79,6 +79,7 @@ route('agent-core','POST','/api/payments/mandates',withPaymentAccount(mandateSch
 for(const [action,schema] of Object.entries({revise:mandateSchemas.revise,approve:mandateSchemas.approve,revoke:mandateSchemas.revoke}))route('agent-core','POST',`/api/payments/mandates/${action}`,withPaymentAccount(paymentObject({...schema.properties,mandateId:id},[...schema.required,'mandateId'])));
 route('agent-core','GET','/api/payments/mandates/history',object({accountId:id,mandateId:id},['accountId','mandateId']));
 route('agent-core','GET','/api/payments/orders',object({accountId:id},['accountId']));
+route('agent-core','GET','/api/payments/legacy-status',object({accountId:id,paymentId:id},['accountId','paymentId']));
 for (const [path, schema] of Object.entries({
   methods: paymentSchemas.createMethod, 'methods/status': paymentSchemas.methodStatus, 'methods/default': paymentSchemas.defaultMethod,
   'billing-accounts': paymentSchemas.linkAccount, 'billing-accounts/archive': paymentSchemas.archiveAccount,

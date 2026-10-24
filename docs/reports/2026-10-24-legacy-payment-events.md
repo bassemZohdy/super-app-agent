@@ -1,0 +1,17 @@
+# Retained payment event qualification — 24 October 2026
+
+PAY-18 completes signed transactional delivery across the current manual payment paths. The existing v1 stored-order/funding/refund protocol is retained; explicit v2 legacy events bind a captured payment fingerprint and exact admitted provider claim/attempt without asserting consent. Owner inspection uses original status reads; callbacks cannot authorize effects or acknowledge settlement. [Guide](../development/payment-events.md).
+
+## Executed checks
+
+- The original fourteen event tests plus thirteen added retained-path tests cover atomic gateway/source rollback, legacy capture/decline/refund versions, parking/extension/non-application, a fresh delivery signature for an old occurrence, exact claim binding, forbidden/substituted signatures/IDs/amounts/providers, duplicate and terminal/refund ordering, leases/reopen, no history backfill, v1/v2 separation and read-only inspection. Even an exactly bound signed APPLIED payload cannot create a meter or acknowledge a pending claim.
+- The signed isolated integration run uses actual callback HTTP and real local Keycloak/Redis. Parking applies with its acknowledgement deliberately held; the notification leaves the gateway claim CLAIMED. Inspection before/after a real gateway restart reads the same provider attempt; releasing the private test hook permits acknowledgement without a second debit/meter. Extension and confirmed non-application/refund retain original identities and balances under forged/duplicate/late delivery.
+- Ordinary signed API qualification also covers stored DEWA/Etisalat/du bills, exact fine sets, RTA/Etisalat/du recharges, wallet funding and original-source refund callbacks. Original wallet/card effects and persisted inbox event IDs are checked independently.
+- The paced recording passes: 61.32 seconds, 7,751,142 bytes, six-second reviews and eight-second outcomes. The inspection screenshot was visually checked. A subsequent signed qualification run additionally checks actual full DEWA and partial RTA original-card reversal callbacks; neither credits the wallet or revives the original payment.
+- `npm test`: 330 passing tests; all 18 workspace builds pass. Lint, E2E TypeScript and generated OpenAPI validation pass. All 12 existing browser journeys pass.
+- The normal financial rebuild/restart preserves resources/idempotency, immutable outbox bodies and prior financial history without backfill. All three wallet openings, sealed entries and projections reconcile. `demo:wait` and signed-owner inventory reads pass with funds/history unchanged.
+- Local links pass across 82 Markdown documents; source/document secret checks and `git diff --check` pass. TODO now records 20 delivered slices and 30 open.
+
+The private acknowledgement hook exists only in the isolated test harness; no HTTP/admin request can enable it. The video transparently uses scripted signed-owner APIs for legacy parking setup and the real UI for status inspection. [Recording](../recordings/legacy-payment-events/index.html) · [Inspection screenshot](assets/legacy-payment-inspection.png).
+
+No production activation, automatic spending or new service receipt is implied. PAY-08 automatic-caller qualification, PAY-19 recovery workbench, PAY-20 statements, general simulator fault controls and final automation/shell QA retain separate gates. Existing data and queued v1 event bodies are preserved; there is no historical event/version backfill. Upgrade the receiver before enabling v2 producers.

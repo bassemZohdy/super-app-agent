@@ -4,6 +4,7 @@ import { Ajv } from 'ajv';
 import type { AccountDatabase } from './database.ts';
 import { paymentEventSchema,paymentEventProducers,type PaymentEvent,type PaymentEventProducer,type PaymentEventStatus } from '../../../packages/protocol-core/src/payment-events.ts';
 import { SettlementError } from './payment-claims.ts';
+import { legacyCaptureDigest,legacyPaymentState } from '../../../packages/backend-kit/src/legacy-payment-binding.ts';
 const canonical=(v:any):any=>Array.isArray(v)?v.map(canonical):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])):v;
 const json=(v:unknown)=>JSON.stringify(canonical(v));
 const hash=(v:unknown)=>createHash('sha256').update(json(v)).digest('hex');
@@ -30,6 +31,7 @@ export class PaymentEvents{
   readonly store:AccountDatabase;readonly producer:PaymentEventProducer;readonly clock:()=>number;private sequence=0;
   constructor(store:AccountDatabase,producer:PaymentEventProducer,clock=Date.now){this.store=store;this.producer=producer;this.clock=clock;store.db.exec(`
     CREATE TABLE IF NOT EXISTS payment_event_outbox(id TEXT PRIMARY KEY,account_id TEXT NOT NULL REFERENCES accounts(id),subject_kind TEXT NOT NULL,subject_id TEXT NOT NULL,event_type TEXT NOT NULL,version INTEGER NOT NULL,content_hash TEXT NOT NULL,body TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('PENDING','DELIVERED','FAILED')),attempts INTEGER NOT NULL DEFAULT 0,next_at INTEGER NOT NULL,lease_until INTEGER NOT NULL DEFAULT 0,lease TEXT,generation INTEGER NOT NULL DEFAULT 0,last_error TEXT,UNIQUE(account_id,subject_kind,subject_id,event_type,version));
+    CREATE TABLE IF NOT EXISTS payment_legacy_event_versions(account_id TEXT NOT NULL REFERENCES accounts(id),payment_id TEXT NOT NULL,version INTEGER NOT NULL CHECK(version BETWEEN 1 AND 1000000),PRIMARY KEY(account_id,payment_id));
     CREATE INDEX IF NOT EXISTS payment_events_due ON payment_event_outbox(state,next_at,lease_until);
     CREATE TABLE IF NOT EXISTS payment_event_inbox(id TEXT PRIMARY KEY,account_id TEXT NOT NULL REFERENCES accounts(id),producer TEXT NOT NULL,content_hash TEXT NOT NULL,disposition TEXT NOT NULL CHECK(disposition IN ('APPLIED','STALE')),body TEXT NOT NULL,received_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS payment_event_deliveries(producer TEXT NOT NULL,nonce TEXT NOT NULL,event_id TEXT NOT NULL,content_hash TEXT NOT NULL,PRIMARY KEY(producer,nonce));
@@ -37,7 +39,7 @@ export class PaymentEvents{
   private atomic<T>(fn:()=>T):T{const db=this.store.db;if(!db.isTransaction)return this.store.transaction(fn);const name=`payment_events_${++this.sequence}`;db.exec(`SAVEPOINT ${name}`);try{const result=fn();db.exec(`RELEASE ${name}`);return result;}catch(e){db.exec(`ROLLBACK TO ${name}`);db.exec(`RELEASE ${name}`);throw e;}}
   emit(input:Omit<PaymentEvent,'id'|'schemaVersion'|'producer'|'occurredAt'>):PaymentEvent{
     if(!this.store.db.isTransaction)throw new Error('Financial events must share the committed domain transaction.');
-    const content={...input,schemaVersion:1 as const,producer:this.producer},contentHash=hash(content),s=input.subject;
+    const content={...input,schemaVersion:(input.subject.kind==='LEGACY_PAYMENT'?2:1) as 1|2,producer:this.producer},contentHash=hash(content),s=input.subject;
     const previous=this.store.db.prepare('SELECT content_hash,body FROM payment_event_outbox WHERE account_id=? AND subject_kind=? AND subject_id=? AND event_type=? AND version=?').get(input.accountId,s.kind,s.id,input.type,s.version);
     if(previous){if(previous.content_hash!==contentHash)return fail('EVENT_VERSION_CONFLICT','This event version already contains different terms.');return JSON.parse(String(previous.body));}
     const event:PaymentEvent={...content,id:`evt_${randomUUID()}`,occurredAt:new Date(this.clock()).toISOString()};if(!validate(event))return fail('EVENT_INVALID','Financial event does not match its bounded contract.');
@@ -53,12 +55,38 @@ export class PaymentEvents{
     const state=ok?'DELIVERED':delivery.attempts>=20?'FAILED':'PENDING',next=this.clock()+Math.min(60000,1000*2**Math.min(6,delivery.attempts-1));
     this.store.db.prepare('UPDATE payment_event_outbox SET state=?,next_at=?,lease_until=0,lease=NULL,last_error=? WHERE id=?').run(state,next,ok?null:code.slice(0,80),delivery.event.id);return true;
   });}
+  emitLegacyCapture(charge:any){
+    if(!this.store.db.isTransaction)throw new Error('Capture events must share the financial transaction.');
+    if(charge.orderId)return;
+    const prior=this.store.db.prepare('SELECT version FROM payment_legacy_event_versions WHERE account_id=? AND payment_id=?').get(charge.accountId,charge.id),version=Number(prior?.version||0)+1;
+    if(version>1000000)return fail('EVENT_VERSION_LIMIT','Legacy capture event version exhausted.');
+    this.store.db.prepare('INSERT INTO payment_legacy_event_versions VALUES(?,?,?) ON CONFLICT(account_id,payment_id) DO UPDATE SET version=excluded.version').run(charge.accountId,charge.id,version);
+    return this.emit({accountId:charge.accountId,subject:{kind:'LEGACY_PAYMENT',id:charge.id,version},type:'LEGACY_CAPTURE_CHANGED',state:charge.refunded?'REFUNDED':charge.status,binding:{captureDigest:legacyCaptureDigest(charge),paymentId:charge.id,amountMinor:charge.amountMinor,currency:'AED'}});
+  }
   private original(event:PaymentEvent){
+    if(event.subject.kind==='LEGACY_PAYMENT'){
+      const c=this.store.get(event.accountId,'charge',event.subject.id);if(!c||c.orderId||c.accountId!==event.accountId)return fail('EVENT_SUBJECT_UNKNOWN','No owned original legacy capture exists.',404);
+      const row=this.store.db.prepare('SELECT body FROM payment_settlement_claims WHERE account_id=? AND payment_id=?').get(event.accountId,c.id),claim=row?JSON.parse(String(row.body)):undefined,version=Number(this.store.db.prepare('SELECT version FROM payment_legacy_event_versions WHERE account_id=? AND payment_id=?').get(event.accountId,c.id)?.version||0);
+      return {...c,version,state:legacyPaymentState(c,claim),claim};
+    }
+
     const table=event.subject.kind==='PAYMENT'?'payment_authorization_orders':event.subject.kind==='FUNDING'?'wallet_funding_orders':'payment_refunds';
     const row=this.store.db.prepare(`SELECT body FROM ${table} WHERE account_id=? AND id=?`).get(event.accountId,event.subject.id);if(!row)return fail('EVENT_SUBJECT_UNKNOWN','The event has no owned original payment.',404);return JSON.parse(String(row.body));
   }
   private bound(event:PaymentEvent){
     const o=this.original(event),b=event.binding,q=o.quote;
+    if(event.subject.kind==='LEGACY_PAYMENT'){
+      if(b.captureDigest!==legacyCaptureDigest(o)||b.paymentId!==o.id||b.amountMinor!==o.amountMinor||o.currency!=='AED')return fail('EVENT_BINDING_MISMATCH','The legacy event must match the immutable original capture.');
+      if(event.producer==='payments'){
+        const saved=this.store.db.prepare('SELECT body FROM payment_event_outbox WHERE id=?').get(event.id);
+        if(event.type!=='LEGACY_CAPTURE_CHANGED'||!saved||hash(JSON.parse(String(saved.body)))!==hash(event)||event.subject.version>o.version)return fail('EVENT_BINDING_MISMATCH','Legacy gateway notifications must match their committed outbox.');
+      }else{
+        const c=o.claim;
+        if(event.type!=='LEGACY_SETTLEMENT_CHANGED'||event.subject.version!==1||!['APPLIED','RELEASED'].includes(event.state)||o.status!=='CAPTURED'||o.merchant!==event.producer||b.provider!==event.producer||!c||c.provider!==event.producer||c.claimId!==b.claimId||c.attemptId!==b.settlementAttemptId||!['CLAIMED','APPLIED','RELEASED'].includes(c.state)||c.amountMinor!==o.amountMinor||c.reference!==o.reference||event.state==='APPLIED'&&c.state==='RELEASED'||event.state==='RELEASED'&&c.state==='APPLIED')return fail('EVENT_BINDING_MISMATCH','Legacy source notifications require the exact admitted provider claim.');
+      }
+      return o;
+    }
+
     if(o.accountId!==event.accountId||o.approvalDigest!==b.approvalDigest||(event.subject.kind==='REFUND'?q.amountMinor:q.totalMinor)!==b.amountMinor||q.currency!=='AED')return fail('EVENT_BINDING_MISMATCH','The event does not match the exact local payment.');
     if(event.producer==='payments'){
       const saved=this.store.db.prepare('SELECT body FROM payment_event_outbox WHERE id=?').get(event.id);
@@ -85,7 +113,7 @@ export class PaymentEvents{
       const original=this.bound(event),s=event.subject;
       const view=this.store.db.prepare('SELECT version,event_id FROM payment_event_views WHERE account_id=? AND producer=? AND subject_kind=? AND subject_id=? AND event_type=?').get(event.accountId,event.producer,s.kind,s.id,event.type);
       if(view&&Number(view.version)===s.version&&view.event_id!==event.id)return fail('EVENT_VERSION_CONFLICT','This producer aggregate version already has an event.');
-      const stale=!!view&&Number(view.version)>s.version||event.producer==='payments'&&original.version>s.version||event.producer!=='payments'&&(s.kind==='PAYMENT'&&(original.state==='SETTLED'||original.refundedMinor>0)||s.kind==='REFUND'&&['REFUNDED','FAILED'].includes(original.state)),receivedAt=new Date(this.clock()).toISOString();
+      const stale=!!view&&Number(view.version)>s.version||event.producer==='payments'&&original.version>s.version||event.producer!=='payments'&&(s.kind==='PAYMENT'&&(original.state==='SETTLED'||original.refundedMinor>0)||s.kind==='REFUND'&&['REFUNDED','FAILED'].includes(original.state)||s.kind==='LEGACY_PAYMENT'&&['SETTLED','REFUNDED','DECLINED','RELEASED'].includes(original.state)),receivedAt=new Date(this.clock()).toISOString();
       if(!stale)this.store.db.prepare('INSERT INTO payment_event_views VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(account_id,producer,subject_kind,subject_id,event_type) DO UPDATE SET version=excluded.version,event_id=excluded.event_id,state=excluded.state,received_at=excluded.received_at').run(event.accountId,event.producer,s.kind,s.id,event.type,s.version,event.id,event.state,receivedAt);
       this.store.db.prepare('INSERT INTO payment_event_inbox VALUES(?,?,?,?,?,?,?)').run(event.id,event.accountId,event.producer,digest,stale?'STALE':'APPLIED',json(event),receivedAt);
       this.store.db.prepare('INSERT OR IGNORE INTO payment_event_deliveries VALUES(?,?,?,?)').run(event.producer,headers.nonce,event.id,digest);return {eventId:event.id,disposition:stale?'STALE' as const:'APPLIED' as const};
@@ -94,7 +122,7 @@ export class PaymentEvents{
   status(account:string):PaymentEventStatus{
     const count=(state:string)=>Number(this.store.db.prepare('SELECT count(*) n FROM payment_event_outbox WHERE account_id=? AND state=?').get(account,state)!.n);
     const rows=this.store.db.prepare('SELECT * FROM payment_event_views WHERE account_id=? ORDER BY received_at DESC LIMIT 20').all(account);
-    const updates=rows.map(row=>{const event=JSON.parse(String(this.store.db.prepare('SELECT body FROM payment_event_inbox WHERE id=?').get(String(row.event_id))!.body)) as PaymentEvent,o=this.original(event),currentState=o.refundState||o.state,needsInspection=event.producer!=='payments'&&(event.subject.kind==='PAYMENT'?['CAPTURING','CAPTURED','RECONCILIATION_REQUIRED'].includes(currentState):['REVERSING','RECONCILIATION_REQUIRED'].includes(currentState));return {id:event.id,producer:event.producer,subjectKind:event.subject.kind,subjectId:event.subject.id,type:event.type,version:event.subject.version,observedState:event.state,currentState,needsInspection,receivedAt:String(row.received_at)};});
+    const updates=rows.map(row=>{const event=JSON.parse(String(this.store.db.prepare('SELECT body FROM payment_event_inbox WHERE id=?').get(String(row.event_id))!.body)) as PaymentEvent,o=this.original(event),currentState=o.refundState||o.state,needsInspection=event.subject.kind==='LEGACY_PAYMENT'?['CAPTURED','RECONCILIATION_REQUIRED'].includes(currentState):event.producer!=='payments'&&(event.subject.kind==='PAYMENT'?['CAPTURING','CAPTURED','RECONCILIATION_REQUIRED'].includes(currentState):['REVERSING','RECONCILIATION_REQUIRED'].includes(currentState));return {id:event.id,producer:event.producer,subjectKind:event.subject.kind,subjectId:event.subject.id,type:event.type,version:event.subject.version,observedState:event.state,currentState,needsInspection,receivedAt:String(row.received_at)};});
     return {pending:count('PENDING'),failed:count('FAILED'),received:Number(this.store.db.prepare('SELECT count(*) n FROM payment_event_inbox WHERE account_id=?').get(account)!.n),updates};
   }
 }
