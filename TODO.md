@@ -45,6 +45,8 @@ The original probes used isolated synthetic fixtures. Later regressions and loca
 | Flutter desktop account selector was absent; moved to the shared layout with phone/desktop switching regressions | `apps/shell-flutter/lib/main.dart` | P1-12 (partial) |
 | First-start verifier reached Keycloak before realm import; `demo:up` now waits through `demo:wait` | `scripts/wait-demo-stack.ts` | P0-07/P2-06 (partial) |
 
+[Stable application handoff](docs/development/handoff.md) records the verified `79cd691` checkpoint and the next AUTO-03 work.
+
 ## Execution order
 
 **Next selected demo scope:** [Payment accounts and automation](#payment-accounts-and-automation-demo--planned-backlog), with 50 slices (24 delivered slices, 26 open) and its own risk-first dependency order. The list below retains the broader platform/release ordering.
@@ -59,7 +61,7 @@ P0 = blocks use with real users, identity, money or government records. P1 = req
 
 ## Payment accounts and automation demo — planned backlog
 
-**Status: implementation in progress.** PAY-01–PAY-07, PAY-09–PAY-21, AUTO-01–AUTO-02, SIM-03 and initial preview-only SIM-01 are delivered. The other 26 items remain unchecked; see [execution evidence](docs/reports/2026-10-24-payment-lifecycle.md). Requested 24 October 2026. [Design and simulator boundaries](docs/architecture/payment-automation-demo.md) define the current-versus-planned behavior, account vocabulary, state machine, consent model and scenario matrix. This is the next local-demo workstream; original P0/P1/OBO tasks keep their separate acceptance criteria. No real cards, bank accounts, money or agency contracts are required. Production readiness is not implied.
+**Status: implementation in progress; agent work paused at user request.** PAY-01–PAY-07, PAY-09–PAY-21, AUTO-01–AUTO-02, SIM-03 and initial preview-only SIM-01 are delivered. The other 26 items remain unchecked; see [execution evidence](docs/reports/2026-10-24-payment-lifecycle.md). Requested 24 October 2026. [Design and simulator boundaries](docs/architecture/payment-automation-demo.md) define the current-versus-planned behavior, account vocabulary, state machine, consent model and scenario matrix. This is the next local-demo workstream; original P0/P1/OBO tasks keep their separate acceptance criteria. No real cards, bank accounts, money or agency contracts are required. Production readiness is not implied.
 
 **Build order:** PAY-01–PAY-10 establish contracts/accounting/authorization; PAY-11–PAY-20 complete manual payments and recovery; PAY-21 coordinates source/account lifecycle with AUTO-01; AUTO-01–AUTO-07 establish consent/worker/dry-run before AUTO-08–AUTO-15 enable any automatic effect. Build SIM-01–SIM-05 alongside the earliest affected slices; SIM-06 and QA-01–QA-08 gate the complete demo. Every slice includes its relevant API/UI states and focused tests; the final QA tasks add cross-system assurance rather than postpone all testing. Items within a phase can proceed independently only when their stated dependencies are met.
 
