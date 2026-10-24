@@ -48,6 +48,12 @@ export function createProviderServer(provider: ProviderId, path: string, options
       const release = policy.admit(req.socket.remoteAddress || 'unknown'); res.once('finish', release); res.once('close', release);
       const url = new URL(req.url || '/', 'http://provider');
       if (req.method === 'GET' && url.pathname === '/health') return send({ status: 200, data: { status: 'ok', provider, storage: 'sqlite' } });
+      if (req.method === 'GET' && url.pathname === '/live') return send({ status: 200, data: { status: 'live', provider } });
+      if (req.method === 'GET' && url.pathname === '/ready') {
+        // Ready only while the SQLite store is open and answers a trivial query; the error text is never returned.
+        try { store.db.prepare('SELECT 1').get(); return send({ status: 200, data: { status: 'ready', provider, storage: 'sqlite' } }); }
+        catch { return send({ status: 503, data: { status: 'not_ready', provider, storage: 'sqlite' } }); }
+      }
       if (req.method === 'GET' && url.pathname === '/openapi.json') return send({ status: 200, data: openApi(provider,store.issuerScenarios?.context.runId) });
       if(provider==='payments'&&req.method==='POST'&&url.pathname==='/internal/payment-events'&&!url.search){
         const event=await readJsonBody(req) as PaymentEvent;
