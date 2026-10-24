@@ -1,6 +1,6 @@
 # Signed financial status events
 
-PAY-18 delivers a transactional outbox, signed local callbacks, a deduplicating inbox and owned **Payment updates**. Coverage includes stored orders/group children, wallet funding/refunds, admitted provider application/reversal, legacy raw capture/decline/refund and retained parking activation/extension/non-application. SIM-03 is delivered. Scripted fault controls, general scenario operation, unattended execution and the consolidated PAY-19 workbench retain their separate tasks.
+PAY-18 delivers a transactional outbox, signed local callbacks, a deduplicating inbox and owned **Payment updates**. Coverage includes stored orders/group children, wallet funding/refunds, admitted provider application/reversal, legacy raw capture/decline/refund and retained parking activation/extension/non-application. SIM-03 is delivered. The [PAY-19 workbench](payment-reconciliation.md) supplies consolidated recovery and audit. General fault controls, scenario operation and unattended execution retain separate tasks.
 
 ## What the demo shows
 
@@ -31,7 +31,7 @@ sequenceDiagram
 
 ## Contract and authentication
 
-Payment contract **1.10.0**, payment-provider OpenAPI **2.14.0**; source REST resource contracts remain unchanged. Stored-order/funding/refund events retain schema version **1**. The explicit `LEGACY_PAYMENT` variant uses schema version **2**; the receiver accepts both bounded variants. Old queued v1 bodies remain unchanged. Upgrade the receiver before v2 producers; older receivers reject v2 safely and do not acquire financial authority.
+Payment contract **1.11.0**, payment-provider OpenAPI **2.15.0**; source REST resource contracts remain unchanged. Stored-order/funding/refund events retain schema version **1**. The explicit `LEGACY_PAYMENT` variant uses schema version **2**; the receiver accepts both bounded variants. Old queued v1 bodies remain unchanged. Upgrade the receiver before v2 producers; older receivers reject v2 safely and do not acquire financial authority.
 
 `GET /v1/accounts/{accountId}/payment-events` requires the interactive owner. `GET /api/payments/overview` includes `events`: gateway pending/failed delivery counts, received count and up to twenty current per-subject update views. Source-provider outboxes stay private; the gateway count does not claim to include every source's undelivered queue. Existing records receive no fabricated backfill events.
 
@@ -65,7 +65,7 @@ Version 2 uses `captureDigest`, a hash of the original capture ID, workspace, am
 
 Current legacy status comes from the capture/refund and gateway claim, never the notification: CAPTURED, DECLINED, RECONCILIATION_REQUIRED, SETTLED, RELEASED or REFUNDED. Refund/terminal state wins over late notifications. A merchant without source settlement tracking remains an unconfirmed capture; an event does not establish its service outcome.
 
-**Inspect original capture** calls owner-only `GET /api/payments/legacy-status?accountId=…&paymentId=…`. It reads the existing gateway capture and a fixed allowlisted provider's existing `/settlement-attempts/{paymentId}`, then re-reads the gateway claim. The provider may retry acknowledgement of that same committed attempt. No capture, new provider action, refund or balance edit is requested. Stored-order captures must use their original order path. Wrong owner/workspace and extra fields deny; source unavailability/absence stays explicit. The inspection panel displays capture, provider and gateway confirmation separately, without manufacturing a new service receipt. Broader recovery actions and audit remain PAY-19.
+**Inspect original capture** calls owner-only `GET /api/payments/legacy-status?accountId=…&paymentId=…`. It reads the existing gateway capture and a fixed allowlisted provider's existing `/settlement-attempts/{paymentId}`, then re-reads the gateway claim. The provider may retry acknowledgement of that same committed attempt. No capture, new provider action, refund or balance edit is requested. Stored-order captures must use their original order path. Wrong owner/workspace and extra fields deny; source unavailability/absence stays explicit. The inspection panel displays capture, provider and gateway confirmation separately, without manufacturing a new service receipt. The [PAY-19 workbench](payment-reconciliation.md) adds broader guarded recovery actions and audit.
 
 [Legacy/parking recording](../recordings/legacy-payment-events/index.html) · [Executed qualification](../reports/2026-10-24-legacy-payment-events.md).
 

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Demo Payment Gateway Simulator",
-    "version": "2.14.0",
+    "version": "2.15.0",
     "description": "Local synthetic API. Signed interactive user identity or broker-issued user token with current exact-operation grant required. JWT subject owns the account; caller user headers do not grant authority. A separate read-only settlement machine lane retrieves captured charge proofs. Legacy fixture mode is outside this reference security profile."
   },
   "servers": [
@@ -6652,6 +6652,1296 @@
                   "required": [
                     "success",
                     "mandate"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "402": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/accounts/{accountId}/payment-reconciliation": {
+      "get": {
+        "operationId": "payments_listRecoveryCases",
+        "description": "List 25 owned payment/funding/refund/legacy cases in stable cursor order. No recovery effect.",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "cases": {
+                      "type": "array",
+                      "maxItems": 25,
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "enum": [
+                              "PAYMENT",
+                              "FUNDING",
+                              "REFUND",
+                              "LEGACY"
+                            ]
+                          },
+                          "operationId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160,
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                          },
+                          "state": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "amountMinor": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 100000000
+                          },
+                          "sourceLabel": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "provider": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "operationId",
+                          "state",
+                          "amountMinor",
+                          "sourceLabel",
+                          "provider"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "maxLength": 200
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "cases",
+                    "nextCursor"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "402": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/accounts/{accountId}/payment-reconciliation/pages/{cursor}": {
+      "get": {
+        "operationId": "payments_listRecoveryCasesPage",
+        "description": "Read the next owned recovery page; no closed-history truncation can hide an older case.",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "cases": {
+                      "type": "array",
+                      "maxItems": 25,
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "enum": [
+                              "PAYMENT",
+                              "FUNDING",
+                              "REFUND",
+                              "LEGACY"
+                            ]
+                          },
+                          "operationId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160,
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                          },
+                          "state": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "amountMinor": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 100000000
+                          },
+                          "sourceLabel": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "provider": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "operationId",
+                          "state",
+                          "amountMinor",
+                          "sourceLabel",
+                          "provider"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "maxLength": 200
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "cases",
+                    "nextCursor"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "402": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/accounts/{accountId}/payment-reconciliation/inspect": {
+      "post": {
+        "operationId": "payments_inspectOriginalPayment",
+        "description": "Persist an owned evidence decision from exact local journal/capture and fixed source status reads. No charge, refund or provider effect is created.",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "PAYMENT",
+                      "FUNDING",
+                      "REFUND",
+                      "LEGACY"
+                    ]
+                  },
+                  "operationId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "operationId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "inspection": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "enum": [
+                            "PAYMENT",
+                            "FUNDING",
+                            "REFUND",
+                            "LEGACY"
+                          ]
+                        },
+                        "operationId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                        },
+                        "state": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        },
+                        "amountMinor": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 100000000
+                        },
+                        "sourceLabel": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        },
+                        "provider": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        },
+                        "id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                        },
+                        "ownerSub": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        },
+                        "accountId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        },
+                        "expiresAt": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        },
+                        "decisionDigest": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        },
+                        "termsDigest": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        },
+                        "localDigest": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        },
+                        "sourceDigest": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        },
+                        "classification": {
+                          "enum": [
+                            "BEFORE_CAPTURE",
+                            "CAPTURE_COMMITTED",
+                            "PROVIDER_APPLIED",
+                            "RETURN_PENDING",
+                            "CONFIRMED",
+                            "NOT_APPLIED",
+                            "REVIEW_REQUIRED",
+                            "BLOCKED",
+                            "INCONSISTENT"
+                          ]
+                        },
+                        "captureState": {
+                          "enum": [
+                            "COMMITTED",
+                            "NOT_CAPTURED",
+                            "INCONSISTENT"
+                          ]
+                        },
+                        "sourceState": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        },
+                        "reason": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        },
+                        "actions": {
+                          "type": "array",
+                          "maxItems": 3,
+                          "uniqueItems": true,
+                          "items": {
+                            "enum": [
+                              "RECOVER_ORIGINAL",
+                              "REQUEST_REFUND_REVIEW",
+                              "REFUND_UNAPPLIED_LEGACY"
+                            ]
+                          }
+                        },
+                        "status": {
+                          "enum": [
+                            "OPEN",
+                            "RUNNING",
+                            "COMPLETED",
+                            "UNKNOWN"
+                          ]
+                        },
+                        "action": {
+                          "enum": [
+                            "RECOVER_ORIGINAL",
+                            "REQUEST_REFUND_REVIEW",
+                            "REFUND_UNAPPLIED_LEGACY"
+                          ]
+                        },
+                        "lease": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                        },
+                        "leaseUntil": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "attempts": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 20
+                        },
+                        "resultId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                        },
+                        "resultKind": {
+                          "enum": [
+                            "PAYMENT",
+                            "FUNDING",
+                            "REFUND",
+                            "LEGACY"
+                          ]
+                        },
+                        "resultState": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "operationId",
+                        "state",
+                        "amountMinor",
+                        "sourceLabel",
+                        "provider",
+                        "id",
+                        "ownerSub",
+                        "accountId",
+                        "createdAt",
+                        "expiresAt",
+                        "decisionDigest",
+                        "termsDigest",
+                        "localDigest",
+                        "sourceDigest",
+                        "classification",
+                        "captureState",
+                        "sourceState",
+                        "reason",
+                        "actions",
+                        "status",
+                        "attempts"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "inspection"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "402": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/accounts/{accountId}/payment-reconciliation/inspections/{inspectionId}": {
+      "get": {
+        "operationId": "payments_getRecoveryInspection",
+        "description": "Read an owned persisted decision/action outcome after a lost response.",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "inspectionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "inspection": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "enum": [
+                            "PAYMENT",
+                            "FUNDING",
+                            "REFUND",
+                            "LEGACY"
+                          ]
+                        },
+                        "operationId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                        },
+                        "state": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        },
+                        "amountMinor": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 100000000
+                        },
+                        "sourceLabel": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        },
+                        "provider": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        },
+                        "id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                        },
+                        "ownerSub": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        },
+                        "accountId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        },
+                        "expiresAt": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        },
+                        "decisionDigest": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        },
+                        "termsDigest": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        },
+                        "localDigest": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        },
+                        "sourceDigest": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        },
+                        "classification": {
+                          "enum": [
+                            "BEFORE_CAPTURE",
+                            "CAPTURE_COMMITTED",
+                            "PROVIDER_APPLIED",
+                            "RETURN_PENDING",
+                            "CONFIRMED",
+                            "NOT_APPLIED",
+                            "REVIEW_REQUIRED",
+                            "BLOCKED",
+                            "INCONSISTENT"
+                          ]
+                        },
+                        "captureState": {
+                          "enum": [
+                            "COMMITTED",
+                            "NOT_CAPTURED",
+                            "INCONSISTENT"
+                          ]
+                        },
+                        "sourceState": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        },
+                        "reason": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        },
+                        "actions": {
+                          "type": "array",
+                          "maxItems": 3,
+                          "uniqueItems": true,
+                          "items": {
+                            "enum": [
+                              "RECOVER_ORIGINAL",
+                              "REQUEST_REFUND_REVIEW",
+                              "REFUND_UNAPPLIED_LEGACY"
+                            ]
+                          }
+                        },
+                        "status": {
+                          "enum": [
+                            "OPEN",
+                            "RUNNING",
+                            "COMPLETED",
+                            "UNKNOWN"
+                          ]
+                        },
+                        "action": {
+                          "enum": [
+                            "RECOVER_ORIGINAL",
+                            "REQUEST_REFUND_REVIEW",
+                            "REFUND_UNAPPLIED_LEGACY"
+                          ]
+                        },
+                        "lease": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                        },
+                        "leaseUntil": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "attempts": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 20
+                        },
+                        "resultId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                        },
+                        "resultKind": {
+                          "enum": [
+                            "PAYMENT",
+                            "FUNDING",
+                            "REFUND",
+                            "LEGACY"
+                          ]
+                        },
+                        "resultState": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "operationId",
+                        "state",
+                        "amountMinor",
+                        "sourceLabel",
+                        "provider",
+                        "id",
+                        "ownerSub",
+                        "accountId",
+                        "createdAt",
+                        "expiresAt",
+                        "decisionDigest",
+                        "termsDigest",
+                        "localDigest",
+                        "sourceDigest",
+                        "classification",
+                        "captureState",
+                        "sourceState",
+                        "reason",
+                        "actions",
+                        "status",
+                        "attempts"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "inspection"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "402": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/accounts/{accountId}/payment-reconciliation/inspections/{inspectionId}/act": {
+      "post": {
+        "operationId": "payments_actOnRecoveryInspection",
+        "description": "Require the exact unexpired evidence digest and permitted action; retain original operation identities, fence concurrent admissions and audit outcomes.",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "inspectionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "decisionDigest": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "action": {
+                    "enum": [
+                      "RECOVER_ORIGINAL",
+                      "REQUEST_REFUND_REVIEW",
+                      "REFUND_UNAPPLIED_LEGACY"
+                    ]
+                  }
+                },
+                "required": [
+                  "decisionDigest",
+                  "action"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "inspection": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "enum": [
+                            "PAYMENT",
+                            "FUNDING",
+                            "REFUND",
+                            "LEGACY"
+                          ]
+                        },
+                        "operationId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                        },
+                        "state": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        },
+                        "amountMinor": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 100000000
+                        },
+                        "sourceLabel": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        },
+                        "provider": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        },
+                        "id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                        },
+                        "ownerSub": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        },
+                        "accountId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        },
+                        "expiresAt": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        },
+                        "decisionDigest": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        },
+                        "termsDigest": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        },
+                        "localDigest": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        },
+                        "sourceDigest": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        },
+                        "classification": {
+                          "enum": [
+                            "BEFORE_CAPTURE",
+                            "CAPTURE_COMMITTED",
+                            "PROVIDER_APPLIED",
+                            "RETURN_PENDING",
+                            "CONFIRMED",
+                            "NOT_APPLIED",
+                            "REVIEW_REQUIRED",
+                            "BLOCKED",
+                            "INCONSISTENT"
+                          ]
+                        },
+                        "captureState": {
+                          "enum": [
+                            "COMMITTED",
+                            "NOT_CAPTURED",
+                            "INCONSISTENT"
+                          ]
+                        },
+                        "sourceState": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        },
+                        "reason": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        },
+                        "actions": {
+                          "type": "array",
+                          "maxItems": 3,
+                          "uniqueItems": true,
+                          "items": {
+                            "enum": [
+                              "RECOVER_ORIGINAL",
+                              "REQUEST_REFUND_REVIEW",
+                              "REFUND_UNAPPLIED_LEGACY"
+                            ]
+                          }
+                        },
+                        "status": {
+                          "enum": [
+                            "OPEN",
+                            "RUNNING",
+                            "COMPLETED",
+                            "UNKNOWN"
+                          ]
+                        },
+                        "action": {
+                          "enum": [
+                            "RECOVER_ORIGINAL",
+                            "REQUEST_REFUND_REVIEW",
+                            "REFUND_UNAPPLIED_LEGACY"
+                          ]
+                        },
+                        "lease": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                        },
+                        "leaseUntil": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "attempts": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 20
+                        },
+                        "resultId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                        },
+                        "resultKind": {
+                          "enum": [
+                            "PAYMENT",
+                            "FUNDING",
+                            "REFUND",
+                            "LEGACY"
+                          ]
+                        },
+                        "resultState": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "operationId",
+                        "state",
+                        "amountMinor",
+                        "sourceLabel",
+                        "provider",
+                        "id",
+                        "ownerSub",
+                        "accountId",
+                        "createdAt",
+                        "expiresAt",
+                        "decisionDigest",
+                        "termsDigest",
+                        "localDigest",
+                        "sourceDigest",
+                        "classification",
+                        "captureState",
+                        "sourceState",
+                        "reason",
+                        "actions",
+                        "status",
+                        "attempts"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "inspection"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "402": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/accounts/{accountId}/payment-reconciliation/audit/{kind}/{operationId}": {
+      "get": {
+        "operationId": "payments_getRecoveryAudit",
+        "description": "Read the latest 100 owned append-only recovery audit records for the original operation.",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "operationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "audit": {
+                      "type": "array",
+                      "maxItems": 100,
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160,
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                          },
+                          "kind": {
+                            "enum": [
+                              "PAYMENT",
+                              "FUNDING",
+                              "REFUND",
+                              "LEGACY"
+                            ]
+                          },
+                          "operationId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160,
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                          },
+                          "ownerSub": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "at": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "phase": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "inspectionId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160,
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                          },
+                          "state": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "code": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "paymentId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160,
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                          },
+                          "resultId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160,
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "kind",
+                          "operationId",
+                          "ownerSub",
+                          "at",
+                          "phase"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "audit"
                   ],
                   "additionalProperties": false
                 }

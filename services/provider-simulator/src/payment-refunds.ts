@@ -1,4 +1,5 @@
 import { emitGatewaySnapshot } from './payment-events.ts';
+import { initializeRecoveryAudit,appendRecoveryAudit } from './recovery-audit.ts';
 /** Owner-approved, cumulative refunds. Provider reversal and original-source money return remain distinct stages. */
 import { createHash,randomUUID } from 'node:crypto';
 import type { Actor } from '../../../packages/backend-kit/src/context.ts';
@@ -68,6 +69,11 @@ export class PaymentRefunds {
   });}
   async execute(a:Actor,id:string,input:{expectedVersion:number;approvalDigest:string},client:ProviderClient){this.begin(a,id,input);return this.recover(a,id,client);}
   async recover(a:Actor,id:string,client:ProviderClient){
+    initializeRecoveryAudit(this.orders.store);const before=this.get(a,id);appendRecoveryAudit(this.orders.store,a,'REFUND',id,'RECOVERY_STARTED',{state:before.state,paymentId:before.quote.paymentId});
+    try{const result=await this.runRecovery(a,id,client);appendRecoveryAudit(this.orders.store,a,'REFUND',id,'RECOVERY_OBSERVED',{state:result.state,paymentId:result.quote.paymentId});return result;}
+    catch(e){appendRecoveryAudit(this.orders.store,a,'REFUND',id,'RECOVERY_UNKNOWN',{code:(e as {code?:string}).code||'UNKNOWN'});throw e;}
+  }
+  private async runRecovery(a:Actor,id:string,client:ProviderClient){
     const r=this.get(a,id);if(['REFUNDED','FAILED','CANCELLED'].includes(r.state))return r;
     if(!['REVERSING','RECONCILIATION_REQUIRED'].includes(r.state))return fail('REFUND_APPROVAL_REQUIRED','Explicitly approve the refund before reversal.');
     if(r.quote.origin==='WALLET_FUNDING'){

@@ -43,6 +43,11 @@ export async function handlePaymentAccounts(actor: Actor, method: string, path: 
   if (process.env.PROVIDER_INTEGRATION !== 'true') return { status: 503, data: { success: false, code: 'INTEGRATED_DEMO_REQUIRED', error: 'Payment accounts require the provider-backed demo.' } };
   try {
     if (method === 'GET' && path === '/api/payments/overview') return { status: 200, data: { success: true, ...await paymentOverview(actor) } };
+    if(method==='GET'&&path==='/api/payments/reconciliation')return {status:200,data:await client.call('payments',actor,'GET',body.cursor?`/payment-reconciliation/pages/${encodeURIComponent(body.cursor)}`:'/payment-reconciliation')};
+    if(method==='GET'&&path==='/api/payments/reconciliation/inspection')return {status:200,data:await client.call('payments',actor,'GET',`/payment-reconciliation/inspections/${encodeURIComponent(body.inspectionId)}`)};
+    if(method==='GET'&&path==='/api/payments/reconciliation/audit')return {status:200,data:await client.call('payments',actor,'GET',`/payment-reconciliation/audit/${encodeURIComponent(body.kind)}/${encodeURIComponent(body.operationId)}`)};
+    if(method==='POST'&&path==='/api/payments/reconciliation/inspect'){const {accountId:_account,requestKey,...input}=body;return {status:200,data:await client.call('payments',actor,'POST','/payment-reconciliation/inspect',input,`recovery:${requestKey}`)};}
+    if(method==='POST'&&path==='/api/payments/reconciliation/act'){const {accountId:_account,requestKey,inspectionId,...input}=body;return {status:200,data:await client.call('payments',actor,'POST',`/payment-reconciliation/inspections/${encodeURIComponent(inspectionId)}/act`,input,`recovery:${requestKey}`)};}
     if(method==='GET'&&path==='/api/payments/legacy-status')return {status:200,data:{success:true,inspection:await inspectLegacyPayment(actor,body.paymentId,client)}};
     if(method==='GET'&&path==='/api/payments/mandates')return {status:200,data:await client.call('payments',actor,'GET','/payment-mandates')};
     if(method==='GET'&&path==='/api/payments/mandates/history')return {status:200,data:await client.call('payments',actor,'GET',`/payment-mandates/${encodeURIComponent(body.mandateId)}/history`)};
