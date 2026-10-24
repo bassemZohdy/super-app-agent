@@ -2,13 +2,15 @@
 
 A runnable city-services demo with a conversational concierge, independently persisted provider APIs, Keycloak authentication, Redis sessions, and a checkpointed LangGraph approval flow. RTA, DEWA, Etisalat, du, Dubai Police and Dubai Land Department are **simulated entities**. Payments use simulated funds; no real government or financial system is connected.
 
+[Current implementation and verification](docs/STATUS.md) · [Documentation index](docs/INDEX.md) · [Remaining tasks](TODO.md). Latest executed application checkpoint: `4bde222`, 533 Node tests and 18 workspace builds.
+
 ## Run the integrated demo
 
 Requires Node.js 24+, npm, and Docker Compose. Install dependencies before starting the containers: the demo mounts this checkout and its installed backend dependencies read-only.
 
 ```bash
 npm ci --ignore-scripts
-cp .env.example .env  # first setup only; preserve an existing .env
+test -f .env || cp .env.example .env  # preserve existing private configuration
 npm run demo:up
 npm run dev:react
 ```

@@ -1,6 +1,6 @@
 # ADR-0007 — Agent reasoning runtime and model inference separation
 
-> Current demo implementation update (24 October 2026): see [ADR-0010](ADR-0010-provider-simulators-and-redis-demo.md) and the [provider guide](../demo/provider-backends.md). The implementation sections below describe the retained fixture path and integrated path where applicable. The integrated demo now has REST provider adapters, Keycloak browser/service authentication and Redis sessions. A real LangGraph approval graph with Redis checkpoints and authenticated core MCP now run; model-selected planning, production consent and UI standards migration remain targets.
+> Implementation review, 24 October 2026: [current status](../STATUS.md), [delivery target](ADR-0011-local-demo-target.md) and [bounded delegation amendment](ADR-0012-secure-delegation-demo.md) identify the implemented demo. This decision does not establish production approval.
 
 **Status:** **LangGraph approval runtime and grounded replies implemented; model-selected planning remains a target.**
 **Reviewed:** 2026-10-24.
@@ -12,7 +12,7 @@ Model inference (text completion) is different from maintaining a stateful, perm
 ## Decision
 
 - Keep model inference behind a replaceable provider adapter; never embed provider keys in frontend code.
-- Prefer **free inference for experiments** and an offline deterministic mock for repeatable tests.
+- Use internal open-source text/voice for the selected demo and deterministic fixtures for repeatable tests. This supersedes the initial free-hosted-inference experiment under the later user choice.
 - Use a real agent framework (LangGraph is an evaluated target) only when its graph/checkpoint/interrupt semantics are implemented and tested, not inferred from naming.
 - Keep durable deterministic workflows distinct from probabilistic planning. The workflow/policy layer enforces effects and approvals.
 
@@ -20,7 +20,7 @@ Model inference (text completion) is different from maintaining a stateful, perm
 
 A real LangGraph `StateGraph` now wraps the deterministic service router with prepare, persisted review interrupt and execute nodes. Integrated mode uses bounded Redis checkpoints; fixtures use MemorySaver. Normal restart recovery resumes an outstanding approval. Model-selected routing, schedules and general workflow compensation are not implemented. See [runtime details](../architecture/agent-runtime.md).
 
-OpenRouter supplies grounded text with bounded context/output/time, official HTTPS, zero-priced provider routing and per-actor call limits. The current key is rejected with HTTP 401. Manual bundled routes bypass the model and retain the same approval checks.
+Private Qwen/llama.cpp supplies grounded text with bounded context/output/time and per-actor limits. KittenTTS/Whisper provide local speech. The retained OpenRouter helper is inactive compatibility/diagnostic code; earlier HTTP 401 observations belong to the dated hosted-model report. Manual bundled routes bypass inference and retain the same approval checks. [Current local AI setup](../development/local-ai.md).
 
 ## Consequences
 

@@ -1,6 +1,6 @@
 # Payment journal and migration
 
-PAY-02 adds the payment provider's balanced journal and wallet projection checks. Current wallet top-ups, wallet/external-simulated captures and refunds use it. Saved-card bill execution, finite issuer/challenges, settlement claims and card-funded wallet credits now use guarded order paths; recurring mandates and automatic services remain separate unfinished tasks. [Payment setup](payment-accounts.md) · [Executed migration evidence](../reports/2026-10-24-payment-ledger.md).
+PAY-02 adds the payment provider's balanced journal and wallet projection checks. Current wallet top-ups, wallet/external-simulated captures and refunds use it. Saved-card bill execution, finite issuer/challenges, settlement claims and card-funded wallet credits now use guarded order paths; automatic mandate execution and services remain unfinished; finite non-executable consent records are delivered. [Payment setup](payment-accounts.md) · [Executed migration evidence](../reports/2026-10-24-payment-ledger.md).
 
 ## Stored records and invariants
 
@@ -10,7 +10,7 @@ Each sealed entry has exactly two integer-fils postings whose signed sum is zero
 
 The existing wallet JSON resource becomes a projection checked against sealed wallet postings. A disagreement fails with `WALLET_PROJECTION_MISMATCH`; no balancing adjustment silently repairs it. New effects update journal, projection, transaction/charge and request-idempotency records in the same provider transaction. Nested ledger work uses savepoints, so a failed effect rolls back completely. No transaction spans another provider's HTTP call.
 
-`GET /v1/accounts/{accountId}/wallet` retains `balance`/`balanceMinor` and adds `heldMinor` and `availableMinor`. Available funds equal posted balance minus active unexpired wallet holds. Existing wallet capture checks available funds. Holds can expire or be voided without creating a journal debit; internal accounting helpers exist for later order authorization but no hold creation/management endpoint is exposed yet. A new hold is bounded to a one-hour expiry and cannot over-reserve shared funds. Wallet self-funded credits, negative/overflow/fractional minor amounts and over-limit balances fail.
+`GET /v1/accounts/{accountId}/wallet` retains `balance`/`balanceMinor` and adds `heldMinor` and `availableMinor`. Available funds equal posted balance minus active unexpired wallet holds. Existing wallet capture checks available funds. Holds can expire or be voided without creating a journal debit; stored order approvals use internal accounting helpers; no arbitrary public hold creation/management endpoint is exposed. A new hold is bounded to a one-hour expiry and cannot over-reserve shared funds. Wallet self-funded credits, negative/overflow/fractional minor amounts and over-limit balances fail.
 
 Existing external-simulated funding still uses the current demo-approved/declined fixture path. Journal entries model its clearing effects; this does not implement a real card issuer, finite saved-card limits or proof-of-funds from a bank.
 

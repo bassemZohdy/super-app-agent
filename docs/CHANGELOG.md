@@ -1,5 +1,10 @@
 # Documentation changelog
 
+## 24 October 2026 — documentation and backlog reconciliation after P2-02
+
+Consolidate the current application checkpoint in STATUS.md, reorganize the index/evidence register, refresh the active handoff and archive its superseded `79cd691` snapshot. Correct stale test totals, readiness/authentication descriptions, API versions, payment/consent/refund status, local-AI decision amendments and references to unfinished automation. Preserve task IDs/checkmarks, dated report/recording facts, personal files and durable demo state. Strengthen documentation checks for local anchors, current npm commands and backlog-count drift; no payment/identity runtime feature is enabled by this maintenance.
+
+
 ## 24 October 2026 — P2-02 local operations and recovery
 
 Add correlated HTTP/domain/MCP telemetry, private diagnostics/Prometheus metrics, bounded redacted logs, durable-work and backpressure alerts, gateway/broker readiness and graceful Node shutdown. Add signed load/soak/partial-journey qualification and encrypted, integrity-checked cold backup/restore with isolated financial/Redis/issuer and full Keycloak/Redis recovery rehearsal. Complete P2-02 for the selected single-writer demo; retain separate production HA gates. [Runbook](development/operations.md) · [Evidence](reports/2026-10-24-operations.md).

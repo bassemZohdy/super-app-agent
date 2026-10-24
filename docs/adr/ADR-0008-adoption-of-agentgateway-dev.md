@@ -1,6 +1,6 @@
 # ADR-0008 — agentgateway.dev as candidate AI/agent data plane
 
-> Current demo implementation update (24 October 2026): see [ADR-0010](ADR-0010-provider-simulators-and-redis-demo.md) and the [provider guide](../demo/provider-backends.md). The implementation sections below describe the retained fixture path and integrated path where applicable. The integrated demo now has REST provider adapters, Keycloak browser/service authentication and Redis sessions. A real LangGraph approval graph with Redis checkpoints and authenticated core MCP now run; model-selected planning, production consent and UI standards migration remain targets.
+> Implementation review, 24 October 2026: [current status](../STATUS.md), [delivery target](ADR-0011-local-demo-target.md) and [bounded delegation amendment](ADR-0012-secure-delegation-demo.md) identify the implemented demo. This decision does not establish production approval.
 
 **Status:** **Candidate/configured for experimentation; adoption and compatibility NOT verified.**
 **Reviewed:** 2026-10-24.
@@ -18,7 +18,7 @@ Production agent traffic may require model budgets, authentication, MCP federati
 
 ## Current evidence
 
-`services/agentgateway/config.yaml` describes listener, LLM, tool and tracing settings; `docker-compose.yml` references an unpinned `ghcr.io/agentgateway/agentgateway:latest` image. The demo agent graph **does not use** the gateway for its business calls and the optional OpenRouter conversation adapter uses a direct HTTP fetch.
+`services/agentgateway/config.yaml` describes listener, LLM, tool and tracing settings; `docker-compose.yml` references an unpinned `ghcr.io/agentgateway/agentgateway:latest` image. The demo agent graph **does not use** the gateway for its business calls and active inference uses private llama.cpp through an internal adapter. The historical OpenRouter helper uses direct HTTP only when explicitly invoked for diagnostics/tests.
 
 The config describes `/mcp` endpoints, but application services still expose legacy `GET /mcp` descriptors. The core now has a real authenticated MCP endpoint, but the candidate gateway has not been wired to or tested against it. No gateway startup/integration test in this repository validates supported syntax, policy or real federation. Its listener includes wildcard CORS, unsuitable without review.
 

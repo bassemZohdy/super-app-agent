@@ -1,9 +1,11 @@
 # Testing and verification
 
+Latest executed application checkpoint and scoped evidence are in [STATUS.md](../STATUS.md). Current documentation checks cover local paths/Markdown anchors, documented npm commands outside historical material, duplicate task IDs and status-table counts. Dated report totals remain historical.
+
 ## Commands
 
 ```bash
-npm run check # ESLint, Markdown links, tracked-source secrets, tests, 18 builds
+npm run check # lint, E2E TypeScript, docs, source secrets, offline tests and workspace builds
 npm run openapi:generate      # regenerate the provider OpenAPI contracts (checked by tests)
 npm run openapi:generate:apps # regenerate the application API contract (checked by tests)
 npm run sbom:generate         # local CycloneDX SBOM into dist/sbom; opt-in, no CI workflow

@@ -1,6 +1,6 @@
 # ADR-0006 — Session state, UI events and security boundaries
 
-> Current demo implementation update (24 October 2026): see [ADR-0010](ADR-0010-provider-simulators-and-redis-demo.md) and the [provider guide](../demo/provider-backends.md). The implementation sections below describe the retained fixture path and integrated path where applicable. The integrated demo now has REST provider adapters, Keycloak browser/service authentication and Redis sessions. A real LangGraph approval graph with Redis checkpoints and authenticated core MCP now run; model-selected planning, production consent and UI standards migration remain targets.
+> Implementation review, 24 October 2026: [current status](../STATUS.md), [delivery target](ADR-0011-local-demo-target.md) and [bounded delegation amendment](ADR-0012-secure-delegation-demo.md) identify the implemented demo. This decision does not establish production approval.
 
 **Status:** **Partial protections implemented after PR #1; production security pending.**
 **Reviewed:** 2026-10-24.
@@ -19,14 +19,14 @@ Agent-first civic journeys span identity, conversation, UI actions and potential
 
 ## Implemented demo controls
 
-Shared verification enforces RS256 issuer/audience, bounded finite times, access-token type, issuer-scoped JWKS rotation/cooldown and configured online introspection. Browser shells use PKCE/refresh/logout and header-authenticated SSE. Application APIs verify user roles/account membership; providers verify service audience/client/role and account-owned SQLite resources. Redis provides subject/account binding, TTL, renewed leases, fenced saves and shared replay. Action requests require the current approval revision, five-minute expiry, canonical view digest and every offered payload field. Cancellation invalidates the pending continuation. Fixture mode retains the explicit nonproduction `DEMO_AUTH` bypass and process-local shared data.
+Shared verification enforces RS256 issuer/audience, bounded finite times, access-token type, issuer-scoped JWKS rotation/cooldown and configured online introspection. Browser shells use PKCE/refresh/logout and header-authenticated SSE. Application APIs verify user roles/account membership; providers verify the appropriate interactive/delegated/machine audience/client/role and account-owned SQLite resources. Redis provides subject/account binding, TTL, renewed leases, fenced saves and shared replay. Action requests require the current approval revision, five-minute expiry, canonical view digest and every offered payload field. Cancellation invalidates the pending continuation. Fixture mode retains the explicit nonproduction `DEMO_AUTH` bypass and process-local shared data.
 
 ## Unresolved
 
-- Native Flutter PKCE/SSE, production browser session design and online revocation.
-- Global quotas, HA/backup/crash recovery and production retention/encryption.
-- Signed user delegation, immutable quotes, consent/revocation and audit.
-- Cross-service atomicity and authenticated payment/provider reconciliation.
+- Native Flutter PKCE/device validation, production browser session design and complete stream revocation lifecycle. Dart authenticated SSE is implemented and tested at its documented boundary.
+- Global quotas, replicated HA/off-host backup automation and production retention/storage encryption. P2-02 delivers local encrypted cold restore, critical-dependency readiness and fenced recovery.
+- Production entitlement/tenancy, immutable external audit and broader delegated authority. ADR-0012 delivers bounded signed delegation, exact current grants and revocation; reviewed payment quotes and non-executable mandate records are implemented.
+- Cross-service atomicity and general compensation. Owner-authenticated original-operation reconciliation/refunds are implemented for the retained payment paths.
 - Known local credentials, HTTP/start-dev and the candidate gateway configuration must not become production defaults.
 
 This ADR is **not** a security certification. See [SECURITY.md](../../SECURITY.md).

@@ -61,10 +61,10 @@ Probes are answered before bearer auth, so they work in integrated mode without 
 | Endpoint | Response | What it checks |
 | --- | --- | --- |
 | `GET /live` | `200 {"status":"live","service":...}` | Process is serving HTTP. Nothing else. |
-| `GET /ready` | `200 {"status":"ready",...}` or `503 {"status":"not_ready",...}` | Only that the in-process handler function exists. Provider reachability is not probed; provider failures surface per request as `503 PROVIDER_UNAVAILABLE`. |
+| `GET /ready` | `200 {"status":"ready",...}` or `503 {"status":"not_ready",...}` | The handler exists and, in integrated mode, the local application SQLite store answers `SELECT 1`. Provider reachability is not probed; provider failures surface per request as `503 PROVIDER_UNAVAILABLE`. |
 | `GET /health` | `200 {"status":"ok","service":...,"integration":...}` | `integration` is `rest-providers` in integrated mode and `legacy-fixtures` otherwise. |
 
-Probe responses use `Cache-Control: no-store`. The 503 body contains no internal details. These probes are not part of the OpenAPI contract.
+Probe responses use `Cache-Control: no-store`. The 503 body contains no internal details. These probes and private `/ops/state`/`/ops/metrics` are outside the business OpenAPI contract. Readiness/liveness bypass normal request admission. Correlated diagnostics use a separate `OPS_API_KEY`; bearer identity does not authorize them. [Operations, privacy and recovery](operations.md).
 
 ## OpenAPI contract
 
@@ -104,7 +104,7 @@ If test 1 fails, run `npm run openapi:generate:apps` and commit the regenerated 
 | Variable | Used for | Where verified |
 | --- | --- | --- |
 | `PROVIDER_INTEGRATION` | Selects integrated mode | `.env.example`, `application.ts` |
-| `PORT`, `PORT_SERVICE_RIDE` to `PORT_SERVICE_TELECOM` | Listen port and documented port | `services/service-*/src/index.ts`, `.env.example` |
+| `PORT` | Listen port of each application process; script endpoint overrides are separate | `services/service-*/src/index.ts`, `.env.example` |
 | `KEYCLOAK_ISSUER` | Required `iss` claim | `.env.example`, `jwt.ts` |
 | `KEYCLOAK_AUDIENCE` | Audience checked (default `agent-core`) | `.env.example`, `application.ts`, `jwt.ts` |
 | `KEYCLOAK_JWKS_URL` | Signing-key source | `.env.example`, `jwt.ts` |

@@ -2,7 +2,7 @@
 
 All three shells now include explicit bounded delegation consent, run, revoke and audit controls backed by the separate trusted broker. [Guide](../development/delegation.md) · [Actual React browser evidence and remaining parity limits](../reports/2026-10-24-delegation-demo.md).
 
-The current Cityside interface uses account-bound authenticated surfaces. React and Angular sign in with Keycloak authorization code + S256 PKCE; Flutter uses a local-demo password grant. All service names and funds represent simulators. See [setup](../development/local-development.md) and [current validation](../reports/2026-10-24-demo-completion.md).
+The current Cityside interface uses account-bound authenticated surfaces. React and Angular sign in with Keycloak authorization code + S256 PKCE; Flutter uses a local-demo password grant. All service names and funds represent simulators. See [setup](../development/local-development.md) and [current validation](../STATUS.md).
 
 ## Implemented clients
 
@@ -31,4 +31,4 @@ Test Arabic/RTL, keyboard/focus/screen readers, touch sizes, device lifecycle an
 
 ## Payment screens and remaining parity
 
-[Payment accounts and automation](payment-automation-demo.md) adds planned biller-account management, synthetic card presets, explicit source/quote review, challenges, receipts/reconciliation and finite rule/run-history controls. React is the first vertical slice; QA-06 requires Angular/Flutter parity and accessible states before marking that demo complete. React now has owned synthetic methods, biller links and a scrollable source-bound preview screen, with a real desktop/mobile browser check. Existing service-wallet payments and five-minute delegation grants remain separate; recurring consent, source execution and Angular/Flutter parity are still open. [Usage](../development/payment-accounts.md).
+React implements owned synthetic methods/billers; explicit wallet/card bill/fine/recharge reviews; challenges; wallet funding; grouped outcomes; original-source refunds; statements/reconciliation; owner/source lifecycle; and a read-only mandate/rule inspector. Finite mandate consent is stored, while automatic admission/execution, a full rule editor and run history remain open. QA-06 requires Angular/Flutter payment parity and accessible states before the entire extension can be considered complete. Existing small delegation grants do not become recurring spending authority. [Usage](../development/payment-accounts.md) · [Current status](../STATUS.md).

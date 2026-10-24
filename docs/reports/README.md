@@ -1,8 +1,18 @@
 # Execution evidence register
 
-Evidence spans the `283521a` integrated baseline, payment setup `65fec3c`, journal `58dc0dd`, and the subsequent lifecycle/preview, payable and authorization additions on 24 October 2026. Results describe the source and environment recorded, not a production certification. Planning updates do not create new feature evidence.
+[Current implementation status](../STATUS.md) separates delivered behavior from open acceptance gates. Application checkpoint **`4bde222`**, 24 October 2026, is the latest executed full qualification: **533 Node tests and 18 workspace builds**. Documentation maintenance does not rerun or extend that application evidence.
 
-| Evidence | Verified scope | Interpretation |
+## Latest operating qualification
+
+| Evidence | Verified scope | Limit |
+| --- | --- | --- |
+| [P2-02 operations and recovery](2026-10-24-operations.md) | Private correlation/metrics, signed partial journey, 10-second read load, 60-second soak, shutdown, encrypted financial/Redis/issuer restore and copied Keycloak/Redis boot/login; 533 tests/18 builds | Local single-writer demo; six pre-existing pending broker jobs retained for reconciliation. No production HA or inference-capacity claim |
+
+## Earlier feature checkpoints — historical
+
+Each row below states what its dated report verified and what remained open **then**. Counts and earlier missing features are not current release totals; use STATUS.md/TODO.md for the latest disposition. Foundational snapshots include `283521a`, `65fec3c` and `58dc0dd`. Production certification is not implied.
+
+| Evidence | Verified scope | Interpretation at that checkpoint |
 | --- | --- | --- |
 | [Production dependency triage](2026-10-24-dependency-triage.md) | `npm audit --omit=dev`: five advisories; ajv then upgraded to 8.20.0, leaving four | Evidence-based dispositions. Angular major upgrade needs a decision; zod via LangChain has no same-major fix and needs a reviewed LangChain change |
 | [Gateway business reservations and original attempts](2026-10-24-payment-obligations.md) | 397 tests, 18 builds; signed invoice/manual-fine/recharge races, original UNKNOWN/restart/recovery, legacy overlap migration and paced UI | PAY-08 advanced but remains open for actual automatic-caller qualification; no new scheduled authority |
@@ -33,8 +43,8 @@ Evidence spans the `283521a` integrated baseline, payment setup `65fec3c`, journ
 | [Provider browser recording](../recordings/runs/20261024T010609Z-video/report.md) | Twelve isolated journeys, 34 checks, measured pacing and then-current 120 tests/17 builds | Canonical dated recording, independent of later model changes |
 | [Older reports](../INDEX.md#evidence-and-provenance) | 23 October checks and original fixture scenarios | Preserve original observations; not current feature claims |
 
-Current setup: [local development](../development/local-development.md), [local AI](../development/local-ai.md), [delegation](../development/delegation.md). Proposed work and its acceptance gates live in [TODO](../../TODO.md).
+## Setup and planning records
 
-[Payment/automation planning and cleanup](2026-10-24-payment-planning.md) records documentation/media maintenance, the original 50-task plan and the subsequent backlog review (5 delivered foundations, 45 open). It is planning evidence; the subsequent payment-account report records the first delivered setup slice. The later AUTO-01 report supplies finite consent records; automatic services remain unimplemented.
+[Local development](../development/local-development.md) · [Local AI](../development/local-ai.md) · [Delegation](../development/delegation.md) · [Operations](../development/operations.md) · [Current handoff](../development/handoff.md).
 
-[2026-10-24 operations and recovery](2026-10-24-operations.md): P2-02 local trace/metric/access controls, load/soak, encrypted checkpoint and fenced durable-state/Keycloak/Redis recovery. This evidence does not qualify production HA or inference capacity.
+[Payment/automation planning and cleanup](2026-10-24-payment-planning.md) preserves the original 50-task plan and its earlier 5-checked/45-open review. The current extension is 24 checked/26 open; finite consent records are delivered and recurring execution remains disabled. [TODO](../../TODO.md) retains the remaining acceptance criteria. [The earlier handoff](../history/handoff-2026-10-24-79cd691.md) preserves its own checkpoint rather than describing the current checkout.

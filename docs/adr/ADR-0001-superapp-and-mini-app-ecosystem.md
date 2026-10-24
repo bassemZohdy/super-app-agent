@@ -1,6 +1,6 @@
 # ADR-0001 — Super App ecosystem with an agent-first Concierge
 
-> Current demo implementation update (24 October 2026): see [ADR-0010](ADR-0010-provider-simulators-and-redis-demo.md) and the [provider guide](../demo/provider-backends.md). The implementation sections below describe the retained fixture path and integrated path where applicable. The integrated demo now has REST provider adapters, Keycloak browser/service authentication and Redis sessions. A real LangGraph approval graph with Redis checkpoints and authenticated core MCP now run; model-selected planning, production consent and UI standards migration remain targets.
+> Implementation review, 24 October 2026: [current status](../STATUS.md), [delivery target](ADR-0011-local-demo-target.md) and [bounded delegation amendment](ADR-0012-secure-delegation-demo.md) identify the implemented demo. This decision does not establish production approval.
 
 **Status:** Accepted as **product direction**, **partially demonstrated**; production implementation pending.
 **Reviewed:** 2026-10-24. See [ADR-0009](ADR-0009-agent-first-with-bounded-authority.md) for the refined autonomy boundary.

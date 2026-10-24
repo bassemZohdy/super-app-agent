@@ -1,6 +1,6 @@
 # Isolated preview scenario clock
 
-SIM-01 supplies an operator CLI and reusable persisted business clock for the demo simulator. This first slice is **preview-only**: it emits descriptive due events and never calls providers, charges funds, issues credentials or activates a rule. Provider event/usage generation, failure controls, an authenticated admin panel and execution scenarios remain SIM-02–SIM-06/AUTO work.
+SIM-01 supplies an operator CLI and reusable persisted business clock for the demo simulator. This first slice is **preview-only**: it emits descriptive due events and never calls providers, charges funds, issues credentials or activates a rule. SIM-02 has partial lifecycle/event fixtures, and the separate [SIM-03 issuer scenarios](issuer-scenarios.md) are delivered. Complete event/usage generation, general failure controls, authenticated admin UI and automatic execution retain their own SIM/AUTO gates.
 
 ## Run
 
