@@ -12,6 +12,8 @@ const op = (method: string, path: string, id: string, result: Record<string, any
 const paymentProof = object({ paymentId: text });
 const revision = {type:'string',pattern:'^[a-f0-9]{64}$'};
 const payableSchema = object({id:text,provider:{enum:['dewa','etisalat','du','police']},reference:text,obligationId:text,kind:{enum:['BILL','FINE']},version:{type:'integer',minimum:1,maximum:1000000},label:text,amountMinor:money,originalAmountMinor:money,discountMinor:{type:'integer',minimum:0,maximum:100000000},discountEligible:{type:'boolean'},currency:{const:'AED'},status:{enum:['UNPAID','PAID','CANCELLED','EXPIRED']},dueState:{enum:['CURRENT','DUE','OVERDUE','EXPIRED','CLOSED']},revision,dueDate:{type:'string',pattern:'^\\d{4}-\\d{2}-\\d{2}$'},expiresAt:text,discountExpiresAt:text,period:text,openingFixture:{type:'boolean'},paymentRestricted:{type:'boolean'}},['id','provider','reference','obligationId','kind','version','label','amountMinor','originalAmountMinor','discountMinor','discountEligible','currency','status','dueState','revision']);
+const fineItemSchema=structuredClone(payableSchema);fineItemSchema.properties.kind={const:'FINE'};
+payableSchema.properties.kind={enum:['BILL','FINE','FINE_SET']};payableSchema.properties.items={type:'array',minItems:1,maxItems:20,items:fineItemSchema};
 const payableOperations = [
   op('GET','/payables','listVersionedPayables',{payables:{type:'array',items:payableSchema,maxItems:100}},'Read provider-owned revisioned obligations, including settled/withdrawn history and effective discounts.'),
   op('GET','/payables/{payableId}','getVersionedPayable',{payable:payableSchema,settlementReference:text},'Read the current owned obligation and revision-bound reference without cached POST retry results.'),
@@ -74,6 +76,7 @@ export const operations: Record<ProviderId, Operation[]> = {
   ],
   etisalat: telecom, du: telecom,
   police: [
+    op('POST','/fine-selections','quoteFineSelection',{payable:payableSchema},'Review one to twenty distinct owned current fines for one vehicle; revisions, discounts and restrictions derive from source state.',paymentSchemas.fineSelection),
     ...admissionOperations,
     settlementStatus,
     ...payableOperations,
@@ -93,7 +96,7 @@ export const operations: Record<ProviderId, Operation[]> = {
     op('POST','/wallet-funding-orders/{orderId}/challenge','challengeWalletFundingOrder',{order:fundingSchema},'Only the signed-in owner may answer this order-bound demo card challenge.',paymentSchemas.challengeOrder),
     op('POST','/wallet-funding-orders/{orderId}/execute','executeWalletFundingOrder',{order:fundingSchema},'Capture the authorized card and credit its owner wallet atomically once.',paymentSchemas.executeOrder),
     op('POST','/wallet-funding-orders/{orderId}/cancel','cancelWalletFundingOrder',{order:fundingSchema},'Cancel before capture and release the finite card hold.',paymentSchemas.cancelOrder),
-    op('POST','/payment-orders/{orderId}/execute','executeBillOrder',{order:reviewSchema},'Explicitly capture the exact approved hold and settle the provider-admitted bill; unknown outcomes stay on the same order.',paymentSchemas.executeOrder),
+    op('POST','/payment-orders/{orderId}/execute','executeBillOrder',{order:reviewSchema},'Explicitly capture the exact approved hold and settle the provider-admitted bill or exact fine selection; unknown outcomes stay on the same order.',paymentSchemas.executeOrder),
     op('POST','/payment-orders/{orderId}/recover','recoverBillOrder',{order:reviewSchema},'Reconcile or resume the original admitted payment without another charge.',paymentSchemas.recoverOrder),
     op('POST','/charges/{chargeId}/settlement/claim','claimSettlement',{claim:claimSchema,charge:opaque},'Exact provider workload only. Admit one attempt against a current capture; current claim state is returned even on exact retries.',object({attemptId:text,reference:text,amountMinor:money})),
     op('POST','/charges/{chargeId}/settlement/ack','acknowledgeSettlement',{claim:claimSchema},'Exact provider workload only. Confirm a committed provider effect with its immutable receipt digest.',object({attemptId:text,claimId:text,receiptDigest:revision})),
@@ -136,7 +139,7 @@ export function openApi(provider: ProviderId) {
         ...Object.fromEntries(['400','401','403','404','409','402','503'].map(status => [status, { $ref: '#/components/responses/Error' }])) },
     };
   }
-  return { openapi: '3.1.0', info: { title: `${providerNames[provider]} Simulator`, version: provider === 'payments' ? '2.6.0' : provider==='rta'?'2.1.0':['dewa','etisalat','du','police'].includes(provider) ? '2.4.0' : '2.0.0', description: 'Local synthetic API. Signed interactive user identity or broker-issued user token with current exact-operation grant required. JWT subject owns the account; caller user headers do not grant authority. A separate read-only settlement machine lane retrieves captured charge proofs. Legacy fixture mode is outside this reference security profile.' },
+  return { openapi: '3.1.0', info: { title: `${providerNames[provider]} Simulator`, version: provider === 'payments' ? '2.7.0' : provider==='rta'?'2.1.0':provider==='police'?'2.5.0':['dewa','etisalat','du'].includes(provider) ? '2.4.0' : '2.0.0', description: 'Local synthetic API. Signed interactive user identity or broker-issued user token with current exact-operation grant required. JWT subject owns the account; caller user headers do not grant authority. A separate read-only settlement machine lane retrieves captured charge proofs. Legacy fixture mode is outside this reference security profile.' },
     servers: [{ url: `http://localhost:${4101 + providerIds.indexOf(provider)}` }], security: [{ accessToken: [] }],
     paths, components: { securitySchemes: { accessToken: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' } },
       responses: { Unauthorized: { description: 'Missing or invalid Keycloak access token' }, Error: { description: 'Validation, ownership, delegation, payment, conflict or availability error', content: { 'application/json': { schema: object({ success: { const: false }, error: { type: 'string' }, code: { type: 'string' } }) } } } } },

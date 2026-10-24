@@ -70,7 +70,7 @@ test('security: verified JWT sessions belong to the authenticated subject', asyn
   }, { authorization: bob });
   assert.strictEqual(denied.status, 403);
   const forbidden = await executeCoreRequest('POST', '/api/a2ui/action', {}, {
-    sessionId: sid, surfaceRevision: getOrCreateSession(sid).currentSurface?.revision, action: 'pay_police_fines', payload: {},
+    sessionId: sid, surfaceRevision: getOrCreateSession(sid).currentSurface?.revision, action: 'pay_police_fines', payload: {fineIds:['unoffered-fine']},
   }, { authorization: alice });
   assert.strictEqual(forbidden.status, 403);
 });

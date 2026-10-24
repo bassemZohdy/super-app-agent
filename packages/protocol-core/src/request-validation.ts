@@ -1,4 +1,4 @@
-import { paymentSchemas, withPaymentAccount, withOrderId } from './payments.ts';
+import { fineSelectionItemsSchema, paymentSchemas, withPaymentAccount, withOrderId } from './payments.ts';
 import { Ajv, type ValidateFunction } from 'ajv';
 
 type Schema = Record<string, any>;
@@ -30,7 +30,7 @@ const sessionId: Schema = { type: 'string', pattern: '^[a-zA-Z0-9_-]{8,128}$' };
 const actionSchemas: Record<string, Schema> = {
   activate_parking: object({ selectedChoice: id, zoneId: id, durationHours: hours, plateNumber: text(128) }),
   extend_parking: object({ ticketId: id, additionalHours: hours }, ['ticketId']),
-  pay_utilities_bill: object({ billId: id,expectedPayableRevision:{type:'string',pattern:'^[a-f0-9]{64}$'},expectedAmountMinor:{type:'integer',minimum:1,maximum:100000000} }), pay_police_fines: object({ fineIds: list(id) }),
+  pay_utilities_bill: object({ billId: id,expectedPayableRevision:{type:'string',pattern:'^[a-f0-9]{64}$'},expectedAmountMinor:{type:'integer',minimum:1,maximum:100000000} }), pay_police_fines: object({ fineIds: {...list(id,20),minItems:1,uniqueItems:true},expectedPayables:fineSelectionItemsSchema,expectedAmountMinor:{type:'integer',minimum:1,maximum:100000000} }, ['fineIds']),
   confirm_smartcity_checkout: object(), confirm_movein: object({ contractNumber: id, unit: text() }),
   book_ride: object({ selectedChoice: id, driverId: id }), order_food: object({ selectedChoice: id }),
   confirm_composite_checkout: object(), topup_wallet: object({ amount: moneySchema }, ['amount']),
@@ -67,6 +67,7 @@ for (const [path, schema] of Object.entries({
   methods: paymentSchemas.createMethod, 'methods/status': paymentSchemas.methodStatus, 'methods/default': paymentSchemas.defaultMethod,
   'billing-accounts': paymentSchemas.linkAccount, 'billing-accounts/archive': paymentSchemas.archiveAccount,
 })) route('agent-core', 'POST', `/api/payments/${path}`, withPaymentAccount(schema));
+route('agent-core','POST','/api/payments/fine-selection-preview',withPaymentAccount(paymentSchemas.fineSelectionPreview,false));
 route('agent-core', 'POST', '/api/payments/preview', withPaymentAccount(paymentSchemas.preview, false));
 route('agent-core','POST','/api/payments/orders',withPaymentAccount(paymentSchemas.createOrder));
 route('agent-core','POST','/api/payments/orders/approve',withPaymentAccount(withOrderId(paymentSchemas.approveOrder)));
@@ -104,7 +105,7 @@ route('service-wallet', 'GET', '/wallet/transactions', object(), [], 'wallet_get
 route('service-wallet', 'POST', '/wallet/pay', object({ amount: moneySchema, purpose: text(), referenceId: id, currency: currency('USD') }, ['amount', 'purpose']), [], 'wallet_authorizePayment');
 route('service-wallet', 'POST', '/wallet/topup', object({ amount: moneySchema, source: text(), currency: currency('USD') }, ['amount']), [], 'wallet_topup');
 route('service-wallet', 'GET', '/fines/check', object({ plateNumber: text(128) }), ['/fines'], 'citizenpay_getFines');
-route('service-wallet', 'POST', '/fines/pay', object({ fineIds: list(id) }, ['fineIds']), ['/fines/settle'], 'citizenpay_payFines');
+route('service-wallet', 'POST', '/fines/pay', object({ fineIds: {...list(id,20),minItems:1,uniqueItems:true},expectedPayables:fineSelectionItemsSchema,expectedAmountMinor:{type:'integer',minimum:1,maximum:100000000} }, ['fineIds']), ['/fines/settle'], 'citizenpay_payFines');
 route('service-wallet', 'POST', '/pay/unified', object({ items: list(object({ agency: text(128), purpose: text(), amount: moneySchema }, ['agency', 'purpose', 'amount'])), currency: currency('AED') }, ['items']), ['/pay/multi-agency'], 'citizenpay_unifiedPay');
 route('service-profile', 'GET', '/profile', object(), [], 'profile_getProfile');
 route('service-profile', 'GET', '/profile/preferences', object(), [], 'profile_getPreferences');

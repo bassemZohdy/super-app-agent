@@ -1,5 +1,5 @@
 /** Payment contract v1. Additive, synthetic-account APIs; previews never authorize execution. */
-export const PAYMENT_CONTRACT_VERSION = '1.3.0';
+export const PAYMENT_CONTRACT_VERSION = '1.4.0';
 export const MAX_PAYMENT_MINOR = 100_000_000;
 export const WALLET_FUNDING_LIMITS = { minMinor: 100, maxMinor: 50000, balanceMaxMinor: 1000000, feeMinor: 0 } as const;
 export const cardPresets = [
@@ -19,7 +19,7 @@ export type PaymentMethod = {
 export type BillingAccount = { id: string; accountId: string; provider: BillerProvider; reference: string; nickname: string; status: 'ACTIVE' | 'ARCHIVED'; version: number; createdAt: string };
 export type BillerCandidate = { provider: BillerProvider; reference: string; label: string; balanceMinor?: number };
 export type Payable = { id: string; provider: BillerProvider; reference: string; label: string; amountMinor: number; currency: 'AED'; revision: string; status: 'UNPAID' | 'PAID' | 'CANCELLED' | 'EXPIRED'; dueDate?: string;
-  obligationId?: string; kind?: 'BILL'|'FINE'; version?:number; dueState?:'CURRENT'|'DUE'|'OVERDUE'|'EXPIRED'|'CLOSED'; originalAmountMinor?:number; discountMinor?:number; discountEligible?:boolean; discountExpiresAt?:string; expiresAt?:string; period?:string; openingFixture?:boolean; paymentRestricted?:boolean };
+  obligationId?: string; kind?: 'BILL'|'FINE'|'FINE_SET'; items?:Payable[]; version?:number; dueState?:'CURRENT'|'DUE'|'OVERDUE'|'EXPIRED'|'CLOSED'; originalAmountMinor?:number; discountMinor?:number; discountEligible?:boolean; discountExpiresAt?:string; expiresAt?:string; period?:string; openingFixture?:boolean; paymentRestricted?:boolean };
 export type PaymentPreview = {
   contractVersion: typeof PAYMENT_CONTRACT_VERSION; previewOnly: true; accountId: string; id: string;
   payable: Payable; billingAccount: BillingAccount; source: PaymentMethod; amountMinor: number; feeMinor: number;
@@ -47,6 +47,7 @@ const nickname = { type: 'string', minLength: 1, maxLength: 64, pattern: '^[^\\x
 const reference = { type: 'string', minLength: 1, maxLength: 160, pattern: '^[^\\x00-\\x1f\\x7f]+$' };
 const version = { type: 'integer', minimum: 1, maximum: 1_000_000 };
 const digestSchema={type:'string',pattern:'^[a-f0-9]{64}$'};
+export const fineSelectionItemsSchema={type:'array',minItems:1,maxItems:20,items:{type:'object',properties:{payableId:id,expectedRevision:digestSchema},required:['payableId','expectedRevision'],additionalProperties:false}};
 export const minorUnitSchema = { type: 'integer', minimum: 1, maximum: MAX_PAYMENT_MINOR };
 export const paymentObject = (properties: Record<string, unknown>, required = Object.keys(properties)) => ({ type: 'object', properties, required, additionalProperties: false });
 export const paymentSchemas = {
@@ -56,6 +57,8 @@ export const paymentSchemas = {
   linkAccount: paymentObject({ provider: { enum: ['dewa','etisalat','du','rta','police'] }, reference, nickname }),
   archiveAccount: paymentObject({ billingAccountId: id, expectedVersion: version }),
   preview: paymentObject({ payableId: id, methodId: id, expectedMethodVersion: version }),
+  fineSelection:paymentObject({items:fineSelectionItemsSchema}),
+  fineSelectionPreview:paymentObject({items:fineSelectionItemsSchema,methodId:id,expectedMethodVersion:version}),
   createOrder:paymentObject({provider:{enum:['dewa','etisalat','du','police']},payableId:id,expectedPayableRevision:digestSchema,methodId:id,expectedMethodVersion:version}),
   createWalletFunding:paymentObject({amountMinor:{type:'integer',minimum:WALLET_FUNDING_LIMITS.minMinor,maximum:WALLET_FUNDING_LIMITS.maxMinor},methodId:id,expectedMethodVersion:version}),
   approveOrder:paymentObject({expectedVersion:version,approvalDigest:digestSchema}),

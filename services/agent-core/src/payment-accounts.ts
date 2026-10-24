@@ -47,6 +47,11 @@ export async function handlePaymentAccounts(actor: Actor, method: string, path: 
     const fundingAction=/^\/api\/payments\/wallet-funding-orders\/(approve|challenge|cancel|execute)$/.exec(path);
     if(method==='POST'&&fundingAction){const {accountId:_account,requestKey,orderId,...input}=body;return {status:200,data:await client.call('payments',actor,'POST',`/wallet-funding-orders/${encodeURIComponent(orderId)}/${fundingAction[1]}`,input,`wallet-funding:${requestKey}`)};}
     if(method==='GET'&&path==='/api/payments/orders')return {status:200,data:await client.call('payments',actor,'GET','/payment-orders')};
+    if(method==='POST'&&path==='/api/payments/fine-selection-preview'){
+      const selection=(await client.call('police',actor,'POST','/fine-selections',{items:body.items},`fine-preview:${randomUUID()}`)).payable;
+      const overview=await paymentOverview(actor);overview.payables=[...overview.payables,selection];
+      return {status:200,data:{success:true,preview:buildPaymentPreview(overview,{payableId:selection.id,methodId:body.methodId,expectedMethodVersion:body.expectedMethodVersion})}};
+    }
     if (method === 'POST' && path === '/api/payments/preview') return { status: 200, data: { success: true, preview: buildPaymentPreview(await paymentOverview(actor), body as { payableId: string; methodId: string; expectedMethodVersion: number }) } };
     if(method==='POST'&&path==='/api/payments/orders') {
       const {accountId:_account,requestKey,...input}=body;return {status:200,data:await client.call('payments',actor,'POST','/payment-orders',input,`payment-orders:${requestKey}`)};

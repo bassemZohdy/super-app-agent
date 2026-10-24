@@ -62,7 +62,7 @@ export function createProviderServer(provider: ProviderId, path: string, options
       if (!operation || url.search) throw new ApiError(404, 'NOT_FOUND', 'Operation not found.');
       if(claimRoute&&!claimant)throw new ApiError(403,'CLAIM_CLIENT_REQUIRED','Only the exact provider settlement workload can change a claim.');
       if(provider==='payments'&&(operationPath.startsWith('/payment-orders')||operationPath.startsWith('/wallet-funding-orders'))&&!interactive)throw new ApiError(403,'INTERACTIVE_REVIEW_REQUIRED','Stored authorization reviews require the signed-in owner. Unattended actors cannot approve or answer challenges.');
-      if(operationPath.includes('/admissions')&&!interactive)throw new ApiError(403,'INTERACTIVE_ADMISSION_REQUIRED','Payable admission requires the current signed-in owner.');
+      if((operationPath.includes('/admissions')||operationPath==='/fine-selections')&&!interactive)throw new ApiError(403,'INTERACTIVE_ADMISSION_REQUIRED','Payable admission requires the current signed-in owner.');
       const actor: Actor = { sub: subject, username: subject, name: typeof req.headers['x-user-name'] === 'string' ? Buffer.from(req.headers['x-user-name'], 'base64url').toString('utf8').slice(0, 200) : 'Demo citizen', accountId, requestId: '', authorization: interactive ? req.headers.authorization : undefined };
       let body: any = {};
       if (req.method === 'POST') {
@@ -85,7 +85,7 @@ export function createProviderServer(provider: ProviderId, path: string, options
       }
       // A delegated write with external payment proof is outside the initial bounded write profile.
       if (delegated && body.paymentId) throw new ApiError(403, 'WRITE_NOT_APPROVED', 'Delegated settlement is not enabled.');
-      if(provider==='payments'&&operationPath==='/charges'&&['dewa','etisalat','du'].includes(body.merchant)&&/^(bill|payable|admission):/.test(body.reference))throw new ApiError(409,'STORED_BILL_ORDER_REQUIRED','Bill captures now require an approved stored order; use the payment-order execution API.');
+      if(provider==='payments'&&operationPath==='/charges'&&(['dewa','etisalat','du'].includes(body.merchant)&&/^(bill|payable|admission):/.test(body.reference)||body.merchant==='police'&&/^(fines|payable|admission):/.test(body.reference)))throw new ApiError(409,'STORED_BILL_ORDER_REQUIRED','Bill/fine captures now require an approved stored order; use the payment-order execution API.');
       const checkoutAction=/^\/payment-orders\/([^/]+)\/(execute|recover|cancel)$/.exec(operationPath);
       if(checkout&&req.method==='POST'&&checkoutAction){
         const [,id,action]=checkoutAction;const order=action==='execute'?await checkout.execute(actor,id,body):action==='recover'?await checkout.recover(actor,id):await checkout.cancel(actor,id,body.expectedVersion);

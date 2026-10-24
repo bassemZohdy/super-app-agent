@@ -56,7 +56,9 @@
     "demo:verify:inventory": "node --experimental-strip-types scripts/verify-payment-inventory.ts",
     "demo:verify:payment-authorization": "node --experimental-strip-types scripts/e2e/payment-authorization.ts",
     "demo:verify:wallet-funding": "node --experimental-strip-types scripts/e2e/wallet-funding.ts",
-    "record:wallet-funding": "node --experimental-strip-types scripts/e2e/wallet-funding.ts --record"
+    "record:wallet-funding": "node --experimental-strip-types scripts/e2e/wallet-funding.ts --record",
+    "demo:verify:fine-checkout": "node --experimental-strip-types scripts/e2e/fine-checkout.ts",
+    "record:fine-checkout": "node --experimental-strip-types scripts/e2e/fine-checkout.ts --record"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^13.1.0",

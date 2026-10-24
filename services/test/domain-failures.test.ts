@@ -9,7 +9,8 @@ import { readEventStream } from '../../packages/protocol-core/src/sse-client.ts'
 
 const composite = 'Book a ride downtown and order pizza, pay with my wallet';
 const intent = (sid: string, text = composite) => core('POST', '/api/a2ui/intent', {}, { sessionId: sid, text });
-const action = (sid: string, action = 'confirm_composite_checkout') => core('POST', '/api/a2ui/action', {}, { sessionId: sid, surfaceRevision: getOrCreateSession(sid).currentSurface?.revision, action, payload: {} });
+const offered=(sid:string,action:string)=>getOrCreateSession(sid).currentSurface!.view.children!.find((n:any)=>n.onEvents?.some((e:any)=>e.payload?.action===action))?.onEvents?.find((e:any)=>e.payload.action===action)?.payload||{};
+const action = (sid: string, action = 'confirm_composite_checkout') => core('POST', '/api/a2ui/action', {}, { sessionId: sid, surfaceRevision: getOrCreateSession(sid).currentSurface?.revision, action, payload: offered(sid,action) });
 function ensureFunds() { if (balance < 50) assert.equal(wallet('POST', '/wallet/topup', {}, { amount: 100 }).status, 200); }
 
 test('P0-12: insufficient funds returns failure JSON and failure SSE surface without clearing fines', async () => {
@@ -146,7 +147,7 @@ test('P0-12: actual HTTP action and SSE render expose the same failed outcome', 
   const response = await fetch(base + '/api/a2ui/stream?sessionId=' + sid, { signal: AbortSignal.any([abort.signal, AbortSignal.timeout(5000)]) });
   const stream = readEventStream(response);
   await stream.next(); await stream.next(); // handshake + snapshot
-  const actionResponse = await post('/api/a2ui/action', { sessionId: sid, surfaceRevision: getOrCreateSession(sid).currentSurface?.revision, action: 'pay_police_fines', payload: {} });
+  const actionResponse = await post('/api/a2ui/action', { sessionId: sid, surfaceRevision: getOrCreateSession(sid).currentSurface?.revision, action: 'pay_police_fines', payload: offered(sid,'pay_police_fines') });
   assert.equal(actionResponse.status, 400);
   const result = await actionResponse.json();
   while (true) {

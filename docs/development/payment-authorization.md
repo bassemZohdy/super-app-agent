@@ -35,7 +35,7 @@ Exact POST retries return their stored result without another effect. They can s
 
 ## Remaining integration boundaries
 
-The reservation covers current bill service settlement; other legacy service types and future automatic callers retain separate integration tasks. Source GET preflight and a local hold are separate transactions; bill capture first acquires provider admission. No free-standing `/payment-orders/{id}/capture` endpoint exists; approved bill execution uses `/execute`. Stored bill execution now integrates those reservations, capture and claims; broader cross-operation admission and recovery remain open. This implementation does not grant recurring spend or activate a worker.
+The reservation covers current bill/fine service settlement; other legacy service types and future automatic callers retain separate integration tasks. Source GET preflight and a local hold are separate transactions; bill/fine capture first acquires provider admission. No free-standing `/payment-orders/{id}/capture` endpoint exists; approved bill execution uses `/execute`. Stored bill execution now integrates those reservations, capture and claims; broader cross-operation admission and recovery remain open. This implementation does not grant recurring spend or activate a worker.
 
 Runtime clocks default to real time. Tests can inject a private constructor-only authorization clock; no HTTP/env setting lets clients advance it. JWT/key/client validity continues using real security time. The separate preview scenario CLI cannot reach these funds or reviews. Execution-run clock integration remains future simulator work.
 
@@ -47,3 +47,5 @@ npm run check
 The browser verifier needs local Keycloak/Redis, Chrome and the [isolated harness ports](payment-accounts.md). It exercises actual signed-owner HTTP/UI, deterministic private-clock expiry, owner/machine/replay/price denial, limited/declined/expired sources, unchanged funds before capture and a confirmed challenged-card bill payment. [Latest execution evidence](../reports/2026-10-24-payment-checkout.md); [original authorization evidence](../reports/2026-10-24-payment-authorization.md).
 
 [Pay bills after authorization](payment-checkout.md) describes the explicit capture action, receipt and pending recovery states.
+
+[Exact-set fine payments](fine-checkout.md) reuse the same authorization, challenge and capture controls with shared constituent reservations.

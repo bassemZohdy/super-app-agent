@@ -470,7 +470,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
       });
     } else if (action === 'pay_police_fines') {
       onProgress?.('👮 Settling traffic radar fines with Dubai Police HQ...');
-      const res = await executeWalletRequest('POST', '/fines/pay', {}, { fineIds: (await executeWalletRequest('GET', '/fines/check')).data.fines.map((fine: any) => fine.fineId) });
+      const res = await executeWalletRequest('POST', '/fines/pay', {}, { fineIds: payload.fineIds,...(payload.expectedPayables?{expectedPayables:payload.expectedPayables}:{}),...(payload.expectedAmountMinor!==undefined?{expectedAmountMinor:payload.expectedAmountMinor}:{}) });
 
       state.currentSurface = {
         version: '1.0.0',
@@ -1394,7 +1394,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
             properties: {
               label: 'Total Payable to Dubai Police',
               value: `${finesData.totalPayable.toFixed(2)} AED`,
-              subtext: `${finesData.count} Pending Radar Violations • 0 Black Points`,
+              subtext: `${finesData.count} pending violations · ${finesData.fines.some((f:any)=>f.paymentRestricted||f.blackPoints>0)?'Some fines require additional review':'No additional restrictions'}`,
               trend: 'neutral',
             },
           },
@@ -1409,7 +1409,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
               ],
               rows: finesData.fines.map((f: any) => ({
                 violation: f.violation,
-                location: f.location,
+                location: `${f.location}${f.paymentRestricted||f.blackPoints>0?' · Additional review required':''}`,
                 amount: `${f.payableAmount.toFixed(2)} AED`,
               })),
             },
@@ -1419,6 +1419,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
             id: 'btn_settle_fines',
             properties: {
               label: `🛡️ Settle Fines via DubaiPay (${finesData.totalPayable.toFixed(2)} AED)`,
+              disabled:!finesData.fines.length||finesData.fines.some((f:any)=>f.paymentRestricted||f.blackPoints>0),
               variant: 'primary',
               fullWidth: true,
             },
@@ -1426,7 +1427,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
               {
                 event: 'onPress',
                 actionType: 'AGENT_ACTION_DISPATCH',
-                payload: { action: 'pay_police_fines' },
+                payload: { action:'pay_police_fines',fineIds:finesData.fines.map((f:any)=>f.fineId),...(finesData.fines.every((f:any)=>f.payableRevision)?{expectedPayables:finesData.fines.map((f:any)=>({payableId:f.payableId,expectedRevision:f.payableRevision})),expectedAmountMinor:Math.round(finesData.totalPayable*100)}:{}) },
               },
             ],
           },
