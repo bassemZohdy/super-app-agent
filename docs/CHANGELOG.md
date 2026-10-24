@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 25 October 2026 — deterministic routing evaluation (P1-05)
+
+Move domain routing into a pure, whole-word classifier (`services/agent-core/src/domain-router.ts`). Fixed false routes such as `card` to mobility and `weather` to food, then evaluate a fixed civic, ambiguous and multilingual set offline. Arabic has no lexicon yet and is recorded as a known concierge fallback. Model evaluation, budgets and latency remain open under P1-05.
+
 ## 24 October 2026 — direct manual route approval evidence (P1-11)
 
 Add regression tests proving that direct manual wallet routes run the same approval-gated adapters as the concierge: an unoffered top-up amount is rejected and the confirmed result is returned without a model call. Mark P1-11 complete for the integrated React scope; the legacy ride mini-app is unmounted and other shells remain chat-first by design.

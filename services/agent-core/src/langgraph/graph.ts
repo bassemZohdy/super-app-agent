@@ -5,7 +5,8 @@ import { actorContext } from '../../../../packages/backend-kit/src/context.ts';
 import { manualService } from '../manual-services.ts';
 import { handleConversation, contextualPrompt } from '../conversation.ts';
 import type { AGUISurfacePayload, UIComponentNode } from '../../../../packages/protocol-core/src/index.ts';
-import type { SuperAppAgentState, DomainCategory } from './state.ts';
+import type { SuperAppAgentState } from './state.ts';
+import { analyzeIntent, hasTerm } from '../domain-router.ts';
 import { invokeLocalConversation, isLocalModelEnabled, LocalConversationError } from '../local-conversation.ts';
 
 import { callDomainAsync } from '../domain-operations.ts';
@@ -147,44 +148,9 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
 
     // 3. Classify smart city domain intent
     const lower = routingPrompt.toLowerCase();
-    let targetDomain: DomainCategory = 'concierge';
-
-    // Smart Mobility Intent (RTA / Mawaqif Parking, Salik / Darb Toll, DEWA EV Chargers, Ride)
-    const hasParkingAction = lower.includes('parking') || lower.includes('park') || lower.includes('meter') || lower.includes('zone');
-    const hasSalikAction = lower.includes('salik') || lower.includes('darb') || lower.includes('toll');
-    const hasEVAction = lower.includes('ev') || lower.includes('charger') || lower.includes('charging');
-    const hasRideAction = hasParkingAction || hasSalikAction || hasEVAction || lower.includes('ride') || lower.includes('cab') || lower.includes('taxi') || lower.includes('car') || lower.includes('drive');
-
-    // Smart Utilities Intent (DEWA / ADDC Electricity & Water, Smart Meters, Bills)
-    const hasUtilitiesAction = lower.includes('dewa') || lower.includes('addc') || lower.includes('electricity') || lower.includes('water') || lower.includes('utility') || lower.includes('utilities') || lower.includes('consumption') || lower.includes('power');
-    const hasFoodAction = hasUtilitiesAction || lower.includes('food') || lower.includes('restaurant') || lower.includes('lunch') || lower.includes('dinner') || lower.includes('pizza') || lower.includes('order') || lower.includes('menu') || lower.includes('dining') || lower.includes('eat') || lower.includes('dish');
-
-    // Citizen Pay & Police Fines Intent (Dubai Police, Abu Dhabi Police, Traffic Violations, Wallet)
-    const hasPoliceAction = lower.includes('fine') || lower.includes('fines') || lower.includes('police') || lower.includes('radar') || lower.includes('speeding') || lower.includes('violation');
-    const hasWalletAction = hasPoliceAction || lower.includes('pay') || lower.includes('wallet') || lower.includes('balance') || lower.includes('topup') || lower.includes('top up') || lower.includes('ledger') || lower.includes('dubaipay') || lower.includes('tamm');
-
-    // Housing & Tenancy Move-In Golden Path (Ejari / Tawtheeq)
-    const hasHousingAction = lower.includes('ejari') || lower.includes('tawtheeq') || lower.includes('move-in') || lower.includes('move in') || lower.includes('tenancy') || lower.includes('lease');
-    const hasProfileIntent = lower.includes('profile') || lower.includes('uae pass') || lower.includes('uaepass') || lower.includes('emirates id') || lower.includes('golden visa') || lower.includes('preference') || lower.includes('dietary') || lower.includes('tier') || lower.includes('vip');
-
-    // Multi-Agency Composite Journeys
-    const isExplicitComposite = hasHousingAction ||
-      (hasUtilitiesAction && (hasPoliceAction || hasWalletAction || hasSalikAction)) ||
-      ((hasRideAction || hasParkingAction) && (hasFoodAction || hasUtilitiesAction) && (lower.includes('and') || lower.includes('both') || lower.includes('with'))) ||
-      (lower.includes('both') && (hasRideAction || hasFoodAction));
-
-    if (/\b(etisalat|du|telecom|internet|broadband|mobile plan)\b/i.test(lower)) {
-      targetDomain = 'telecom';
-    } else if (isExplicitComposite) {
-      targetDomain = 'composite';
-    } else if (hasRideAction) {
-      targetDomain = 'ride';
-    } else if (hasFoodAction) {
-      targetDomain = 'food';
-    } else if (hasWalletAction) {
-      targetDomain = 'wallet';
-    }
-
+    const hasProfileIntent = ['profile', 'uae pass', 'uaepass', 'emirates id', 'golden visa', 'preference', 'dietary', 'tier', 'vip']
+      .some(term => hasTerm(lower, term));
+    const { domain: targetDomain, hasParkingAction, hasSalikAction, hasEVAction, hasUtilitiesAction, hasPoliceAction, hasHousingAction } = analyzeIntent(routingPrompt);
     state.activeDomain = targetDomain;
 
     // 4. Cognitive Domain Routing & Microservice Tool Execution
@@ -218,7 +184,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
           content: `Prepared a demo move-in proposal for ${ejariRes.data.contract.property.building}. Review and confirm before activating services; no move-in effects have run yet.`,
           timestamp: Date.now(),
         });
-      } else if (lower.includes('pizza') && lower.includes('ride')) {
+      } else if (hasTerm(lower, 'pizza') && hasTerm(lower, 'ride')) {
         // Legacy multi-domain fallback for backwards compatibility
         onProgress?.('🔀 Orchestrating composite workflow across Ride, Food, and Wallet microservices...');
         const rideRes = await executeRideRequest('GET', '/rides/options', { destination: 'Downtown Dining' });
@@ -250,7 +216,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
         });
       }
     } else if (targetDomain === 'ride') {
-      if (hasParkingAction || hasSalikAction || hasEVAction || lower.includes('car') || lower.includes('drive')) {
+      if (hasParkingAction || hasSalikAction || hasEVAction || hasTerm(lower, 'car') || hasTerm(lower, 'drive')) {
         onProgress?.('🚗 Querying RTA & Mawaqif Smart Mobility for Parking, Salik, and EV Chargers...');
         const zonesRes = await executeRideRequest('GET', '/mobility/parking/zones');
         const salikRes = await executeRideRequest('GET', '/mobility/salik/balance');
@@ -278,7 +244,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
         });
       }
     } else if (targetDomain === 'food') {
-      if (hasUtilitiesAction || lower.includes('utility') || lower.includes('bill') || lower.includes('meter')) {
+      if (hasUtilitiesAction || hasTerm(lower, 'utility') || hasTerm(lower, 'bill') || hasTerm(lower, 'meter')) {
         onProgress?.('⚡ Connecting to DEWA / ADDC Smart Grid for Premise DEWA-201948201...');
         const billRes = await executeFoodRequest('GET', '/utilities/bill');
         const consumptionRes = await executeFoodRequest('GET', '/utilities/consumption');
