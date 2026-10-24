@@ -6,10 +6,10 @@ const client = new ProviderClient('service-wallet', process.env.SERVICE_WALLET_C
 export const paymentDigest = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 export async function paymentOverview(actor: Actor, source = client): Promise<PaymentOverview> {
   const read = (provider: string, path: string) => source.call(provider, actor, 'GET', path);
-  const [methods, links, wallet, dewa, dewaBills, etisalat, etisalatBills, du, duBills, salik, fines, etisalatPrepaid, duPrepaid, vehicles, orders, funding] = await Promise.all([
+  const [methods, links, wallet, dewa, dewaBills, etisalat, etisalatBills, du, duBills, salik, fines, etisalatPrepaid, duPrepaid, vehicles, orders, funding, rtaTargets, etisalatTargets, duTargets] = await Promise.all([
     read('payments','/payment-methods'), read('payments','/billing-accounts'), read('payments','/wallet'),
     read('dewa','/consumption'), read('dewa','/payables'), read('etisalat','/subscriptions'), read('etisalat','/payables'),
-    read('du','/subscriptions'), read('du','/payables'), read('rta','/salik'), read('police','/payables'), read('etisalat','/prepaid'), read('du','/prepaid'), read('police','/vehicles'), read('payments','/payment-orders'),read('payments','/wallet-funding-orders'),
+    read('du','/subscriptions'), read('du','/payables'), read('rta','/salik'), read('police','/payables'), read('etisalat','/prepaid'), read('du','/prepaid'), read('police','/vehicles'), read('payments','/payment-orders'),read('payments','/wallet-funding-orders'),read('rta','/recharge-targets'),read('etisalat','/recharge-targets'),read('du','/recharge-targets'),
   ]);
   const candidates: BillerCandidate[] = [{ provider: 'dewa', reference: dewa.account.accountNumber, label: `DEWA · ${dewa.account.accountNumber}` }, { provider: 'rta', reference: salik.tagNumber, label: `Salik · ${salik.tagNumber}` }];
   for (const [provider, data] of [['etisalat', etisalat], ['du', du]] as const) for (const subscription of data.subscriptions) {
@@ -19,7 +19,7 @@ export async function paymentOverview(actor: Actor, source = client): Promise<Pa
   for (const vehicle of vehicles.vehicles) if(vehicle.status === 'ACTIVE') candidates.push({provider:'police',reference:vehicle.plateNumber,label:`Traffic fines · ${vehicle.plateNumber}`});
   const payables: Payable[] = [...dewaBills.payables,...etisalatBills.payables,...duBills.payables,...fines.payables];
   return { contractVersion: PAYMENT_CONTRACT_VERSION, accountId: actor.accountId, previewOnly: false, dependencies: [...methods.dependencies,...links.dependencies], methods: methods.methods, defaultMethodId: methods.defaultMethodId, presets: methods.presets,
-    billingAccounts: links.billingAccounts, candidates, payables, orders:orders.orders,fundingOrders:funding.orders,cardBalances:methods.cardBalances, wallet: { balanceMinor: wallet.balanceMinor, heldMinor: wallet.heldMinor, availableMinor: wallet.availableMinor, currency: 'AED' } };
+    billingAccounts: links.billingAccounts, candidates, payables,rechargeTargets:[...rtaTargets.targets,...etisalatTargets.targets,...duTargets.targets], orders:orders.orders,fundingOrders:funding.orders,cardBalances:methods.cardBalances, wallet: { balanceMinor: wallet.balanceMinor, heldMinor: wallet.heldMinor, availableMinor: wallet.availableMinor, currency: 'AED' } };
 }
 export function buildPaymentPreview(overview: PaymentOverview, input: { payableId: string; methodId: string; expectedMethodVersion: number }, now = Date.now()): PaymentPreview {
   const payable = overview.payables.find(p => p.id === input.payableId);
@@ -47,6 +47,12 @@ export async function handlePaymentAccounts(actor: Actor, method: string, path: 
     const fundingAction=/^\/api\/payments\/wallet-funding-orders\/(approve|challenge|cancel|execute)$/.exec(path);
     if(method==='POST'&&fundingAction){const {accountId:_account,requestKey,orderId,...input}=body;return {status:200,data:await client.call('payments',actor,'POST',`/wallet-funding-orders/${encodeURIComponent(orderId)}/${fundingAction[1]}`,input,`wallet-funding:${requestKey}`)};}
     if(method==='GET'&&path==='/api/payments/orders')return {status:200,data:await client.call('payments',actor,'GET','/payment-orders')};
+    if(method==='POST'&&path==='/api/payments/recharge-preview'){
+      const issued=(await client.call(body.provider,actor,'POST','/recharge-quotes',{targetReference:body.targetReference,amountMinor:body.amountMinor,expectedTargetVersion:body.expectedTargetVersion,intentId:body.requestKey},`recharge-preview:${body.requestKey}`)).payable;
+      const selection=(await client.call(body.provider,actor,'GET',`/payables/${encodeURIComponent(issued.id)}`)).payable;
+      const overview=await paymentOverview(actor);overview.payables=[...overview.payables,selection];
+      return {status:200,data:{success:true,preview:buildPaymentPreview(overview,{payableId:selection.id,methodId:body.methodId,expectedMethodVersion:body.expectedMethodVersion})}};
+    }
     if(method==='POST'&&path==='/api/payments/fine-selection-preview'){
       const selection=(await client.call('police',actor,'POST','/fine-selections',{items:body.items},`fine-preview:${randomUUID()}`)).payable;
       const overview=await paymentOverview(actor);overview.payables=[...overview.payables,selection];

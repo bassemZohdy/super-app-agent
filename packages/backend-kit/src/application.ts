@@ -33,7 +33,7 @@ export async function integratedRequest(service: string, actor: Actor, method: s
   const stableKey = (value: string) => createHash('sha256').update(`${actor.accountId}:${value}`).digest('hex');
   const charge = async (provider: string, reference: string, amount: number) => call('payments', 'POST', '/charges', { amountMinor: Math.round(amount * 100), merchant: provider, reference, source: 'wallet' }, stableKey(`charge:${provider}:${reference}`));
   const executePayable = async (provider:string,payable:any) => {
-    const prefix=provider==='police'?'fine':'bill';
+    const prefix=payable.kind==='RECHARGE'?'recharge':provider==='police'?'fine':'bill';
     const links=(await call('payments','GET','/billing-accounts')).billingAccounts;
     if(!links.some((b:any)=>b.status==='ACTIVE'&&b.provider===provider&&b.reference===payable.reference)) {
       try{await call('payments','POST','/billing-accounts',{provider,reference:payable.reference,nickname:`${provider.toUpperCase()} account`},stableKey(`${prefix}-link:${provider}:${payable.reference}`));}
@@ -72,11 +72,19 @@ export async function integratedRequest(service: string, actor: Actor, method: s
     const order=await executePayable('police',payable);
     return {success:true,receiptNumber:order.receipt.receiptNumber,finesCleared:ids.length,amountPaid:order.receipt.amountMinor/100,remainingBalance:(await call('payments','GET','/wallet')).balance};
   };
-  const recharge = async (amount: number) => {
-    const reference = actor.requestId;
-    const payment = await charge('rta', `salik:${reference}`, amount);
-    return call('rta', 'POST', '/salik/recharges', { amount, paymentId: payment.charge.id, reference }, stableKey(`salik:${reference}`));
+  const rechargeTarget = async (provider:string,reference:string,amountMinor:number,expectedTargetVersion?:number) => {
+    const intentId=stableKey(`recharge-intent:${provider}:${actor.requestId}`);let payable;
+    try{payable=(await call(provider,'GET',`/recharge-intents/${intentId}`)).payable;}
+    catch(e){if(!(e instanceof UpstreamError)||e.status!==404)throw e;}
+    if(payable){if(payable.reference!==reference||payable.amountMinor!==amountMinor||expectedTargetVersion!==undefined&&payable.recharge.targetVersion!==expectedTargetVersion)throw new UpstreamError(409,'RECHARGE_INTENT_CONFLICT','This request already has different recharge terms.');}
+    else{
+      const targets=(await call(provider,'GET','/recharge-targets')).targets,target=targets.find((t:any)=>t.reference===reference);
+      if(!target)throw new UpstreamError(404,'RECHARGE_TARGET_NOT_FOUND','This provider target is not owned by the workspace.');
+      payable=(await call(provider,'POST','/recharge-quotes',{targetReference:reference,amountMinor,expectedTargetVersion:expectedTargetVersion??target.version,intentId},stableKey(`recharge-quote:${intentId}`))).payable;
+    }
+    const order=await executePayable(provider,payable);return {success:true,transactionId:order.paymentId,newBalance:order.receipt.providerBalanceMinor/100,amountRecharged:order.receipt.amountMinor/100};
   };
+  const recharge = async (amount: number) => rechargeTarget('rta',(await call('rta','GET','/salik')).tagNumber,Math.round(amount*100));
   try {
     if (service === 'service-profile') {
       const profile = { ...structuredClone(currentProfile), userId: actor.sub, username: actor.username, displayName: actor.name, email: '', avatarUrl: '', emiratesId: undefined, uaePassVerified: false, vipTier: 'Standard' as const, residencyStatus: 'Demo resident', smartCityAssets: { vehicles: [{ plate: asset.plate, model: 'Tesla Model Y (EV)', salikTag: asset.salikTag }], premises: [{ premiseId: asset.premiseId, ejariNumber: asset.contractNumber, community: 'Downtown Dubai', unit: actor.accountId === accounts[0].id ? 'Personal home' : 'Household home' }] } };
@@ -156,6 +164,9 @@ export async function integratedRequest(service: string, actor: Actor, method: s
       if (method === 'GET') return legacy(method, path, query, body);
     }
     if (service === 'service-telecom') {
+      const prepaid=/^\/telecom\/(etisalat|du)\/prepaid(\/recharges)?$/.exec(path);
+      if(prepaid){const invalid=validateRequest('service-telecom',method,path,query,body);if(invalid)return invalid;if(method==='GET'&&!prepaid[2])return successful(await call(prepaid[1],'GET','/prepaid'));if(method==='POST'&&prepaid[2])return successfulWithoutDuplicate(await rechargeTarget(prepaid[1],body.lineId,body.amountMinor,body.expectedTargetVersion));}
+
       const match = /^\/telecom\/(etisalat|du)\/(subscriptions|plans|bills)(\/[^/]+\/(?:payments|plan))?$/.exec(path);
       if (match) {
         const provider = match[1], route = `/${match[2]}${match[3] || ''}`;

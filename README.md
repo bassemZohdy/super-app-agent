@@ -117,7 +117,7 @@ Open **Payment accounts** in React to save synthetic card presets, link provider
 
 Current wallet payments now append balanced journal entries, with one-time legacy balance migration and checked posted/held/available funds. [Journal and recovery guide](docs/development/payment-ledger.md) · [Live migration evidence](docs/reports/2026-10-24-payment-ledger.md).
 
-The [payment backlog](TODO.md#payment-accounts-and-automation-demo--planned-backlog) tracks 50 tasks: 13 slices delivered and 37 open. The remaining work covers broader payable/review integration, mobile/toll top-ups, grouped checkout and refunds, bounded autopay/automatic services and deterministic clock/failure simulation. [Full design](docs/architecture/payment-automation-demo.md).
+The [payment backlog](TODO.md#payment-accounts-and-automation-demo--planned-backlog) tracks 50 tasks: 14 slices delivered and 36 open. The remaining work covers funding-review parity, grouped checkout and refunds, bounded autopay/automatic services and deterministic clock/failure simulation. [Full design](docs/architecture/payment-automation-demo.md).
 
 Use `npm run simulator:verify` to try the persisted preview-only business clock across separate processes. It emits descriptive due events and resets its isolated run without touching provider funds. [Commands and limits](docs/development/simulator.md) · [Lifecycle/scenario evidence](docs/reports/2026-10-24-lifecycle-simulator.md). Other payable types, refunds/reversals and automatic execution remain in the backlog.
 
@@ -134,3 +134,5 @@ License: MIT.
 [Saved-card wallet funding](docs/development/wallet-funding.md) now provides review, bound authorization/challenge, explicit card capture and one balanced wallet credit. [Watch its paced recording](docs/recordings/wallet-funding/index.html) or run `npm run record:wallet-funding`.
 
 [Exact-set fine payments](docs/development/fine-checkout.md) now support wallet and saved cards, current discounts/restrictions, shared per-fine reservations and confirmed receipts. [Paced recording](docs/recordings/fine-checkout/index.html).
+
+[Wallet/card provider recharges](docs/development/provider-recharges.md) now credit owned Salik tags and Etisalat/du prepaid lines with displayed denominations, bound challenges, pending recovery and confirmed provider balances. [Six paced journeys](docs/recordings/recharge-checkout/index.html).

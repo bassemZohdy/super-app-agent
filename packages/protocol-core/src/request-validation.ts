@@ -67,6 +67,7 @@ for (const [path, schema] of Object.entries({
   methods: paymentSchemas.createMethod, 'methods/status': paymentSchemas.methodStatus, 'methods/default': paymentSchemas.defaultMethod,
   'billing-accounts': paymentSchemas.linkAccount, 'billing-accounts/archive': paymentSchemas.archiveAccount,
 })) route('agent-core', 'POST', `/api/payments/${path}`, withPaymentAccount(schema));
+route('agent-core','POST','/api/payments/recharge-preview',withPaymentAccount(paymentSchemas.rechargePreview));
 route('agent-core','POST','/api/payments/fine-selection-preview',withPaymentAccount(paymentSchemas.fineSelectionPreview,false));
 route('agent-core', 'POST', '/api/payments/preview', withPaymentAccount(paymentSchemas.preview, false));
 route('agent-core','POST','/api/payments/orders',withPaymentAccount(paymentSchemas.createOrder));
@@ -107,6 +108,10 @@ route('service-wallet', 'POST', '/wallet/topup', object({ amount: moneySchema, s
 route('service-wallet', 'GET', '/fines/check', object({ plateNumber: text(128) }), ['/fines'], 'citizenpay_getFines');
 route('service-wallet', 'POST', '/fines/pay', object({ fineIds: {...list(id,20),minItems:1,uniqueItems:true},expectedPayables:fineSelectionItemsSchema,expectedAmountMinor:{type:'integer',minimum:1,maximum:100000000} }, ['fineIds']), ['/fines/settle'], 'citizenpay_payFines');
 route('service-wallet', 'POST', '/pay/unified', object({ items: list(object({ agency: text(128), purpose: text(), amount: moneySchema }, ['agency', 'purpose', 'amount'])), currency: currency('AED') }, ['items']), ['/pay/multi-agency'], 'citizenpay_unifiedPay');
+for(const provider of ['etisalat','du']){
+  route('service-telecom','GET',`/telecom/${provider}/prepaid`,object());
+  route('service-telecom','POST',`/telecom/${provider}/prepaid/recharges`,object({lineId:id,amountMinor:{type:'integer',minimum:1,maximum:100000000},expectedTargetVersion:{type:'integer',minimum:1,maximum:1000000}},['lineId','amountMinor','expectedTargetVersion']));
+}
 route('service-profile', 'GET', '/profile', object(), [], 'profile_getProfile');
 route('service-profile', 'GET', '/profile/preferences', object(), [], 'profile_getPreferences');
 route('service-profile', 'POST', '/profile/preferences', preferencesSchema, [], 'profile_updatePreferences');

@@ -90,3 +90,5 @@ Eight checkout regressions cover both funding sources, exact one-payment recover
 `npm run demo:verify:wallet-funding` checks selected-card wallet funding in isolated state with real Keycloak. `npm run record:wallet-funding` adds six-second review/challenge/authorization and eight-second confirmed-receipt holds. [Guide](wallet-funding.md) · [Evidence](../reports/2026-10-24-wallet-funding.md).
 
 `npm run demo:verify:fine-checkout` verifies wallet and challenged-card exact fine selections. `npm run record:fine-checkout` adds six-second review/challenge/authorization and eight-second receipt holds, using isolated databases with real Keycloak. [Fine guide](fine-checkout.md) · [Evidence](../reports/2026-10-24-fine-checkout.md).
+
+`npm run demo:verify:recharge-checkout` verifies all three providers with wallet and challenged-card funding. `npm run record:recharge-checkout` records the six asserted journeys with six-second review/authorization/challenge and eight-second confirmed-receipt holds. [Recharge guide](provider-recharges.md) · [Evidence](../reports/2026-10-24-provider-recharges.md).

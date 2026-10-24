@@ -14,7 +14,7 @@ Funding uses the shared per-card issuer limit, including bill authorizations/cap
 
 ## Protocol and persistence
 
-Payment contract 1.4.0, payment-provider OpenAPI 2.7.0. Provider routes sit under `/v1/accounts/{accountId}`:
+Payment contract 1.5.0, payment-provider OpenAPI 2.8.0. Provider routes sit under `/v1/accounts/{accountId}`:
 
 | Operation | Provider route | Core route |
 | --- | --- | --- |

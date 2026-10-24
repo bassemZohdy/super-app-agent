@@ -4,7 +4,7 @@ PAY-06 is implemented for the selected demo criteria. DEWA, Etisalat, du and Pol
 
 ## Contract
 
-All paths below are relative to `/v1/accounts/{accountId}` on the source provider. A signed owner token and owned workspace are independently checked. OpenAPI 2.4.0 (DEWA/telecom) and 2.5.0 (Police) describe the additive contracts; the HTTP resource prefix remains `/v1`. Obtain payable IDs from the list and URL-encode them in individual paths.
+All paths below are relative to `/v1/accounts/{accountId}` on the source provider. A signed owner token and owned workspace are independently checked. OpenAPI 2.4.0 (DEWA), 2.5.0 (telecom/Police) and 2.2.0 (RTA recharge) describe the additive contracts; the HTTP resource prefix remains `/v1`. Obtain payable IDs from the list and URL-encode them in individual paths.
 
 | Operation | Behavior |
 | --- | --- |
@@ -19,7 +19,7 @@ Each summary includes provider/obligation identity, provider account reference, 
 
 Discount expiry changes an unpaid fine's effective amount and revision at business time. Legacy fine lists use the same current amount. Paid fine history retains the amount/discount actually applied after its discount window closes. Expired, withdrawn, paid and restricted obligations are excluded from payment review or rejected by provider preflight/settlement. Due bills remain payable when overdue unless separately expired/withdrawn.
 
-Revision-bound settlement requires the captured proof's exact account, payment ID, AED currency, merchant, amount, unrefunded captured status and reference. The reference hashes identity and authoritative terms rather than accepting a caller's price. Concurrent source changes are rechecked in the provider's write transaction. Existing HTTP calls now use the [claim/fence protocol](settlement-claims.md) to serialize payment-provider refund eligibility. Stored bill capture now integrates source admission and gateway claims; exact fine selections now integrate the same guard; recharge and other service types remain their own tasks.
+Revision-bound settlement requires the captured proof's exact account, payment ID, AED currency, merchant, amount, unrefunded captured status and reference. The reference hashes identity and authoritative terms rather than accepting a caller's price. Concurrent source changes are rechecked in the provider's write transaction. Existing HTTP calls now use the [claim/fence protocol](settlement-claims.md) to serialize payment-provider refund eligibility. Stored bill capture now integrates source admission and gateway claims; exact fine selections and provider recharges now integrate the same guard; other service types retain their own tasks.
 
 ## Lifecycle and compatibility
 

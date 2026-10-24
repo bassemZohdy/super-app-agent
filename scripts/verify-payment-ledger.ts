@@ -31,7 +31,7 @@ backupExists:existsSync(base+'.before-ledger-v1.sqlite')};db.close();console.log
 async function snapshot(mode='live'):Promise<Snapshot> {
   return JSON.parse(await docker(['run','--rm','--no-deps','provider-payments','node','--input-type=module','-e',inspect,mode],true));
 }
-const financialProviders=['provider-payments','provider-rta','provider-dewa','provider-etisalat','provider-du','provider-police','service-food','service-wallet','service-telecom'];
+const financialProviders=['provider-payments','provider-rta','provider-dewa','provider-etisalat','provider-du','provider-police','service-ride','service-food','service-wallet','service-telecom'];
 console.log('Serial local check: source/payment providers pause briefly; avoid concurrent money-changing demo actions.');
 let resumed=false;
 try {

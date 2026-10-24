@@ -1,6 +1,6 @@
 # Provider backend demonstration
 
-This is a local integration environment, not an integration with the named real entities. Producer: the provider-simulator package. Consumers: the application microservices. Contract version: 2.0.0 for DLD, 2.1.0 for RTA settlement status, 2.4.0 for DEWA/telecom, 2.5.0 for Police fine selections/admission, and 2.7.0 for payment setup/authorization/capture/settlement claims; OpenAPI 3.1. This demo security migration changes authentication while retaining `/v1` resource schemas. Sign in again for the provider audience; service-header impersonation clients must migrate. Future breaking resource changes require explicit versioning and migration.
+This is a local integration environment, not an integration with the named real entities. Producer: the provider-simulator package. Consumers: the application microservices. Contract version: 2.0.0 for DLD, 2.2.0 for RTA status/recharge, 2.4.0 for DEWA, 2.5.0 for telecom/Police, and 2.8.0 for payment setup/authorization/capture/settlement claims; OpenAPI 3.1. This demo security migration changes authentication while retaining `/v1` resource schemas. Sign in again for the provider audience; service-header impersonation clients must migrate. Future breaking resource changes require explicit versioning and migration.
 
 ## Service and account boundaries
 
@@ -109,3 +109,5 @@ Existing provider HTTP effects now acquire narrow authenticated gateway claims a
 DEWA/Etisalat/du service payments now use wallet-funded stored orders and the same admitted capture/settlement path as the card-enabled payment panel. Generic /charges billing reference namespaces are rejected; migrate direct consumers to approved order execution. Other legacy non-bill fixtures remain compatible. [Exact API and recovery contract](../development/payment-checkout.md).
 
 [Wallet/card fine selection](../development/fine-checkout.md) uses exact current source revisions and per-fine admission before capture; a raw Police billing namespace cannot bypass stored-order approval.
+
+[Provider recharges](../development/provider-recharges.md) cover Salik/Etisalat/du with wallet/card funding. The new APIs bind target/version/denomination to one intent and keep target fences through final confirmation. Existing Salik application calls now use that stored flow; new raw recharge capture namespaces deny.

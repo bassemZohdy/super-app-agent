@@ -3,7 +3,8 @@ import { PaymentIssuer } from './payment-issuer.ts';
 import { PaymentOrders } from './payment-orders.ts';
 import { WalletFunding } from './wallet-funding.ts';
 import { PaymentClaims } from './payment-claims.ts';
-import { PayableAdmissions } from './payable-admissions.ts';
+import { ProviderRecharges } from './recharges.ts';
+import { PayableAdmissions,rechargeTargetKey,assertPayableUnreserved } from './payable-admissions.ts';
 import { ProviderPayables, type PayableProvider } from './payables.ts';
 import { PaymentLedger } from './payment-ledger.ts';
 import { paymentRegistry } from './payment-registry.ts';
@@ -22,8 +23,9 @@ const ok = (data: Record<string, any>): ApiResult => ({ status: 200, data: { suc
 const minor = (amount: number) => Math.round(amount * 100);
 const major = (amount: number) => amount / 100;
 export class ProviderEngine {
-  readonly provider: ProviderId; readonly store: AccountDatabase; readonly ledger?: PaymentLedger; readonly resourceUses?: PaymentResourceUses; readonly payables?: ProviderPayables;readonly issuer?:PaymentIssuer;readonly orders?:PaymentOrders;readonly claims?:PaymentClaims;readonly admissions?:PayableAdmissions;readonly funding?:WalletFunding;
-  constructor(provider: ProviderId, store: AccountDatabase, options: {businessClock?:()=>number;authorizationClock?:()=>number} = {}) { this.provider = provider; this.store = store; if (provider === 'payments') { this.ledger = new PaymentLedger(store,options.authorizationClock); this.resourceUses = new PaymentResourceUses(store);this.issuer=new PaymentIssuer(store,options.authorizationClock);this.orders=new PaymentOrders(store,this.issuer,this.ledger,this.resourceUses,options.authorizationClock);this.claims=new PaymentClaims(store);this.funding=new WalletFunding(store,this.issuer,this.ledger,this.resourceUses,options.authorizationClock); } if(['dewa','etisalat','du','police'].includes(provider)) {this.payables=new ProviderPayables(store,provider as PayableProvider,options.businessClock);this.admissions=new PayableAdmissions(store,this.payables,options.businessClock);} }
+  readonly provider: ProviderId; readonly store: AccountDatabase; readonly ledger?: PaymentLedger; readonly resourceUses?: PaymentResourceUses; readonly payables?: ProviderPayables;readonly issuer?:PaymentIssuer;readonly orders?:PaymentOrders;readonly claims?:PaymentClaims;readonly admissions?:PayableAdmissions;readonly funding?:WalletFunding;readonly recharges?:ProviderRecharges;
+  constructor(provider: ProviderId, store: AccountDatabase, options: {businessClock?:()=>number;authorizationClock?:()=>number} = {}) { this.provider = provider; this.store = store; if (provider === 'payments') { this.ledger = new PaymentLedger(store,options.authorizationClock); this.resourceUses = new PaymentResourceUses(store);this.issuer=new PaymentIssuer(store,options.authorizationClock);this.orders=new PaymentOrders(store,this.issuer,this.ledger,this.resourceUses,options.authorizationClock);this.claims=new PaymentClaims(store);this.funding=new WalletFunding(store,this.issuer,this.ledger,this.resourceUses,options.authorizationClock); } if(['dewa','etisalat','du','police'].includes(provider)) {this.payables=new ProviderPayables(store,provider as PayableProvider,options.businessClock);} if(['rta','etisalat','du'].includes(provider))this.recharges=new ProviderRecharges(store,provider as import('../../../packages/protocol-core/src/payments.ts').RechargeProvider,options.businessClock);if(this.payables||this.recharges)this.admissions=new PayableAdmissions(store,{inspect:(a,id,revision)=>this.obligationBook(id).inspect(a,id,revision),applyAdmitted:(a,p,paymentId,at)=>this.obligationBook(p.id).applyAdmitted(a,p,paymentId,at)},options.businessClock); }
+  private obligationBook(id:string){if(id.startsWith(`${this.provider}:recharge:`)&&this.recharges)return this.recharges;if(this.payables)return this.payables;return fail(404,'PAYABLE_NOT_FOUND','Payment obligation not found.');}
   seed(actor: Actor) {
     const db = this.store, account = actor.accountId;
     if (db.get(account, 'seed')) {
@@ -73,9 +75,10 @@ export class ProviderEngine {
   execute(actor: Actor, method: string, path: string, body: any, proof?: any, payableSnapshot?:import('../../../packages/protocol-core/src/payments.ts').Payable,gatewayOrder?:import('../../../packages/protocol-core/src/payments.ts').PaymentAuthorizationReview): ApiResult {
     const db = this.store, a = actor.accountId, asset = assetsFor(a);
     const now = () => new Date().toISOString();
-    if(this.payables) {
-      if(this.provider==='police'&&method==='POST'&&path==='/fine-selections')return ok({payable:this.payables.selectFines(a,body.items)});
-      const route=/^\/payables\/([^/]+)\/admissions(?:\/([^/]+)(?:\/(admit|cancel|payments))?)?$/.exec(path);
+    if(this.recharges){if(method==='GET'&&/^\/recharge-intents\/[^/]+$/.test(path))return ok(this.recharges.byIntent(a,decodeURIComponent(path.split('/')[2])));if(method==='GET'&&path==='/recharge-targets')return ok({targets:this.recharges.targets(a)});if(method==='POST'&&path==='/recharge-quotes')return ok({payable:this.recharges.quote(a,body)});}
+    if(this.admissions) {
+      if(this.provider==='police'&&method==='POST'&&path==='/fine-selections')return ok({payable:this.payables!.selectFines(a,body.items)});
+      const route=/^\/payables\/([^/]+)\/admissions(?:\/([^/]+)(?:\/(admit|cancel|payments|finish))?)?$/.exec(path);
       if(route){
         const payableId=decodeURIComponent(route[1]),id=route[2],action=route[3];
         if(!id&&method==='POST')return ok({admission:this.admissions!.prepare(a,payableId,body)});
@@ -83,15 +86,16 @@ export class ProviderEngine {
         if(method==='GET'&&!action)return ok({admission});
         if(method==='POST'&&action==='admit')return ok({admission:this.admissions!.admit(a,id,gatewayOrder!)});
         if(method==='POST'&&action==='cancel')return ok({admission:this.admissions!.cancel(a,id,gatewayOrder!)});
+        if(method==='POST'&&action==='finish')return ok({admission:this.admissions!.finish(a,id,gatewayOrder!)});
         if(method==='POST'&&action==='payments')return ok(this.admissions!.settle(a,id,body.paymentId,proof));
       }
-      if(method === 'GET' && path === '/payables') return ok({payables:this.payables.list(a)});
-      if(method === 'GET' && /^\/payables\/[^/]+$/.test(path)) { const payable=this.payables.get(a,decodeURIComponent(path.split('/')[2])); return ok({payable,settlementReference:this.payables.settlementReference(payable)}); }
+      if(method === 'GET' && path === '/payables') return ok({payables:this.payables?.list(a)||[]});
+      if(method === 'GET' && /^\/payables\/[^/]+$/.test(path)) { const payable=this.obligationBook(decodeURIComponent(path.split('/')[2])).get(a,decodeURIComponent(path.split('/')[2])); return ok({payable,settlementReference:`payable:${payable.revision}`}); }
       if(method === 'POST' && /^\/payables\/[^/]+\/reviews$/.test(path)) {
-        const payable=this.payables.inspect(a,decodeURIComponent(path.split('/')[2]),body.expectedRevision);
-        return ok({payable,settlementReference:this.payables.settlementReference(payable)});
+        const payable=this.obligationBook(decodeURIComponent(path.split('/')[2])).inspect(a,decodeURIComponent(path.split('/')[2]),body.expectedRevision);
+        return ok({payable,settlementReference:`payable:${payable.revision}`});
       }
-      if(method === 'POST' && /^\/payables\/[^/]+\/payments$/.test(path)) return ok(this.payables.settle(a,decodeURIComponent(path.split('/')[2]),body.expectedRevision,body.paymentId,proof));
+      if(method === 'POST' && /^\/payables\/[^/]+\/payments$/.test(path)) {if(decodeURIComponent(path.split('/')[2]).startsWith(`${this.provider}:recharge:`))fail(409,'ADMISSION_REQUIRED','Recharge requires its stored-order admission.');if(!this.payables)fail(404,'PAYABLE_NOT_FOUND','Payment obligation not found.');return ok(this.payables!.settle(a,decodeURIComponent(path.split('/')[2]),body.expectedRevision,body.paymentId,proof));}
     }
     if (this.provider === 'payments') {
       this.orders!.refresh(actor);this.funding!.refresh(actor);
@@ -171,8 +175,9 @@ export class ProviderEngine {
       }
       if (method === 'GET' && path === '/salik') return ok(db.get(a, 'salik')!);
       if (method === 'POST' && path === '/salik/recharges') {
+        assertPayableUnreserved(db,a,rechargeTargetKey('rta',db.get(a,'salik').tagNumber),this.recharges!.clock);
         this.proof(proof, 'rta', `salik:${body.reference}`, minor(body.amount));
-        const salik = db.get(a, 'salik'); salik.balance = major(minor(salik.balance) + minor(body.amount));
+        const salik = db.get(a, 'salik');if((salik.version||1)>=1000000)fail(409,'VERSION_LIMIT','The toll tag reached its demo version limit.');if(salik.status!=='ACTIVE')fail(409,'RECHARGE_TARGET_CHANGED','The toll tag is closed.');salik.version=(salik.version||1)+1;salik.balance = major(minor(salik.balance) + minor(body.amount));
         if (minor(salik.balance) > 100_000_000) fail(400, 'BALANCE_LIMIT', 'Demo toll balance limit exceeded.');
         db.put(a, 'salik', salik); return ok({ transactionId: body.paymentId, newBalance: salik.balance, amountRecharged: body.amount });
       }
