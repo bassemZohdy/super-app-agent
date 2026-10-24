@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 24 October 2026 — settlement/refund exclusion and historical migration
+
+Guard current provider HTTP settlements with separate merchant-scoped Keycloak workloads, gateway claims/refund checks, durable source fences and receipt acknowledgements. Cover stale proofs, lost responses/ACKs, late effects after release, scoped credentials and old captured payments. Preserve financial/idempotency rows and create a consistent claims backup; old uncertain captures stay blocked until reconciled. New stored-order capture/admission remains open. [Guide](development/settlement-claims.md) · [Evidence](reports/2026-10-24-settlement-claims.md).
+
 ## 24 October 2026 — finite issuer and stored owner authorization
 
 Deliver PAY-05 with persistent finite card attempts/limits, bound one-time interactive challenges and decline/expiry states. Add immutable source-owned authorization reviews, explicit approval, local obligation uniqueness, wallet/card holds and cancellation with actual lifecycle locks. New routes reject machine/header actors and caller price overrides. Capture and cross-path settlement/refund claims remain disabled/open. [Guide](development/payment-authorization.md) · [Evidence](reports/2026-10-24-payment-authorization.md).

@@ -123,6 +123,22 @@ try {
   assert.equal((await providerApi(107,'/wallet')).data.balanceMinor,150000-settlementPayable.amountMinor);
   assert.equal((await providerApi(107,'/transactions')).data.transactions.length,1);
   assert.equal((await providerApi(102,`/payables/${encodeURIComponent(settlementPayable.id)}`)).data.payable.status,'PAID');
+  const claimed=(await providerApi(107,`/charges/${capture.data.charge.id}`)).data.charge.settlement;assert.equal(claimed.state,'APPLIED');
+  const fenced=await providerApi(102,`/settlement-attempts/${capture.data.charge.id}`);assert.equal(fenced.data.settlement.state,'APPLIED');assert.equal(fenced.data.settlement.gatewayConfirmed,true);
+  const forbiddenRefund=await providerApi(107,`/charges/${capture.data.charge.id}/refunds`,{reason:'Cannot refund a paid bill'});assert.equal(forbiddenRefund.status,409);assert.equal(forbiddenRefund.data.code,'SETTLEMENT_IN_USE');
+  assert.equal((await providerApi(107,`/charges/${capture.data.charge.id}/settlement/release`,{attemptId:claimed.attemptId,claimId:claimed.claimId,reason:'NOT_APPLIED'})).status,403);
+  const rejectedCapture=await providerApi(107,'/charges',{amountMinor:100,merchant:'dewa',reference:'bill:missing-owned-bill',source:'wallet'});assert.equal(rejectedCapture.status,200);
+  const rejectedPath='/bills/missing-owned-bill/payments',rejectedBody={paymentId:rejectedCapture.data.charge.id};
+  assert.equal((await providerApi(102,rejectedPath,rejectedBody)).status,404);
+  assert.equal((await providerApi(107,`/charges/${rejectedCapture.data.charge.id}`)).data.charge.settlement.state,'RELEASED');
+  assert.equal((await providerApi(107,`/charges/${rejectedCapture.data.charge.id}/refunds`,{reason:'Verified non-application'})).status,200);
+  assert.equal((await providerApi(102,rejectedPath,rejectedBody)).status,404);
+  assert.equal((await providerApi(107,'/wallet')).data.balanceMinor,150000-settlementPayable.amountMinor);
+  const duBill=(await providerApi(104,'/bills')).data.bills[0],duCapture=await providerApi(107,'/charges',{amountMinor:duBill.amountMinor,merchant:'du',reference:`bill:${duBill.billId}`,source:'wallet'});
+  assert.equal(duCapture.status,200);assert.equal((await providerApi(104,`/bills/${duBill.billId}/payments`,{paymentId:duCapture.data.charge.id})).status,200);
+  assert.equal((await providerApi(107,`/charges/${duCapture.data.charge.id}`)).data.charge.settlement.state,'APPLIED');
+  console.log('PASS: applied claims deny refunds/human release; rejected settlement fences non-application before refund; separate du workload applies only its own capture');
+
   assert.equal(environment.providerState('payments',accountId,'wallet').balanceMinor,150000);
   console.log('PASS: separate signed-owner revision-bound settlement, capture/settlement retries and one exact journal debit; setup owner remains unchanged');
 

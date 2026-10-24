@@ -22,7 +22,10 @@ const authorizationSchema=object({id:text,orderId:text,sourceId:text,amountMinor
 const reviewSchema=object({id:text,accountId:text,ownerSub:text,version:{type:'integer',minimum:1},state:{enum:['AWAITING_APPROVAL','REQUIRES_ACTION','AUTHORIZED','FAILED','CANCELLED']},approvalDigest:revision,expiresAt:text,createdAt:text,approvedAt:text,failureCode:text,fundsCaptured:{const:false},authorization:authorizationSchema,
   quote:object({payable:payableSchema,source:paymentMethodSchema,billingAccount:billingAccountSchema,amountMinor:money,feeMinor:{type:'integer',minimum:0,maximum:100000000},totalMinor:money,currency:{const:'AED'},createdAt:text,expiresAt:text})},['id','accountId','ownerSub','version','state','approvalDigest','expiresAt','createdAt','fundsCaptured','quote']);
 const cardBalances={type:'array',maxItems:100,items:object({sourceId:text,limitMinor:money,heldMinor:{type:'integer',minimum:0},spentMinor:{type:'integer',minimum:0},availableMinor:{type:'integer',minimum:0},currency:{const:'AED'}})};
+const claimSchema=object({claimId:text,paymentId:text,provider:{enum:['rta','dewa','etisalat','du','police']},attemptId:text,reference:text,amountMinor:money,currency:{const:'AED'},orderId:text,captureAttemptId:text,state:{enum:['LEGACY_UNKNOWN','CLAIMED','APPLIED','RELEASED']},createdAt:text,receiptDigest:revision},['claimId','paymentId','provider','attemptId','reference','amountMinor','currency','orderId','captureAttemptId','state','createdAt']);
+const settlementStatus=op('GET','/settlement-attempts/{paymentId}','inspectSettlementAttempt',{settlement:object({attemptId:text,paymentId:text,state:{enum:['PENDING','APPLIED','RELEASED']},gatewayConfirmed:{type:'boolean'},failureCode:text},['attemptId','paymentId','state','gatewayConfirmed'])},'Inspect an owned persisted settlement fence and safely retry its gateway acknowledgement/release. Historical used-payment records can reconcile as applied.');
 const telecom = [
+  settlementStatus,
   ...payableOperations,
   op('GET', '/prepaid', 'listPrepaidLines', { lines: list }, 'List owned synthetic prepaid mobile lines and current balances.'),
   op('GET', '/subscriptions', 'listSubscriptions', { subscriptions: list }, 'List subscriptions owned by this account.'),
@@ -33,6 +36,7 @@ const telecom = [
 ];
 export const operations: Record<ProviderId, Operation[]> = {
   rta: [
+    settlementStatus,
     op('GET', '/parking/zones', 'listParkingZones', { count: { type: 'integer' }, zones: list }, 'List simulated parking zones.'),
     op('GET', '/parking/sessions', 'listParkingSessions', { meters: list, count: { type: 'integer' } }, 'List this account’s parking sessions.'),
     op('POST', '/parking/sessions', 'activateParking', { meter: opaque }, 'Create a parking session for an account-owned plate.', object({ zoneId: text, durationHours: { type: 'integer', minimum: 1, maximum: 720 }, plateNumber: text, paymentId: text, reference: text })),
@@ -48,6 +52,7 @@ export const operations: Record<ProviderId, Operation[]> = {
     op('GET', '/rides/bookings/{bookingId}', 'getRide', { booking: opaque }, 'Read a booking owned by this account.'),
   ],
   dewa: [
+    settlementStatus,
     ...payableOperations,
     op('GET', '/consumption', 'getConsumption', { account: opaque, ecoStatus: text }, 'Read an account-owned smart meter and consumption snapshot.'),
     op('GET', '/bills', 'listUtilityBills', { bills: list }, 'Read this account’s utility bills.'),
@@ -56,6 +61,7 @@ export const operations: Record<ProviderId, Operation[]> = {
   ],
   etisalat: telecom, du: telecom,
   police: [
+    settlementStatus,
     ...payableOperations,
     op('GET', '/vehicles', 'listRegisteredVehicles', { vehicles: list }, 'List owned registered vehicles independently of unpaid fines.'),
     op('GET', '/fines', 'listTrafficFines', { fines: list, count: { type: 'integer' }, totalPayable: { type: 'number' }, totalOriginal: { type: 'number' }, totalDiscount: { type: 'number' } }, 'List unpaid account-owned traffic fines.'),
@@ -66,6 +72,9 @@ export const operations: Record<ProviderId, Operation[]> = {
     op('POST', '/move-ins', 'registerMoveIn', { ejariContract: text, unit: text, residentialParking: opaque }, 'Register a move-in proposal. Utility and parking activation are separate operations.', object({ contractNumber: text })),
   ],
   payments: [
+    op('POST','/charges/{chargeId}/settlement/claim','claimSettlement',{claim:claimSchema,charge:opaque},'Exact provider workload only. Admit one attempt against a current capture; current claim state is returned even on exact retries.',object({attemptId:text,reference:text,amountMinor:money})),
+    op('POST','/charges/{chargeId}/settlement/ack','acknowledgeSettlement',{claim:claimSchema},'Exact provider workload only. Confirm a committed provider effect with its immutable receipt digest.',object({attemptId:text,claimId:text,receiptDigest:revision})),
+    op('POST','/charges/{chargeId}/settlement/release','releaseSettlement',{claim:claimSchema},'Exact provider workload only. Release only after the provider has durably fenced the attempt as not applied. Applied/unknown claims cannot be blindly released.',object({attemptId:text,claimId:text,reason:{const:'NOT_APPLIED'}})),
     op('GET','/payment-orders','listAuthorizationOrders',{orders:{type:'array',items:reviewSchema,maxItems:100}},'List owned stored authorization reviews and current expiry/hold states; no capture.'),
     op('GET','/payment-orders/{orderId}','getAuthorizationOrder',{order:reviewSchema},'Inspect a current owned authorization review.'),
     op('POST','/payment-orders','createAuthorizationOrder',{order:reviewSchema},'Read source-owned terms, store an immutable review and reserve the obligation; no funds held until approval.',paymentSchemas.createOrder),
@@ -104,7 +113,7 @@ export function openApi(provider: ProviderId) {
         ...Object.fromEntries(['400','401','403','404','409','402','503'].map(status => [status, { $ref: '#/components/responses/Error' }])) },
     };
   }
-  return { openapi: '3.1.0', info: { title: `${providerNames[provider]} Simulator`, version: provider === 'payments' ? '2.3.0' : ['dewa','etisalat','du','police'].includes(provider) ? '2.2.0' : '2.0.0', description: 'Local synthetic API. Signed interactive user identity or broker-issued user token with current exact-operation grant required. JWT subject owns the account; caller user headers do not grant authority. A separate read-only settlement machine lane retrieves captured charge proofs. Legacy fixture mode is outside this reference security profile.' },
+  return { openapi: '3.1.0', info: { title: `${providerNames[provider]} Simulator`, version: provider === 'payments' ? '2.4.0' : provider==='rta'?'2.1.0':['dewa','etisalat','du','police'].includes(provider) ? '2.3.0' : '2.0.0', description: 'Local synthetic API. Signed interactive user identity or broker-issued user token with current exact-operation grant required. JWT subject owns the account; caller user headers do not grant authority. A separate read-only settlement machine lane retrieves captured charge proofs. Legacy fixture mode is outside this reference security profile.' },
     servers: [{ url: `http://localhost:${4101 + providerIds.indexOf(provider)}` }], security: [{ accessToken: [] }],
     paths, components: { securitySchemes: { accessToken: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' } },
       responses: { Unauthorized: { description: 'Missing or invalid Keycloak access token' }, Error: { description: 'Validation, ownership, delegation, payment, conflict or availability error', content: { 'application/json': { schema: object({ success: { const: false }, error: { type: 'string' }, code: { type: 'string' } }) } } } } },

@@ -70,3 +70,5 @@ The bounded delegation extension is documented in [ADR-0012](adr/ADR-0012-secure
 - [Evidence register](reports/README.md): current and historical results with their verified scope.
 
 Earlier dated reports, transcripts, videos and archived backlogs are historical evidence and are not overwritten by the new baseline.
+
+[Settlement claims, provider fences and conservative migration](development/settlement-claims.md) · [Race/identity/upgrade evidence](reports/2026-10-24-settlement-claims.md). Existing provider HTTP payments use the guard; stored-order capture remains pending.

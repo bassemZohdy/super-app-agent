@@ -1,6 +1,6 @@
 # Stored payment authorization and synthetic issuer
 
-PAY-05 adds finite synthetic card authorization and explicit owner challenges. React can now create a stored authorization review, approve its exact terms, complete/reject a challenge, inspect current funds holds and cancel. **This flow does not capture funds or settle a bill.** Stored-order capture and cross-provider claims remain PAY-07–PAY-10 work. Existing service payments retain their legacy wallet flow.
+PAY-05 adds finite synthetic card authorization and explicit owner challenges. React can now create a stored authorization review, approve its exact terms, complete/reject a challenge, inspect current funds holds and cancel. **This flow does not capture funds or settle a bill.** Stored-order capture/admission remains PAY-07–PAY-10 work. Existing provider HTTP settlements now use the [claim protocol](settlement-claims.md). Existing service payments retain their legacy wallet flow.
 
 ## Try it
 
@@ -35,7 +35,7 @@ Exact POST retries return their stored result without another effect. They can s
 
 ## Remaining integration boundaries
 
-The new reservation does not yet cover legacy service settlement or future automatic callers. Source GET preflight and a local hold are separate transactions; capture must first acquire the upcoming provider/obligation admission contract. No `/payment-orders/{id}/capture` endpoint exists. PAY-08/PAY-09/PAY-10 remain open for cross-path reservation, capture, settlement/refund claims and unknown-outcome reconciliation. This implementation does not grant recurring spend or activate a worker.
+The new reservation does not yet cover legacy service settlement or future automatic callers. Source GET preflight and a local hold are separate transactions; capture must first acquire the upcoming provider/obligation admission contract. No `/payment-orders/{id}/capture` endpoint exists. PAY-08/PAY-09/PAY-10 remain open for cross-path reservation, capture, stored-order claim integration and unknown-outcome reconciliation. This implementation does not grant recurring spend or activate a worker.
 
 Runtime clocks default to real time. Tests can inject a private constructor-only authorization clock; no HTTP/env setting lets clients advance it. JWT/key/client validity continues using real security time. The separate preview scenario CLI cannot reach these funds or reviews. Execution-run clock integration remains future simulator work.
 

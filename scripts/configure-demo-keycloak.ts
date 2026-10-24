@@ -17,6 +17,8 @@ for (const role of realm.roles.realm) {
 }
 const allRoles = await api('/roles');
 for (const client of realm.clients) {
+  const claimant=/^provider-(rta|dewa|etisalat|du|police)-settlement$/.exec(client.clientId);
+  if(claimant)client.secret=process.env[`PROVIDER_${claimant[1].toUpperCase()}_CLAIM_SECRET`]||client.secret;
   const existing = await api(`/clients?clientId=${encodeURIComponent(client.clientId)}`);
   if (existing.length) await api(`/clients/${existing[0].id}`, 'PUT', { ...existing[0], ...client });
   else await api('/clients', 'POST', client);

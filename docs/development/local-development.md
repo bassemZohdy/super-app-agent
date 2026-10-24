@@ -93,3 +93,5 @@ The running React demo now has saved synthetic card/biller-link management and q
 The optional `npm run simulator` operator CLI stores preview-only scenarios under `.data/simulator`, with no backend port or provider call. [Commands/ownership/bounds](simulator.md). `npm run simulator:verify` repeats its cross-process persistence/reset proof. Network admin controls and financial scenarios remain future work.
 
 Finite interactive authorization reviews are available without a new environment flag. [Try stored reviews and challenges](payment-authorization.md). Reload updated payments/core containers when backend source changes; no Keycloak feature or authority expansion is required.
+
+Current settlement uses five separate provider claim clients. `npm run demo:realm` reconciles their narrow roles; optional `PROVIDER_{NAME}_CLAIM_SECRET` values must match each source container and realm. The shared proof client stays read-only. [Settlement protocol, migration and recovery](settlement-claims.md).

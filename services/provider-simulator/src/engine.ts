@@ -1,6 +1,7 @@
 import { PaymentResourceUses } from './payment-resource-uses.ts';
 import { PaymentIssuer } from './payment-issuer.ts';
 import { PaymentOrders } from './payment-orders.ts';
+import { PaymentClaims } from './payment-claims.ts';
 import { ProviderPayables, type PayableProvider } from './payables.ts';
 import { PaymentLedger } from './payment-ledger.ts';
 import { paymentRegistry } from './payment-registry.ts';
@@ -19,8 +20,8 @@ const ok = (data: Record<string, any>): ApiResult => ({ status: 200, data: { suc
 const minor = (amount: number) => Math.round(amount * 100);
 const major = (amount: number) => amount / 100;
 export class ProviderEngine {
-  readonly provider: ProviderId; readonly store: AccountDatabase; readonly ledger?: PaymentLedger; readonly resourceUses?: PaymentResourceUses; readonly payables?: ProviderPayables;readonly issuer?:PaymentIssuer;readonly orders?:PaymentOrders;
-  constructor(provider: ProviderId, store: AccountDatabase, options: {businessClock?:()=>number;authorizationClock?:()=>number} = {}) { this.provider = provider; this.store = store; if (provider === 'payments') { this.ledger = new PaymentLedger(store,options.authorizationClock); this.resourceUses = new PaymentResourceUses(store);this.issuer=new PaymentIssuer(store,options.authorizationClock);this.orders=new PaymentOrders(store,this.issuer,this.ledger,this.resourceUses,options.authorizationClock); } if(['dewa','etisalat','du','police'].includes(provider)) this.payables=new ProviderPayables(store,provider as PayableProvider,options.businessClock); }
+  readonly provider: ProviderId; readonly store: AccountDatabase; readonly ledger?: PaymentLedger; readonly resourceUses?: PaymentResourceUses; readonly payables?: ProviderPayables;readonly issuer?:PaymentIssuer;readonly orders?:PaymentOrders;readonly claims?:PaymentClaims;
+  constructor(provider: ProviderId, store: AccountDatabase, options: {businessClock?:()=>number;authorizationClock?:()=>number} = {}) { this.provider = provider; this.store = store; if (provider === 'payments') { this.ledger = new PaymentLedger(store,options.authorizationClock); this.resourceUses = new PaymentResourceUses(store);this.issuer=new PaymentIssuer(store,options.authorizationClock);this.orders=new PaymentOrders(store,this.issuer,this.ledger,this.resourceUses,options.authorizationClock);this.claims=new PaymentClaims(store); } if(['dewa','etisalat','du','police'].includes(provider)) this.payables=new ProviderPayables(store,provider as PayableProvider,options.businessClock); }
   seed(actor: Actor) {
     const db = this.store, account = actor.accountId;
     if (db.get(account, 'seed')) {
@@ -93,7 +94,7 @@ export class ProviderEngine {
       const wallet = this.ledger!.summary(a);
       if (method === 'GET' && path === '/wallet') return ok({ ...wallet, balance: major(wallet.balanceMinor) });
       if (method === 'GET' && path === '/transactions') { const transactions = db.list(a, 'transaction'); return ok({ transactions, count: transactions.length }); }
-      if (method === 'GET' && path.startsWith('/charges/')) { const charge = db.get(a, 'charge', path.split('/')[2]); if (!charge) fail(404, 'NOT_FOUND', 'Payment not found.'); return ok({ charge }); }
+      if (method === 'GET' && path.startsWith('/charges/')) { const charge = db.get(a, 'charge', path.split('/')[2]); if (!charge) fail(404, 'NOT_FOUND', 'Payment not found.'); return ok({ charge:{...charge,...(this.claims!.get(a,charge.id)?{settlement:this.claims!.get(a,charge.id)}:{})} }); }
       if (method === 'POST' && (path === '/charges' || path === '/topups')) {
         const id = randomUUID(), topup = path === '/topups';
         const declined = body.source === 'demo_declined' || (!topup && body.source === 'wallet' && wallet.availableMinor < body.amountMinor);
@@ -111,6 +112,7 @@ export class ProviderEngine {
         const charge = db.get(a, 'charge', path.split('/')[2]);
         if (!charge) fail(404, 'NOT_FOUND', 'Payment not found.');
         if (charge.status !== 'CAPTURED' || charge.refunded) fail(409, 'NOT_REFUNDABLE', 'This payment cannot be refunded.');
+        this.claims!.assertRefundable(a,charge.id);
         const next = wallet.balanceMinor + (charge.source === 'wallet' ? charge.amountMinor : 0);
         if (next > 100_000_000) fail(409, 'BALANCE_LIMIT', 'Demo wallet balance limit exceeded.');
         charge.refunded = true; charge.refundedAt = now();

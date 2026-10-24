@@ -1,6 +1,6 @@
 # Provider backend demonstration
 
-This is a local integration environment, not an integration with the named real entities. Producer: the provider-simulator package. Consumers: the application microservices. Contract version: 2.0.0 for RTA/DLD and 2.2.0 for DEWA/telecom/Police payables; 2.3.0 for payment setup/lifecycle/authorization APIs; OpenAPI 3.1. This demo security migration changes authentication while retaining `/v1` resource schemas. Sign in again for the provider audience; service-header impersonation clients must migrate. Future breaking resource changes require explicit versioning and migration.
+This is a local integration environment, not an integration with the named real entities. Producer: the provider-simulator package. Consumers: the application microservices. Contract version: 2.0.0 for DLD, 2.1.0 for RTA settlement status, 2.3.0 for DEWA/telecom/Police payables/status, and 2.4.0 for payment setup/authorization/settlement claims; OpenAPI 3.1. This demo security migration changes authentication while retaining `/v1` resource schemas. Sign in again for the provider audience; service-header impersonation clients must migrate. Future breaking resource changes require explicit versioning and migration.
 
 ## Service and account boundaries
 
@@ -48,7 +48,7 @@ A default wallet starts with 1500 AED in **simulated funds**. Personal and house
 
 ## Payment flow
 
-The gateway accepts integer `amountMinor` in AED fils, and a simulated funding source: `wallet`, `demo_approved`, or `demo_declined`. Top-ups accept the latter two sources. Captures, declines, refunds and idempotency responses are persisted atomically. A declined wallet payment does not debit funds. A captured payment can be refunded once; wallet-funded captures return funds to the wallet. A card-simulated capture/refund does not change the wallet.
+The gateway accepts integer `amountMinor` in AED fils, and a simulated funding source: `wallet`, `demo_approved`, or `demo_declined`. Top-ups accept the latter two sources. Captures, declines, refunds and idempotency responses are persisted atomically. A declined wallet payment does not debit funds. An eligible unclaimed or verified-unapplied captured payment can be refunded once; wallet-funded captures return funds to the wallet. A card-simulated capture/refund does not change the wallet.
 
 For bills, fines, parking and Salik, the application service obtains the authoritative amount, captures payment, then submits its ID to the entity. The entity retrieves that payment with its read-only settlement client and checks account, captured status, merchant, resource reference, amount and refund status. A payment proof cannot be applied twice. The provider does not trust a browser-supplied amount as a quote.
 
@@ -102,4 +102,6 @@ The gateway now persists saved synthetic cards/defaults and provider-verified bi
 
 Telecom inventories now include owned prepaid lines and Police includes registered vehicles independently of unpaid fines. Existing accounts gain these resources once; reads never reset modified prepaid balances or reopen paid obligations. Payment card/biller removals are guarded by persisted active related-use records. [Lifecycle evidence](../reports/2026-10-24-lifecycle-simulator.md).
 
-[Revisioned payables and history](../development/payables.md) are now available at DEWA/telecom/Police. They retain current-first legacy bill lists, add labelled prior cycles, reject changed/withdrawn obligations and reflect fine discount expiry in legacy totals too. Capture admission, settlement claims and recurring execution remain separate backlog gates.
+[Revisioned payables and history](../development/payables.md) are now available at DEWA/telecom/Police. They retain current-first legacy bill lists, add labelled prior cycles, reject changed/withdrawn obligations and reflect fine discount expiry in legacy totals too. Stored-order capture admission/claim integration and recurring execution remain separate backlog gates.
+
+Existing provider HTTP effects now acquire narrow authenticated gateway claims and persist local attempt fences, business application and receipts. Refunds reject pending/applied/unknown claims. Source current-status reads retry lost acknowledgements; old captures require conservative reconciliation. [Exact settlement and migration contract](../development/settlement-claims.md).
