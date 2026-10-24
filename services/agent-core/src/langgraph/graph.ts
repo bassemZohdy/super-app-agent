@@ -10,12 +10,55 @@ import { invokeLocalConversation, isLocalModelEnabled, LocalConversationError } 
 
 import { callDomainAsync } from '../domain-operations.ts';
 import type { UserProfile, UserPreferences } from '../../../service-profile/src/index.ts';
-const executeRideRequest = (method: string, path: string, query: Record<string, string> = {}, body: any = {}) => callDomainAsync('ride', method, path, query, body);
-const executeFoodRequest = (method: string, path: string, query: Record<string, string> = {}, body: any = {}) => callDomainAsync('food', method, path, query, body);
-const executeWalletRequest = (method: string, path: string, query: Record<string, string> = {}, body: any = {}) => callDomainAsync('wallet', method, path, query, body);
-const executeCatalogRequest = (method: string, path: string, query: Record<string, string> = {}, body: any = {}) => callDomainAsync('catalog', method, path, query, body);
-const executeTelecomRequest = (method: string, path: string, body: any = {}) => callDomainAsync('telecom', method, path, {}, body);
-const executeProfileRequest = (method: string, path: string, query: Record<string, string> = {}, body: any = {}) => callDomainAsync('profile', method, path, query, body);
+const executeRideRequest = (method: string, path: string, query: Record<string, string> = {}, body: unknown = {}) => callDomainAsync('ride', method, path, query, body);
+const executeFoodRequest = (method: string, path: string, query: Record<string, string> = {}, body: unknown = {}) => callDomainAsync('food', method, path, query, body);
+const executeWalletRequest = (method: string, path: string, query: Record<string, string> = {}, body: unknown = {}) => callDomainAsync('wallet', method, path, query, body);
+const executeCatalogRequest = (method: string, path: string, query: Record<string, string> = {}, body: unknown = {}) => callDomainAsync('catalog', method, path, query, body);
+const executeTelecomRequest = (method: string, path: string, body: unknown = {}) => callDomainAsync('telecom', method, path, {}, body);
+const executeProfileRequest = (method: string, path: string, query: Record<string, string> = {}, body: unknown = {}) => callDomainAsync('profile', method, path, query, body);
+
+// Shapes the surface builders read from domain service responses. Responses arrive as
+// untyped JSON, so optional fields mark the values the builders fall back on at runtime.
+interface TelecomSubscription { subscriptionId: string; name: string; monthlyAmount: number; status: string }
+interface TelecomBill { billId: string; status: string; totalAmount: number; payableRevision?: unknown }
+interface UtilityBill extends TelecomBill {
+  premiseId: string; payableId?: string; electricityCost?: number; waterCost?: number; sewerageFee?: number; housingFee?: number;
+  breakdown?: { electricity?: number; water?: number; sewerage?: number; housingFee?: number };
+}
+interface UtilityAccount {
+  carbonOffsetKg?: number;
+  telemetry?: { tariffSlab?: string; carbonSavedKg?: number; electricityKwh?: number; waterGallons?: number };
+  electricity?: { slabTariff?: string; currentKWh?: number };
+  water?: { currentGallons?: number };
+}
+interface Fine {
+  fineId: string; payableId?: string; payableRevision?: unknown; violation: string; location: string;
+  payableAmount: number; paymentRestricted?: boolean; blackPoints: number;
+}
+interface FinesData {
+  count: number; totalPayable: number; plateNumber: string; fines: Fine[];
+  earlyDiscountAED?: number; discountApplied?: number; discountLabel?: string;
+}
+interface SalikAccount { balance: number; tagNumber: string; status: string; version?: number }
+interface WalletBalance { balance: number }
+interface WalletTransaction {
+  type: string; purpose: string; amount: number; status: string; sourceLabel?: string; sourceLast4?: string;
+  settlementState?: string; walletDeltaMinor?: number;
+}
+interface RideOption { id: string; car: string; name: string; etaMinutes: number; rating: number; fare: number; lat: number; lng: number }
+interface FoodItem { id: string; name: string; description: string; price: number; dietary?: string[] }
+interface Restaurant { name: string; items: FoodItem[] }
+interface ParkingZone {
+  id: string; name: string; code: string; city?: string; lat: number; lng: number;
+  tariffPerHour?: number; hourlyRate?: number; availableSpots: number; totalCapacity?: number;
+}
+interface EvCharger { id: string; name: string; lat: number; lng: number; powerKW: number }
+interface EjariContract {
+  contractNumber: string; tenantName: string; startDate: string; endDate: string;
+  annualRentAED?: number; annualRent?: number;
+  property: { unitNumber: string; building: string; community: string; premiseId: string };
+}
+interface MiniAppEntry { id: string; name: string; category: string; version: string; description: string }
 
 export class SuperAppAgentGraph {
   public static async executeService(state: SuperAppAgentState, serviceId: string, onProgress?: (text: string) => void) {
@@ -152,9 +195,9 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
       state.currentSurface = { version: '1.0.0', sessionId: state.sessionId, timestamp: Date.now(),
         view: { type: 'SurfaceCard', id: 'telecom_overview', children: [
           { type: 'Heading', id: 'telecom_title', properties: { text: `${provider === 'du' ? 'du' : 'Etisalat'} account` } },
-          ...subscriptions.map((subscription: any): UIComponentNode => ({ type: 'MetricWidget', id: subscription.subscriptionId,
+          ...subscriptions.map((subscription: TelecomSubscription): UIComponentNode => ({ type: 'MetricWidget', id: subscription.subscriptionId,
             properties: { label: subscription.name, value: `${subscription.monthlyAmount} AED / month`, subtext: subscription.status } })),
-          ...bills.flatMap((bill: any): UIComponentNode[] => [
+          ...bills.flatMap((bill: TelecomBill): UIComponentNode[] => [
             { type: 'MetricWidget', id: bill.billId, properties: { label: 'Current bill', value: `${bill.totalAmount} AED`, subtext: bill.status } },
             ...(bill.status === 'UNPAID' ? [{ type: 'Button' as const, id: `pay_${bill.billId}`, properties: { label: `${process.env.PROVIDER_INTEGRATION==='true'?'Review funding for':'Pay'} ${bill.totalAmount} AED`, variant: 'primary' as const },
               onEvents: [{ event: 'onPress' as const, actionType: 'AGENT_ACTION_DISPATCH' as const, payload: { action: 'pay_telecom_bill', provider, billId: bill.billId,...(bill.payableRevision?{expectedPayableRevision:bill.payableRevision,expectedAmountMinor:Math.round(bill.totalAmount*100)}:{}) } }] }] : []),
@@ -321,7 +364,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
   public static async resumeWithAction(
     state: SuperAppAgentState,
     action: string,
-    payload: Record<string, any>,
+    payload: Record<string, unknown>,
     onProgress?: (delta: string) => void
   ): Promise<SuperAppAgentState> {
     onProgress?.(`⚡ Processing Smart City action: ${action}...`);
@@ -330,7 +373,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
     if(actor&&await handlePaymentSurfaceAction(state,actor,action,payload))return state;
 
     if (action === 'pay_telecom_bill') {
-      const result = await executeTelecomRequest('POST', `/telecom/${payload.provider}/bills/${encodeURIComponent(payload.billId)}/payments`, { ...(payload.expectedPayableRevision?{expectedPayableRevision:payload.expectedPayableRevision,expectedAmountMinor:payload.expectedAmountMinor}:{}) });
+      const result = await executeTelecomRequest('POST', `/telecom/${payload.provider}/bills/${encodeURIComponent(String(payload.billId))}/payments`, { ...(payload.expectedPayableRevision?{expectedPayableRevision:payload.expectedPayableRevision,expectedAmountMinor:payload.expectedAmountMinor}:{}) });
       state.currentSurface = { version: '1.0.0', sessionId: state.sessionId, timestamp: Date.now(), view: { type: 'SurfaceCard', id: 'telecom_receipt', children: [
         { type: 'Heading', id: 'receipt_title', properties: { text: 'Telecom bill paid' } },
         { type: 'Text', id: 'receipt_details', properties: { text: `${result.data.receipt.amountPaid} AED paid. Receipt: ${result.data.receipt.receiptNumber}` } },
@@ -528,7 +571,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
       ] });
       if (process.env.PROVIDER_INTEGRATION !== 'true') {
       await executeFoodRequest('POST', '/utilities/pay', {}, { billId: (await executeFoodRequest('GET', '/utilities/bill')).data.bill.billId });
-      const remainingFineIds = (await executeWalletRequest('GET', '/fines/check')).data.fines.map((fine: any) => fine.fineId);
+      const remainingFineIds = (await executeWalletRequest('GET', '/fines/check')).data.fines.map((fine: Fine) => fine.fineId);
       if (remainingFineIds.length) await executeWalletRequest('POST', '/fines/pay', {}, { fineIds: remainingFineIds });
       await executeRideRequest('POST', '/mobility/salik/recharge', {}, { amount: 100 });
       }
@@ -845,7 +888,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
 
   private static buildRideSelectionSurface(
     sessionId: string,
-    drivers: any[],
+    drivers: RideOption[],
     profile?: UserProfile,
     preferences?: UserPreferences
   ): AGUISurfacePayload {
@@ -928,14 +971,14 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
 
   private static buildFoodSelectionSurface(
     sessionId: string,
-    restaurants: any[],
+    restaurants: Restaurant[],
     profile?: UserProfile,
     preferences?: UserPreferences
   ): AGUISurfacePayload {
     const userDietary = preferences?.dietary || [];
 
     const allDishes = restaurants.flatMap((r) =>
-      r.items.map((item: any) => {
+      r.items.map((item: FoodItem) => {
         const itemDietary: string[] = item.dietary || [];
         const matchesPref = userDietary.some((d) => itemDietary.includes(d));
         let badge = itemDietary[0] || 'Popular';
@@ -1007,7 +1050,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
   private static buildWalletOverviewSurface(
     sessionId: string,
     balance: number,
-    txs: any[],
+    txs: WalletTransaction[],
     profile?: UserProfile
   ): AGUISurfacePayload {
     return {
@@ -1177,16 +1220,16 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
 
   private static buildParkingSelectionSurface(
     sessionId: string,
-    zones: any[],
-    salik: any,
-    evChargers: any[],
+    zones: ParkingZone[],
+    salik: SalikAccount,
+    evChargers: EvCharger[],
     profile?: UserProfile
   ): AGUISurfacePayload {
     const defaultZone = zones[0]?.id || 'zone_302a';
     const plate = profile?.smartCityAssets?.vehicles[0]?.plate || 'Dubai B-74892';
     const carModel = profile?.smartCityAssets?.vehicles[0]?.model || 'Tesla Model Y (EV)';
 
-    const options = zones.map((z: any) => {
+    const options = zones.map((z) => {
       const rate = z.tariffPerHour || z.hourlyRate || 4.0;
       return {
         id: z.id,
@@ -1223,13 +1266,13 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
               center: { lat: 25.1972, lng: 55.2744 },
               zoom: 14,
               markers: [
-                ...zones.map((z: any) => ({
+                ...zones.map((z) => ({
                   id: z.id,
                   lat: z.lat,
                   lng: z.lng,
                   title: `${z.name} (${z.code})`,
                 })),
-                ...evChargers.map((c: any) => ({
+                ...evChargers.map((c) => ({
                   id: c.id,
                   lat: c.lat,
                   lng: c.lng,
@@ -1275,8 +1318,8 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
 
   private static buildUtilitiesSurface(
     sessionId: string,
-    bill: any,
-    account: any,
+    bill: UtilityBill,
+    account: UtilityAccount | undefined,
     _profile?: UserProfile
   ): AGUISurfacePayload {
     const slab = account?.telemetry?.tariffSlab || account?.electricity?.slabTariff || 'Green Slab (<=2000 kWh/mo)';
@@ -1374,7 +1417,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
 
   private static buildPoliceFinesSurface(
     sessionId: string,
-    finesData: any,
+    finesData: FinesData,
     _walletBalance: number,
     _profile?: UserProfile
   ): AGUISurfacePayload {
@@ -1408,7 +1451,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
             properties: {
               label: 'Total Payable to Dubai Police',
               value: `${finesData.totalPayable.toFixed(2)} AED`,
-              subtext: `${finesData.count} pending violations · ${finesData.fines.some((f:any)=>f.paymentRestricted||f.blackPoints>0)?'Some fines require additional review':'No additional restrictions'}`,
+              subtext: `${finesData.count} pending violations · ${finesData.fines.some((f: Fine)=>f.paymentRestricted||f.blackPoints>0)?'Some fines require additional review':'No additional restrictions'}`,
               trend: 'neutral',
             },
           },
@@ -1421,7 +1464,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
                 { key: 'location', title: 'Location' },
                 { key: 'amount', title: 'Payable' },
               ],
-              rows: finesData.fines.map((f: any) => ({
+              rows: finesData.fines.map((f: Fine) => ({
                 violation: f.violation,
                 location: `${f.location}${f.paymentRestricted||f.blackPoints>0?' · Additional review required':''}`,
                 amount: `${f.payableAmount.toFixed(2)} AED`,
@@ -1433,7 +1476,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
             id: 'btn_settle_fines',
             properties: {
               label: `${process.env.PROVIDER_INTEGRATION==='true'?'Review selected fine funding':'🛡️ Settle Fines via DubaiPay'} (${finesData.totalPayable.toFixed(2)} AED)`,
-              disabled:!finesData.fines.length||finesData.fines.some((f:any)=>f.paymentRestricted||f.blackPoints>0),
+              disabled:!finesData.fines.length||finesData.fines.some((f: Fine)=>f.paymentRestricted||f.blackPoints>0),
               variant: 'primary',
               fullWidth: true,
             },
@@ -1441,7 +1484,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
               {
                 event: 'onPress',
                 actionType: 'AGENT_ACTION_DISPATCH',
-                payload: { action:'pay_police_fines',fineIds:finesData.fines.map((f:any)=>f.fineId),...(finesData.fines.every((f:any)=>f.payableRevision)?{expectedPayables:finesData.fines.map((f:any)=>({payableId:f.payableId,expectedRevision:f.payableRevision})),expectedAmountMinor:Math.round(finesData.totalPayable*100)}:{}) },
+                payload: { action:'pay_police_fines',fineIds:finesData.fines.map((f: Fine)=>f.fineId),...(finesData.fines.every((f: Fine)=>f.payableRevision)?{expectedPayables:finesData.fines.map((f: Fine)=>({payableId:f.payableId,expectedRevision:f.payableRevision})),expectedAmountMinor:Math.round(finesData.totalPayable*100)}:{}) },
               },
             ],
           },
@@ -1452,10 +1495,10 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
 
   private static buildSmartCityCompositeSurface(
     sessionId: string,
-    bill: any,
-    finesData: any,
-    salikData: any,
-    walletData: any,
+    bill: UtilityBill,
+    finesData: FinesData,
+    salikData: SalikAccount,
+    walletData: WalletBalance,
     profile?: UserProfile
   ): AGUISurfacePayload {
     const salikTopup = 100.0;
@@ -1539,7 +1582,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
               {
                 event: 'onPress',
                 actionType: 'AGENT_ACTION_DISPATCH',
-                payload: { action: 'confirm_smartcity_checkout',...(process.env.PROVIDER_INTEGRATION==='true'?{expectedPayables:[...(bill.status==='UNPAID'?[{provider:'dewa',payableId:bill.payableId,expectedRevision:bill.payableRevision}]:[]),...finesData.fines.map((f:any)=>({provider:'police',payableId:f.payableId,expectedRevision:f.payableRevision}))],expectedAmountMinor:Math.round(grandTotal*100),targetReference:salikData.tagNumber,expectedTargetVersion:salikData.version||1}:{}) },
+                payload: { action: 'confirm_smartcity_checkout',...(process.env.PROVIDER_INTEGRATION==='true'?{expectedPayables:[...(bill.status==='UNPAID'?[{provider:'dewa',payableId:bill.payableId,expectedRevision:bill.payableRevision}]:[]),...finesData.fines.map((f: Fine)=>({provider:'police',payableId:f.payableId,expectedRevision:f.payableRevision}))],expectedAmountMinor:Math.round(grandTotal*100),targetReference:salikData.tagNumber,expectedTargetVersion:salikData.version||1}:{}) },
               },
             ],
           },
@@ -1550,8 +1593,8 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
 
   private static buildMoveInSurface(
     sessionId: string,
-    contract: any,
-    _account: any,
+    contract: EjariContract,
+    _account: unknown,
     _profile?: UserProfile
   ): AGUISurfacePayload {
     const rent = contract.annualRentAED ?? contract.annualRent ?? 96000;
@@ -1637,14 +1680,14 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
 
   private static buildCompositeSurface(
     sessionId: string,
-    rideData: any,
-    foodData: any,
-    walletData: any,
+    rideData: { options: RideOption[] },
+    foodData: { restaurants: Restaurant[] },
+    walletData: WalletBalance,
     profile?: UserProfile,
     preferences?: UserPreferences
   ): AGUISurfacePayload {
     const preferredTierId = preferences?.mobility?.preferredTier;
-    const selectedRide = rideData.options.find((o: any) => o.id === preferredTierId) || rideData.options[0];
+    const selectedRide = rideData.options.find((o) => o.id === preferredTierId) || rideData.options[0];
     const selectedFood = foodData.restaurants[0].items[0];
     const totalEst = selectedRide.fare + selectedFood.price;
 
@@ -1722,7 +1765,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
 
   private static buildConciergeCatalogSurface(
     sessionId: string,
-    miniApps: any[],
+    miniApps: MiniAppEntry[],
     profile?: UserProfile
   ): AGUISurfacePayload {
     return {
@@ -1751,7 +1794,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
               text: 'Demo city concierge using simulated services. Ask a question or open a bundled service workspace:',
             },
           },
-          ...miniApps.map((app: any): UIComponentNode => ({
+          ...miniApps.map((app: MiniAppEntry): UIComponentNode => ({
             type: 'MetricWidget' as const,
             id: `app_${app.id}`,
             properties: {
