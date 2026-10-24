@@ -113,12 +113,16 @@ try {
   const settlementPayable=payableList.data.payables.find((p:any)=>p.status==='UNPAID');
   const detail=await providerApi(102,`/payables/${encodeURIComponent(settlementPayable.id)}`);assert.equal(detail.status,200);
   const startingWallet=await providerApi(107,'/wallet');assert.equal(startingWallet.data.balanceMinor,150000);
-  const captureKey=crypto.randomUUID(),captureBody={amountMinor:settlementPayable.amountMinor,merchant:'dewa',reference:detail.data.settlementReference,source:'wallet'};
-  const capture=await providerApi(107,'/charges',captureBody,captureKey);assert.equal(capture.status,200);
-  assert.equal((await providerApi(107,'/charges',captureBody,captureKey)).data.charge.id,capture.data.charge.id);
-  const settlementPath=`/payables/${encodeURIComponent(settlementPayable.id)}/payments`,settlementBody={expectedRevision:settlementPayable.revision,paymentId:capture.data.charge.id},settlementKey=crypto.randomUUID();
-  const settled=await providerApi(102,settlementPath,settlementBody,settlementKey);assert.equal(settled.status,200);assert.equal(settled.data.payable.status,'PAID');assert.equal(settled.data.receipt.amountMinor,settlementPayable.amountMinor);
-  assert.deepEqual((await providerApi(102,settlementPath,settlementBody,settlementKey)).data,settled.data);
+  async function payStoredBill(provider:string,payable:any){
+    await providerApi(107,'/billing-accounts',{provider,reference:payable.reference,nickname:`${provider} bill account`});
+    const created=await providerApi(107,'/payment-orders',{provider,payableId:payable.id,expectedPayableRevision:payable.revision,methodId:'wallet',expectedMethodVersion:1});assert.equal(created.status,200);
+    const approved=await providerApi(107,`/payment-orders/${created.data.order.id}/approve`,{expectedVersion:created.data.order.version,approvalDigest:created.data.order.approvalDigest});assert.equal(approved.status,200);
+    const body={expectedVersion:approved.data.order.version,approvalDigest:approved.data.order.approvalDigest},key=crypto.randomUUID(),route=`/payment-orders/${approved.data.order.id}/execute`;
+    const paid=await providerApi(107,route,body,key);assert.equal(paid.status,200);assert.equal(paid.data.order.state,'SETTLED');assert.deepEqual((await providerApi(107,route,body,key)).data,paid.data);
+    return paid.data.order;
+  }
+  const paidOrder=await payStoredBill('dewa',settlementPayable),capture=await providerApi(107,`/charges/${paidOrder.paymentId}`);assert.equal(capture.status,200);
+  const settlementPath=`/payables/${encodeURIComponent(settlementPayable.id)}/payments`,settlementBody={expectedRevision:settlementPayable.revision,paymentId:paidOrder.paymentId};
   assert.equal((await providerApi(102,settlementPath,settlementBody)).status,409);
   assert.equal((await providerApi(107,'/wallet')).data.balanceMinor,150000-settlementPayable.amountMinor);
   assert.equal((await providerApi(107,'/transactions')).data.transactions.length,1);
@@ -127,16 +131,15 @@ try {
   const fenced=await providerApi(102,`/settlement-attempts/${capture.data.charge.id}`);assert.equal(fenced.data.settlement.state,'APPLIED');assert.equal(fenced.data.settlement.gatewayConfirmed,true);
   const forbiddenRefund=await providerApi(107,`/charges/${capture.data.charge.id}/refunds`,{reason:'Cannot refund a paid bill'});assert.equal(forbiddenRefund.status,409);assert.equal(forbiddenRefund.data.code,'SETTLEMENT_IN_USE');
   assert.equal((await providerApi(107,`/charges/${capture.data.charge.id}/settlement/release`,{attemptId:claimed.attemptId,claimId:claimed.claimId,reason:'NOT_APPLIED'})).status,403);
-  const rejectedCapture=await providerApi(107,'/charges',{amountMinor:100,merchant:'dewa',reference:'bill:missing-owned-bill',source:'wallet'});assert.equal(rejectedCapture.status,200);
+  const rejectedCapture=await providerApi(107,'/charges',{amountMinor:100,merchant:'dewa',reference:'rejected-source-proof',source:'wallet'});assert.equal(rejectedCapture.status,200);
   const rejectedPath='/bills/missing-owned-bill/payments',rejectedBody={paymentId:rejectedCapture.data.charge.id};
   assert.equal((await providerApi(102,rejectedPath,rejectedBody)).status,404);
   assert.equal((await providerApi(107,`/charges/${rejectedCapture.data.charge.id}`)).data.charge.settlement.state,'RELEASED');
   assert.equal((await providerApi(107,`/charges/${rejectedCapture.data.charge.id}/refunds`,{reason:'Verified non-application'})).status,200);
   assert.equal((await providerApi(102,rejectedPath,rejectedBody)).status,404);
   assert.equal((await providerApi(107,'/wallet')).data.balanceMinor,150000-settlementPayable.amountMinor);
-  const duBill=(await providerApi(104,'/bills')).data.bills[0],duCapture=await providerApi(107,'/charges',{amountMinor:duBill.amountMinor,merchant:'du',reference:`bill:${duBill.billId}`,source:'wallet'});
-  assert.equal(duCapture.status,200);assert.equal((await providerApi(104,`/bills/${duBill.billId}/payments`,{paymentId:duCapture.data.charge.id})).status,200);
-  assert.equal((await providerApi(107,`/charges/${duCapture.data.charge.id}`)).data.charge.settlement.state,'APPLIED');
+  const duPayable=(await providerApi(104,'/payables')).data.payables.find((p:any)=>p.status==='UNPAID'),duOrder=await payStoredBill('du',duPayable);
+  assert.equal((await providerApi(107,`/charges/${duOrder.paymentId}`)).data.charge.settlement.state,'APPLIED');
   console.log('PASS: applied claims deny refunds/human release; rejected settlement fences non-application before refund; separate du workload applies only its own capture');
 
   assert.equal(environment.providerState('payments',accountId,'wallet').balanceMinor,150000);

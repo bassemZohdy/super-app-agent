@@ -30,11 +30,11 @@ const sessionId: Schema = { type: 'string', pattern: '^[a-zA-Z0-9_-]{8,128}$' };
 const actionSchemas: Record<string, Schema> = {
   activate_parking: object({ selectedChoice: id, zoneId: id, durationHours: hours, plateNumber: text(128) }),
   extend_parking: object({ ticketId: id, additionalHours: hours }, ['ticketId']),
-  pay_utilities_bill: object({ billId: id }), pay_police_fines: object({ fineIds: list(id) }),
+  pay_utilities_bill: object({ billId: id,expectedPayableRevision:{type:'string',pattern:'^[a-f0-9]{64}$'},expectedAmountMinor:{type:'integer',minimum:1,maximum:100000000} }), pay_police_fines: object({ fineIds: list(id) }),
   confirm_smartcity_checkout: object(), confirm_movein: object({ contractNumber: id, unit: text() }),
   book_ride: object({ selectedChoice: id, driverId: id }), order_food: object({ selectedChoice: id }),
   confirm_composite_checkout: object(), topup_wallet: object({ amount: moneySchema }, ['amount']),
-  pay_telecom_bill: object({ provider: { enum: ['etisalat', 'du'] }, billId: id }, ['provider','billId']),
+  pay_telecom_bill: object({ provider: { enum: ['etisalat', 'du'] }, billId: id,expectedPayableRevision:{type:'string',pattern:'^[a-f0-9]{64}$'},expectedAmountMinor:{type:'integer',minimum:1,maximum:100000000} }, ['provider','billId']),
   update_preferences: object({ ...preferencesSchema.properties }),
 };
 for (const [action, schema] of Object.entries(actionSchemas)) {
@@ -69,6 +69,8 @@ route('agent-core','POST','/api/payments/orders',withPaymentAccount(paymentSchem
 route('agent-core','POST','/api/payments/orders/approve',withPaymentAccount(withOrderId(paymentSchemas.approveOrder)));
 route('agent-core','POST','/api/payments/orders/challenge',withPaymentAccount(withOrderId(paymentSchemas.challengeOrder)));
 route('agent-core','POST','/api/payments/orders/cancel',withPaymentAccount(withOrderId(paymentSchemas.cancelOrder)));
+route('agent-core','POST','/api/payments/orders/execute',withPaymentAccount(withOrderId(paymentSchemas.executeOrder)));
+route('agent-core','POST','/api/payments/orders/recover',withPaymentAccount(withOrderId(paymentSchemas.recoverOrder)));
 route('agent-core', 'POST', '/api/a2ui/tts', coreTts);
 route('agent-core', 'GET', '/api/voice/config', object());
 route('agent-core', 'POST', '/api/voice/transcribe', object({ audioBase64: { type: 'string', minLength: 16, maxLength: 60000 }, format: { enum: ['audio/webm','audio/ogg','audio/mp4','audio/wav'] }, language: { enum: ['en-US','ar-AE'] } }, ['audioBase64','format']));
@@ -92,7 +94,7 @@ route('service-food', 'POST', '/orders/create', object({ restaurantId: id, items
 route('service-food', 'GET', '/orders/track/{orderId}', object({ orderId: id }, ['orderId']), [], 'food_trackOrder');
 route('service-food', 'GET', '/utilities/consumption', object(), ['/consumption'], 'utilities_getConsumption');
 route('service-food', 'GET', '/utilities/bill', object(), ['/bill'], 'utilities_getBill');
-route('service-food', 'POST', '/utilities/pay', object({ billId: id }, ['billId']), ['/bill/pay'], 'utilities_payBill');
+route('service-food', 'POST', '/utilities/pay', object({ billId: id,expectedPayableRevision:{type:'string',pattern:'^[a-f0-9]{64}$'},expectedAmountMinor:{type:'integer',minimum:1,maximum:100000000} }, ['billId']), ['/bill/pay'], 'utilities_payBill');
 route('service-food', 'GET', '/utilities/eco-advice', object(), ['/eco-advice'], 'utilities_getEcoAdvice');
 route('service-wallet', 'GET', '/wallet/balance', object(), [], 'wallet_getBalance');
 route('service-wallet', 'GET', '/wallet/transactions', object(), [], 'wallet_getTransactions');

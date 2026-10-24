@@ -19,12 +19,21 @@ const payableOperations = [
   op('POST','/payables/{payableId}/payments','settleVersionedPayable',{payable:payableSchema,receipt:object({receiptNumber:text,obligationId:text,amountMinor:money,currency:{const:'AED'}})},'Settle the current revision with an owned revision-bound captured payment. Durable order/claim orchestration remains a separate gate.',object({expectedRevision:revision,paymentId:text})),
 ];
 const authorizationSchema=object({id:text,orderId:text,sourceId:text,amountMinor:money,currency:{const:'AED'},state:{enum:['REQUIRES_ACTION','AUTHORIZED','DECLINED','EXPIRED','VOIDED','CAPTURED']},expiresAt:text,challengeId:text,failureCode:text},['id','orderId','sourceId','amountMinor','currency','state','expiresAt']);
-const reviewSchema=object({id:text,accountId:text,ownerSub:text,version:{type:'integer',minimum:1},state:{enum:['AWAITING_APPROVAL','REQUIRES_ACTION','AUTHORIZED','FAILED','CANCELLED']},approvalDigest:revision,expiresAt:text,createdAt:text,approvedAt:text,failureCode:text,fundsCaptured:{const:false},authorization:authorizationSchema,
+const reviewSchema=object({id:text,accountId:text,ownerSub:text,version:{type:'integer',minimum:1},state:{enum:['AWAITING_APPROVAL','REQUIRES_ACTION','AUTHORIZED','CAPTURING','CAPTURED','RECONCILIATION_REQUIRED','SETTLED','FAILED','CANCELLED']},approvalDigest:revision,expiresAt:text,createdAt:text,approvedAt:text,failureCode:text,fundsCaptured:{type:'boolean'},admissionId:text,paymentId:text,receipt:object({receiptNumber:text,obligationId:text,amountMinor:money,currency:{const:'AED'}}),authorization:authorizationSchema,
   quote:object({payable:payableSchema,source:paymentMethodSchema,billingAccount:billingAccountSchema,amountMinor:money,feeMinor:{type:'integer',minimum:0,maximum:100000000},totalMinor:money,currency:{const:'AED'},createdAt:text,expiresAt:text})},['id','accountId','ownerSub','version','state','approvalDigest','expiresAt','createdAt','fundsCaptured','quote']);
 const cardBalances={type:'array',maxItems:100,items:object({sourceId:text,limitMinor:money,heldMinor:{type:'integer',minimum:0},spentMinor:{type:'integer',minimum:0},availableMinor:{type:'integer',minimum:0},currency:{const:'AED'}})};
 const claimSchema=object({claimId:text,paymentId:text,provider:{enum:['rta','dewa','etisalat','du','police']},attemptId:text,reference:text,amountMinor:money,currency:{const:'AED'},orderId:text,captureAttemptId:text,state:{enum:['LEGACY_UNKNOWN','CLAIMED','APPLIED','RELEASED']},createdAt:text,receiptDigest:revision},['claimId','paymentId','provider','attemptId','reference','amountMinor','currency','orderId','captureAttemptId','state','createdAt']);
 const settlementStatus=op('GET','/settlement-attempts/{paymentId}','inspectSettlementAttempt',{settlement:object({attemptId:text,paymentId:text,state:{enum:['PENDING','APPLIED','RELEASED']},gatewayConfirmed:{type:'boolean'},failureCode:text},['attemptId','paymentId','state','gatewayConfirmed'])},'Inspect an owned persisted settlement fence and safely retry its gateway acknowledgement/release. Historical used-payment records can reconcile as applied.');
+const admissionSchema=object({id:text,orderId:text,payable:payableSchema,approvalDigest:revision,sourceId:text,sourceVersion:{type:'integer',minimum:1},preparedAt:text,expiresAt:text,state:{enum:['PREPARED','ADMITTED','APPLIED','CANCELLED']},receipt:object({receiptNumber:text,obligationId:text,amountMinor:money,currency:{const:'AED'}})},['id','orderId','payable','approvalDigest','sourceId','sourceVersion','preparedAt','expiresAt','state']);
+const admissionOperations=[
+  op('POST','/payables/{payableId}/admissions','preparePayableAdmission',{admission:admissionSchema},'Freeze current source terms for one owned stored order.',object({orderId:text,expectedRevision:revision,approvalDigest:revision,sourceId:text,sourceVersion:{type:'integer',minimum:1,maximum:1000000},expiresAt:text})),
+  op('GET','/payables/{payableId}/admissions/{admissionId}','getPayableAdmission',{admission:admissionSchema},'Inspect the current provider reservation and receipt.'),
+  op('POST','/payables/{payableId}/admissions/{admissionId}/admit','admitPayableCapture',{admission:admissionSchema},'Verify the current gateway CAPTURING order before admitting its exact capture.',object({})),
+  op('POST','/payables/{payableId}/admissions/{admissionId}/cancel','cancelPayableAdmission',{admission:admissionSchema},'Release only after the gateway permanently fences capture as cancelled/failed.',object({})),
+  op('POST','/payables/{payableId}/admissions/{admissionId}/payments','settleAdmittedPayable',{payable:payableSchema,receipt:object({receiptNumber:text,obligationId:text,amountMinor:money,currency:{const:'AED'}})},'Apply the exact admitted captured order through gateway settlement claims.',paymentProof),
+];
 const telecom = [
+  ...admissionOperations,
   settlementStatus,
   ...payableOperations,
   op('GET', '/prepaid', 'listPrepaidLines', { lines: list }, 'List owned synthetic prepaid mobile lines and current balances.'),
@@ -52,6 +61,7 @@ export const operations: Record<ProviderId, Operation[]> = {
     op('GET', '/rides/bookings/{bookingId}', 'getRide', { booking: opaque }, 'Read a booking owned by this account.'),
   ],
   dewa: [
+    ...admissionOperations,
     settlementStatus,
     ...payableOperations,
     op('GET', '/consumption', 'getConsumption', { account: opaque, ecoStatus: text }, 'Read an account-owned smart meter and consumption snapshot.'),
@@ -61,6 +71,7 @@ export const operations: Record<ProviderId, Operation[]> = {
   ],
   etisalat: telecom, du: telecom,
   police: [
+    ...admissionOperations,
     settlementStatus,
     ...payableOperations,
     op('GET', '/vehicles', 'listRegisteredVehicles', { vehicles: list }, 'List owned registered vehicles independently of unpaid fines.'),
@@ -72,6 +83,8 @@ export const operations: Record<ProviderId, Operation[]> = {
     op('POST', '/move-ins', 'registerMoveIn', { ejariContract: text, unit: text, residentialParking: opaque }, 'Register a move-in proposal. Utility and parking activation are separate operations.', object({ contractNumber: text })),
   ],
   payments: [
+    op('POST','/payment-orders/{orderId}/execute','executeBillOrder',{order:reviewSchema},'Explicitly capture the exact approved hold and settle the provider-admitted bill; unknown outcomes stay on the same order.',paymentSchemas.executeOrder),
+    op('POST','/payment-orders/{orderId}/recover','recoverBillOrder',{order:reviewSchema},'Reconcile or resume the original admitted payment without another charge.',paymentSchemas.recoverOrder),
     op('POST','/charges/{chargeId}/settlement/claim','claimSettlement',{claim:claimSchema,charge:opaque},'Exact provider workload only. Admit one attempt against a current capture; current claim state is returned even on exact retries.',object({attemptId:text,reference:text,amountMinor:money})),
     op('POST','/charges/{chargeId}/settlement/ack','acknowledgeSettlement',{claim:claimSchema},'Exact provider workload only. Confirm a committed provider effect with its immutable receipt digest.',object({attemptId:text,claimId:text,receiptDigest:revision})),
     op('POST','/charges/{chargeId}/settlement/release','releaseSettlement',{claim:claimSchema},'Exact provider workload only. Release only after the provider has durably fenced the attempt as not applied. Applied/unknown claims cannot be blindly released.',object({attemptId:text,claimId:text,reason:{const:'NOT_APPLIED'}})),
@@ -113,7 +126,7 @@ export function openApi(provider: ProviderId) {
         ...Object.fromEntries(['400','401','403','404','409','402','503'].map(status => [status, { $ref: '#/components/responses/Error' }])) },
     };
   }
-  return { openapi: '3.1.0', info: { title: `${providerNames[provider]} Simulator`, version: provider === 'payments' ? '2.4.0' : provider==='rta'?'2.1.0':['dewa','etisalat','du','police'].includes(provider) ? '2.3.0' : '2.0.0', description: 'Local synthetic API. Signed interactive user identity or broker-issued user token with current exact-operation grant required. JWT subject owns the account; caller user headers do not grant authority. A separate read-only settlement machine lane retrieves captured charge proofs. Legacy fixture mode is outside this reference security profile.' },
+  return { openapi: '3.1.0', info: { title: `${providerNames[provider]} Simulator`, version: provider === 'payments' ? '2.5.0' : provider==='rta'?'2.1.0':['dewa','etisalat','du','police'].includes(provider) ? '2.4.0' : '2.0.0', description: 'Local synthetic API. Signed interactive user identity or broker-issued user token with current exact-operation grant required. JWT subject owns the account; caller user headers do not grant authority. A separate read-only settlement machine lane retrieves captured charge proofs. Legacy fixture mode is outside this reference security profile.' },
     servers: [{ url: `http://localhost:${4101 + providerIds.indexOf(provider)}` }], security: [{ accessToken: [] }],
     paths, components: { securitySchemes: { accessToken: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' } },
       responses: { Unauthorized: { description: 'Missing or invalid Keycloak access token' }, Error: { description: 'Validation, ownership, delegation, payment, conflict or availability error', content: { 'application/json': { schema: object({ success: { const: false }, error: { type: 'string' }, code: { type: 'string' } }) } } } } },

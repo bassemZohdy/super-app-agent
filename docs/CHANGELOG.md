@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 24 October 2026 — actual wallet/card bill checkout
+
+Enable explicit approved bill execution, source payable admission, finite hold capture, source-confirmed receipts and same-order recovery. Migrate existing bill application/conversation paths to the shared wallet flow and bind offered bill ID/revision/amount. Preserve prior reviews through the capture-state migration and reject raw billing capture bypasses. Verify challenged card payment with unchanged wallet funds, wallet execution and lost-response recovery. PAY-09–PAY-12 are delivered; broader payables, refunds and automation remain open. [Guide](development/payment-checkout.md) · [Evidence](reports/2026-10-24-payment-checkout.md).
+
 ## 24 October 2026 — settlement/refund exclusion and historical migration
 
 Guard current provider HTTP settlements with separate merchant-scoped Keycloak workloads, gateway claims/refund checks, durable source fences and receipt acknowledgements. Cover stale proofs, lost responses/ACKs, late effects after release, scoped credentials and old captured payments. Preserve financial/idempotency rows and create a consistent claims backup; old uncertain captures stay blocked until reconciled. New stored-order capture/admission remains open. [Guide](development/settlement-claims.md) · [Evidence](reports/2026-10-24-settlement-claims.md).

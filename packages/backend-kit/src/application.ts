@@ -38,9 +38,21 @@ export async function integratedRequest(service: string, actor: Actor, method: s
     if (!bill) throw new UpstreamError(404, 'NOT_FOUND', 'Bill not found.');
     if (bill.status === 'PAID') return { success: true, bill, chargedAmount: 0, receipt: { billId: bill.billId, ...(bill.premiseId ? { premiseId: bill.premiseId } : {}), receiptNumber: bill.receiptNumber, amountPaid: bill.totalAmount.toFixed(2), currency: 'AED' } };
     if (bill.status !== 'UNPAID' || bill.expiresAt && Date.parse(bill.expiresAt) <= Date.now()) throw new UpstreamError(409, 'PAYABLE_UNAVAILABLE', 'This bill is no longer payable.');
-    const payment = await charge(provider, `bill:${bill.billId}`, bill.totalAmount);
-    const settled = await call(provider, 'POST', `/bills/${encodeURIComponent(bill.billId)}/payments`, { paymentId: payment.charge.id }, stableKey(`bill:${provider}:${bill.billId}`));
-    return { ...settled, receipt: { ...settled.receipt, ...(bill.premiseId ? { premiseId: bill.premiseId } : {}) }, chargedAmount: bill.totalAmount, remainingBalance: payment.remainingBalance };
+    const payable=(await call(provider,'GET','/payables')).payables.find((p:any)=>p.obligationId===bill.billId);
+    if(!payable||payable.status!=='UNPAID'||payable.amountMinor!==Math.round(bill.totalAmount*100)||body.expectedPayableRevision&&body.expectedPayableRevision!==payable.revision||body.expectedAmountMinor!==undefined&&body.expectedAmountMinor!==payable.amountMinor)throw new UpstreamError(409,'PAYABLE_CHANGED','The reviewed bill changed. Review its current terms again.');
+    const links=(await call('payments','GET','/billing-accounts')).billingAccounts;
+    if(!links.some((b:any)=>b.status==='ACTIVE'&&b.provider===provider&&b.reference===payable.reference)) {
+      try{await call('payments','POST','/billing-accounts',{provider,reference:payable.reference,nickname:`${provider.toUpperCase()} account`},stableKey(`bill-link:${provider}:${payable.reference}`));}
+      catch(e){if(!(e instanceof UpstreamError)||e.code!=='BILLER_ALREADY_LINKED')throw e;}
+    }
+    const created=await call('payments','POST','/payment-orders',{provider,payableId:payable.id,expectedPayableRevision:payable.revision,methodId:'wallet',expectedMethodVersion:1},stableKey(`bill-order:${provider}:${bill.billId}:${payable.revision}:${actor.requestId}`));
+    let order=(await call('payments','GET',`/payment-orders/${created.order.id}`)).order;
+    if(order.state==='AWAITING_APPROVAL')order=(await call('payments','POST',`/payment-orders/${order.id}/approve`,{expectedVersion:order.version,approvalDigest:order.approvalDigest},stableKey(`bill-authorize:${order.id}`))).order;
+    if(order.state==='AUTHORIZED')order=(await call('payments','POST',`/payment-orders/${order.id}/execute`,{expectedVersion:order.version,approvalDigest:order.approvalDigest},stableKey(`bill-execute:${order.id}`))).order;
+    else if(['CAPTURING','CAPTURED','RECONCILIATION_REQUIRED'].includes(order.state))order=(await call('payments','POST',`/payment-orders/${order.id}/recover`,{},stableKey(`bill-recover:${order.id}:${actor.requestId}`))).order;
+    if(order.state!=='SETTLED')throw new UpstreamError(order.fundsCaptured?502:409,order.failureCode||'PAYMENT_REQUIRES_REVIEW',order.fundsCaptured?'Payment was captured but settlement needs reconciliation. Inspect the original payment order.':'Bill payment stopped without capture. Review the original order.');
+    const paid=(await call(provider,'GET','/bills')).bills.find((b:any)=>b.billId===bill.billId),wallet=await call('payments','GET','/wallet');
+    return {success:true,bill:paid,receipt:{billId:bill.billId,receiptNumber:order.receipt.receiptNumber,amountPaid:(order.receipt.amountMinor/100).toFixed(2),currency:'AED',...(bill.premiseId?{premiseId:bill.premiseId}:{})},chargedAmount:order.quote.totalMinor/100,remainingBalance:wallet.balance};
   };
   const settleFines = async (fineIds?: string[]) => {
     const report = await call('police', 'GET', '/fines');
@@ -96,7 +108,7 @@ export async function integratedRequest(service: string, actor: Actor, method: s
     }
     if (service === 'service-food') {
       if (method === 'GET' && path === '/utilities/consumption') return successfulWithoutDuplicate(await call('dewa', method, '/consumption'));
-      if (method === 'GET' && path === '/utilities/bill') return successful({ bill: (await call('dewa', method, '/bills')).bills[0] });
+      if (method === 'GET' && path === '/utilities/bill') {const bill=(await call('dewa',method,'/bills')).bills[0],payable=(await call('dewa',method,'/payables')).payables.find((p:any)=>p.obligationId===bill.billId);return successful({bill:{...bill,payableRevision:payable?.revision}});}
       if (method === 'POST' && path === '/utilities/pay') return successfulWithoutDuplicate(await settleBill('dewa', body.billId));
       if (method === 'GET' && ['/restaurants/search','/utilities/eco-advice'].includes(path)) return legacy(method, path, query, body);
       if (method === 'POST' && path === '/orders/create') {
@@ -141,6 +153,7 @@ export async function integratedRequest(service: string, actor: Actor, method: s
       if (match) {
         const provider = match[1], route = `/${match[2]}${match[3] || ''}`;
         if (method === 'POST' && match[3]?.endsWith('/payments')) return successfulWithoutDuplicate(await settleBill(provider, match[3].split('/')[1]));
+        if(method==='GET'&&route==='/bills'){const result=await call(provider,'GET','/bills'),payables=(await call(provider,'GET','/payables')).payables;return successful({bills:result.bills.map((bill:any)=>({...bill,payableRevision:payables.find((p:any)=>p.obligationId===bill.billId)?.revision}))});}
         return successfulWithoutDuplicate(await call(provider, method, route, method === 'POST' ? body : undefined));
       }
     }

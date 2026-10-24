@@ -43,3 +43,5 @@ Before a migration, retain the named volume and stop payment writers. Inspect a 
 Backups contain synthetic account/payment data and stay in the private provider volume; they are not committed. This is local-demo migration/recovery, not HA, immutable audit or disaster-recovery certification.
 
 The same `demo:verify:payment-ledger` command now also verifies [settlement-claim migration](settlement-claims.md). It briefly pauses/recreates the five source providers and gateway, compares financial/idempotency hashes, checks the separate claim backup and conservative old-capture count, then restarts core. Run serially without other financial actions. Old captures may require source reconciliation before a refund; no balance/history is reset.
+
+Capture consumes a wallet hold and records its debit atomically; the additive payment_hold_captures link distinguishes consumption from the original closed-hold status. The same verifier now checks exact stored-review preservation across the capture-state schema migration and its backup, and recreates the billing application containers with providers. [Checkout migration](payment-checkout.md).

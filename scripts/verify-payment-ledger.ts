@@ -10,17 +10,18 @@ async function docker(args:string[],quiet=false) {
     child.once('error',reject);child.once('exit',code=>code===0?resolve(stdout):reject(new Error(`Payment journal verification command failed (${code}). ${stderr.includes('permission denied')?'Docker access was denied.':'Inspect the provider logs.'}`)));
   });
 }
-type Snapshot={hash:string;wallets:number;journal:boolean;entries:number;opening:number;invalid:number;projectionMismatch:number;backupExists:boolean;claims:boolean;claimRows:number;unknownClaims:number;legacyCaptures:number;claimsBackupExists:boolean};
+type Snapshot={hash:string;wallets:number;journal:boolean;entries:number;opening:number;invalid:number;projectionMismatch:number;backupExists:boolean;claims:boolean;claimRows:number;unknownClaims:number;legacyCaptures:number;claimsBackupExists:boolean;orderHash:string;orderCount:number;captureSchema:boolean;orderBackupExists:boolean};
 const inspect=String.raw`
 import { DatabaseSync } from 'node:sqlite';import { existsSync } from 'node:fs';import { createHash } from 'node:crypto';
 const base=process.env.PROVIDER_DB_PATH; if(!base)throw new Error('Provider database path required');
-const path=process.argv[1]==='backup'?base+'.before-ledger-v1.sqlite':process.argv[1]==='claims-backup'?base+'.before-settlement-claims-v1.sqlite':base;const db=new DatabaseSync(path,{readOnly:true});
+const path=process.argv[1]==='backup'?base+'.before-ledger-v1.sqlite':process.argv[1]==='claims-backup'?base+'.before-settlement-claims-v1.sqlite':process.argv[1]==='order-backup'?base+'.before-order-capture-v2.sqlite':base;const db=new DatabaseSync(path,{readOnly:true});
 const rows=db.prepare('SELECT account_id,kind,id,body FROM resources ORDER BY account_id,kind,id').all();
 const keys=db.prepare('SELECT account_id,key,fingerprint,status,body FROM idempotency ORDER BY account_id,key').all();
 const journal=!!db.prepare("SELECT name FROM sqlite_master WHERE name='payment_journal_entries'").get();
 const scalar=sql=>Number(db.prepare(sql).get().n);
 const claims=!!db.prepare("SELECT name FROM sqlite_master WHERE name='payment_settlement_claims'").get();
-const value={claims,claimRows:claims?scalar('SELECT count(*) n FROM payment_settlement_claims'):0,unknownClaims:claims?scalar("SELECT count(*) n FROM payment_settlement_claims WHERE state='LEGACY_UNKNOWN'"):0,legacyCaptures:rows.filter(r=>{if(r.kind!=='charge')return false;const c=JSON.parse(r.body);return c.status==='CAPTURED'&&!c.refunded&&['rta','dewa','etisalat','du','police'].includes(c.merchant);}).length,claimsBackupExists:existsSync(base+'.before-settlement-claims-v1.sqlite'),hash:createHash('sha256').update(JSON.stringify([rows,keys])).digest('hex'),wallets:rows.filter(r=>r.kind==='wallet').length,journal,
+const orderTable=db.prepare("SELECT sql FROM sqlite_master WHERE name='payment_authorization_orders'").get();const orderRows=orderTable?db.prepare('SELECT * FROM payment_authorization_orders ORDER BY id').all():[];
+const value={orderHash:createHash('sha256').update(JSON.stringify(orderRows)).digest('hex'),orderCount:orderRows.length,captureSchema:!!orderTable&&orderTable.sql.includes("'CAPTURING'"),orderBackupExists:existsSync(base+'.before-order-capture-v2.sqlite'),claims,claimRows:claims?scalar('SELECT count(*) n FROM payment_settlement_claims'):0,unknownClaims:claims?scalar("SELECT count(*) n FROM payment_settlement_claims WHERE state='LEGACY_UNKNOWN'"):0,legacyCaptures:rows.filter(r=>{if(r.kind!=='charge')return false;const c=JSON.parse(r.body);return c.status==='CAPTURED'&&!c.refunded&&['rta','dewa','etisalat','du','police'].includes(c.merchant);}).length,claimsBackupExists:existsSync(base+'.before-settlement-claims-v1.sqlite'),hash:createHash('sha256').update(JSON.stringify([rows,keys])).digest('hex'),wallets:rows.filter(r=>r.kind==='wallet').length,journal,
 entries:journal?scalar('SELECT count(*) n FROM payment_journal_entries'):0,opening:journal?scalar("SELECT count(*) n FROM payment_journal_entries WHERE kind='OPENING'"):0,
 invalid:journal?scalar('SELECT count(*) n FROM (SELECT e.id FROM payment_journal_entries e LEFT JOIN payment_journal_postings p ON e.id=p.entry_id GROUP BY e.id HAVING e.finalized<>1 OR count(p.line)<>2 OR coalesce(sum(p.amount_minor),0)<>0)'):0,
 projectionMismatch:journal?scalar("SELECT count(*) n FROM resources r WHERE r.kind='wallet' AND json_extract(r.body,'$.balanceMinor')<>(SELECT coalesce(sum(p.amount_minor),0) FROM payment_journal_entries e JOIN payment_journal_postings p ON e.id=p.entry_id WHERE e.account_id=r.account_id AND e.finalized=1 AND p.ledger_account='wallet')"):0,
@@ -28,7 +29,7 @@ backupExists:existsSync(base+'.before-ledger-v1.sqlite')};db.close();console.log
 async function snapshot(mode='live'):Promise<Snapshot> {
   return JSON.parse(await docker(['run','--rm','--no-deps','provider-payments','node','--input-type=module','-e',inspect,mode],true));
 }
-const financialProviders=['provider-payments','provider-rta','provider-dewa','provider-etisalat','provider-du','provider-police'];
+const financialProviders=['provider-payments','provider-rta','provider-dewa','provider-etisalat','provider-du','provider-police','service-food','service-wallet','service-telecom'];
 console.log('Serial local check: source/payment providers pause briefly; avoid concurrent money-changing demo actions.');
 let resumed=false;
 try {
@@ -44,6 +45,9 @@ try {
   assert.equal(after.claims,true);
   if(!before.claims){assert.equal(after.claimRows,before.legacyCaptures);assert.equal(after.unknownClaims,before.legacyCaptures);if(before.legacyCaptures){assert.equal(after.claimsBackupExists,true);assert.equal((await snapshot('claims-backup')).hash,before.hash);}console.log(`PASS: ${after.unknownClaims} historical captures conservatively locked as unknown; matching claim-migration backup and financial/idempotency rows preserved.`);}
   else {assert.equal(after.claimRows,before.claimRows);assert.equal(after.unknownClaims,before.unknownClaims);console.log('PASS: settlement-claim restart does not duplicate or release historical claims.');}
+  assert.equal(after.captureSchema,true);assert.equal(after.orderHash,before.orderHash);assert.equal(after.orderCount,before.orderCount);
+  if(!before.captureSchema&&before.orderCount){assert.equal(after.orderBackupExists,true);assert.equal((await snapshot('order-backup')).orderHash,before.orderHash);}
+  console.log(`PASS: ${after.orderCount} stored reviews preserve exact IDs/snapshots through capture-schema migration/reopen.`);
   await docker(['restart','agent-core']);
   console.log(`PASS: ${after.wallets} wallets have one balanced opening each; sealed entries and wallet projections reconcile.`);
 } finally {if(!resumed)await docker(['up','-d','--force-recreate',...financialProviders]);}

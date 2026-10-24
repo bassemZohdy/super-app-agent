@@ -5,6 +5,7 @@ import { IssuerError } from './payment-issuer.ts';
 import { claimantFor,settlementProviders,SettlementError,type SettlementProvider } from './payment-claims.ts';
 import { SettlementClient,type ClaimTransport } from './settlement-client.ts';
 import { ProviderSettlements } from './provider-settlements.ts';
+import { PaymentCheckout } from './payment-checkout.ts';
 import { PaymentLedgerError } from './payment-ledger.ts';
 import { verifyBillerReference } from './payment-ownership.ts';
 import { PaymentRegistryError } from './payment-registry.ts';
@@ -28,6 +29,7 @@ export function createProviderServer(provider: ProviderId, path: string, options
   const routes = operations[provider].map(operation => ({ ...operation, regex: new RegExp(`^${operation.path.replace(/\{\w+\}/g, '[^/]+')}$`), validate: operation.body ? ajv.compile(operation.body) : undefined }));
   const payments = new ProviderClient('provider-settlements', process.env.PROVIDER_SETTLEMENT_SECRET || 'demo-settlements-secret');
   const settlements=settlementProviders.includes(provider as SettlementProvider)?new ProviderSettlements(store,provider as SettlementProvider,options.settlementTransport||new SettlementClient(provider as SettlementProvider)):undefined;
+  const checkout=engine.orders?new PaymentCheckout(engine.orders,payments):undefined;
   const policy = new HttpPolicy();
   const server = http.createServer({ maxHeaderSize: 16384, requestTimeout: 15000, headersTimeout: 10000 }, async (req, res) => {
     const send = (result: ApiResult) => { res.writeHead(result.status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(result.data)); };
@@ -60,6 +62,7 @@ export function createProviderServer(provider: ProviderId, path: string, options
       if (!operation || url.search) throw new ApiError(404, 'NOT_FOUND', 'Operation not found.');
       if(claimRoute&&!claimant)throw new ApiError(403,'CLAIM_CLIENT_REQUIRED','Only the exact provider settlement workload can change a claim.');
       if(provider==='payments'&&operationPath.startsWith('/payment-orders')&&!interactive)throw new ApiError(403,'INTERACTIVE_REVIEW_REQUIRED','Stored authorization reviews require the signed-in owner. Unattended actors cannot approve or answer challenges.');
+      if(operationPath.includes('/admissions')&&!interactive)throw new ApiError(403,'INTERACTIVE_ADMISSION_REQUIRED','Payable admission requires the current signed-in owner.');
       const actor: Actor = { sub: subject, username: subject, name: typeof req.headers['x-user-name'] === 'string' ? Buffer.from(req.headers['x-user-name'], 'base64url').toString('utf8').slice(0, 200) : 'Demo citizen', accountId, requestId: '', authorization: interactive ? req.headers.authorization : undefined };
       let body: any = {};
       if (req.method === 'POST') {
@@ -82,6 +85,13 @@ export function createProviderServer(provider: ProviderId, path: string, options
       }
       // A delegated write with external payment proof is outside the initial bounded write profile.
       if (delegated && body.paymentId) throw new ApiError(403, 'WRITE_NOT_APPROVED', 'Delegated settlement is not enabled.');
+      if(provider==='payments'&&operationPath==='/charges'&&['dewa','etisalat','du'].includes(body.merchant)&&/^(bill|payable|admission):/.test(body.reference))throw new ApiError(409,'STORED_BILL_ORDER_REQUIRED','Bill captures now require an approved stored order; use the payment-order execution API.');
+      const checkoutAction=/^\/payment-orders\/([^/]+)\/(execute|recover|cancel)$/.exec(operationPath);
+      if(checkout&&req.method==='POST'&&checkoutAction){
+        const [,id,action]=checkoutAction;const order=action==='execute'?await checkout.execute(actor,id,body):action==='recover'?await checkout.recover(actor,id):await checkout.cancel(actor,id,body.expectedVersion);
+        const result={status:200,data:{success:true,order}};
+        store.transaction(()=>{const previous=store.db.prepare('SELECT fingerprint FROM idempotency WHERE account_id=? AND key=?').get(accountId,key as string);if(previous&&previous.fingerprint!==fingerprint)throw new ApiError(409,'IDEMPOTENCY_CONFLICT','This request key has different terms.');store.db.prepare('INSERT INTO idempotency VALUES(?,?,?,?,?) ON CONFLICT(account_id,key) DO NOTHING').run(accountId,key as string,fingerprint,200,JSON.stringify(result.data));});return send(result);
+      }
       if (provider === 'payments' && req.method === 'POST' && operationPath === '/billing-accounts') await verifyBillerReference(payments, actor, body);
       let payableSnapshot:import('../../../packages/protocol-core/src/payments.ts').Payable|undefined;
       if(provider==='payments'&&req.method==='POST'&&(operationPath==='/payment-orders'||/^\/payment-orders\/[^/]+\/(approve|challenge)$/.test(operationPath))){
@@ -91,11 +101,14 @@ export function createProviderServer(provider: ProviderId, path: string, options
         payableSnapshot=(await payments.call(targetProvider,actor,'GET',`/payables/${encodeURIComponent(targetId)}`)).payable;
       }
       const proof = body.paymentId ? (await payments.call('payments', actor, 'GET', `/charges/${encodeURIComponent(body.paymentId)}`)).charge : undefined;
+      let gatewayOrder:import('../../../packages/protocol-core/src/payments.ts').PaymentAuthorizationReview|undefined;
+      const admissionAction=/^\/payables\/[^/]+\/admissions\/([^/]+)\/(admit|cancel)$/.exec(operationPath);
+      if(engine.admissions&&req.method==='POST'&&admissionAction){const admission=engine.admissions.get(accountId,admissionAction[1]);gatewayOrder=(await payments.call('payments',actor,'GET',`/payment-orders/${encodeURIComponent(admission.orderId)}`)).order;}
       if(settlements&&req.method==='GET'&&/^\/settlement-attempts\/[^/]+$/.test(operationPath)){
         const paymentId=operationPath.split('/')[2];const historical=store.get(accountId,'used-payment',paymentId)?(await payments.call('payments',actor,'GET',`/charges/${encodeURIComponent(paymentId)}`)).charge:undefined;
         return send({status:200,data:{success:true,settlement:await settlements.inspect(actor,paymentId,historical)}});
       }
-      if(settlements&&proof)return send(await settlements.execute(actor,key as string,fingerprint,proof,claimedProof=>engine.execute(actor,req.method||'POST',operationPath,body,claimedProof,payableSnapshot)));
+      if(settlements&&proof)return send(await settlements.execute(actor,key as string,fingerprint,proof,claimedProof=>engine.execute(actor,req.method||'POST',operationPath,body,claimedProof,payableSnapshot,gatewayOrder)));
       const result = store.transaction(() => {
         // Re-check after asynchronous proof retrieval; another request may have committed.
         if (req.method === 'POST') {
@@ -104,7 +117,7 @@ export function createProviderServer(provider: ProviderId, path: string, options
           if (proof && store.get(accountId, 'used-payment', proof.id)) throw new ApiError(409, 'PAYMENT_ALREADY_USED', 'This payment was already applied.');
         }
         const action=operationPath.split('/')[4],paymentId=operationPath.split('/')[2];
-        const result:ApiResult=claimant?{status:200,data:{success:true,...(action==='claim'?engine.claims!.claim(accountId,paymentId,claimant,body):action==='ack'?engine.claims!.acknowledge(accountId,paymentId,claimant,body):engine.claims!.release(accountId,paymentId,claimant,body))}}:engine.execute(actor, req.method || 'GET', operationPath, body, proof,payableSnapshot);
+        const result:ApiResult=claimant?{status:200,data:{success:true,...(action==='claim'?engine.claims!.claim(accountId,paymentId,claimant,body):action==='ack'?engine.claims!.acknowledge(accountId,paymentId,claimant,body):engine.claims!.release(accountId,paymentId,claimant,body))}}:engine.execute(actor, req.method || 'GET', operationPath, body, proof,payableSnapshot,gatewayOrder);
         if (req.method === 'POST') {
           if (proof && result.data.success) store.put(accountId, 'used-payment', true, proof.id);
           store.db.prepare('INSERT INTO idempotency(account_id,key,fingerprint,status,body) VALUES(?,?,?,?,?) ON CONFLICT(account_id,key) DO UPDATE SET status=excluded.status,body=excluded.body').run(accountId, key as string, fingerprint, result.status, JSON.stringify(result.data));

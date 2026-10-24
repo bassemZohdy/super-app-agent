@@ -1,6 +1,6 @@
 # Provider-owned payables and bill history
 
-PAY-06 is partially implemented. DEWA, Etisalat, du and Police now own their payable summaries and revisions. React's **Payment accounts → Bills & fines** shows the linked account's current and closed obligations, due state, amount, discount and version. Finite authorization is implemented; saved-card capture, payable reservation and stored-order claim integration remain PAY-07–PAY-10 work. A payable revision or settlement reference is not permission to spend.
+PAY-06 is partially implemented. DEWA, Etisalat, du and Police now own their payable summaries and revisions. React's **Payment accounts → Bills & fines** shows the linked account's current and closed obligations, due state, amount, discount and version. Finite authorization is implemented; bill capture and reservation are implemented; broader fine/payable and review criteria remain open. A payable revision or settlement reference is not permission to spend.
 
 ## Contract
 
@@ -19,7 +19,7 @@ Each summary includes provider/obligation identity, provider account reference, 
 
 Discount expiry changes an unpaid fine's effective amount and revision at business time. Legacy fine lists use the same current amount. Paid fine history retains the amount/discount actually applied after its discount window closes. Expired, withdrawn, paid and restricted obligations are excluded from payment review or rejected by provider preflight/settlement. Due bills remain payable when overdue unless separately expired/withdrawn.
 
-Revision-bound settlement requires the captured proof's exact account, payment ID, AED currency, merchant, amount, unrefunded captured status and reference. The reference hashes identity and authoritative terms rather than accepting a caller's price. Concurrent source changes are rechecked in the provider's write transaction. Existing HTTP calls now use the [claim/fence protocol](settlement-claims.md) to serialize payment-provider refund eligibility. Stored-order capture/admission remains gated until integrated.
+Revision-bound settlement requires the captured proof's exact account, payment ID, AED currency, merchant, amount, unrefunded captured status and reference. The reference hashes identity and authoritative terms rather than accepting a caller's price. Concurrent source changes are rechecked in the provider's write transaction. Existing HTTP calls now use the [claim/fence protocol](settlement-claims.md) to serialize payment-provider refund eligibility. Stored bill capture now integrates source admission and gateway claims; other payable paths remain their own tasks.
 
 ## Lifecycle and compatibility
 

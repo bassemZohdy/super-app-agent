@@ -1,5 +1,7 @@
 /** Stored interactive authorization reviews. Capture/settlement remain separately gated. */
 import { createHash, randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
+import type { PayableAdmission } from './payable-admissions.ts';
 import type { Actor } from '../../../packages/backend-kit/src/context.ts';
 import { MAX_PAYMENT_MINOR, type PaymentAuthorizationReview as Review, type PaymentMethod, type BillingAccount, type Payable } from '../../../packages/protocol-core/src/payments.ts';
 import type { AccountDatabase } from './database.ts';
@@ -12,16 +14,19 @@ export class PaymentOrderError extends Error {
   constructor(status:number,code:string,message:string){super(message);this.status=status;this.code=code;}
 }
 const fail=(code:string,message:string,status=409):never=>{throw new PaymentOrderError(status,code,message);};
-const active=(order:Review)=>['AWAITING_APPROVAL','REQUIRES_ACTION','AUTHORIZED'].includes(order.state);
+const active=(order:Review)=>['AWAITING_APPROVAL','REQUIRES_ACTION','AUTHORIZED','CAPTURING','CAPTURED','RECONCILIATION_REQUIRED'].includes(order.state);
 export class PaymentOrders {
   readonly store:AccountDatabase;readonly issuer:PaymentIssuer;readonly ledger:PaymentLedger;readonly uses:PaymentResourceUses;readonly clock:()=>number;private sequence=0;
   constructor(store:AccountDatabase,issuer:PaymentIssuer,ledger:PaymentLedger,uses:PaymentResourceUses,clock=Date.now){
     this.store=store;this.issuer=issuer;this.ledger=ledger;this.uses=uses;this.clock=clock;
-    this.atomic(()=>store.db.exec(`CREATE TABLE IF NOT EXISTS payment_authorization_orders(
+    const old=store.db.prepare("SELECT sql FROM sqlite_master WHERE name='payment_authorization_orders'").get();
+    const migrate=!!old&&!String(old.sql).includes("'CAPTURING'");
+    if(migrate&&store.path!==':memory:'&&!existsSync(store.path+'.before-order-capture-v2.sqlite'))store.db.prepare('VACUUM INTO ?').run(store.path+'.before-order-capture-v2.sqlite');
+    this.atomic(()=>{if(migrate)store.db.exec('ALTER TABLE payment_authorization_orders RENAME TO payment_authorization_orders_v1;DROP INDEX IF EXISTS payment_active_obligation;DROP INDEX IF EXISTS payment_orders_account;');store.db.exec(`CREATE TABLE IF NOT EXISTS payment_authorization_orders(
       id TEXT PRIMARY KEY,account_id TEXT NOT NULL REFERENCES accounts(id),provider TEXT NOT NULL,payable_id TEXT NOT NULL,
-      state TEXT NOT NULL CHECK(state IN ('AWAITING_APPROVAL','REQUIRES_ACTION','AUTHORIZED','FAILED','CANCELLED')),expires_at INTEGER NOT NULL,body TEXT NOT NULL);
-      CREATE UNIQUE INDEX IF NOT EXISTS payment_active_obligation ON payment_authorization_orders(account_id,provider,payable_id) WHERE state IN ('AWAITING_APPROVAL','REQUIRES_ACTION','AUTHORIZED');
-      CREATE INDEX IF NOT EXISTS payment_orders_account ON payment_authorization_orders(account_id);`));
+      state TEXT NOT NULL CHECK(state IN ('AWAITING_APPROVAL','REQUIRES_ACTION','AUTHORIZED','CAPTURING','CAPTURED','RECONCILIATION_REQUIRED','SETTLED','FAILED','CANCELLED')),expires_at INTEGER NOT NULL,body TEXT NOT NULL);
+      CREATE UNIQUE INDEX IF NOT EXISTS payment_active_obligation ON payment_authorization_orders(account_id,provider,payable_id) WHERE state IN ('AWAITING_APPROVAL','REQUIRES_ACTION','AUTHORIZED','CAPTURING','CAPTURED','RECONCILIATION_REQUIRED','SETTLED');
+      CREATE INDEX IF NOT EXISTS payment_orders_account ON payment_authorization_orders(account_id);`);if(migrate)store.db.exec('INSERT INTO payment_authorization_orders SELECT * FROM payment_authorization_orders_v1;DROP TABLE payment_authorization_orders_v1;');});
   }
   private atomic<T>(fn:()=>T):T{
     if(!this.store.db.isTransaction)return this.store.transaction(fn);
@@ -47,7 +52,7 @@ export class PaymentOrders {
     order.state=state;if(code)order.failureCode=code;return this.save(order);
   }
   private sync(order:Review){
-    if(!active(order))return order;
+    if(!['AWAITING_APPROVAL','REQUIRES_ACTION','AUTHORIZED'].includes(order.state))return order;
     if(Date.parse(order.expiresAt)<=this.clock()||order.authorization&&Date.parse(order.authorization.expiresAt)<=this.clock())return this.close(order,'FAILED',order.authorization?'AUTHORIZATION_EXPIRED':'APPROVAL_EXPIRED');
     return order;
   }
@@ -68,7 +73,7 @@ export class PaymentOrders {
       this.refresh(actor);const payable=this.fresh(snapshot,input.provider,input.payableId,input.expectedPayableRevision),source=this.source(actor.accountId,input.methodId,input.expectedMethodVersion);
       const links=this.store.list(actor.accountId,'billing-account') as BillingAccount[],link=links.find(b=>b.status==='ACTIVE'&&b.provider===payable.provider&&b.reference===payable.reference);
       if(!link)return fail('BILLER_NOT_LINKED','Link this owned biller before creating an authorization review.');
-      if(this.store.db.prepare("SELECT id FROM payment_authorization_orders WHERE account_id=? AND provider=? AND payable_id=? AND state IN ('AWAITING_APPROVAL','REQUIRES_ACTION','AUTHORIZED')").get(actor.accountId,input.provider,input.payableId))return fail('PAYABLE_RESERVED','An active authorization review already reserves this obligation. Open or cancel it first.');
+      if(this.store.db.prepare("SELECT id FROM payment_authorization_orders WHERE account_id=? AND provider=? AND payable_id=? AND state IN ('AWAITING_APPROVAL','REQUIRES_ACTION','AUTHORIZED','CAPTURING','CAPTURED','RECONCILIATION_REQUIRED','SETTLED')").get(actor.accountId,input.provider,input.payableId))return fail('PAYABLE_RESERVED','An active or settled order already reserves this obligation. Inspect it first.');
       const count=this.store.db.prepare('SELECT count(*) n FROM payment_authorization_orders WHERE account_id=?').get(actor.accountId) as {n:number};if(count.n>=100)return fail('ORDER_HISTORY_LIMIT','The local authorization-review history limit was reached.');
       const id=`order_${randomUUID()}`,createdAt=new Date(this.clock()).toISOString(),expiresAt=new Date(this.clock()+300000).toISOString();
       const quote={payable:structuredClone(payable),source:structuredClone(source),billingAccount:structuredClone(link),amountMinor:payable.amountMinor,feeMinor:0,totalMinor:payable.amountMinor,currency:'AED' as const,createdAt,expiresAt};
@@ -117,5 +122,32 @@ export class PaymentOrders {
       order.state='AUTHORIZED';return this.save(order);
     });
   }
-  cancel(actor:Actor,id:string,expectedVersion:number){return this.atomic(()=>{const order=this.sync(this.owned(actor,id));if(order.version!==expectedVersion)return fail('ORDER_CHANGED','Refresh this review before cancelling.');if(!active(order))return fail('ORDER_CLOSED','This review is already closed.');return this.close(order,'CANCELLED');});}
+  cancel(actor:Actor,id:string,expectedVersion:number){return this.atomic(()=>{const order=this.sync(this.owned(actor,id));if(order.version!==expectedVersion)return fail('ORDER_CHANGED','Refresh this review before cancelling.');if(!active(order)||order.fundsCaptured)return fail('ORDER_CLOSED','Captured or closed orders cannot be cancelled.');return this.close(order,'CANCELLED');});}
+  beginCapture(actor:Actor,id:string,input:{expectedVersion:number;approvalDigest:string},snapshot:Payable){return this.atomic(()=>{
+    const order=this.decision(actor,id,input,snapshot);if(order.state!=='AUTHORIZED'||!order.authorization)return fail('ORDER_NOT_AUTHORIZED','Authorize this exact order before payment.');
+    if(order.quote.payable.kind!=='BILL')return fail('PAYABLE_NOT_SUPPORTED','This payment flow currently supports utility and telecom bills.');
+    this.source(actor.accountId,order.quote.source.id,order.quote.source.version);order.state='CAPTURING';order.paymentId=`payment_${randomUUID()}`;return this.save(order);
+  });}
+  private sameAdmission(order:Review,admission:PayableAdmission){return admission.orderId===order.id&&admission.approvalDigest===order.approvalDigest&&admission.payable.id===order.quote.payable.id&&admission.payable.revision===order.quote.payable.revision&&admission.payable.provider===order.quote.payable.provider&&admission.payable.reference===order.quote.payable.reference&&admission.payable.amountMinor===order.quote.totalMinor&&admission.payable.currency==='AED'&&admission.sourceId===order.quote.source.id&&admission.sourceVersion===order.quote.source.version&&Number.isFinite(Date.parse(admission.expiresAt))&&Date.parse(admission.expiresAt)<=Date.parse(order.authorization!.expiresAt);}
+  attachAdmission(actor:Actor,id:string,admission:PayableAdmission){return this.atomic(()=>{const order=this.owned(actor,id);if(order.state!=='CAPTURING'||order.fundsCaptured||!this.sameAdmission(order,admission))return fail('ADMISSION_MISMATCH','Provider reservation does not match the pending capture.');order.admissionId=admission.id;return this.save(order);});}
+  abortCapture(actor:Actor,id:string,code:string){return this.atomic(()=>{const order=this.owned(actor,id);if(order.fundsCaptured)return this.unresolved(actor,id,code);if(order.state==='CAPTURING')return this.close(order,'FAILED',code);return order;});}
+  unresolved(actor:Actor,id:string,code:string){return this.atomic(()=>{const order=this.owned(actor,id);if(order.state==='SETTLED')return order;if(order.fundsCaptured){order.state='RECONCILIATION_REQUIRED';order.failureCode=code;return this.save(order);}return order;});}
+  capture(actor:Actor,id:string,admission:PayableAdmission){return this.atomic(()=>{
+    const order=this.owned(actor,id);if(order.fundsCaptured)return order;
+    if(order.state!=='CAPTURING'||!order.authorization||order.admissionId!==admission.id||admission.state!=='ADMITTED'||!this.sameAdmission(order,admission)||Date.parse(admission.expiresAt)<this.clock()||Date.parse(order.authorization.expiresAt)<=this.clock()||Date.parse(order.expiresAt)<=this.clock())return fail('CAPTURE_NOT_ADMITTED','A current exact provider admission and funding hold are required.');
+    this.source(actor.accountId,order.quote.source.id,order.quote.source.version);
+    const link=this.store.get<BillingAccount>(actor.accountId,'billing-account',order.quote.billingAccount.id);if(!link||link.status!=='ACTIVE'||link.version!==order.quote.billingAccount.version)return fail('BILLER_CHANGED','The biller link changed.');
+    if(order.quote.source.kind==='wallet'){this.ledger.captureHold(actor.accountId,id,order.paymentId!,order.quote.totalMinor);order.authorization.state='CAPTURED';}
+    else{order.authorization=this.issuer.capture(this.binding(order));this.ledger.record(actor.accountId,'PAYMENT',`charge:${order.paymentId}`,order.quote.totalMinor,'external');}
+    const charge={id:order.paymentId,accountId:actor.accountId,amountMinor:order.quote.totalMinor,merchant:order.quote.payable.provider,reference:`payable:${order.quote.payable.revision}`,source:order.quote.source.id,sourceVersion:order.quote.source.version,status:'CAPTURED',currency:'AED',createdAt:new Date(this.clock()).toISOString(),refunded:false,orderId:id,attemptId:`capture_${id}`,admissionId:admission.id,quoteDigest:order.approvalDigest};
+    this.store.put(actor.accountId,'charge',charge,order.paymentId!);this.store.put(actor.accountId,'transaction',{id:order.paymentId,type:'PAYMENT',amount:order.quote.totalMinor/100,currency:'AED',purpose:order.quote.payable.label,status:'CAPTURED',timestamp:this.clock(),orderId:id,source:order.quote.source},order.paymentId!);
+    this.uses.release(actor.accountId,'METHOD',order.quote.source.id,'HOLD',order.authorization.id);order.fundsCaptured=true;order.state='CAPTURED';return this.save(order);
+  });}
+  complete(actor:Actor,id:string,admission:PayableAdmission){return this.atomic(()=>{
+    const order=this.owned(actor,id);if(order.state==='SETTLED')return order;
+    if(!order.fundsCaptured||admission.id!==order.admissionId||!this.sameAdmission(order,admission)||admission.state!=='APPLIED'||admission.receipt?.receiptNumber!==order.paymentId||admission.receipt?.amountMinor!==order.quote.totalMinor||admission.receipt?.currency!=='AED'||admission.receipt?.obligationId!==order.quote.payable.obligationId)return fail('SETTLEMENT_NOT_CONFIRMED','The provider has not confirmed this exact payment.');
+    order.state='SETTLED';order.receipt=admission.receipt;delete order.failureCode;
+    const transaction=this.store.get(actor.accountId,'transaction',order.paymentId!);this.store.put(actor.accountId,'transaction',{...transaction,status:'SETTLED'},order.paymentId!);
+    this.uses.release(actor.accountId,'METHOD',order.quote.source.id,'ORDER',id);this.uses.release(actor.accountId,'BILLER',order.quote.billingAccount.id,'ORDER',id);return this.save(order);
+  });}
 }
