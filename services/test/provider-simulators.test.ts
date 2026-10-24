@@ -93,6 +93,7 @@ test('provider HTTP endpoints verify signed service roles, ownership, schemas an
   assert.equal((await request('/wallet',mint({azp:'superapp-shell'}))).status,403);
   assert.equal((await request('/wallet',mint({realm_access:{roles:[]}}))).status,403);
   assert.equal((await request('/topups',mint(),'POST',{amountMinor:-1,source:'demo_approved'})).status,400);
+  assert.equal((await request('/payment-orders',mint(),'POST',{provider:'dewa',payableId:'dewa:bill:owned',expectedPayableRevision:'a'.repeat(64),methodId:'wallet',expectedMethodVersion:1})).status,403);
   const body={amountMinor:50,source:'demo_approved'},key=randomUUID();
   const first=await (await request('/topups',mint(),'POST',body,key)).json();
   const second=await (await request('/topups',mint(),'POST',body,key)).json(); assert.deepEqual(first,second);

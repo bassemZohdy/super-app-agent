@@ -1,9 +1,10 @@
 # Execution evidence register
 
-Evidence spans the `283521a` integrated baseline, payment setup `65fec3c`, journal `58dc0dd`, and the subsequent lifecycle/preview and payable additions on 24 October 2026. Results describe the source and environment recorded, not a production certification. Planning updates do not create new feature evidence.
+Evidence spans the `283521a` integrated baseline, payment setup `65fec3c`, journal `58dc0dd`, and the subsequent lifecycle/preview, payable and authorization additions on 24 October 2026. Results describe the source and environment recorded, not a production certification. Planning updates do not create new feature evidence.
 
 | Evidence | Verified scope | Interpretation |
 | --- | --- | --- |
+| [Stored authorization and issuer](2026-10-24-payment-authorization.md) | 171 tests, 18 builds, twelve journeys, setup/lifecycle browser and real-Keycloak challenge/holds/limits/expiry checks | PAY-05 delivered; capture/settlement, cross-path reservation and automation remain open |
 | [Provider-owned payable revisions](2026-10-24-payables.md) | 162 tests, 18 builds; source revision/lifecycle and isolated signed-owner settlement checks | PAY-06 progress; stored-order capture admission and claim/refund gates remain open |
 | [Lifecycle and preview simulation](2026-10-24-lifecycle-simulator.md) | 155 tests, 18 builds, twelve journeys, lifecycle/prepaid browser, and cross-process preview CLI | PAY-03/PAY-04 guard contracts and initial SIM-01; issuer/automation producers remain open |
 | [Payment journal](2026-10-24-payment-ledger.md) | 143 tests, 18 builds, twelve existing journeys, setup browser and actual three-wallet migration/backup proof | PAY-02 delivered; executable saved-card orders and automation remain open |

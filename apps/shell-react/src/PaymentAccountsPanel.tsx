@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { formatAED, cardPresets, type PaymentMethod, type PaymentPreview, type BillingAccount, type PaymentOverview } from '../../../packages/protocol-core/src/payments.ts';
+import { formatAED, cardPresets, type PaymentMethod, type PaymentPreview, type BillingAccount, type PaymentOverview, type PaymentAuthorizationReview } from '../../../packages/protocol-core/src/payments.ts';
 type Props = { gateway: string; accountId: string; getToken(): Promise<string>; onClose(): void };
 export function PaymentAccountsPanel({ gateway, accountId, getToken, onClose }: Props) {
   const [data, setData] = useState<PaymentOverview>();
@@ -61,6 +61,10 @@ export function PaymentAccountsPanel({ gateway, accountId, getToken, onClose }: 
   const methodName = (m: PaymentMethod) => `${m.nickname}${m.last4 ? ` ·•••• ${m.last4}` : ''}`;
   const changeStatus = (m: PaymentMethod, status: string) => work(async () => { await mutate('methods/status', { methodId: m.id, expectedVersion: m.version, status }); setNotice('Card status saved. No funding fallback was selected.'); });
   const archive = (b: BillingAccount) => work(async () => { await mutate('billing-accounts/archive', { billingAccountId: b.id, expectedVersion: b.version }); setNotice('Biller link archived. Its history is retained.'); });
+  const reviewAction=(order:PaymentAuthorizationReview,action:'approve'|'challenge'|'cancel',extra:Record<string,unknown>={})=>work(async()=>{
+    const result=await mutate(`orders/${action}`,{orderId:order.id,expectedVersion:order.version,...(action==='cancel'?{}:{approvalDigest:order.approvalDigest}),...extra});
+    setNotice(result.order.failureCode?`Authorization stopped: ${result.order.failureCode}. No payment was captured.`:result.order.state==='AUTHORIZED'?'Funds reserved temporarily. No payment captured or bill settled.':result.order.state==='REQUIRES_ACTION'?'Complete the bound demo card challenge to continue.':'Authorization review cancelled. Holds released.');
+  });
   return <section id="payment-account-panel" className="payment-accounts" aria-label="Payment accounts">
     <header><div><p className="payment-eyebrow">Your payment setup</p><h2 ref={heading} tabIndex={-1}>Accounts &amp; funding</h2></div><button className="text-button" onClick={onClose}>Close payment accounts</button></header>
     <p>Add demo cards, link your own biller accounts and preview a payment. Previews do not move funds.</p>
@@ -77,6 +81,7 @@ export function PaymentAccountsPanel({ gateway, accountId, getToken, onClose }: 
           </form>
           <ul>{data.methods.filter(m => m.status !== 'REMOVED').map(m => <li key={m.id}>
             <strong>{methodName(m)}</strong><p>{m.status}{data.defaultMethodId === m.id ? ' · Default for future drafts' : ''}{m.expiresYear ? ` · expires ${m.expiresMonth}/${m.expiresYear}` : ''}</p>
+            {data.cardBalances?.filter(b=>b.sourceId===m.id).map(b=><p key={b.sourceId}>Demo limit {formatAED(b.limitMinor)} · Available {formatAED(b.availableMinor)} · Held {formatAED(b.heldMinor)} · Spent {formatAED(b.spentMinor)}</p>)}
             <div className="payment-actions"><button disabled={busy || m.status !== 'ACTIVE' || data.defaultMethodId === m.id} onClick={() => void work(async () => { await mutate('methods/default', { methodId: m.id, expectedVersion: m.version }); setNotice('Default saved for future drafts. Existing approvals are unchanged.'); })}>Use {m.nickname} as default</button>
               {m.kind === 'card' && <>{m.status !== 'EXPIRED' && <button disabled={busy} onClick={() => void changeStatus(m, m.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE')}>{m.status === 'ACTIVE' ? 'Disable' : 'Enable'} {m.nickname}</button>}<button disabled={busy || data.defaultMethodId === m.id || related('METHOD',m.id).length > 0} onClick={() => void changeStatus(m, 'REMOVED')}>Remove {m.nickname}</button></>}
             </div>{relatedItems('METHOD',m.id)}
@@ -101,7 +106,19 @@ export function PaymentAccountsPanel({ gateway, accountId, getToken, onClose }: 
         <label>Unpaid obligation<select value={payable} onChange={e => { setPayable(e.target.value); setPreview(undefined); }}><option value="">Choose a linked bill or fine</option>{currentPayables.map(p => <option key={p.id} value={p.id}>{p.label} · {formatAED(p.amountMinor)}</option>)}</select></label>
         <label>Payment source<select value={source} onChange={e => { setSource(e.target.value); setPreview(undefined); }}><option value="">Choose a funding source</option>{available.map(m => <option key={m.id} value={m.id}>{methodName(m)}</option>)}</select></label>
         <button disabled={busy || !payable || !currentMethod} onClick={() => void review()}>Review payment quote</button>
-        {preview && <article aria-label="Payment quote preview"><h4>{preview.billingAccount.nickname}</h4><p>{preview.payable.label}</p><p>Funding: {methodName(preview.source)}</p><p>Amount: {formatAED(preview.amountMinor)} · Fees: {formatAED(preview.feeMinor)}</p><strong>Total: {formatAED(preview.totalMinor)}</strong><p>Review expires {new Date(preview.expiresAt).toLocaleTimeString()}. Preview only — this is not an approval or receipt.</p><button onClick={() => setPreview(undefined)}>Dismiss payment review</button></article>}
+        {preview && <article aria-label="Payment quote preview"><h4>{preview.billingAccount.nickname}</h4><p>{preview.payable.label}</p><p>Funding: {methodName(preview.source)}</p><p>Amount: {formatAED(preview.amountMinor)} · Fees: {formatAED(preview.feeMinor)}</p><strong>Total: {formatAED(preview.totalMinor)}</strong><p>Review expires {new Date(preview.expiresAt).toLocaleTimeString()}. Preview only — this is not an approval or receipt.</p><button onClick={() => setPreview(undefined)}>Dismiss payment review</button><button disabled={busy} onClick={()=>void work(async()=>{await mutate('orders',{provider:preview.payable.provider,payableId:preview.payable.id,expectedPayableRevision:preview.payable.revision,methodId:preview.source.id,expectedMethodVersion:preview.source.version});setNotice('Authorization review saved. Read its exact terms before approving.');})}>Create authorization review</button></article>}
+      </section>
+      <section aria-label="Authorization reviews" className="payment-review"><h3>Authorization reviews</h3><p>Approval reserves finite funds temporarily. Payment capture and provider settlement are not enabled here. Refresh to inspect expiry and current status.</p>
+        {!data.orders?.length&&<p>No stored authorization reviews yet.</p>}
+        {data.orders?.map(order=><article key={order.id} aria-label={`Authorization review ${order.id}`}>
+          <h4>{order.quote.billingAccount.nickname}</h4><p>{order.quote.payable.label}</p><p>Funding: {methodName(order.quote.source)} · source version {order.quote.source.version}</p>
+          <p>Amount {formatAED(order.quote.amountMinor)} · Fees {formatAED(order.quote.feeMinor)} · Total {formatAED(order.quote.totalMinor)}</p><p>State: {order.state}{order.failureCode?` · ${order.failureCode}`:''}</p>
+          <p>Review expires {new Date(order.expiresAt).toLocaleTimeString()}</p>
+          {order.state==='AWAITING_APPROVAL'&&<button disabled={busy} onClick={()=>void reviewAction(order,'approve')}>Approve authorization for {formatAED(order.quote.totalMinor)}</button>}
+          {order.state==='REQUIRES_ACTION'&&<div><p>Demo card challenge: explicitly approve or reject this order and amount. No code or real card details are required.</p><button disabled={busy} onClick={()=>void reviewAction(order,'challenge',{challengeId:order.authorization?.challengeId,decision:'APPROVE'})}>Approve demo card challenge</button><button disabled={busy} onClick={()=>void reviewAction(order,'challenge',{challengeId:order.authorization?.challengeId,decision:'REJECT'})}>Reject demo card challenge</button></div>}
+          {order.state==='AUTHORIZED'&&<p>Funds reserved until {new Date(order.authorization!.expiresAt).toLocaleTimeString()}. No payment captured.</p>}
+          {['AWAITING_APPROVAL','REQUIRES_ACTION','AUTHORIZED'].includes(order.state)&&<button disabled={busy} onClick={()=>void reviewAction(order,'cancel')}>Cancel authorization review</button>}
+        </article>)}
       </section>
     </>}
   </section>;

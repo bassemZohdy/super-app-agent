@@ -1,17 +1,17 @@
 # Payment accounts and quote review
 
-Implemented foundations: PAY-01–PAY-04. React can manage owned synthetic cards/biller links and request a fresh non-executable payment review. Existing service payments still use the legacy wallet flow. Stored payment orders, executable authorization/challenges, direct saved-card payments and automatic rules are not enabled yet. [Full backlog](../../TODO.md#payment-accounts-and-automation-demo--planned-backlog) · [Design](../architecture/payment-automation-demo.md).
+Implemented foundations: PAY-01–PAY-05. React can manage owned synthetic cards/biller links and request a fresh non-executable payment review. Existing service payments still use the legacy wallet flow. [Stored interactive authorization reviews](payment-authorization.md) now support finite wallet/card holds and one-time challenges. Saved-card capture/settlement and automatic rules remain disabled. [Full backlog](../../TODO.md#payment-accounts-and-automation-demo--planned-backlog) · [Design](../architecture/payment-automation-demo.md).
 
 The Bills & fines section shows source-owned revisions, due state, discount eligibility and closed cycles for linked accounts. Seeded prior-cycle history is explicitly labelled; withdrawn/expired/restricted obligations cannot be selected for review. [Payable API and lifecycle boundaries](payables.md).
 
-Current wallet funds are journal-backed, with posted/held/available balances shown in the panel. [Migration/recovery](payment-ledger.md). Internal holds are not a public financial-authorization API yet.
+Current wallet funds are journal-backed, with posted/held/available balances shown in the panel. [Migration/recovery](payment-ledger.md). Explicit stored-review approval can now create temporary holds without a capture.
 
 ## Try it
 
 Use the integrated demo (`npm run demo:up`, then `npm run dev:react`). Backend source changes need `docker compose -f docker-compose.demo.yml restart provider-payments provider-dewa provider-etisalat provider-du provider-police agent-core`.
 
 1. Sign in and choose a personal or household workspace.
-2. Open **Payment accounts**. Add a named synthetic card preset. The available presets describe future approve/decline/challenge/expired behavior; only metadata and expired/disabled eligibility are modeled in this slice.
+2. Open **Payment accounts**. Add a named synthetic card preset. The available presets describe future approve/decline/challenge/expired behavior; limits, approval/decline/challenge and expiry are enforced by the local issuer for stored authorization reviews.
 3. Link one of the provider-verified DEWA, telecom subscription, Salik or traffic-fine references. Etisalat/du prepaid lines are included; each starts with 50 AED simulated provider balance. Registered-vehicle discovery works even with no unpaid fines.
 4. Select a linked unpaid bill or fine and an active funding method. **Review payment quote** reads the current provider amount, shows zero demo fees and binds the source/version and biller. Review expires after five minutes; it is not an approval or receipt, and funds do not move.
 5. Disable a card or choose a new default. Disabled defaults remain explicit; another card/wallet is never silently selected. Defaults apply to future drafts and do not rewrite an existing review. Choose another default before removing a default card.
@@ -21,7 +21,7 @@ The panel scrolls independently, stacks on small screens and returns focus to it
 
 ## Current APIs
 
-Core paths use the authenticated signed owner. GET requires `accountId` as a query parameter; POST includes it in JSON. Provider paths are under `/v1/accounts/{accountId}` and independently verify that owner. New provider OpenAPI is **2.2.0**, additive to the existing `/v1` financial routes.
+Core paths use the authenticated signed owner. GET requires `accountId` as a query parameter; POST includes it in JSON. Provider paths are under `/v1/accounts/{accountId}` and independently verify that owner. New provider OpenAPI is **2.3.0**, additive to the existing `/v1` financial routes.
 
 | Core route | Provider route / behavior |
 | --- | --- |
@@ -45,7 +45,7 @@ Dependency registration/release is server-internal, with no public mutation endp
 
 ## Compatibility and verification
 
-`packages/protocol-core/src/payments.ts` owns additive request/method/biller and future-order response schemas plus state vocabularies. Order schemas describe the upcoming persistence boundary, not an implemented order API. Existing wallet/top-up/capture/refund request shapes and old simulated funding flags remain unchanged for current flows; new saved-card IDs cannot be passed as legacy charge sources.
+`packages/protocol-core/src/payments.ts` owns additive request/method/biller and future-order response schemas plus state vocabularies. The older full payment-order schema describes the upcoming capture boundary; the separate authorization-review API persists reviews and holds now. Existing wallet/top-up/capture/refund request shapes and old simulated funding flags remain unchanged for current flows; new saved-card IDs cannot be passed as legacy charge sources.
 
 ```bash
 npm run demo:verify:payment-accounts

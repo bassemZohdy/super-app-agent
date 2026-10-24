@@ -1,11 +1,12 @@
 /** Payment contract v1. Additive, synthetic-account APIs; previews never authorize execution. */
-export const PAYMENT_CONTRACT_VERSION = '1.0.0';
+export const PAYMENT_CONTRACT_VERSION = '1.1.0';
 export const MAX_PAYMENT_MINOR = 100_000_000;
 export const cardPresets = [
-  { id: 'approved', name: 'Everyday demo card', last4: '4242', behavior: 'APPROVE' },
-  { id: 'declined', name: 'Declined demo card', last4: '0002', behavior: 'DECLINE' },
-  { id: 'challenge', name: 'Challenge demo card', last4: '3155', behavior: 'CHALLENGE' },
-  { id: 'expired', name: 'Expired demo card', last4: '0069', behavior: 'EXPIRED' },
+  { id: 'approved', name: 'Everyday demo card', last4: '4242', behavior: 'APPROVE', limitMinor:200000 },
+  { id: 'declined', name: 'Declined demo card', last4: '0002', behavior: 'DECLINE', limitMinor:200000 },
+  { id: 'challenge', name: 'Challenge demo card', last4: '3155', behavior: 'CHALLENGE', limitMinor:200000 },
+  { id: 'expired', name: 'Expired demo card', last4: '0069', behavior: 'EXPIRED', limitMinor:200000 },
+  { id: 'limited', name: 'Limited demo card', last4: '1000', behavior: 'APPROVE', limitMinor:10000 },
 ] as const;
 export type CardPreset = typeof cardPresets[number]['id'];
 export type BillerProvider = 'dewa' | 'etisalat' | 'du' | 'rta' | 'police';
@@ -23,8 +24,12 @@ export type PaymentPreview = {
   payable: Payable; billingAccount: BillingAccount; source: PaymentMethod; amountMinor: number; feeMinor: number;
   totalMinor: number; currency: 'AED'; createdAt: string; expiresAt: string; digest: string;
 };
+export type CardBalance={sourceId:string;limitMinor:number;heldMinor:number;spentMinor:number;availableMinor:number;currency:'AED'};
+export type CardAuthorization={id:string;orderId:string;sourceId:string;amountMinor:number;currency:'AED';state:'REQUIRES_ACTION'|'AUTHORIZED'|'DECLINED'|'EXPIRED'|'VOIDED'|'CAPTURED';expiresAt:string;challengeId?:string;failureCode?:string};
+export type PaymentAuthorizationReview={id:string;accountId:string;ownerSub:string;version:number;state:'AWAITING_APPROVAL'|'REQUIRES_ACTION'|'AUTHORIZED'|'FAILED'|'CANCELLED';approvalDigest:string;expiresAt:string;createdAt:string;approvedAt?:string;failureCode?:string;fundsCaptured:false;
+  quote:{payable:Payable;billingAccount:BillingAccount;source:PaymentMethod;amountMinor:number;feeMinor:number;totalMinor:number;currency:'AED';createdAt:string;expiresAt:string};authorization?:CardAuthorization};
 export type PaymentDependency = { resourceType:'METHOD'|'BILLER';resourceId:string;dependentKind:'ORDER'|'HOLD'|'MANDATE';dependentId:string;status:'ACTIVE' };
-export type PaymentOverview = { contractVersion: string; accountId: string; previewOnly: true; dependencies: PaymentDependency[]; methods: PaymentMethod[]; defaultMethodId: string; presets: unknown[]; billingAccounts: BillingAccount[]; candidates: BillerCandidate[]; payables: Payable[]; wallet: { balanceMinor: number; heldMinor: number; availableMinor: number; currency: 'AED' } };
+export type PaymentOverview = { contractVersion: string; accountId: string; previewOnly: true; dependencies: PaymentDependency[]; methods: PaymentMethod[]; defaultMethodId: string; presets: unknown[]; billingAccounts: BillingAccount[]; candidates: BillerCandidate[]; payables: Payable[]; orders?:PaymentAuthorizationReview[];cardBalances?:CardBalance[];wallet: { balanceMinor: number; heldMinor: number; availableMinor: number; currency: 'AED' } };
 export const orderStates = ['DRAFT','AWAITING_APPROVAL','READY','REQUIRES_ACTION','AUTHORIZED','CAPTURED','SETTLING','SETTLED','FAILED','CANCELLED','RECONCILIATION_REQUIRED','REFUNDING','PARTIALLY_REFUNDED','REFUNDED'] as const;
 export const settlementStates = ['UNCLAIMED','CLAIMED','APPLIED','RELEASED','UNKNOWN'] as const;
 export const attemptStates = ['PENDING','REQUIRES_ACTION','AUTHORIZED','CAPTURED','DECLINED','VOIDED','UNKNOWN'] as const;
@@ -32,6 +37,7 @@ const id = { type: 'string', minLength: 1, maxLength: 160, pattern: '^[A-Za-z0-9
 const nickname = { type: 'string', minLength: 1, maxLength: 64, pattern: '^[^\\x00-\\x1f\\x7f]*\\S[^\\x00-\\x1f\\x7f]*$' };
 const reference = { type: 'string', minLength: 1, maxLength: 160, pattern: '^[^\\x00-\\x1f\\x7f]+$' };
 const version = { type: 'integer', minimum: 1, maximum: 1_000_000 };
+const digestSchema={type:'string',pattern:'^[a-f0-9]{64}$'};
 export const minorUnitSchema = { type: 'integer', minimum: 1, maximum: MAX_PAYMENT_MINOR };
 export const paymentObject = (properties: Record<string, unknown>, required = Object.keys(properties)) => ({ type: 'object', properties, required, additionalProperties: false });
 export const paymentSchemas = {
@@ -41,7 +47,12 @@ export const paymentSchemas = {
   linkAccount: paymentObject({ provider: { enum: ['dewa','etisalat','du','rta','police'] }, reference, nickname }),
   archiveAccount: paymentObject({ billingAccountId: id, expectedVersion: version }),
   preview: paymentObject({ payableId: id, methodId: id, expectedMethodVersion: version }),
+  createOrder:paymentObject({provider:{enum:['dewa','etisalat','du','police']},payableId:id,expectedPayableRevision:digestSchema,methodId:id,expectedMethodVersion:version}),
+  approveOrder:paymentObject({expectedVersion:version,approvalDigest:digestSchema}),
+  challengeOrder:paymentObject({expectedVersion:version,approvalDigest:digestSchema,challengeId:id,decision:{enum:['APPROVE','REJECT']}}),
+  cancelOrder:paymentObject({expectedVersion:version}),
 };
+export const withOrderId=(schema:ReturnType<typeof paymentObject>)=>paymentObject({...schema.properties,orderId:id},[...schema.required,'orderId']);
 export const withPaymentAccount = (schema: ReturnType<typeof paymentObject>, write = true) => paymentObject({
   ...schema.properties, accountId: id, ...(write ? { requestKey: { type: 'string', pattern: '^[A-Za-z0-9_-]{8,100}$' } } : {}),
 }, [...schema.required, 'accountId', ...(write ? ['requestKey'] : [])]);

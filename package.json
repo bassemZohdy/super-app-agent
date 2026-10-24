@@ -53,7 +53,8 @@
     "demo:verify:payment-ledger": "node --experimental-strip-types scripts/verify-payment-ledger.ts",
     "simulator": "node --experimental-strip-types scripts/simulator.ts",
     "simulator:verify": "node --experimental-strip-types scripts/verify-simulator.ts",
-    "demo:verify:inventory": "node --experimental-strip-types scripts/verify-payment-inventory.ts"
+    "demo:verify:inventory": "node --experimental-strip-types scripts/verify-payment-inventory.ts",
+    "demo:verify:payment-authorization": "node --experimental-strip-types scripts/e2e/payment-authorization.ts"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^13.1.0",

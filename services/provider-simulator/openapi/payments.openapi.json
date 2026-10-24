@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Demo Payment Gateway Simulator",
-    "version": "2.2.0",
+    "version": "2.3.0",
     "description": "Local synthetic API. Signed interactive user identity or broker-issued user token with current exact-operation grant required. JWT subject owns the account; caller user headers do not grant authority. A separate read-only settlement machine lane retrieves captured charge proofs. Legacy fixture mode is outside this reference security profile."
   },
   "servers": [
@@ -62,6 +62,3608 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/accounts/{accountId}/payment-orders": {
+      "get": {
+        "operationId": "payments_listAuthorizationOrders",
+        "description": "List owned stored authorization reviews and current expiry/hold states; no capture.",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "orders": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "accountId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "ownerSub": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "version": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "state": {
+                            "enum": [
+                              "AWAITING_APPROVAL",
+                              "REQUIRES_ACTION",
+                              "AUTHORIZED",
+                              "FAILED",
+                              "CANCELLED"
+                            ]
+                          },
+                          "approvalDigest": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{64}$"
+                          },
+                          "expiresAt": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "approvedAt": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "failureCode": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "fundsCaptured": {
+                            "const": false
+                          },
+                          "authorization": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              "orderId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              "sourceId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              "amountMinor": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 100000000
+                              },
+                              "currency": {
+                                "const": "AED"
+                              },
+                              "state": {
+                                "enum": [
+                                  "REQUIRES_ACTION",
+                                  "AUTHORIZED",
+                                  "DECLINED",
+                                  "EXPIRED",
+                                  "VOIDED",
+                                  "CAPTURED"
+                                ]
+                              },
+                              "expiresAt": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              "challengeId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              "failureCode": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "orderId",
+                              "sourceId",
+                              "amountMinor",
+                              "currency",
+                              "state",
+                              "expiresAt"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "quote": {
+                            "type": "object",
+                            "properties": {
+                              "payable": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200
+                                  },
+                                  "provider": {
+                                    "enum": [
+                                      "dewa",
+                                      "etisalat",
+                                      "du",
+                                      "police"
+                                    ]
+                                  },
+                                  "reference": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200
+                                  },
+                                  "obligationId": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200
+                                  },
+                                  "kind": {
+                                    "enum": [
+                                      "BILL",
+                                      "FINE"
+                                    ]
+                                  },
+                                  "version": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 1000000
+                                  },
+                                  "label": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200
+                                  },
+                                  "amountMinor": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 100000000
+                                  },
+                                  "originalAmountMinor": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 100000000
+                                  },
+                                  "discountMinor": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 100000000
+                                  },
+                                  "discountEligible": {
+                                    "type": "boolean"
+                                  },
+                                  "currency": {
+                                    "const": "AED"
+                                  },
+                                  "status": {
+                                    "enum": [
+                                      "UNPAID",
+                                      "PAID",
+                                      "CANCELLED",
+                                      "EXPIRED"
+                                    ]
+                                  },
+                                  "dueState": {
+                                    "enum": [
+                                      "CURRENT",
+                                      "DUE",
+                                      "OVERDUE",
+                                      "EXPIRED",
+                                      "CLOSED"
+                                    ]
+                                  },
+                                  "revision": {
+                                    "type": "string",
+                                    "pattern": "^[a-f0-9]{64}$"
+                                  },
+                                  "dueDate": {
+                                    "type": "string",
+                                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                                  },
+                                  "expiresAt": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200
+                                  },
+                                  "discountExpiresAt": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200
+                                  },
+                                  "period": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200
+                                  },
+                                  "openingFixture": {
+                                    "type": "boolean"
+                                  },
+                                  "paymentRestricted": {
+                                    "type": "boolean"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "provider",
+                                  "reference",
+                                  "obligationId",
+                                  "kind",
+                                  "version",
+                                  "label",
+                                  "amountMinor",
+                                  "originalAmountMinor",
+                                  "discountMinor",
+                                  "discountEligible",
+                                  "currency",
+                                  "status",
+                                  "dueState",
+                                  "revision"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "source": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 160,
+                                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                                  },
+                                  "accountId": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 160,
+                                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                                  },
+                                  "kind": {
+                                    "enum": [
+                                      "wallet",
+                                      "card"
+                                    ]
+                                  },
+                                  "nickname": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 64,
+                                    "pattern": "^[^\\x00-\\x1f\\x7f]*\\S[^\\x00-\\x1f\\x7f]*$"
+                                  },
+                                  "version": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 1000000
+                                  },
+                                  "status": {
+                                    "enum": [
+                                      "ACTIVE",
+                                      "DISABLED",
+                                      "EXPIRED",
+                                      "REMOVED"
+                                    ]
+                                  },
+                                  "currency": {
+                                    "const": "AED"
+                                  },
+                                  "createdAt": {
+                                    "type": "string",
+                                    "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+                                  },
+                                  "preset": {
+                                    "enum": [
+                                      "approved",
+                                      "declined",
+                                      "challenge",
+                                      "expired",
+                                      "limited"
+                                    ]
+                                  },
+                                  "last4": {
+                                    "type": "string",
+                                    "pattern": "^\\d{4}$"
+                                  },
+                                  "expiresMonth": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 12
+                                  },
+                                  "expiresYear": {
+                                    "type": "integer",
+                                    "minimum": 2000,
+                                    "maximum": 2200
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "accountId",
+                                  "kind",
+                                  "nickname",
+                                  "version",
+                                  "status",
+                                  "currency"
+                                ],
+                                "additionalProperties": false,
+                                "allOf": [
+                                  {
+                                    "if": {
+                                      "properties": {
+                                        "kind": {
+                                          "const": "card"
+                                        }
+                                      }
+                                    },
+                                    "then": {
+                                      "required": [
+                                        "preset",
+                                        "last4",
+                                        "expiresMonth",
+                                        "expiresYear",
+                                        "createdAt"
+                                      ]
+                                    },
+                                    "else": {
+                                      "properties": {
+                                        "id": {
+                                          "const": "wallet"
+                                        },
+                                        "status": {
+                                          "const": "ACTIVE"
+                                        },
+                                        "version": {
+                                          "const": 1
+                                        }
+                                      },
+                                      "not": {
+                                        "anyOf": [
+                                          {
+                                            "required": [
+                                              "preset"
+                                            ]
+                                          },
+                                          {
+                                            "required": [
+                                              "last4"
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              },
+                              "billingAccount": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 160,
+                                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                                  },
+                                  "accountId": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 160,
+                                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                                  },
+                                  "provider": {
+                                    "enum": [
+                                      "dewa",
+                                      "etisalat",
+                                      "du",
+                                      "rta",
+                                      "police"
+                                    ]
+                                  },
+                                  "reference": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 160,
+                                    "pattern": "^[^\\x00-\\x1f\\x7f]+$"
+                                  },
+                                  "nickname": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 64,
+                                    "pattern": "^[^\\x00-\\x1f\\x7f]*\\S[^\\x00-\\x1f\\x7f]*$"
+                                  },
+                                  "status": {
+                                    "enum": [
+                                      "ACTIVE",
+                                      "ARCHIVED"
+                                    ]
+                                  },
+                                  "version": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 1000000
+                                  },
+                                  "createdAt": {
+                                    "type": "string",
+                                    "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "accountId",
+                                  "provider",
+                                  "reference",
+                                  "nickname",
+                                  "status",
+                                  "version",
+                                  "createdAt"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "amountMinor": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 100000000
+                              },
+                              "feeMinor": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 100000000
+                              },
+                              "totalMinor": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 100000000
+                              },
+                              "currency": {
+                                "const": "AED"
+                              },
+                              "createdAt": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              "expiresAt": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              }
+                            },
+                            "required": [
+                              "payable",
+                              "source",
+                              "billingAccount",
+                              "amountMinor",
+                              "feeMinor",
+                              "totalMinor",
+                              "currency",
+                              "createdAt",
+                              "expiresAt"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "accountId",
+                          "ownerSub",
+                          "version",
+                          "state",
+                          "approvalDigest",
+                          "expiresAt",
+                          "createdAt",
+                          "fundsCaptured",
+                          "quote"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "maxItems": 100
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "orders"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "402": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "post": {
+        "operationId": "payments_createAuthorizationOrder",
+        "description": "Read source-owned terms, store an immutable review and reserve the obligation; no funds held until approval.",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "provider": {
+                    "enum": [
+                      "dewa",
+                      "etisalat",
+                      "du",
+                      "police"
+                    ]
+                  },
+                  "payableId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                  },
+                  "expectedPayableRevision": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "methodId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                  },
+                  "expectedMethodVersion": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1000000
+                  }
+                },
+                "required": [
+                  "provider",
+                  "payableId",
+                  "expectedPayableRevision",
+                  "methodId",
+                  "expectedMethodVersion"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "order": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "accountId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "ownerSub": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "version": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "state": {
+                          "enum": [
+                            "AWAITING_APPROVAL",
+                            "REQUIRES_ACTION",
+                            "AUTHORIZED",
+                            "FAILED",
+                            "CANCELLED"
+                          ]
+                        },
+                        "approvalDigest": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        },
+                        "expiresAt": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "approvedAt": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "failureCode": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "fundsCaptured": {
+                          "const": false
+                        },
+                        "authorization": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "orderId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "sourceId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "amountMinor": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 100000000
+                            },
+                            "currency": {
+                              "const": "AED"
+                            },
+                            "state": {
+                              "enum": [
+                                "REQUIRES_ACTION",
+                                "AUTHORIZED",
+                                "DECLINED",
+                                "EXPIRED",
+                                "VOIDED",
+                                "CAPTURED"
+                              ]
+                            },
+                            "expiresAt": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "challengeId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "failureCode": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "orderId",
+                            "sourceId",
+                            "amountMinor",
+                            "currency",
+                            "state",
+                            "expiresAt"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "quote": {
+                          "type": "object",
+                          "properties": {
+                            "payable": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "provider": {
+                                  "enum": [
+                                    "dewa",
+                                    "etisalat",
+                                    "du",
+                                    "police"
+                                  ]
+                                },
+                                "reference": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "obligationId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "kind": {
+                                  "enum": [
+                                    "BILL",
+                                    "FINE"
+                                  ]
+                                },
+                                "version": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 1000000
+                                },
+                                "label": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "amountMinor": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 100000000
+                                },
+                                "originalAmountMinor": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 100000000
+                                },
+                                "discountMinor": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 100000000
+                                },
+                                "discountEligible": {
+                                  "type": "boolean"
+                                },
+                                "currency": {
+                                  "const": "AED"
+                                },
+                                "status": {
+                                  "enum": [
+                                    "UNPAID",
+                                    "PAID",
+                                    "CANCELLED",
+                                    "EXPIRED"
+                                  ]
+                                },
+                                "dueState": {
+                                  "enum": [
+                                    "CURRENT",
+                                    "DUE",
+                                    "OVERDUE",
+                                    "EXPIRED",
+                                    "CLOSED"
+                                  ]
+                                },
+                                "revision": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{64}$"
+                                },
+                                "dueDate": {
+                                  "type": "string",
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                                },
+                                "expiresAt": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "discountExpiresAt": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "period": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "openingFixture": {
+                                  "type": "boolean"
+                                },
+                                "paymentRestricted": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "provider",
+                                "reference",
+                                "obligationId",
+                                "kind",
+                                "version",
+                                "label",
+                                "amountMinor",
+                                "originalAmountMinor",
+                                "discountMinor",
+                                "discountEligible",
+                                "currency",
+                                "status",
+                                "dueState",
+                                "revision"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "source": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 160,
+                                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                                },
+                                "accountId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 160,
+                                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                                },
+                                "kind": {
+                                  "enum": [
+                                    "wallet",
+                                    "card"
+                                  ]
+                                },
+                                "nickname": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64,
+                                  "pattern": "^[^\\x00-\\x1f\\x7f]*\\S[^\\x00-\\x1f\\x7f]*$"
+                                },
+                                "version": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 1000000
+                                },
+                                "status": {
+                                  "enum": [
+                                    "ACTIVE",
+                                    "DISABLED",
+                                    "EXPIRED",
+                                    "REMOVED"
+                                  ]
+                                },
+                                "currency": {
+                                  "const": "AED"
+                                },
+                                "createdAt": {
+                                  "type": "string",
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+                                },
+                                "preset": {
+                                  "enum": [
+                                    "approved",
+                                    "declined",
+                                    "challenge",
+                                    "expired",
+                                    "limited"
+                                  ]
+                                },
+                                "last4": {
+                                  "type": "string",
+                                  "pattern": "^\\d{4}$"
+                                },
+                                "expiresMonth": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 12
+                                },
+                                "expiresYear": {
+                                  "type": "integer",
+                                  "minimum": 2000,
+                                  "maximum": 2200
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "accountId",
+                                "kind",
+                                "nickname",
+                                "version",
+                                "status",
+                                "currency"
+                              ],
+                              "additionalProperties": false,
+                              "allOf": [
+                                {
+                                  "if": {
+                                    "properties": {
+                                      "kind": {
+                                        "const": "card"
+                                      }
+                                    }
+                                  },
+                                  "then": {
+                                    "required": [
+                                      "preset",
+                                      "last4",
+                                      "expiresMonth",
+                                      "expiresYear",
+                                      "createdAt"
+                                    ]
+                                  },
+                                  "else": {
+                                    "properties": {
+                                      "id": {
+                                        "const": "wallet"
+                                      },
+                                      "status": {
+                                        "const": "ACTIVE"
+                                      },
+                                      "version": {
+                                        "const": 1
+                                      }
+                                    },
+                                    "not": {
+                                      "anyOf": [
+                                        {
+                                          "required": [
+                                            "preset"
+                                          ]
+                                        },
+                                        {
+                                          "required": [
+                                            "last4"
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            },
+                            "billingAccount": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 160,
+                                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                                },
+                                "accountId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 160,
+                                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                                },
+                                "provider": {
+                                  "enum": [
+                                    "dewa",
+                                    "etisalat",
+                                    "du",
+                                    "rta",
+                                    "police"
+                                  ]
+                                },
+                                "reference": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 160,
+                                  "pattern": "^[^\\x00-\\x1f\\x7f]+$"
+                                },
+                                "nickname": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64,
+                                  "pattern": "^[^\\x00-\\x1f\\x7f]*\\S[^\\x00-\\x1f\\x7f]*$"
+                                },
+                                "status": {
+                                  "enum": [
+                                    "ACTIVE",
+                                    "ARCHIVED"
+                                  ]
+                                },
+                                "version": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 1000000
+                                },
+                                "createdAt": {
+                                  "type": "string",
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "accountId",
+                                "provider",
+                                "reference",
+                                "nickname",
+                                "status",
+                                "version",
+                                "createdAt"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "amountMinor": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 100000000
+                            },
+                            "feeMinor": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 100000000
+                            },
+                            "totalMinor": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 100000000
+                            },
+                            "currency": {
+                              "const": "AED"
+                            },
+                            "createdAt": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "expiresAt": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "payable",
+                            "source",
+                            "billingAccount",
+                            "amountMinor",
+                            "feeMinor",
+                            "totalMinor",
+                            "currency",
+                            "createdAt",
+                            "expiresAt"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "accountId",
+                        "ownerSub",
+                        "version",
+                        "state",
+                        "approvalDigest",
+                        "expiresAt",
+                        "createdAt",
+                        "fundsCaptured",
+                        "quote"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "order"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "402": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/accounts/{accountId}/payment-orders/{orderId}": {
+      "get": {
+        "operationId": "payments_getAuthorizationOrder",
+        "description": "Inspect a current owned authorization review.",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "order": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "accountId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "ownerSub": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "version": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "state": {
+                          "enum": [
+                            "AWAITING_APPROVAL",
+                            "REQUIRES_ACTION",
+                            "AUTHORIZED",
+                            "FAILED",
+                            "CANCELLED"
+                          ]
+                        },
+                        "approvalDigest": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        },
+                        "expiresAt": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "approvedAt": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "failureCode": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "fundsCaptured": {
+                          "const": false
+                        },
+                        "authorization": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "orderId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "sourceId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "amountMinor": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 100000000
+                            },
+                            "currency": {
+                              "const": "AED"
+                            },
+                            "state": {
+                              "enum": [
+                                "REQUIRES_ACTION",
+                                "AUTHORIZED",
+                                "DECLINED",
+                                "EXPIRED",
+                                "VOIDED",
+                                "CAPTURED"
+                              ]
+                            },
+                            "expiresAt": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "challengeId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "failureCode": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "orderId",
+                            "sourceId",
+                            "amountMinor",
+                            "currency",
+                            "state",
+                            "expiresAt"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "quote": {
+                          "type": "object",
+                          "properties": {
+                            "payable": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "provider": {
+                                  "enum": [
+                                    "dewa",
+                                    "etisalat",
+                                    "du",
+                                    "police"
+                                  ]
+                                },
+                                "reference": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "obligationId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "kind": {
+                                  "enum": [
+                                    "BILL",
+                                    "FINE"
+                                  ]
+                                },
+                                "version": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 1000000
+                                },
+                                "label": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "amountMinor": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 100000000
+                                },
+                                "originalAmountMinor": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 100000000
+                                },
+                                "discountMinor": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 100000000
+                                },
+                                "discountEligible": {
+                                  "type": "boolean"
+                                },
+                                "currency": {
+                                  "const": "AED"
+                                },
+                                "status": {
+                                  "enum": [
+                                    "UNPAID",
+                                    "PAID",
+                                    "CANCELLED",
+                                    "EXPIRED"
+                                  ]
+                                },
+                                "dueState": {
+                                  "enum": [
+                                    "CURRENT",
+                                    "DUE",
+                                    "OVERDUE",
+                                    "EXPIRED",
+                                    "CLOSED"
+                                  ]
+                                },
+                                "revision": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{64}$"
+                                },
+                                "dueDate": {
+                                  "type": "string",
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                                },
+                                "expiresAt": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "discountExpiresAt": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "period": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "openingFixture": {
+                                  "type": "boolean"
+                                },
+                                "paymentRestricted": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "provider",
+                                "reference",
+                                "obligationId",
+                                "kind",
+                                "version",
+                                "label",
+                                "amountMinor",
+                                "originalAmountMinor",
+                                "discountMinor",
+                                "discountEligible",
+                                "currency",
+                                "status",
+                                "dueState",
+                                "revision"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "source": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 160,
+                                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                                },
+                                "accountId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 160,
+                                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                                },
+                                "kind": {
+                                  "enum": [
+                                    "wallet",
+                                    "card"
+                                  ]
+                                },
+                                "nickname": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64,
+                                  "pattern": "^[^\\x00-\\x1f\\x7f]*\\S[^\\x00-\\x1f\\x7f]*$"
+                                },
+                                "version": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 1000000
+                                },
+                                "status": {
+                                  "enum": [
+                                    "ACTIVE",
+                                    "DISABLED",
+                                    "EXPIRED",
+                                    "REMOVED"
+                                  ]
+                                },
+                                "currency": {
+                                  "const": "AED"
+                                },
+                                "createdAt": {
+                                  "type": "string",
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+                                },
+                                "preset": {
+                                  "enum": [
+                                    "approved",
+                                    "declined",
+                                    "challenge",
+                                    "expired",
+                                    "limited"
+                                  ]
+                                },
+                                "last4": {
+                                  "type": "string",
+                                  "pattern": "^\\d{4}$"
+                                },
+                                "expiresMonth": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 12
+                                },
+                                "expiresYear": {
+                                  "type": "integer",
+                                  "minimum": 2000,
+                                  "maximum": 2200
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "accountId",
+                                "kind",
+                                "nickname",
+                                "version",
+                                "status",
+                                "currency"
+                              ],
+                              "additionalProperties": false,
+                              "allOf": [
+                                {
+                                  "if": {
+                                    "properties": {
+                                      "kind": {
+                                        "const": "card"
+                                      }
+                                    }
+                                  },
+                                  "then": {
+                                    "required": [
+                                      "preset",
+                                      "last4",
+                                      "expiresMonth",
+                                      "expiresYear",
+                                      "createdAt"
+                                    ]
+                                  },
+                                  "else": {
+                                    "properties": {
+                                      "id": {
+                                        "const": "wallet"
+                                      },
+                                      "status": {
+                                        "const": "ACTIVE"
+                                      },
+                                      "version": {
+                                        "const": 1
+                                      }
+                                    },
+                                    "not": {
+                                      "anyOf": [
+                                        {
+                                          "required": [
+                                            "preset"
+                                          ]
+                                        },
+                                        {
+                                          "required": [
+                                            "last4"
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            },
+                            "billingAccount": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 160,
+                                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                                },
+                                "accountId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 160,
+                                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                                },
+                                "provider": {
+                                  "enum": [
+                                    "dewa",
+                                    "etisalat",
+                                    "du",
+                                    "rta",
+                                    "police"
+                                  ]
+                                },
+                                "reference": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 160,
+                                  "pattern": "^[^\\x00-\\x1f\\x7f]+$"
+                                },
+                                "nickname": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64,
+                                  "pattern": "^[^\\x00-\\x1f\\x7f]*\\S[^\\x00-\\x1f\\x7f]*$"
+                                },
+                                "status": {
+                                  "enum": [
+                                    "ACTIVE",
+                                    "ARCHIVED"
+                                  ]
+                                },
+                                "version": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 1000000
+                                },
+                                "createdAt": {
+                                  "type": "string",
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "accountId",
+                                "provider",
+                                "reference",
+                                "nickname",
+                                "status",
+                                "version",
+                                "createdAt"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "amountMinor": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 100000000
+                            },
+                            "feeMinor": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 100000000
+                            },
+                            "totalMinor": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 100000000
+                            },
+                            "currency": {
+                              "const": "AED"
+                            },
+                            "createdAt": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "expiresAt": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "payable",
+                            "source",
+                            "billingAccount",
+                            "amountMinor",
+                            "feeMinor",
+                            "totalMinor",
+                            "currency",
+                            "createdAt",
+                            "expiresAt"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "accountId",
+                        "ownerSub",
+                        "version",
+                        "state",
+                        "approvalDigest",
+                        "expiresAt",
+                        "createdAt",
+                        "fundsCaptured",
+                        "quote"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "order"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "402": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/accounts/{accountId}/payment-orders/{orderId}/approve": {
+      "post": {
+        "operationId": "payments_approveAuthorizationOrder",
+        "description": "Require explicit exact-review owner approval before finite wallet/card authorization. Capture remains disabled.",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "expectedVersion": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1000000
+                  },
+                  "approvalDigest": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "expectedVersion",
+                  "approvalDigest"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "order": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "accountId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "ownerSub": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "version": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "state": {
+                          "enum": [
+                            "AWAITING_APPROVAL",
+                            "REQUIRES_ACTION",
+                            "AUTHORIZED",
+                            "FAILED",
+                            "CANCELLED"
+                          ]
+                        },
+                        "approvalDigest": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        },
+                        "expiresAt": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "approvedAt": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "failureCode": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "fundsCaptured": {
+                          "const": false
+                        },
+                        "authorization": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "orderId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "sourceId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "amountMinor": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 100000000
+                            },
+                            "currency": {
+                              "const": "AED"
+                            },
+                            "state": {
+                              "enum": [
+                                "REQUIRES_ACTION",
+                                "AUTHORIZED",
+                                "DECLINED",
+                                "EXPIRED",
+                                "VOIDED",
+                                "CAPTURED"
+                              ]
+                            },
+                            "expiresAt": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "challengeId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "failureCode": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "orderId",
+                            "sourceId",
+                            "amountMinor",
+                            "currency",
+                            "state",
+                            "expiresAt"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "quote": {
+                          "type": "object",
+                          "properties": {
+                            "payable": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "provider": {
+                                  "enum": [
+                                    "dewa",
+                                    "etisalat",
+                                    "du",
+                                    "police"
+                                  ]
+                                },
+                                "reference": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "obligationId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "kind": {
+                                  "enum": [
+                                    "BILL",
+                                    "FINE"
+                                  ]
+                                },
+                                "version": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 1000000
+                                },
+                                "label": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "amountMinor": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 100000000
+                                },
+                                "originalAmountMinor": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 100000000
+                                },
+                                "discountMinor": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 100000000
+                                },
+                                "discountEligible": {
+                                  "type": "boolean"
+                                },
+                                "currency": {
+                                  "const": "AED"
+                                },
+                                "status": {
+                                  "enum": [
+                                    "UNPAID",
+                                    "PAID",
+                                    "CANCELLED",
+                                    "EXPIRED"
+                                  ]
+                                },
+                                "dueState": {
+                                  "enum": [
+                                    "CURRENT",
+                                    "DUE",
+                                    "OVERDUE",
+                                    "EXPIRED",
+                                    "CLOSED"
+                                  ]
+                                },
+                                "revision": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{64}$"
+                                },
+                                "dueDate": {
+                                  "type": "string",
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                                },
+                                "expiresAt": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "discountExpiresAt": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "period": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "openingFixture": {
+                                  "type": "boolean"
+                                },
+                                "paymentRestricted": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "provider",
+                                "reference",
+                                "obligationId",
+                                "kind",
+                                "version",
+                                "label",
+                                "amountMinor",
+                                "originalAmountMinor",
+                                "discountMinor",
+                                "discountEligible",
+                                "currency",
+                                "status",
+                                "dueState",
+                                "revision"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "source": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 160,
+                                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                                },
+                                "accountId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 160,
+                                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                                },
+                                "kind": {
+                                  "enum": [
+                                    "wallet",
+                                    "card"
+                                  ]
+                                },
+                                "nickname": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64,
+                                  "pattern": "^[^\\x00-\\x1f\\x7f]*\\S[^\\x00-\\x1f\\x7f]*$"
+                                },
+                                "version": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 1000000
+                                },
+                                "status": {
+                                  "enum": [
+                                    "ACTIVE",
+                                    "DISABLED",
+                                    "EXPIRED",
+                                    "REMOVED"
+                                  ]
+                                },
+                                "currency": {
+                                  "const": "AED"
+                                },
+                                "createdAt": {
+                                  "type": "string",
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+                                },
+                                "preset": {
+                                  "enum": [
+                                    "approved",
+                                    "declined",
+                                    "challenge",
+                                    "expired",
+                                    "limited"
+                                  ]
+                                },
+                                "last4": {
+                                  "type": "string",
+                                  "pattern": "^\\d{4}$"
+                                },
+                                "expiresMonth": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 12
+                                },
+                                "expiresYear": {
+                                  "type": "integer",
+                                  "minimum": 2000,
+                                  "maximum": 2200
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "accountId",
+                                "kind",
+                                "nickname",
+                                "version",
+                                "status",
+                                "currency"
+                              ],
+                              "additionalProperties": false,
+                              "allOf": [
+                                {
+                                  "if": {
+                                    "properties": {
+                                      "kind": {
+                                        "const": "card"
+                                      }
+                                    }
+                                  },
+                                  "then": {
+                                    "required": [
+                                      "preset",
+                                      "last4",
+                                      "expiresMonth",
+                                      "expiresYear",
+                                      "createdAt"
+                                    ]
+                                  },
+                                  "else": {
+                                    "properties": {
+                                      "id": {
+                                        "const": "wallet"
+                                      },
+                                      "status": {
+                                        "const": "ACTIVE"
+                                      },
+                                      "version": {
+                                        "const": 1
+                                      }
+                                    },
+                                    "not": {
+                                      "anyOf": [
+                                        {
+                                          "required": [
+                                            "preset"
+                                          ]
+                                        },
+                                        {
+                                          "required": [
+                                            "last4"
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            },
+                            "billingAccount": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 160,
+                                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                                },
+                                "accountId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 160,
+                                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                                },
+                                "provider": {
+                                  "enum": [
+                                    "dewa",
+                                    "etisalat",
+                                    "du",
+                                    "rta",
+                                    "police"
+                                  ]
+                                },
+                                "reference": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 160,
+                                  "pattern": "^[^\\x00-\\x1f\\x7f]+$"
+                                },
+                                "nickname": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64,
+                                  "pattern": "^[^\\x00-\\x1f\\x7f]*\\S[^\\x00-\\x1f\\x7f]*$"
+                                },
+                                "status": {
+                                  "enum": [
+                                    "ACTIVE",
+                                    "ARCHIVED"
+                                  ]
+                                },
+                                "version": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 1000000
+                                },
+                                "createdAt": {
+                                  "type": "string",
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "accountId",
+                                "provider",
+                                "reference",
+                                "nickname",
+                                "status",
+                                "version",
+                                "createdAt"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "amountMinor": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 100000000
+                            },
+                            "feeMinor": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 100000000
+                            },
+                            "totalMinor": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 100000000
+                            },
+                            "currency": {
+                              "const": "AED"
+                            },
+                            "createdAt": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "expiresAt": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "payable",
+                            "source",
+                            "billingAccount",
+                            "amountMinor",
+                            "feeMinor",
+                            "totalMinor",
+                            "currency",
+                            "createdAt",
+                            "expiresAt"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "accountId",
+                        "ownerSub",
+                        "version",
+                        "state",
+                        "approvalDigest",
+                        "expiresAt",
+                        "createdAt",
+                        "fundsCaptured",
+                        "quote"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "order"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "402": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/accounts/{accountId}/payment-orders/{orderId}/challenge": {
+      "post": {
+        "operationId": "payments_answerAuthorizationChallenge",
+        "description": "The signed-in owner answers this exact synthetic card challenge; unattended actors are denied.",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "expectedVersion": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1000000
+                  },
+                  "approvalDigest": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "challengeId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                  },
+                  "decision": {
+                    "enum": [
+                      "APPROVE",
+                      "REJECT"
+                    ]
+                  }
+                },
+                "required": [
+                  "expectedVersion",
+                  "approvalDigest",
+                  "challengeId",
+                  "decision"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "order": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "accountId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "ownerSub": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "version": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "state": {
+                          "enum": [
+                            "AWAITING_APPROVAL",
+                            "REQUIRES_ACTION",
+                            "AUTHORIZED",
+                            "FAILED",
+                            "CANCELLED"
+                          ]
+                        },
+                        "approvalDigest": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        },
+                        "expiresAt": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "approvedAt": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "failureCode": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "fundsCaptured": {
+                          "const": false
+                        },
+                        "authorization": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "orderId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "sourceId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "amountMinor": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 100000000
+                            },
+                            "currency": {
+                              "const": "AED"
+                            },
+                            "state": {
+                              "enum": [
+                                "REQUIRES_ACTION",
+                                "AUTHORIZED",
+                                "DECLINED",
+                                "EXPIRED",
+                                "VOIDED",
+                                "CAPTURED"
+                              ]
+                            },
+                            "expiresAt": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "challengeId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "failureCode": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "orderId",
+                            "sourceId",
+                            "amountMinor",
+                            "currency",
+                            "state",
+                            "expiresAt"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "quote": {
+                          "type": "object",
+                          "properties": {
+                            "payable": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "provider": {
+                                  "enum": [
+                                    "dewa",
+                                    "etisalat",
+                                    "du",
+                                    "police"
+                                  ]
+                                },
+                                "reference": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "obligationId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "kind": {
+                                  "enum": [
+                                    "BILL",
+                                    "FINE"
+                                  ]
+                                },
+                                "version": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 1000000
+                                },
+                                "label": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "amountMinor": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 100000000
+                                },
+                                "originalAmountMinor": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 100000000
+                                },
+                                "discountMinor": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 100000000
+                                },
+                                "discountEligible": {
+                                  "type": "boolean"
+                                },
+                                "currency": {
+                                  "const": "AED"
+                                },
+                                "status": {
+                                  "enum": [
+                                    "UNPAID",
+                                    "PAID",
+                                    "CANCELLED",
+                                    "EXPIRED"
+                                  ]
+                                },
+                                "dueState": {
+                                  "enum": [
+                                    "CURRENT",
+                                    "DUE",
+                                    "OVERDUE",
+                                    "EXPIRED",
+                                    "CLOSED"
+                                  ]
+                                },
+                                "revision": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{64}$"
+                                },
+                                "dueDate": {
+                                  "type": "string",
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                                },
+                                "expiresAt": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "discountExpiresAt": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "period": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "openingFixture": {
+                                  "type": "boolean"
+                                },
+                                "paymentRestricted": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "provider",
+                                "reference",
+                                "obligationId",
+                                "kind",
+                                "version",
+                                "label",
+                                "amountMinor",
+                                "originalAmountMinor",
+                                "discountMinor",
+                                "discountEligible",
+                                "currency",
+                                "status",
+                                "dueState",
+                                "revision"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "source": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 160,
+                                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                                },
+                                "accountId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 160,
+                                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                                },
+                                "kind": {
+                                  "enum": [
+                                    "wallet",
+                                    "card"
+                                  ]
+                                },
+                                "nickname": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64,
+                                  "pattern": "^[^\\x00-\\x1f\\x7f]*\\S[^\\x00-\\x1f\\x7f]*$"
+                                },
+                                "version": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 1000000
+                                },
+                                "status": {
+                                  "enum": [
+                                    "ACTIVE",
+                                    "DISABLED",
+                                    "EXPIRED",
+                                    "REMOVED"
+                                  ]
+                                },
+                                "currency": {
+                                  "const": "AED"
+                                },
+                                "createdAt": {
+                                  "type": "string",
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+                                },
+                                "preset": {
+                                  "enum": [
+                                    "approved",
+                                    "declined",
+                                    "challenge",
+                                    "expired",
+                                    "limited"
+                                  ]
+                                },
+                                "last4": {
+                                  "type": "string",
+                                  "pattern": "^\\d{4}$"
+                                },
+                                "expiresMonth": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 12
+                                },
+                                "expiresYear": {
+                                  "type": "integer",
+                                  "minimum": 2000,
+                                  "maximum": 2200
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "accountId",
+                                "kind",
+                                "nickname",
+                                "version",
+                                "status",
+                                "currency"
+                              ],
+                              "additionalProperties": false,
+                              "allOf": [
+                                {
+                                  "if": {
+                                    "properties": {
+                                      "kind": {
+                                        "const": "card"
+                                      }
+                                    }
+                                  },
+                                  "then": {
+                                    "required": [
+                                      "preset",
+                                      "last4",
+                                      "expiresMonth",
+                                      "expiresYear",
+                                      "createdAt"
+                                    ]
+                                  },
+                                  "else": {
+                                    "properties": {
+                                      "id": {
+                                        "const": "wallet"
+                                      },
+                                      "status": {
+                                        "const": "ACTIVE"
+                                      },
+                                      "version": {
+                                        "const": 1
+                                      }
+                                    },
+                                    "not": {
+                                      "anyOf": [
+                                        {
+                                          "required": [
+                                            "preset"
+                                          ]
+                                        },
+                                        {
+                                          "required": [
+                                            "last4"
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            },
+                            "billingAccount": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 160,
+                                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                                },
+                                "accountId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 160,
+                                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                                },
+                                "provider": {
+                                  "enum": [
+                                    "dewa",
+                                    "etisalat",
+                                    "du",
+                                    "rta",
+                                    "police"
+                                  ]
+                                },
+                                "reference": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 160,
+                                  "pattern": "^[^\\x00-\\x1f\\x7f]+$"
+                                },
+                                "nickname": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64,
+                                  "pattern": "^[^\\x00-\\x1f\\x7f]*\\S[^\\x00-\\x1f\\x7f]*$"
+                                },
+                                "status": {
+                                  "enum": [
+                                    "ACTIVE",
+                                    "ARCHIVED"
+                                  ]
+                                },
+                                "version": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 1000000
+                                },
+                                "createdAt": {
+                                  "type": "string",
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "accountId",
+                                "provider",
+                                "reference",
+                                "nickname",
+                                "status",
+                                "version",
+                                "createdAt"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "amountMinor": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 100000000
+                            },
+                            "feeMinor": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 100000000
+                            },
+                            "totalMinor": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 100000000
+                            },
+                            "currency": {
+                              "const": "AED"
+                            },
+                            "createdAt": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "expiresAt": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "payable",
+                            "source",
+                            "billingAccount",
+                            "amountMinor",
+                            "feeMinor",
+                            "totalMinor",
+                            "currency",
+                            "createdAt",
+                            "expiresAt"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "accountId",
+                        "ownerSub",
+                        "version",
+                        "state",
+                        "approvalDigest",
+                        "expiresAt",
+                        "createdAt",
+                        "fundsCaptured",
+                        "quote"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "order"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "402": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/accounts/{accountId}/payment-orders/{orderId}/cancel": {
+      "post": {
+        "operationId": "payments_cancelAuthorizationOrder",
+        "description": "Cancel a current authorization review and void its holds without a debit.",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "expectedVersion": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1000000
+                  }
+                },
+                "required": [
+                  "expectedVersion"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "order": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "accountId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "ownerSub": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "version": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "state": {
+                          "enum": [
+                            "AWAITING_APPROVAL",
+                            "REQUIRES_ACTION",
+                            "AUTHORIZED",
+                            "FAILED",
+                            "CANCELLED"
+                          ]
+                        },
+                        "approvalDigest": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        },
+                        "expiresAt": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "approvedAt": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "failureCode": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "fundsCaptured": {
+                          "const": false
+                        },
+                        "authorization": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "orderId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "sourceId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "amountMinor": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 100000000
+                            },
+                            "currency": {
+                              "const": "AED"
+                            },
+                            "state": {
+                              "enum": [
+                                "REQUIRES_ACTION",
+                                "AUTHORIZED",
+                                "DECLINED",
+                                "EXPIRED",
+                                "VOIDED",
+                                "CAPTURED"
+                              ]
+                            },
+                            "expiresAt": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "challengeId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "failureCode": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "orderId",
+                            "sourceId",
+                            "amountMinor",
+                            "currency",
+                            "state",
+                            "expiresAt"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "quote": {
+                          "type": "object",
+                          "properties": {
+                            "payable": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "provider": {
+                                  "enum": [
+                                    "dewa",
+                                    "etisalat",
+                                    "du",
+                                    "police"
+                                  ]
+                                },
+                                "reference": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "obligationId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "kind": {
+                                  "enum": [
+                                    "BILL",
+                                    "FINE"
+                                  ]
+                                },
+                                "version": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 1000000
+                                },
+                                "label": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "amountMinor": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 100000000
+                                },
+                                "originalAmountMinor": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 100000000
+                                },
+                                "discountMinor": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 100000000
+                                },
+                                "discountEligible": {
+                                  "type": "boolean"
+                                },
+                                "currency": {
+                                  "const": "AED"
+                                },
+                                "status": {
+                                  "enum": [
+                                    "UNPAID",
+                                    "PAID",
+                                    "CANCELLED",
+                                    "EXPIRED"
+                                  ]
+                                },
+                                "dueState": {
+                                  "enum": [
+                                    "CURRENT",
+                                    "DUE",
+                                    "OVERDUE",
+                                    "EXPIRED",
+                                    "CLOSED"
+                                  ]
+                                },
+                                "revision": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{64}$"
+                                },
+                                "dueDate": {
+                                  "type": "string",
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                                },
+                                "expiresAt": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "discountExpiresAt": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "period": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "openingFixture": {
+                                  "type": "boolean"
+                                },
+                                "paymentRestricted": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "provider",
+                                "reference",
+                                "obligationId",
+                                "kind",
+                                "version",
+                                "label",
+                                "amountMinor",
+                                "originalAmountMinor",
+                                "discountMinor",
+                                "discountEligible",
+                                "currency",
+                                "status",
+                                "dueState",
+                                "revision"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "source": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 160,
+                                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                                },
+                                "accountId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 160,
+                                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                                },
+                                "kind": {
+                                  "enum": [
+                                    "wallet",
+                                    "card"
+                                  ]
+                                },
+                                "nickname": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64,
+                                  "pattern": "^[^\\x00-\\x1f\\x7f]*\\S[^\\x00-\\x1f\\x7f]*$"
+                                },
+                                "version": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 1000000
+                                },
+                                "status": {
+                                  "enum": [
+                                    "ACTIVE",
+                                    "DISABLED",
+                                    "EXPIRED",
+                                    "REMOVED"
+                                  ]
+                                },
+                                "currency": {
+                                  "const": "AED"
+                                },
+                                "createdAt": {
+                                  "type": "string",
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+                                },
+                                "preset": {
+                                  "enum": [
+                                    "approved",
+                                    "declined",
+                                    "challenge",
+                                    "expired",
+                                    "limited"
+                                  ]
+                                },
+                                "last4": {
+                                  "type": "string",
+                                  "pattern": "^\\d{4}$"
+                                },
+                                "expiresMonth": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 12
+                                },
+                                "expiresYear": {
+                                  "type": "integer",
+                                  "minimum": 2000,
+                                  "maximum": 2200
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "accountId",
+                                "kind",
+                                "nickname",
+                                "version",
+                                "status",
+                                "currency"
+                              ],
+                              "additionalProperties": false,
+                              "allOf": [
+                                {
+                                  "if": {
+                                    "properties": {
+                                      "kind": {
+                                        "const": "card"
+                                      }
+                                    }
+                                  },
+                                  "then": {
+                                    "required": [
+                                      "preset",
+                                      "last4",
+                                      "expiresMonth",
+                                      "expiresYear",
+                                      "createdAt"
+                                    ]
+                                  },
+                                  "else": {
+                                    "properties": {
+                                      "id": {
+                                        "const": "wallet"
+                                      },
+                                      "status": {
+                                        "const": "ACTIVE"
+                                      },
+                                      "version": {
+                                        "const": 1
+                                      }
+                                    },
+                                    "not": {
+                                      "anyOf": [
+                                        {
+                                          "required": [
+                                            "preset"
+                                          ]
+                                        },
+                                        {
+                                          "required": [
+                                            "last4"
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            },
+                            "billingAccount": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 160,
+                                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                                },
+                                "accountId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 160,
+                                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                                },
+                                "provider": {
+                                  "enum": [
+                                    "dewa",
+                                    "etisalat",
+                                    "du",
+                                    "rta",
+                                    "police"
+                                  ]
+                                },
+                                "reference": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 160,
+                                  "pattern": "^[^\\x00-\\x1f\\x7f]+$"
+                                },
+                                "nickname": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64,
+                                  "pattern": "^[^\\x00-\\x1f\\x7f]*\\S[^\\x00-\\x1f\\x7f]*$"
+                                },
+                                "status": {
+                                  "enum": [
+                                    "ACTIVE",
+                                    "ARCHIVED"
+                                  ]
+                                },
+                                "version": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 1000000
+                                },
+                                "createdAt": {
+                                  "type": "string",
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "accountId",
+                                "provider",
+                                "reference",
+                                "nickname",
+                                "status",
+                                "version",
+                                "createdAt"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "amountMinor": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 100000000
+                            },
+                            "feeMinor": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 100000000
+                            },
+                            "totalMinor": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 100000000
+                            },
+                            "currency": {
+                              "const": "AED"
+                            },
+                            "createdAt": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "expiresAt": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "payable",
+                            "source",
+                            "billingAccount",
+                            "amountMinor",
+                            "feeMinor",
+                            "totalMinor",
+                            "currency",
+                            "createdAt",
+                            "expiresAt"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "accountId",
+                        "ownerSub",
+                        "version",
+                        "state",
+                        "approvalDigest",
+                        "expiresAt",
+                        "createdAt",
+                        "fundsCaptured",
+                        "quote"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "order"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "402": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
           }
         }
       }
@@ -147,7 +3749,8 @@
                               "approved",
                               "declined",
                               "challenge",
-                              "expired"
+                              "expired",
+                              "limited"
                             ]
                           },
                           "last4": {
@@ -279,6 +3882,49 @@
                         "type": "object",
                         "additionalProperties": true
                       }
+                    },
+                    "cardBalances": {
+                      "type": "array",
+                      "maxItems": 100,
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "sourceId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "limitMinor": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 100000000
+                          },
+                          "heldMinor": {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          "spentMinor": {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          "availableMinor": {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          "currency": {
+                            "const": "AED"
+                          }
+                        },
+                        "required": [
+                          "sourceId",
+                          "limitMinor",
+                          "heldMinor",
+                          "spentMinor",
+                          "availableMinor",
+                          "currency"
+                        ],
+                        "additionalProperties": false
+                      }
                     }
                   },
                   "required": [
@@ -286,7 +3932,8 @@
                     "methods",
                     "dependencies",
                     "defaultMethodId",
-                    "presets"
+                    "presets",
+                    "cardBalances"
                   ],
                   "additionalProperties": false
                 }
@@ -353,7 +4000,8 @@
                       "approved",
                       "declined",
                       "challenge",
-                      "expired"
+                      "expired",
+                      "limited"
                     ]
                   },
                   "nickname": {
@@ -435,7 +4083,8 @@
                             "approved",
                             "declined",
                             "challenge",
-                            "expired"
+                            "expired",
+                            "limited"
                           ]
                         },
                         "last4": {
@@ -670,7 +4319,8 @@
                             "approved",
                             "declined",
                             "challenge",
-                            "expired"
+                            "expired",
+                            "limited"
                           ]
                         },
                         "last4": {
