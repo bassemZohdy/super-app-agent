@@ -1307,7 +1307,7 @@
     "/v1/accounts/{accountId}/wallet": {
       "get": {
         "operationId": "payments_getWallet",
-        "description": "Read this account’s AED demo wallet.",
+        "description": "Read posted, held and available AED wallet funds from the balanced journal.",
         "parameters": [
           {
             "name": "accountId",
@@ -1335,7 +1335,16 @@
                       "type": "number"
                     },
                     "balanceMinor": {
-                      "type": "integer"
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "heldMinor": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "availableMinor": {
+                      "type": "integer",
+                      "minimum": 0
                     },
                     "currency": {
                       "const": "AED"
@@ -1345,6 +1354,8 @@
                     "success",
                     "balance",
                     "balanceMinor",
+                    "heldMinor",
+                    "availableMinor",
                     "currency"
                   ],
                   "additionalProperties": false

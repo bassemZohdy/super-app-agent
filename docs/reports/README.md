@@ -1,9 +1,10 @@
 # Execution evidence register
 
-Implementation baseline: `283521a` on 24 October 2026. Results describe the source and environment recorded, not a production certification. Planning updates do not create new feature evidence.
+Evidence spans the `283521a` integrated baseline, payment setup `65fec3c`, and the subsequent journal publication on 24 October 2026. Results describe the source and environment recorded, not a production certification. Planning updates do not create new feature evidence.
 
 | Evidence | Verified scope | Interpretation |
 | --- | --- | --- |
+| [Payment journal](2026-10-24-payment-ledger.md) | 143 tests, 18 builds, twelve existing journeys, setup browser and actual three-wallet migration/backup proof | PAY-02 delivered; executable saved-card orders and automation remain open |
 | [Payment accounts](2026-10-24-payment-accounts.md) | 136 tests, 18 builds and real-Keycloak isolated setup/quote/browser checks | PAY-01 delivered; no new financial execution or automation |
 | [Local AI](2026-10-24-local-ai.md) | 130 Node tests, 18 builds, 12 browser journeys, four speech API tests, actual CPU text/speech/dictation, synthetic browser capture/playback, Flutter analysis/six tests, delegation security | Latest delivered baseline; physical/native/Arabic speech limits remain |
 | [Delegation](2026-10-24-delegation-demo.md) | Exact-image RFC 7523, separate broker, current grants, bounded writes/revocation, paced browser evidence | Supported no-preview demo; recurring payment mandates are not implemented |

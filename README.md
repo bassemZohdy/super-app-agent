@@ -113,7 +113,9 @@ Watch [the latest recording](http://localhost:3300) or open its [checked-in view
 
 Open **Payment accounts** in React to save synthetic card presets, link provider-verified biller references and review a fresh quote with your chosen source. Defaults, disabled cards, account switching and source versions are checked; this panel does not move funds. Existing service payments still use the current wallet flow. [Guide and compatibility](docs/development/payment-accounts.md) · [Executed checks](docs/reports/2026-10-24-payment-accounts.md).
 
-The remaining [payment backlog](TODO.md#payment-accounts-and-automation-demo--planned-backlog) covers journal/order execution, wallet/card bills and top-ups, bounded autopay/automatic services and deterministic clock/failure simulation. [Full design](docs/architecture/payment-automation-demo.md).
+Current wallet payments now append balanced journal entries, with one-time legacy balance migration and checked posted/held/available funds. [Journal and recovery guide](docs/development/payment-ledger.md) · [Live migration evidence](docs/reports/2026-10-24-payment-ledger.md).
+
+The remaining [payment backlog](TODO.md#payment-accounts-and-automation-demo--planned-backlog) covers stored order/card execution, wallet/card bills and top-ups, bounded autopay/automatic services and deterministic clock/failure simulation. [Full design](docs/architecture/payment-automation-demo.md).
 
 ## Documentation
 

@@ -1,6 +1,8 @@
 # Payment accounts and quote review
 
-Implemented first slice: PAY-01, with partial PAY-03/PAY-04. React can manage owned synthetic cards/biller links and request a fresh non-executable payment review. Existing service payments still use the legacy wallet flow. Stored payment orders, a balanced journal, holds/challenges, direct saved-card payments and automatic rules are not enabled yet. [Full backlog](../../TODO.md#payment-accounts-and-automation-demo--planned-backlog) · [Design](../architecture/payment-automation-demo.md).
+Implemented foundations: PAY-01/PAY-02, with partial PAY-03/PAY-04. React can manage owned synthetic cards/biller links and request a fresh non-executable payment review. Existing service payments still use the legacy wallet flow. Stored payment orders, executable authorization/challenges, direct saved-card payments and automatic rules are not enabled yet. [Full backlog](../../TODO.md#payment-accounts-and-automation-demo--planned-backlog) · [Design](../architecture/payment-automation-demo.md).
+
+Current wallet funds are journal-backed, with posted/held/available balances shown in the panel. [Migration/recovery](payment-ledger.md). Internal holds are not a public financial-authorization API yet.
 
 ## Try it
 

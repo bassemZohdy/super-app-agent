@@ -4,7 +4,9 @@ import { dirname } from 'node:path';
 import { accountIdFor } from '../../../packages/backend-kit/src/context.ts';
 export class AccountDatabase {
   readonly db: DatabaseSync;
+  readonly path: string;
   constructor(path: string) {
+    this.path = path;
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
     this.db = new DatabaseSync(path);
     this.db.exec(`PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON;

@@ -64,7 +64,7 @@ export function PaymentAccountsPanel({ gateway, accountId, getToken, onClose }: 
     <p role="status" className={notice ? 'payment-notice' : ''}>{busy ? 'Loading payment accounts…' : notice}</p>
     <button disabled={busy} onClick={() => void work(load)}>Refresh payment accounts</button>
     {data && <>
-      <div className="payment-summary"><strong>{formatAED(data.wallet.balanceMinor)}</strong><span>Current wallet · simulated funds</span></div>
+      <div className="payment-summary"><strong>{formatAED(data.wallet.balanceMinor)}</strong><span>Current wallet · simulated funds</span><span>Available {formatAED(data.wallet.availableMinor)} · Held {formatAED(data.wallet.heldMinor)}</span></div>
       <div className="payment-grid">
         <section aria-label="Saved funding methods"><h3>Wallet &amp; demo cards</h3><p>Choose a preset, never enter real card details.</p>
           <form onSubmit={e => { e.preventDefault(); void work(async () => { await mutate('methods', { preset, nickname }); setNotice('Demo card saved for this account.'); }); }}>

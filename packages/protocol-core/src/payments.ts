@@ -22,7 +22,7 @@ export type PaymentPreview = {
   payable: Payable; billingAccount: BillingAccount; source: PaymentMethod; amountMinor: number; feeMinor: number;
   totalMinor: number; currency: 'AED'; createdAt: string; expiresAt: string; digest: string;
 };
-export type PaymentOverview = { contractVersion: string; accountId: string; previewOnly: true; methods: PaymentMethod[]; defaultMethodId: string; presets: unknown[]; billingAccounts: BillingAccount[]; candidates: BillerCandidate[]; payables: Payable[]; wallet: { balanceMinor: number; currency: 'AED' } };
+export type PaymentOverview = { contractVersion: string; accountId: string; previewOnly: true; methods: PaymentMethod[]; defaultMethodId: string; presets: unknown[]; billingAccounts: BillingAccount[]; candidates: BillerCandidate[]; payables: Payable[]; wallet: { balanceMinor: number; heldMinor: number; availableMinor: number; currency: 'AED' } };
 export const orderStates = ['DRAFT','AWAITING_APPROVAL','READY','REQUIRES_ACTION','AUTHORIZED','CAPTURED','SETTLING','SETTLED','FAILED','CANCELLED','RECONCILIATION_REQUIRED','REFUNDING','PARTIALLY_REFUNDED','REFUNDED'] as const;
 export const settlementStates = ['UNCLAIMED','CLAIMED','APPLIED','RELEASED','UNKNOWN'] as const;
 export const attemptStates = ['PENDING','REQUIRES_ACTION','AUTHORIZED','CAPTURED','DECLINED','VOIDED','UNKNOWN'] as const;

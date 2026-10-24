@@ -1,3 +1,4 @@
+import { PaymentLedger } from './payment-ledger.ts';
 import { paymentRegistry } from './payment-registry.ts';
 import { randomUUID } from 'node:crypto';
 import { AccountDatabase } from './database.ts';
@@ -14,8 +15,8 @@ const ok = (data: Record<string, any>): ApiResult => ({ status: 200, data: { suc
 const minor = (amount: number) => Math.round(amount * 100);
 const major = (amount: number) => amount / 100;
 export class ProviderEngine {
-  readonly provider: ProviderId; readonly store: AccountDatabase;
-  constructor(provider: ProviderId, store: AccountDatabase) { this.provider = provider; this.store = store; }
+  readonly provider: ProviderId; readonly store: AccountDatabase; readonly ledger?: PaymentLedger;
+  constructor(provider: ProviderId, store: AccountDatabase) { this.provider = provider; this.store = store; if (provider === 'payments') this.ledger = new PaymentLedger(store); }
   seed(actor: Actor) {
     const db = this.store, account = actor.accountId;
     if (db.get(account, 'seed')) return;
@@ -31,12 +32,13 @@ export class ProviderEngine {
         discountAmount: index ? 0 : 30, payableAmount: amount, blackPoints: 0, status: 'UNPAID',
       }, `FINE-${account.slice(-8)}-${index}`);
       if (this.provider === 'dld') db.put(account, 'contract', { ...structuredClone(defaultEjariContract), tenantName: actor.name, contractNumber: asset.contractNumber, property: { ...defaultEjariContract.property, premiseId: asset.premiseId } });
-      if (this.provider === 'payments') db.put(account, 'wallet', { balanceMinor: 150000, currency: 'AED' });
+      if (this.provider === 'payments' && !db.get(account, 'wallet')) db.put(account, 'wallet', { balanceMinor: 150000, currency: 'AED' });
       if (this.provider === 'etisalat' || this.provider === 'du') {
         const subscriptionId = `SUB-${this.provider}-${account.slice(-8)}`;
         db.put(account, 'subscription', { subscriptionId, provider: this.provider, planId: 'home_299', name: 'Home internet', status: 'ACTIVE', monthlyAmount: 299, currency: 'AED' }, subscriptionId);
         db.put(account, 'bill', { billId: `BILL-${this.provider}-${account.slice(-8)}`, subscriptionId, amountMinor: 29900, totalAmount: 299, currency: 'AED', status: 'UNPAID', dueDate: '2026-11-30' });
       }
+      if (this.provider === 'payments') this.ledger!.initializeAccount(account);
       db.put(account, 'seed', true);
     });
   }
@@ -49,19 +51,19 @@ export class ProviderEngine {
     if (this.provider === 'payments') {
       const registry = paymentRegistry(db, a, method, path, body);
       if (registry) return ok(registry);
-      const wallet = db.get(a, 'wallet');
+      const wallet = this.ledger!.summary(a);
       if (method === 'GET' && path === '/wallet') return ok({ ...wallet, balance: major(wallet.balanceMinor) });
       if (method === 'GET' && path === '/transactions') { const transactions = db.list(a, 'transaction'); return ok({ transactions, count: transactions.length }); }
       if (method === 'GET' && path.startsWith('/charges/')) { const charge = db.get(a, 'charge', path.split('/')[2]); if (!charge) fail(404, 'NOT_FOUND', 'Payment not found.'); return ok({ charge }); }
       if (method === 'POST' && (path === '/charges' || path === '/topups')) {
         const id = randomUUID(), topup = path === '/topups';
-        const declined = body.source === 'demo_declined' || (!topup && body.source === 'wallet' && wallet.balanceMinor < body.amountMinor);
+        const declined = body.source === 'demo_declined' || (!topup && body.source === 'wallet' && wallet.availableMinor < body.amountMinor);
         const charge = { id, accountId: a, amountMinor: body.amountMinor, merchant: body.merchant, reference: body.reference, source: body.source, status: declined ? 'DECLINED' : 'CAPTURED', currency: 'AED', createdAt: now(), refunded: false };
         if (!topup) db.put(a, 'charge', charge, id);
         if (declined) return { status: 402, data: { success: false, code: 'PAYMENT_DECLINED', error: 'The simulated payment was declined. Check the wallet balance or demo funding source.' } };
         const next = wallet.balanceMinor + (topup ? body.amountMinor : body.source === 'wallet' ? -body.amountMinor : 0);
         if (!Number.isSafeInteger(next) || next > 100_000_000) fail(400, 'BALANCE_LIMIT', 'Demo wallet balance limit exceeded.');
-        wallet.balanceMinor = next; db.put(a, 'wallet', wallet);
+        this.ledger!.record(a, topup ? 'TOPUP' : 'PAYMENT', `${topup ? 'topup' : 'charge'}:${id}`, body.amountMinor, body.source === 'wallet' ? 'wallet' : 'external');
         const transaction = { id, type: topup ? 'TOPUP' : 'PAYMENT', amount: major(body.amountMinor), currency: 'AED', purpose: body.reference || 'Demo wallet reload', status: 'SETTLED', timestamp: Date.now(), referenceId: body.reference };
         db.put(a, 'transaction', transaction, id);
         return topup ? ok({ transaction, newBalance: major(next) }) : ok({ charge, transaction, remainingBalance: major(next) });
@@ -72,8 +74,9 @@ export class ProviderEngine {
         if (charge.status !== 'CAPTURED' || charge.refunded) fail(409, 'NOT_REFUNDABLE', 'This payment cannot be refunded.');
         const next = wallet.balanceMinor + (charge.source === 'wallet' ? charge.amountMinor : 0);
         if (next > 100_000_000) fail(409, 'BALANCE_LIMIT', 'Demo wallet balance limit exceeded.');
-        wallet.balanceMinor = next; charge.refunded = true; charge.refundedAt = now();
-        db.put(a, 'wallet', wallet); db.put(a, 'charge', charge, charge.id);
+        charge.refunded = true; charge.refundedAt = now();
+        this.ledger!.record(a, 'REFUND', `refund:${charge.id}`, charge.amountMinor, charge.source === 'wallet' ? 'wallet' : 'external');
+        db.put(a, 'charge', charge, charge.id);
         const refund = { id: randomUUID(), chargeId: charge.id, amountMinor: charge.amountMinor, currency: 'AED', status: 'REFUNDED', reason: body.reason };
         db.put(a, 'transaction', { id: refund.id, type: 'REFUND', amount: major(charge.amountMinor), currency: 'AED', purpose: body.reason, status: 'SETTLED', timestamp: Date.now() }, refund.id);
         return ok({ refund, remainingBalance: major(next) });

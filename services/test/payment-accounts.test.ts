@@ -62,7 +62,7 @@ test('biller linking verifies the current signed owner at the source provider an
 });
 
 function overview(): PaymentOverview {
-  const accountId='acc_alice'; return { contractVersion:'1.0.0',accountId,previewOnly:true,defaultMethodId:'wallet',presets:[],wallet:{balanceMinor:150000,currency:'AED'},candidates:[],
+  const accountId='acc_alice'; return { contractVersion:'1.0.0',accountId,previewOnly:true,defaultMethodId:'wallet',presets:[],wallet:{balanceMinor:150000,heldMinor:0,availableMinor:150000,currency:'AED'},candidates:[],
     methods:[{id:'wallet',accountId,kind:'wallet',nickname:'Wallet',status:'ACTIVE',version:1,currency:'AED'}],
     billingAccounts:[{id:'ba_owned',accountId,provider:'dewa',reference:'OWNED',nickname:'Home',status:'ACTIVE',version:1,createdAt:'2026-01-01T00:00:00Z'}],
     payables:[{id:'dewa:bill:bill_1',provider:'dewa',reference:'OWNED',label:'DEWA bill',amountMinor:42040,currency:'AED',status:'UNPAID',revision:'revision_1'}] };
@@ -85,7 +85,7 @@ test('provider-backed overview preserves signed identity and reads current rathe
   const client={call:async(provider:string,forwarded:typeof actor,method:string,path:string)=>{
     assert.equal(forwarded.authorization,'Bearer signed');assert.equal(method,'GET');
     if(path==='/payment-methods') return {methods:[],defaultMethodId:'wallet',presets:[]};
-    if(path==='/billing-accounts') return {billingAccounts:[]};if(path==='/wallet')return{balanceMinor:120000};
+    if(path==='/billing-accounts') return {billingAccounts:[]};if(path==='/wallet')return{balanceMinor:120000,heldMinor:0,availableMinor:120000};
     if(path==='/consumption')return{account:{accountNumber:'DEWA-own'}};
     if(path==='/subscriptions')return{subscriptions:[{subscriptionId:`${provider}-own`,status:'ACTIVE',name:'Internet'}]};
     if(path==='/bills')return{bills:[{billId:`${provider}-current`,subscriptionId:`${provider}-own`,status:'UNPAID',totalAmount:123.45}]};

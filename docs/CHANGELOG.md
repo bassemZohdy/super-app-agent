@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 24 October 2026 — balanced payment journal and legacy migration
+
+Deliver PAY-02: versioned journal/postings, one-time carried wallet balances and consistent pre-migration backup, checked projection, shared available-funds holds, and atomic existing payment/refund/top-up records. Add SQL sealing guards, failure/restore/reopen regressions, a controlled live migration verifier and recovery guidance. Existing twelve journeys and the payment setup browser pass; the actual three-wallet database preserves prior resources/idempotency. Card orders, settlement claims and automation remain open. [Guide](development/payment-ledger.md) · [Evidence](reports/2026-10-24-payment-ledger.md).
+
 ## 24 October 2026 — payment account and quote-review foundation
 
 Deliver PAY-01 and partial PAY-03/PAY-04: versioned strict contracts, saved synthetic cards/defaults, verified biller links and source-bound non-executable previews. Add the responsive React workspace, persistence/ownership/version tests and an isolated real-Keycloak browser flow. Preserve current wallet execution and keep journal/orders/automation unchecked. [Usage](development/payment-accounts.md) · [Evidence](reports/2026-10-24-payment-accounts.md).
