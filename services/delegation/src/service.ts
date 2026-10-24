@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 import { verifyJwt, type JwtClaims } from '../../../packages/backend-kit/src/jwt.ts';
+import { logEvent } from '../../../packages/backend-kit/src/redact.ts';
 import { brokerClient, runnerClient, DelegationError, deny, digest, tokenHash,grantInput } from './policy.ts';
 import { GrantStore } from './store.ts';
 import { assertionTimes, keyMaterial, signedJwt } from './keys.ts';
@@ -49,7 +50,7 @@ async function exchange(grant: ReturnType<GrantStore['get']>, operationId: strin
   if (!response.ok) {
     const error = await response.json().catch(() => ({})) as { error?: string; error_description?: string };
     // OAuth errors are bounded diagnostics only; assertions and tokens are never logged.
-    console.error('Delegation exchange rejected', response.status, String(error.error || '').slice(0, 100), String(error.error_description || '').replace(/[A-Za-z0-9_-]{60,}/g, '[redacted]').slice(0, 250));
+    logEvent('error', 'Delegation exchange rejected', { status: response.status, error: String(error.error || '').slice(0, 100), error_description: String(error.error_description || '').replace(/[A-Za-z0-9_-]{60,}/g, '[redacted]').slice(0, 250) });
     throw new DelegationError(503, 'DELEGATION_EXCHANGE_FAILED', `Keycloak rejected the delegated exchange (${response.status}).`);
   }
   const data = await response.json() as { access_token: string; refresh_token?: string };
