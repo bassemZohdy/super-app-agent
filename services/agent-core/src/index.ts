@@ -13,7 +13,6 @@ import http from 'node:http';
 import { EventJournal, StreamWriter, eventFrame } from './event-stream.ts';
 import {
   createA2UIMessage,
-  type A2UIHandshakePayload,
   type A2UIMessageEnvelope,
 } from '../../../packages/protocol-core/src/index.ts';
 import type { SuperAppAgentState } from './langgraph/state.ts';

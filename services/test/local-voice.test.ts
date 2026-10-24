@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { VoiceClient, type VoiceEnvironment } from '../../packages/protocol-core/src/voice-client.ts';
 import { speechText } from '../../packages/protocol-core/src/voice-text.ts';
-import { localSpeech, localTranscription, voiceConfig } from '../agent-core/src/local-voice.ts';
+import { localSpeech, localTranscription } from '../agent-core/src/local-voice.ts';
 import { invokeLocalConversation } from '../agent-core/src/local-conversation.ts';
 const tick = () => new Promise(resolve => setTimeout(resolve, 10));
 
