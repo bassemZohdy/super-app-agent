@@ -8,6 +8,8 @@ import { Component, signal, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import type { AGUISurfacePayload, UIComponentNode } from '../../../../packages/protocol-core/src/index.ts';
 
+const GATEWAY_URL = (typeof import.meta !== 'undefined' && (import.meta as { env?: Record<string, string | undefined> }).env?.['NG_APP_GATEWAY_URL']) || 'http://localhost:4000';
+
 @Component({
   selector: 'app-root',
   standalone: true,
@@ -172,7 +174,7 @@ export class AppComponent implements OnInit, OnDestroy {
   delegationBusy = false;
   now = () => Date.now();
   private async delegationApi(path = '', method = 'GET', body?: unknown) {
-    const response = await fetch(`http://localhost:4000/api/delegation/grants${path}`, { method, headers: { Authorization: `Bearer ${await this.auth?.token()}`, 'Content-Type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+    const response = await fetch(`${GATEWAY_URL}/api/delegation/grants${path}`, { method, headers: { Authorization: `Bearer ${await this.auth?.token()}`, 'Content-Type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
     const data = await response.json(); if (!response.ok) throw new Error(data.error || data.code); return data;
   }
   async loadDelegations() { try { const data = await this.delegationApi(); this.delegationGrants.set(data.grants.filter((g: any) => g.accountId === this.accountId)); } catch (e) { this.delegationNotice.set((e as Error).message); } }
@@ -248,16 +250,16 @@ export class AppComponent implements OnInit, OnDestroy {
   keycloakToken = 'demo-local'; // local demo only
 
   async ngOnInit() {
-    void fetch('http://localhost:4000/health').then(r => r.json()).then(data => this.connectionLabel.set(data.llm?.enabled ? data.llm?.ready ? 'Local model ready' : 'Local model warming up' : 'Demo mode')).catch(() => this.connectionLabel.set('Gateway offline'));
-    this.voiceApi = new LocalVoiceApi('http://localhost:4000', () => this.auth?.token() || 'demo-local');
+    void fetch(`${GATEWAY_URL}/health`).then(r => r.json()).then(data => this.connectionLabel.set(data.llm?.enabled ? data.llm?.ready ? 'Local model ready' : 'Local model warming up' : 'Demo mode')).catch(() => this.connectionLabel.set('Gateway offline'));
+    this.voiceApi = new LocalVoiceApi(GATEWAY_URL, () => this.auth?.token() || 'demo-local');
     this.voice = new VoiceClient({ onTranscript: text => this.draft.set(text), onState: state => this.voiceState.set(state), onError: error => this.voiceError.set(error), allowBrowserFallback: false,
       fetchAudio: (text, language, signal) => this.voiceApi!.speech(text, language, this.voiceProfile, this.voiceSpeed, signal), transcribeAudio: (input, signal) => this.voiceApi!.transcribe(input, signal) });
     document.addEventListener('visibilitychange', this.visibilityHandler);
     try {
-      const config = await (await fetch('http://localhost:4000/api/auth/config')).json();
+      const config = await (await fetch(`${GATEWAY_URL}/api/auth/config`)).json();
       this.auth = new BrowserAuth(config); await this.auth.completeLogin();
       if (config.enabled && !this.auth.signedIn) { this.loginRequired.set(true); return; }
-      const response = await fetch('http://localhost:4000/api/accounts', { headers: { Authorization: `Bearer ${await this.auth.token()}` } });
+      const response = await fetch(`${GATEWAY_URL}/api/accounts`, { headers: { Authorization: `Bearer ${await this.auth.token()}` } });
       if (!response.ok) throw new Error('Could not load your accounts. Sign in again.');
       const data = await response.json(); this.accounts.set(data.accounts); this.accountId = data.accounts[0]?.id || ''; this.userName.set(data.user?.name || 'Demo citizen');
       this.connectStream();
@@ -267,7 +269,7 @@ export class AppComponent implements OnInit, OnDestroy {
   }
   connectStream() {
     void connectEventStream({
-      url: `http://localhost:4000/api/a2ui/stream?sessionId=${this.sessionId}&accountId=${encodeURIComponent(this.accountId)}`,
+      url: `${GATEWAY_URL}/api/a2ui/stream?sessionId=${this.sessionId}&accountId=${encodeURIComponent(this.accountId)}`,
       getToken: () => this.auth?.token() || 'demo-local', signal: this.streamController.signal,
       onMessage: data => {
         if (data.type === 'A2UI_STREAM_DELTA') this.delta.set(data.data.text);
@@ -286,7 +288,7 @@ export class AppComponent implements OnInit, OnDestroy {
     this.delta.set('Preparing your request...');
 
     try {
-      const res = await fetch('http://localhost:4000/api/a2ui/intent', {
+      const res = await fetch(`${GATEWAY_URL}/api/a2ui/intent`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -322,7 +324,7 @@ export class AppComponent implements OnInit, OnDestroy {
     this.voice?.cancel();
     this.delta.set(`⚡ Executing action: ${action}...`);
     try {
-      const res = await fetch('http://localhost:4000/api/a2ui/action', {
+      const res = await fetch(`${GATEWAY_URL}/api/a2ui/action`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
