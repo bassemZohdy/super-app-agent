@@ -6,6 +6,8 @@ The bounded [delegation demo](../development/delegation.md) now implements expli
 
 **Status:** **Proposed**—not implemented by the current demonstration. This describes design direction for future ADRs and implementation plans, not current production readiness.
 
+The selected next demo workstream is the [payment accounts and automation plan](payment-automation-demo.md). It narrows the general workflow direction into finite wallet/card payments, explicit mandates, a small local persistent worker and deterministic simulation. Its [backlog](../../TODO.md#payment-accounts-and-automation-demo--planned-backlog) is proposed work, not an implemented scheduler or production authority.
+
 ## Goal and decision boundary
 
 The Super App should behave like a **goal-oriented Concierge**: users describe needs, the agent discovers capabilities, assembles journeys, selects the UI and manages progress across mini-apps. The platform must still provide non-agent navigation/access paths and preserve domain authority over resources and transactions.

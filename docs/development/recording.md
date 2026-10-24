@@ -68,10 +68,12 @@ The runner closes only its own browser/HTTP servers, deletes its recording-owned
 
 ## Latest verified recording
 
-[Watch the current recording](../recordings/index.html): **4:09**, 1600 × 1000, twelve chapters and 34 recorded checks, with 6-second reviews and 8-second receipts. [MP4](../recordings/runs/20261024T010609Z-video/cityside-e2e.mp4) · [Assertion report](../recordings/runs/20261024T010609Z-video/report.md). Browser verification confirmed the media loads without error and the unified-checkout chapter seeks correctly. The final regression suite passes 120 tests; all 17 workspace builds and strict harness checks pass.
+[Watch the current recording](../recordings/index.html): **4:09**, 1600 × 1000, twelve chapters and 34 recorded checks, with 6-second reviews and 8-second receipts. [MP4](../recordings/runs/20261024T010609Z-video/cityside-e2e.mp4) · [Assertion report](../recordings/runs/20261024T010609Z-video/report.md). Browser verification confirmed the media loads without error and the unified-checkout chapter seeks correctly. That recording’s dated suite passed 120 tests and 17 builds. The later [local AI verification](../reports/2026-10-24-local-ai.md) records 130 tests and 18 builds; it does not alter the video’s original provenance.
 
 ## Delegation recording
 
 `npm run record:delegation` records the running synthetic reference stack and React shell, with six-second reviews and eight-second results after asserted state waits. It covers explicit wallet-read consent, broker/provider execution, audit, revocation and a separately approved one-time AED 1 synthetic credit. Unlike the twelve-chapter harness above, it uses the running provider state and adds that exact synthetic credit; both grants are revoked. It stores dated runs under `docs/recordings/delegation/runs` and promotes only successful video. [Watch delegation](../recordings/delegation/index.html) · [Runbook](delegation.md). No traces or token dumps are captured.
 
 The post-delegation regression reran all twelve existing journeys successfully with the strict interactive provider policy. Its isolated APIs explicitly block the live broker backchannel, so this harness cannot accidentally execute a live grant. The dedicated delegation recorder above remains the evidence for the separate grant flow.
+
+Delegation recordings keep their dated run files as the canonical media. The delegation viewer points directly at the latest successful run; a second copy of that WebM is not retained. Earlier successful runs remain dated evidence.

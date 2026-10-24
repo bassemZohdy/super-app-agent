@@ -1,3 +1,5 @@
+import { verifyBillerReference } from './payment-ownership.ts';
+import { PaymentRegistryError } from './payment-registry.ts';
 import { HttpPolicy, HttpError, readJsonBody } from '../../../packages/backend-kit/src/http-policy.ts';
 import http from 'node:http';
 import { createHash } from 'node:crypto';
@@ -42,7 +44,7 @@ export function createProviderServer(provider: ProviderId, path: string) {
       if (!store.owns(subject, accountId)) throw new ApiError(403, 'ACCOUNT_FORBIDDEN', 'This account does not belong to the user.');
       const operation = routes.find(route => route.method === req.method && route.regex.test(operationPath));
       if (!operation || url.search) throw new ApiError(404, 'NOT_FOUND', 'Operation not found.');
-      const actor: Actor = { sub: subject, username: subject, name: typeof req.headers['x-user-name'] === 'string' ? Buffer.from(req.headers['x-user-name'], 'base64url').toString('utf8').slice(0, 200) : 'Demo citizen', accountId, requestId: '' };
+      const actor: Actor = { sub: subject, username: subject, name: typeof req.headers['x-user-name'] === 'string' ? Buffer.from(req.headers['x-user-name'], 'base64url').toString('utf8').slice(0, 200) : 'Demo citizen', accountId, requestId: '', authorization: interactive ? req.headers.authorization : undefined };
       let body: any = {};
       if (req.method === 'POST') {
         body = await readJsonBody(req);
@@ -63,6 +65,7 @@ export function createProviderServer(provider: ProviderId, path: string) {
       }
       // A delegated write with external payment proof is outside the initial bounded write profile.
       if (delegated && body.paymentId) throw new ApiError(403, 'WRITE_NOT_APPROVED', 'Delegated settlement is not enabled.');
+      if (provider === 'payments' && req.method === 'POST' && operationPath === '/billing-accounts') await verifyBillerReference(payments, actor, body);
       const proof = body.paymentId ? (await payments.call('payments', actor, 'GET', `/charges/${encodeURIComponent(body.paymentId)}`)).charge : undefined;
       const result = store.transaction(() => {
         // Re-check after asynchronous proof retrieval; another request may have committed.
@@ -80,9 +83,9 @@ export function createProviderServer(provider: ProviderId, path: string) {
       });
       send(result);
     } catch (error) {
-      const status = error instanceof HttpError ? error.status : error instanceof ApiError ? error.status : 503;
+      const status = error instanceof HttpError ? error.status : error instanceof ApiError || error instanceof PaymentRegistryError ? error.status : 503;
       res.setHeader('Connection', 'close');
-      send({ status, data: { success: false, code: error instanceof ApiError ? error.code : 'PROVIDER_UNAVAILABLE', error: error instanceof HttpError ? error.message : error instanceof ApiError ? error.message : 'The simulator could not complete this request. Check operation status before retrying a write.' } });
+      send({ status, data: { success: false, code: error instanceof ApiError || error instanceof PaymentRegistryError ? error.code : 'PROVIDER_UNAVAILABLE', error: error instanceof HttpError ? error.message : error instanceof ApiError || error instanceof PaymentRegistryError ? error.message : 'The simulator could not complete this request. Check operation status before retrying a write.' } });
     }
   });
   return { server, store };

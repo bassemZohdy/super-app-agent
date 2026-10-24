@@ -28,3 +28,7 @@ Manual `/api/manual/prepare` selects one of eleven server-owned bundled service 
 ## Local text and speech
 
 The authenticated core exposes `GET /api/voice/config`, `POST /api/a2ui/tts` and `POST /api/voice/transcribe`. Speech accepts text (1–480 chars), one of four installed presets, speed 0.8–1.2 and English; it returns base64 WAV with local provenance. Dictation accepts at most 45 KB of base64 WebM/Ogg/MP4/WAV and English/Arabic language, returning bounded text with `requiresReview: true`. It does not submit an intent or service action. Schemas reject caller model/URL/file parameters. Limits, privacy, licence sources and error behavior are in [the local AI guide](../development/local-ai.md). Private `voice`/`conversation` APIs have no published host ports; normal clients use only core.
+
+## Payment contract extension — live setup and planned execution
+
+[The payment/automation design](payment-automation-demo.md) is being implemented in slices. `GET /api/payments/overview`, method/default/status management, biller linking/archive and `POST /api/payments/preview` are live. Every request requires a user token and owned account; mutations require a request key, and references are verified at the source provider. Additive payment-provider OpenAPI is 2.1.0. Reviews are explicitly non-executable; stored orders, financial authorization, journal, settlement claims, mandates/runs and simulator controls remain future work. [Exact routes, request shapes and compatibility](../development/payment-accounts.md).

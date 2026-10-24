@@ -48,7 +48,8 @@
     "local-ai:up": "node --experimental-strip-types scripts/local-ai-up.ts",
     "local-ai:verify": "node --experimental-strip-types scripts/verify-local-ai.ts",
     "local-ai:test": "docker compose -f docker-compose.demo.yml exec -T voice python -m unittest -v test_api",
-    "local-ai:browser": "node --experimental-strip-types scripts/verify-local-ai-browser.ts"
+    "local-ai:browser": "node --experimental-strip-types scripts/verify-local-ai-browser.ts",
+    "demo:verify:payment-accounts": "node --experimental-strip-types scripts/e2e/payment-accounts.ts"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^13.1.0",

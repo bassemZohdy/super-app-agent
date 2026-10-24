@@ -1,6 +1,6 @@
 # Provider backend demonstration
 
-This is a local integration environment, not an integration with the named real entities. Producer: the provider-simulator package. Consumers: the application microservices. Contract version: 2.0.0, OpenAPI 3.1. This demo security migration changes authentication while retaining `/v1` resource schemas. Sign in again for the provider audience; service-header impersonation clients must migrate. Future breaking resource changes require explicit versioning and migration.
+This is a local integration environment, not an integration with the named real entities. Producer: the provider-simulator package. Consumers: the application microservices. Contract version: 2.0.0 for entity APIs, 2.1.0 for the additive payment-account APIs; OpenAPI 3.1. This demo security migration changes authentication while retaining `/v1` resource schemas. Sign in again for the provider audience; service-header impersonation clients must migrate. Future breaking resource changes require explicit versioning and migration.
 
 ## Service and account boundaries
 
@@ -95,3 +95,7 @@ Integrated Redis now also holds bounded LangGraph root checkpoints and persisted
 The owned session response includes current approval and a bounded lifecycle history. `POST /api/a2ui/cancel` invalidates a pending proposal. `GET /api/services` and `POST /api/manual/prepare` expose eleven bundled routes without a model call; React can open `/services/wallet` directly. The authenticated official MCP transport is at core `/mcp`; application descriptors remain metadata. [MCP guide](../development/mcp.md).
 
 All integrated JWT verification now includes access-token type and authenticated online introspection via the separate `cityside-verifier` client/audience. Run `npm run demo:realm` when upgrading an existing realm and sign in again. The [demo target ADR](../adr/ADR-0011-local-demo-target.md) records retained and deferred requirements.
+
+## Planned payment simulator extension
+
+The gateway now persists saved synthetic cards/defaults and provider-verified biller links. Authorization challenges, a double-entry journal, recurring mandates and automatic service execution are not implemented yet. [Current setup APIs](../development/payment-accounts.md). [The proposed design](../architecture/payment-automation-demo.md) and [50-task backlog](../../TODO.md#payment-accounts-and-automation-demo--planned-backlog) cover those additions, linked biller/prepaid resources, payment orders and reconciliation, plus a controlled business clock and fault scenarios. They preserve synthetic money and current identity/provider boundaries. Existing `/v1` OpenAPI and commands remain authoritative until versioned changes land.

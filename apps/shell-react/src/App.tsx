@@ -1,3 +1,4 @@
+import { PaymentAccountsPanel } from './PaymentAccountsPanel.tsx';
 import { BrowserAuth, type BrowserAuthConfig } from '../../../packages/protocol-core/src/oidc-client.ts';
 import { DelegationPanel } from './DelegationPanel.tsx';
 import { useEffect, useRef, useState } from 'react';
@@ -42,6 +43,7 @@ export function App() {
   const [inference, setInference] = useState<'connected' | 'error' | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [delegationOpen, setDelegationOpen] = useState(false);
+  const [paymentAccountsOpen, setPaymentAccountsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobilePanel, setMobilePanel] = useState(false);
   const [readReplies, setReadReplies] = useState(false);
@@ -61,6 +63,7 @@ export function App() {
   const revision = useRef<string>();
   const messagesEnd = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
+  const paymentAccountsButton = useRef<HTMLButtonElement>(null);
   const sessionRef = useRef(sessionId);
   sessionRef.current = sessionId;
   const append = (message: Omit<ChatMessage, 'id'>) => setMessages(prev => [...prev, { ...message, id: crypto.randomUUID() }]);
@@ -228,6 +231,7 @@ export function App() {
     } finally { busy.current = false; setPending(false); setProgress(''); input.current?.focus(); }
   };
   const openService = (service: string) => {
+    setPaymentAccountsOpen(false);
     if (busy.current || !authReady || loginRequired) return;
     const route = ({ mobility: 'parking', citizenpay: 'wallet', telecom: 'etisalat' } as Record<string,string>)[service] || service;
     const sid = resetConversation(accountId);
@@ -242,6 +246,7 @@ export function App() {
     if (route) openService(route);
   }, [authReady, loginRequired, accountId]);
   const send = (text = draft) => {
+    setPaymentAccountsOpen(false);
     if (!text.trim() || busy.current || !authReady || loginRequired) return;
     const query = text.trim();
     append({ role: 'user', text: query }); setDraft(''); setMenuOpen(false); setMobilePanel(false);
@@ -258,6 +263,7 @@ export function App() {
   };
   const newConversation = () => {
     if (busy.current) return;
+    setPaymentAccountsOpen(false); setDelegationOpen(false);
     voice.current?.cancel(); resetConversation(); history.replaceState(null, '', '/'); input.current?.focus();
   };
   const statusLabel = connection === 'offline' ? 'Gateway offline' : connection === 'checking' ? 'Connecting…'
@@ -288,14 +294,16 @@ export function App() {
       {menuOpen && <button className="menu-scrim" aria-label="Close navigation" onClick={() => setMenuOpen(false)} />}
       <main id="main" className="main-workspace">
         <header className="topbar">
-          <div className="breadcrumb"><button className="icon-button mobile-menu" aria-label="Open navigation" aria-controls="city-navigation" aria-expanded={menuOpen} onClick={() => setMenuOpen(true)}><Menu size={20} /></button><span>Your space</span><span className="breadcrumb-slash">/</span><strong>Concierge</strong></div>
+          <div className="breadcrumb"><button className="icon-button mobile-menu" aria-label="Open navigation" aria-controls="city-navigation" aria-expanded={menuOpen} onClick={() => setMenuOpen(true)}><Menu size={20} /></button><span>Your space</span><span className="breadcrumb-slash">/</span><strong>{paymentAccountsOpen ? 'Payment accounts' : 'Concierge'}</strong></div>
           <div className="topbar-actions"><span className={`connection-status ${connection === 'offline' || inference === 'error' ? 'is-error' : ''}`} role="status"><i />{statusLabel}</span><button className="icon-button" aria-label="Conversation settings" aria-expanded={settingsOpen} onClick={() => setSettingsOpen(!settingsOpen)}><Settings2 size={18} /></button></div>
         </header>
-        <button className="text-button" aria-expanded={delegationOpen} onClick={() => setDelegationOpen(!delegationOpen)}>Delegated access</button>
+        <nav className="workspace-tools" aria-label="Workspace tools"><button className="text-button" aria-expanded={delegationOpen} onClick={() => { setPaymentAccountsOpen(false); setDelegationOpen(!delegationOpen); }}>Delegated access</button>
+        <button ref={paymentAccountsButton} className="text-button" disabled={pending || !accountId} aria-controls="payment-account-panel" aria-expanded={paymentAccountsOpen} onClick={() => { voice.current?.cancel(); setDelegationOpen(false); setPaymentAccountsOpen(!paymentAccountsOpen); }}>Payment accounts</button></nav>
+        {paymentAccountsOpen && <PaymentAccountsPanel key={accountId} gateway={GATEWAY_URL} accountId={accountId} getToken={getToken} onClose={() => { setPaymentAccountsOpen(false); paymentAccountsButton.current?.focus(); }} />}
         {delegationOpen && <DelegationPanel gateway={GATEWAY_URL} accountId={accountId} getToken={getToken} />}
         {settingsOpen && <section className="settings-panel" aria-label="Conversation settings"><div className="settings-title"><strong>Conversation settings</strong><button className="icon-button" aria-label="Close settings" onClick={() => setSettingsOpen(false)}><X size={17} /></button></div><p>Model: {model?.model || 'Unavailable'}</p><p>{model?.enabled ? 'Private replies from the local open-source model.' : 'Demo replies. Enable live inference in the server environment.'}</p><label>Voice language<select value={language} onChange={e => { voice.current?.cancel(); setLanguage(e.target.value); if (e.target.value !== 'en-US') setReadReplies(false); }}><option value="en-US">English</option><option value="ar-AE">Arabic dictation · text replies</option></select></label><label className="checkbox-label"><input type="checkbox" checked={readReplies} disabled={!canSpeak || language !== 'en-US'} onChange={e => { setReadReplies(e.target.checked); if (!e.target.checked) voice.current?.cancel(); }} />Read replies aloud</label><h3>Voice studio</h3><p>{voiceConfig?.ttsReady && voiceConfig?.asrReady ? 'Local open-source speech is ready.' : 'Local voice is not ready. Text chat remains available.'}</p><label>Voice preset<select aria-label="Voice preset" value={voiceProfile} onChange={e => { voice.current?.cancel(); setVoiceProfile(e.target.value); }}>{(voiceConfig?.voices || [{id:'Jasper', name:'Jasper'}]).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label><label>Speaking speed · {voiceSpeed.toFixed(2)}×<input aria-label="Speaking speed" type="range" min="0.8" max="1.2" step="0.05" value={voiceSpeed} onChange={e => { voice.current?.cancel(); setVoiceSpeed(Number(e.target.value)); }} /></label><button className="text-button" disabled={!canSpeak || voiceState !== 'idle'} onClick={() => voice.current?.speak('Marhaba. I am Rashid, your city concierge. Tell me what you need, and we will take it one step at a time.', 'en-US')}>Preview voice</button><button className="text-button" onClick={() => voice.current?.cancel()}>Stop voice</button><button className="text-button" onClick={() => void refreshVoice()}>Refresh local voice</button><small>Speech runs on the local app server using open-source models. Short microphone recordings become editable drafts; review them before Send. Sent messages follow your chat settings.</small><button className="text-button" onClick={() => void checkConnection()}>Check connection again</button></section>}
         {historyOpen && <section className="settings-panel history-panel" aria-label="Saved conversations"><div className="settings-title"><strong>Saved conversations</strong><button className="icon-button" aria-label="Close conversations" onClick={() => setHistoryOpen(false)}><X size={17}/></button></div>{recentSessions.filter(item => item.accountId === accountId).map(item => <div className="history-row" key={item.sessionId}><button className="text-button" onClick={() => void restoreConversation(item.sessionId, accountId)}>{item.title}</button><button className="icon-button" aria-label={`Delete ${item.title}`} onClick={() => void (async () => { const response = await fetch(`${GATEWAY_URL}/api/sessions/${item.sessionId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${await getToken()}` } }); if (response.ok) { if (item.sessionId === sessionId) resetConversation(); void loadHistory(); } })()}><X size={14}/></button></div>)}{!recentSessions.some(item => item.accountId === accountId) && <p>No saved conversations for this account yet.</p>}</section>}
-        <div className="workspace-content">
+        {!paymentAccountsOpen && <div className="workspace-content">
           <section className={`conversation ${mobilePanel ? 'mobile-hidden' : ''}`} aria-label="Concierge conversation">
             <div className="conversation-scroll">
               {messages.length === 0 ? <div className="welcome">
@@ -334,7 +342,7 @@ export function App() {
               <p className="demo-note">A working preview with simulated city services.<br />{model?.enabled ? 'Local open-source conversations.' : 'Local demo conversations.'}</p>
             </>}
           </aside>
-        </div>
+        </div>}
         <footer className="app-footer"><span><Building2 size={12} /> Life happens. We help.</span><button onClick={() => send('How does this work?')} disabled={pending}><CircleHelp size={13} /> How it works</button></footer>
       </main>
     </div>

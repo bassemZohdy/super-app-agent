@@ -28,3 +28,7 @@ The target supports dedicated native mini-app screens for complex interactions, 
 The proposed remote manifest needs stable IDs/versions, shell compatibility, signed asset references, permissions, routes, data sensitivity, rollout/rollback and an allowlisted host bridge. None of these controls follows from a remote URL string. Manual mini-app and concierge paths must use the same governed capabilities and quote/approval rules.
 
 Test Arabic/RTL, keyboard/focus/screen readers, touch sizes, device lifecycle and failure states before treating the target as a supported platform. See [custom protocol](protocol-ag-ui-a2-ui.md), [ADR-0004](../adr/ADR-0004-microfrontend-and-mini-app-runtime.md), and [ADR-0005](../adr/ADR-0005-multi-flavor-frontend-adapters-react-angular-flutter.md).
+
+## Payment screens and remaining parity
+
+[Payment accounts and automation](payment-automation-demo.md) adds planned biller-account management, synthetic card presets, explicit source/quote review, challenges, receipts/reconciliation and finite rule/run-history controls. React is the first vertical slice; QA-06 requires Angular/Flutter parity and accessible states before marking that demo complete. React now has owned synthetic methods, biller links and a scrollable source-bound preview screen, with a real desktop/mobile browser check. Existing service-wallet payments and five-minute delegation grants remain separate; recurring consent, source execution and Angular/Flutter parity are still open. [Usage](../development/payment-accounts.md).

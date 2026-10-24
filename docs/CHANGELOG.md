@@ -1,5 +1,13 @@
 # Documentation changelog
 
+## 24 October 2026 — payment account and quote-review foundation
+
+Deliver PAY-01 and partial PAY-03/PAY-04: versioned strict contracts, saved synthetic cards/defaults, verified biller links and source-bound non-executable previews. Add the responsive React workspace, persistence/ownership/version tests and an isolated real-Keycloak browser flow. Preserve current wallet execution and keep journal/orders/automation unchecked. [Usage](development/payment-accounts.md) · [Evidence](reports/2026-10-24-payment-accounts.md).
+
+## 24 October 2026 — payment/automation backlog and repository cleanup
+
+Reconcile current evidence links, implementation baseline and build counts while preserving dated reports. Remove the duplicate delegation video copy; the viewer and recorder use canonical dated media. Add [the proposed payment accounts/automation design](architecture/payment-automation-demo.md) and 50 unchecked tasks in [TODO](../TODO.md), covering linked billers, synthetic saved cards, wallet/card orders/ledger/recovery, finite mandates, automatic payments/services and isolated clock/failure simulation. This is planning, with no new payment endpoints, scheduler, authority or runtime configuration enabled. [Cleanup and validation record](reports/2026-10-24-payment-planning.md).
+
 ## 24 October 2026 — internal open-source text and voice
 
 Replace active hosted conversation with private CPU llama.cpp/Qwen; add revision-pinned KittenTTS/Whisper, a bounded internal FastAPI module and explicit model setup. Add authenticated speech/dictation, editable draft review, strict no-cloud/browser fallback, preset/speed/preview/stop controls in React/Angular and honest native/Arabic limits. Preserve button-bound approvals and model budgets, record upstream licences and generate an original voice sample. VoiceStudio is unnecessary for this scope. [Setup and licences](development/local-ai.md) · [Evidence](reports/2026-10-24-local-ai.md).

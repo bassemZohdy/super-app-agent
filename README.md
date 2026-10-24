@@ -95,7 +95,7 @@ React and Angular offer **Conversation settings → Voice studio** with four loc
 
 LangGraph runs prepare → persisted review interrupt → confirmed execution, with Redis checkpoints in integrated mode. Routing remains deterministic; the model supplies conversation text. Official AG-UI/A2UI, scheduled/compensating workflows, production consent, remote mini-app loading and real government integrations remain outside this demo. The legacy AG-UI/A2-UI names describe a project-specific JSON surface and event protocol.
 
-The demo uses known credentials, local HTTP, Redis AOF `everysec`, and embedded databases. It is intended for local development. [Security boundaries](SECURITY.md), [remaining work](TODO.md), [current verification](docs/reports/2026-10-24-demo-completion.md).
+The demo uses known credentials, local HTTP, Redis AOF `everysec`, and embedded databases. It is intended for local development. [Security boundaries](SECURITY.md), [remaining work](TODO.md), [execution evidence](docs/reports/README.md).
 
 React service links also work directly, for example [Wallet](http://localhost:3000/services/wallet), without a prior concierge proposal or model call. The bundled route registry and authenticated MCP transport are described in [the demo target decision](docs/adr/ADR-0011-local-demo-target.md) and [MCP guide](docs/development/mcp.md).
 
@@ -108,6 +108,12 @@ npm run recordings:serve
 ```
 
 Watch [the latest recording](http://localhost:3300) or open its [checked-in viewer](docs/recordings/index.html).
+
+## Payment accounts and planned automation
+
+Open **Payment accounts** in React to save synthetic card presets, link provider-verified biller references and review a fresh quote with your chosen source. Defaults, disabled cards, account switching and source versions are checked; this panel does not move funds. Existing service payments still use the current wallet flow. [Guide and compatibility](docs/development/payment-accounts.md) · [Executed checks](docs/reports/2026-10-24-payment-accounts.md).
+
+The remaining [payment backlog](TODO.md#payment-accounts-and-automation-demo--planned-backlog) covers journal/order execution, wallet/card bills and top-ups, bounded autopay/automatic services and deterministic clock/failure simulation. [Full design](docs/architecture/payment-automation-demo.md).
 
 ## Documentation
 

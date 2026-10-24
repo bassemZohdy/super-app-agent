@@ -1,3 +1,4 @@
+import { paymentSchemas, paymentMethodSchema, billingAccountSchema } from '../../../packages/protocol-core/src/payments.ts';
 export const providerIds = ['rta', 'dewa', 'etisalat', 'du', 'police', 'dld', 'payments'] as const;
 export type ProviderId = typeof providerIds[number];
 export const providerNames: Record<ProviderId, string> = { rta: 'RTA', dewa: 'DEWA', etisalat: 'Etisalat', du: 'du', police: 'Dubai Police', dld: 'Dubai Land Department', payments: 'Demo Payment Gateway' };
@@ -48,6 +49,13 @@ export const operations: Record<ProviderId, Operation[]> = {
     op('POST', '/move-ins', 'registerMoveIn', { ejariContract: text, unit: text, residentialParking: opaque }, 'Register a move-in proposal. Utility and parking activation are separate operations.', object({ contractNumber: text })),
   ],
   payments: [
+    op('GET', '/payment-methods', 'listPaymentMethods', { methods: { type: 'array', items: paymentMethodSchema, maxItems: 101 }, defaultMethodId: text, presets: { type: 'array', items: opaque } }, 'List owned synthetic funding methods. Wallet/card management does not move money.'),
+    op('POST', '/payment-methods', 'createPaymentMethod', { method: paymentMethodSchema }, 'Save an owned synthetic card preset; never submit card numbers or security codes.', paymentSchemas.createMethod),
+    op('POST', '/payment-methods/status', 'changePaymentMethodStatus', { method: paymentMethodSchema }, 'Version-checked card disable/reactivate/tombstone; no automatic funding fallback.', paymentSchemas.methodStatus),
+    op('POST', '/payment-methods/default', 'setDefaultPaymentMethod', { defaultMethodId: text }, 'Select an active default for future drafts, without changing existing approvals.', paymentSchemas.defaultMethod),
+    op('GET', '/billing-accounts', 'listBillingAccounts', { billingAccounts: { type: 'array', items: billingAccountSchema, maxItems: 100 } }, 'List owned linked biller references.'),
+    op('POST', '/billing-accounts', 'linkBillingAccount', { billingAccount: billingAccountSchema }, 'Verify provider ownership then link a synthetic biller account.', paymentSchemas.linkAccount),
+    op('POST', '/billing-accounts/archive', 'archiveBillingAccount', { billingAccount: billingAccountSchema }, 'Archive an owned biller link while retaining its historical reference.', paymentSchemas.archiveAccount),
     op('GET', '/wallet', 'getWallet', { balance: { type: 'number' }, balanceMinor: { type: 'integer' }, currency: { const: 'AED' } }, 'Read this account’s AED demo wallet.'),
     op('GET', '/transactions', 'listTransactions', { transactions: list, count: { type: 'integer' } }, 'List the latest 100 account-owned payment transactions.'),
     op('POST', '/topups', 'topUpWallet', { transaction: opaque, newBalance: { type: 'number' } }, 'Top up a wallet using a simulated approved or declined funding source.', object({ amountMinor: money, source: { enum: ['demo_approved', 'demo_declined'] } })),
@@ -73,7 +81,7 @@ export function openApi(provider: ProviderId) {
         ...Object.fromEntries(['400','401','403','404','409','402','503'].map(status => [status, { $ref: '#/components/responses/Error' }])) },
     };
   }
-  return { openapi: '3.1.0', info: { title: `${providerNames[provider]} Simulator`, version: '2.0.0', description: 'Local synthetic API. Signed interactive user identity or broker-issued user token with current exact-operation grant required. JWT subject owns the account; caller user headers do not grant authority. A separate read-only settlement machine lane retrieves captured charge proofs. Legacy fixture mode is outside this reference security profile.' },
+  return { openapi: '3.1.0', info: { title: `${providerNames[provider]} Simulator`, version: provider === 'payments' ? '2.1.0' : '2.0.0', description: 'Local synthetic API. Signed interactive user identity or broker-issued user token with current exact-operation grant required. JWT subject owns the account; caller user headers do not grant authority. A separate read-only settlement machine lane retrieves captured charge proofs. Legacy fixture mode is outside this reference security profile.' },
     servers: [{ url: `http://localhost:${4101 + providerIds.indexOf(provider)}` }], security: [{ accessToken: [] }],
     paths, components: { securitySchemes: { accessToken: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' } },
       responses: { Unauthorized: { description: 'Missing or invalid Keycloak access token' }, Error: { description: 'Validation, ownership, delegation, payment, conflict or availability error', content: { 'application/json': { schema: object({ success: { const: false }, error: { type: 'string' }, code: { type: 'string' } }) } } } } },

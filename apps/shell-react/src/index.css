@@ -152,3 +152,20 @@ h1 { font-size: clamp(35px, 3.45vw, 52px); line-height: 1.18; letter-spacing: -2
 .delegation-actions button { padding: 9px 12px; border: 1px solid #9db5c3; border-radius: 6px; background: #eff6f8; color: #24495f; cursor: pointer; }
 .delegation-actions button:disabled { opacity: .5; cursor: default; }
 .delegation-panel pre { font-size: 12px; white-space: pre-wrap; }
+
+.payment-accounts { flex: 1; min-height: 0; overflow: auto; margin: 12px 28px; padding: 24px; background: #fff; border: 1px solid #dce7ec; border-radius: 14px; color: #335267; font-size: 13px; }
+.payment-accounts > header { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.payment-accounts h2 { margin: 4px 0 12px; font-size: 24px; } .payment-accounts h3 { font-size: 17px; }
+.payment-accounts p { line-height: 1.7; } .payment-eyebrow { color: #557887; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+.payment-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; }
+.payment-accounts label { display: flex; flex-direction: column; gap: 7px; margin: 14px 0; }
+.payment-accounts input, .payment-accounts select { border: 1px solid #b6cbd6; border-radius: 7px; padding: 9px; color: #294c60; background: white; max-width: 100%; font: inherit; }
+.payment-accounts button { cursor: pointer; border: 1px solid #adc7d5; border-radius: 6px; background: #f1f7fa; color: #24546d; padding: 8px 11px; font: inherit; }
+.payment-accounts button:disabled { opacity: .55; cursor: default; } .payment-accounts :focus-visible { outline: 3px solid #347a9d; outline-offset: 3px; }
+.payment-accounts ul { padding: 0; list-style: none; } .payment-accounts li { padding: 16px 0; border-bottom: 1px solid #e1eaee; overflow-wrap: anywhere; }
+.payment-actions { display: flex; gap: 8px; flex-wrap: wrap; } .payment-summary { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; padding: 20px 0; }
+.payment-summary strong { font-size: 25px; } .payment-notice { color: #8a401e; }
+.payment-review { border-top: 1px solid #dce7ec; margin-top: 20px; padding-top: 12px; } .payment-review article { background: #f0f7fa; border-radius: 10px; padding: 18px; margin: 18px 0; }
+@media(max-width: 800px) { .payment-grid { grid-template-columns: 1fr; gap: 12px; } .payment-accounts { margin: 12px; padding: 18px; } .payment-accounts > header { align-items: flex-start; } }
+
+.workspace-tools { display: flex; gap: 22px; padding: 0 28px; flex-wrap: wrap; }

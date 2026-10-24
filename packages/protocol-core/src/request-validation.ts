@@ -1,3 +1,4 @@
+import { paymentSchemas, withPaymentAccount } from './payments.ts';
 import { Ajv, type ValidateFunction } from 'ajv';
 
 type Schema = Record<string, any>;
@@ -57,6 +58,12 @@ route('agent-core', 'POST', '/api/manual/prepare', object({ sessionId, accountId
 route('agent-core', 'POST', '/api/a2ui/action', coreAction);
 route('agent-core', 'POST', '/api/a2ui/cancel', object({ sessionId, accountId: id, surfaceRevision: coreAction.properties.surfaceRevision }, ['sessionId','surfaceRevision']));
 route('agent-core', 'GET', '/api/services', object({ accountId: id }));
+route('agent-core', 'GET', '/api/payments/overview', object({ accountId: id }, ['accountId']));
+for (const [path, schema] of Object.entries({
+  methods: paymentSchemas.createMethod, 'methods/status': paymentSchemas.methodStatus, 'methods/default': paymentSchemas.defaultMethod,
+  'billing-accounts': paymentSchemas.linkAccount, 'billing-accounts/archive': paymentSchemas.archiveAccount,
+})) route('agent-core', 'POST', `/api/payments/${path}`, withPaymentAccount(schema));
+route('agent-core', 'POST', '/api/payments/preview', withPaymentAccount(paymentSchemas.preview, false));
 route('agent-core', 'POST', '/api/a2ui/tts', coreTts);
 route('agent-core', 'GET', '/api/voice/config', object());
 route('agent-core', 'POST', '/api/voice/transcribe', object({ audioBase64: { type: 'string', minLength: 16, maxLength: 60000 }, format: { enum: ['audio/webm','audio/ogg','audio/mp4','audio/wav'] }, language: { enum: ['en-US','ar-AE'] } }, ['audioBase64','format']));

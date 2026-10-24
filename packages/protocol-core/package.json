@@ -9,7 +9,8 @@
     ".": "./src/index.ts",
     "./ag-ui": "./src/ag-ui.ts",
     "./a2-ui": "./src/a2-ui.ts",
-    "./request-validation": "./src/request-validation.ts"
+    "./request-validation": "./src/request-validation.ts",
+    "./payments": "./src/payments.ts"
   },
   "scripts": {
     "test": "node --experimental-strip-types test/protocol.test.ts",
