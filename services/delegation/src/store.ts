@@ -31,7 +31,9 @@ export class GrantStore {
     if (!row) deny('GRANT_NOT_FOUND'); const grant = JSON.parse(row.body) as Grant;
     if (owner && grant.owner !== owner) deny('GRANT_NOT_FOUND'); return grant;
   }
-  active(id: string): Grant { const grant = this.get(id); if (grant.issuer !== (process.env.KEYCLOAK_ISSUER || 'test-issuer') || grant.revokedAt || grant.expiresAt <= Date.now()) deny('GRANT_INACTIVE'); return grant; }
+  active(id: string): Grant { const grant = this.get(id); if (grant.issuer !== (process.env.KEYCLOAK_ISSUER || 'test-issuer') || grant.revokedAt || grant.expiresAt <= Date.now()) deny('GRANT_INACTIVE');
+    // Retain old consent/audit, but never execute a grant outside today's explicit reviewed profile.
+    grantInput(grant.owner,{accountId:grant.accountId,provider:grant.provider,method:grant.method,path:grant.path,body:grant.body,purpose:grant.purpose,expiresInSeconds:grant.expiresInSeconds,maxOperations:grant.maxOperations});return grant; }
   list(owner: string): Grant[] { return this.db.prepare('SELECT body FROM grants WHERE owner=? ORDER BY rowid DESC LIMIT 100').all(owner).map(row => JSON.parse(String(row.body))); }
   history(id: string, owner: string) { this.get(id, owner); return this.db.prepare('SELECT seq,at,event,body FROM audit WHERE grant_id=? ORDER BY seq DESC LIMIT 200').all(id).map(row => ({ ...row, body: JSON.parse(String(row.body)) })); }
   jobs(id: string, owner: string) { this.get(id, owner); return this.db.prepare('SELECT id,request_key,state,result FROM jobs WHERE grant_id=? ORDER BY rowid DESC LIMIT 100').all(id).map(row => ({ ...row, result: row.result ? JSON.parse(String(row.result)) : undefined })); }
@@ -58,7 +60,9 @@ export class GrantStore {
     });
   }
   bind(fingerprint: string, binding: Binding) {
-    this.atomic(() => { const g = this.active(binding.grantId); if (g.version !== binding.version || g.owner !== binding.sub || g.actor !== binding.actor || binding.exp * 1000 > g.expiresAt + 1000) deny('BINDING_MISMATCH'); this.db.prepare('INSERT INTO bindings(fingerprint,body) VALUES(?,?)').run(fingerprint, JSON.stringify(binding)); this.audit(g.id, 'token.bound', { fingerprint, operationId: binding.operationId, exp: binding.exp }); });
+    this.atomic(() => { const g = this.active(binding.grantId),job=this.db.prepare('SELECT state FROM jobs WHERE id=? AND grant_id=?').get(binding.operationId,g.id);
+      if (!/^[a-f0-9]{64}$/.test(fingerprint)||!Number.isSafeInteger(binding.exp)||binding.exp*1000<=Date.now()||binding.exp*1000>g.expiresAt+1000||g.version!==binding.version||g.owner!==binding.sub||g.actor!==binding.actor||job?.state!=='pending'||binding.requestDigest!==digest({provider:g.provider,method:g.method,path:g.path,body:g.body}))deny('BINDING_MISMATCH');
+      this.db.prepare('INSERT INTO bindings(fingerprint,body) VALUES(?,?)').run(fingerprint, JSON.stringify(binding)); this.audit(g.id, 'token.bound', { fingerprint, operationId: binding.operationId, exp: binding.exp }); });
   }
   authorize(fingerprint: string, sub: string, actor: string, account: string, operation: Operation): Grant {
     return this.atomic(() => {
@@ -73,6 +77,10 @@ export class GrantStore {
       this.audit(g.id, 'execution.authorized', { operationId: b.operationId, sub, actor, account, operation: digest(operation), amountMinor: g.body.amountMinor || 0 }); return g;
     });
   }
-  finish(job: Job, result: unknown, success: boolean) { this.atomic(() => { this.db.prepare('UPDATE jobs SET state=?,result=? WHERE id=?').run(success ? 'completed' : 'unknown', JSON.stringify(result), job.id); this.audit(job.grantId, success ? 'execution.completed' : 'execution.unknown', { operationId: job.id }); }); }
+  finish(job: Job, result: unknown, success: boolean) { this.atomic(() => {
+    const current=this.db.prepare('SELECT state FROM jobs WHERE id=? AND grant_id=? AND request_key=?').get(job.id,job.grantId,job.requestKey);
+    if(!current||!['pending','authorized'].includes(String(current.state))||success&&current.state!=='authorized')deny('OPERATION_STATE_CHANGED','Only the original admitted operation can record completion; terminal results are retained.');
+    const saved=this.db.prepare('UPDATE jobs SET state=?,result=? WHERE id=? AND state=?').run(success?'completed':'unknown',JSON.stringify(result),job.id,String(current.state));if(saved.changes!==1)deny('OPERATION_STATE_CHANGED');
+    this.audit(job.grantId, success ? 'execution.completed' : 'execution.unknown', { operationId: job.id }); }); }
   close() { this.db.close(); }
 }

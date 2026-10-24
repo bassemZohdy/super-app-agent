@@ -78,7 +78,9 @@
     "demo:verify:payment-reconciliation": "node --experimental-strip-types scripts/e2e/payment-reconciliation.ts",
     "record:payment-reconciliation": "node --experimental-strip-types scripts/e2e/payment-reconciliation.ts --record",
     "demo:verify:payment-history": "node --experimental-strip-types scripts/e2e/payment-history.ts",
-    "record:payment-history": "node --experimental-strip-types scripts/e2e/payment-history.ts --record"
+    "record:payment-history": "node --experimental-strip-types scripts/e2e/payment-history.ts --record",
+    "demo:verify:automation-security": "node --experimental-strip-types scripts/e2e/automation-security.ts",
+    "demo:verify:delegation:restart": "node --experimental-strip-types scripts/verify-delegation-restart.ts"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^13.1.0",

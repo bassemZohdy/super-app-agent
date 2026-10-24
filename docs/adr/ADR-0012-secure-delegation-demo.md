@@ -34,3 +34,9 @@ Direct agent exchange would require a proven trusted grant-binding path and woul
 ## Rollback
 
 Stop new runner execution, revoke grants, disable the broker client/IdP, and stop the broker service. Existing delegated provider calls fail closed when authority is unavailable. Keep interactive login and user UUIDs intact. Do not restore header-based impersonation on the reference profile. Retain grant/job/audit data for investigation, and reconcile unknown effects before any replacement grant is used to repeat them.
+
+## Expanded payment mandate boundary — AUTO-02
+
+The [payment automation threat model](../architecture/payment-automation-security.md) records the authority allocation and required permit/budget/entitlement admission contract. Its baseline and findings are separate from subsequent code hardening. The legacy broker now uses an explicit reviewed read profile, rejects extra authority terms, validates pending-job token bindings and retains terminal results. Stored grants are revalidated against that profile before use; unsupported consent/audit remains available for inspection/revocation. New OpenAPI routes do not become delegated rights automatically.
+
+Finite `cityside-automation` mandates remain non-executable. They cannot be attached to the legacy small top-up/read grant to acquire recurring spending. AUTO-03 must derive exact commands and reserve shared amount/count/payable authority from current consent/entitlement; PAY-08/PAY-21 and AUTO-15 retain their reservation/lifecycle/revocation gates. Production security disposition remains pending; a bound bearer can still race its exact intended request and is not sender constrained. [Executed local controls](../reports/2026-10-24-automation-security.md).
