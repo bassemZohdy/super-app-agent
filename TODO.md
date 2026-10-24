@@ -28,7 +28,7 @@ Existing task IDs are preserved. New findings extend those tasks or receive new 
 | Sessions | Redis ownership/account claims, TTL, renewed leases, fenced saves, shared replay | Single-node AOF crash window, global quotas, HA/backup and durable workflow semantics |
 | Deployment | Loopback-published reference demo, SQLite/Redis volumes, readiness polling | Source/dependency mounts; clean-image and production deployment hardening remain open |
 
-Current results are in the [evidence register](docs/reports/README.md). The latest delivered baseline passed 371 Node tests and 18 workspace builds; dated reports retain their earlier counts. Real local Keycloak/provider, Redis and restart checks pass. Flutter and browser results are explicitly scoped in that report. `npm run lint` now executes ESLint correctness rules; local Markdown-link and source-secret checks also run in `npm run check`.
+Current results are in the [evidence register](docs/reports/README.md). The latest delivered baseline passed 386 Node tests and 18 workspace builds; dated reports retain their earlier counts. Real local Keycloak/provider, Redis and restart checks pass. Flutter and browser results are explicitly scoped in that report. `npm run lint` now executes ESLint correctness rules; local Markdown-link and source-secret checks also run in `npm run check`.
 
 ### Confirmed defects and regression coverage
 
@@ -47,7 +47,7 @@ The original probes used isolated synthetic fixtures. Later regressions and loca
 
 ## Execution order
 
-**Next selected demo scope:** [Payment accounts and automation](#payment-accounts-and-automation-demo--planned-backlog), with 50 slices (23 delivered slices, 27 open) and its own risk-first dependency order. The list below retains the broader platform/release ordering.
+**Next selected demo scope:** [Payment accounts and automation](#payment-accounts-and-automation-demo--planned-backlog), with 50 slices (24 delivered slices, 26 open) and its own risk-first dependency order. The list below retains the broader platform/release ordering.
 
 1. **Retain correctness gates:** P0-09/P0-12/P0-10 are implemented; finish P1-12/P1-13/P1-14 parity and contract boundaries without weakening those guards.
 2. **Identity and service boundary:** P0-01/P0-13, P1-02, P0-03, P1-10 and P0-04. Mini-app/manual and agent paths must share the same authorization rules.
@@ -59,7 +59,7 @@ P0 = blocks use with real users, identity, money or government records. P1 = req
 
 ## Payment accounts and automation demo — planned backlog
 
-**Status: implementation in progress.** PAY-01–PAY-07, PAY-09–PAY-20, AUTO-01–AUTO-02, SIM-03 and initial preview-only SIM-01 are delivered. The other 27 items remain unchecked; see [execution evidence](docs/reports/2026-10-24-automation-security.md). Requested 24 October 2026. [Design and simulator boundaries](docs/architecture/payment-automation-demo.md) define the current-versus-planned behavior, account vocabulary, state machine, consent model and scenario matrix. This is the next local-demo workstream; original P0/P1/OBO tasks keep their separate acceptance criteria. No real cards, bank accounts, money or agency contracts are required. Production readiness is not implied.
+**Status: implementation in progress.** PAY-01–PAY-07, PAY-09–PAY-21, AUTO-01–AUTO-02, SIM-03 and initial preview-only SIM-01 are delivered. The other 26 items remain unchecked; see [execution evidence](docs/reports/2026-10-24-payment-lifecycle.md). Requested 24 October 2026. [Design and simulator boundaries](docs/architecture/payment-automation-demo.md) define the current-versus-planned behavior, account vocabulary, state machine, consent model and scenario matrix. This is the next local-demo workstream; original P0/P1/OBO tasks keep their separate acceptance criteria. No real cards, bank accounts, money or agency contracts are required. Production readiness is not implied.
 
 **Build order:** PAY-01–PAY-10 establish contracts/accounting/authorization; PAY-11–PAY-20 complete manual payments and recovery; PAY-21 coordinates source/account lifecycle with AUTO-01; AUTO-01–AUTO-07 establish consent/worker/dry-run before AUTO-08–AUTO-15 enable any automatic effect. Build SIM-01–SIM-05 alongside the earliest affected slices; SIM-06 and QA-01–QA-08 gate the complete demo. Every slice includes its relevant API/UI states and focused tests; the final QA tasks add cross-system assurance rather than postpone all testing. Items within a phase can proceed independently only when their stated dependencies are met.
 
@@ -71,14 +71,14 @@ Complete the remaining implementation slices in these checkpoints, preserving de
 
 | Backlog group | Total | Delivered | Open |
 | --- | ---: | ---: | ---: |
-| Payment accounts and execution, PAY | 21 | 19 | 2 |
+| Payment accounts and execution, PAY | 21 | 20 | 1 |
 | Consent and automatic services, AUTO | 15 | 2 | 13 |
 | Isolated simulation, SIM | 6 | 2 | 4 |
 | Acceptance and evidence, QA | 8 | 0 | 8 |
-| **Total** | **50** | **23** | **27** |
+| **Total** | **50** | **24** | **26** |
 
 1. **Manual-payment foundation:** finish PAY-08 after the delivered PAY-07 review parity and issuer/bill checkout slices, with the relevant SIM-02/SIM-03 fixtures. Review a current payable, bind the exact funding source, authorize finite funds and prove settlement/refund exclusion before enabling a new charge path.
-2. **Complete manual journeys:** retain delivered PAY-18–PAY-20 events/recovery/history and complete relevant SIM-04 faults. Bills, fines and each top-up target use the same owned order/receipt/recovery path. Finish source/owner lifecycle integration through PAY-21 when AUTO-01 exists.
+2. **Complete manual journeys:** retain delivered PAY-18–PAY-20 events/recovery/history and complete relevant SIM-04 faults. Bills, fines and each top-up target use the same owned order/receipt/recovery path. Retain the delivered PAY-21 source/owner lifecycle checks before any automatic admission is enabled.
 3. **Bounded automation:** AUTO-01–AUTO-07 establish explicit mandates, tested authority, durable jobs, scheduling and dry-run. Then AUTO-08–AUTO-15 add each opt-in service and revocation. Source defaults, saved cards and chat messages never activate a rule.
 4. **Operate and demonstrate:** finish SIM-05/SIM-06 controls/inspection and QA-01–QA-08 cross-system evidence. Run relevant negative checks during each slice; final QA is the integrated release gate, not the first testing pass.
 
@@ -143,7 +143,7 @@ All scenarios require persisted owned state, truthful pending/unknown outcomes a
 
 - [x] **PAY-20 — Show receipts, statements and funding history consistently.** **Owner:** UI/payments. **Modifies:** wallet/history and all payment receipts; **creates:** paginated statement/order detail APIs. Display AED consistently, masked source, linked biller, fee breakdown, capture/settlement/refund state and correlation reference. **Done when:** totals reconcile to ledger/provider effects, more than 100 records paginate correctly, historical source snapshots survive removal, and partial/pending/unknown operations never show a completed receipt. **Delivered:** Owned journal/activity pagination and normalized detail APIs retain insertion ceilings, exact running balances, masked original source/biller, fee/correlation and separate capture/settlement/refund state. Receipt guards suppress unknown/partial/final-acknowledgement completion; the wallet view shows actual movement and current outcomes. Thirteen focused tests and a paced real-Keycloak browser prove 116 journal/117 activity records, snapshot stability, group accounting, removed sources/links, partial funding returns, signed exact-cent formatting and restart/reload. [Guide](docs/development/payment-history.md) · [Evidence](docs/reports/2026-10-24-payment-history.md). **Depends:** PAY-16, PAY-17, PAY-19.
 
-- [ ] **PAY-21 — Handle source, linked-account and owner lifecycle safely.** **Owner:** identity/payments/UI. **Modifies:** account/method unlink and entitlement handling; **reuses:** dependent-order/mandate lookup. **Done when:** disabled cards, closed links, revoked membership and user disablement stop new authorization, preserve history and identify in-flight work; no dependent rule silently moves to another workspace/source. **Depends:** PAY-03, PAY-04, PAY-08, AUTO-01.
+- [x] **PAY-21 — Handle source, linked-account and owner lifecycle safely.** **Owner:** identity/payments/UI. **Modifies:** account/method unlink and entitlement handling; **reuses:** dependent-order/mandate lookup. **Done when:** disabled cards, closed links, revoked membership and user disablement stop new authorization, preserve history and identify in-flight work; no dependent rule silently moves to another workspace/source. **Delivered:** Central versioned owner/membership decisions, exact machine reader/operator lanes, no-cache current checks across core/application/provider/broker, approval/grant epochs and atomic gateway capture fencing. Revoke-and-restore, source re-enable, stale conversation actions and grants cannot renew old authority. React hides restricted financial data and identifies original in-flight payments/rules without fallback. Fifteen new regressions, signed Keycloak/operator/source/broker qualification, paced browser recording, twelve retained journeys and normal-data/authority restart preservation pass. Automatic execution and shell parity retain separate gates. [Guide](docs/development/payment-lifecycle.md) · [Evidence](docs/reports/2026-10-24-payment-lifecycle.md). **Depends:** PAY-03, PAY-04, PAY-08, AUTO-01.
 
 ### P0 automation authority, followed by P1 automatic services
 

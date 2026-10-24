@@ -1,4 +1,5 @@
 import { PaymentHistoryPanel } from './PaymentHistoryPanel';
+import type { AccountEligibility,PaymentLifecycle } from '../../../packages/protocol-core/src/account-eligibility.ts';
 import { PaymentReceiptFacts } from './PaymentReceiptFacts';
 import { paymentReceiptReady } from '../../../packages/protocol-core/src/payment-history.ts';
 import { PaymentRecoveryPanel } from './PaymentRecoveryPanel';
@@ -13,6 +14,7 @@ import { formatAED, cardPresets, type PaymentMethod, type PaymentPreview, type B
 type Props = { gateway: string; accountId: string; getToken(): Promise<string>; onClose(): void };
 export function PaymentAccountsPanel({ gateway, accountId, getToken, onClose }: Props) {
   const [data, setData] = useState<PaymentOverview>();
+  const [eligibility,setEligibility]=useState<AccountEligibility>(),[lifecycle,setLifecycle]=useState<PaymentLifecycle>();
   const [busy, setBusy] = useState(false), [notice, setNotice] = useState('');
   const [preset, setPreset] = useState('approved'), [nickname, setNickname] = useState('My demo card');
   const [source, setSource] = useState(''), [payable, setPayable] = useState('');
@@ -32,12 +34,17 @@ export function PaymentAccountsPanel({ gateway, accountId, getToken, onClose }: 
       ...(input ? { body: JSON.stringify({ ...input, accountId }) } : {}),
     });
     const result = await response.json();
-    if (!response.ok || result.success !== true) throw new Error(result.error || 'Payment accounts unavailable.');
+    if (!response.ok || result.success !== true) {if(alive.current&&result.code==='ACCOUNT_RESTRICTED'){setData(undefined);setLifecycle(undefined);setPreview(undefined);}throw new Error(result.error || 'Payment accounts unavailable.');}
     return result;
   }
   async function load(signal = controller.current?.signal, expectedGeneration = generation.current) {
-    const result = await api('overview', undefined, signal);
+    const current=(await api('eligibility',undefined,signal)).eligibility as AccountEligibility;
+    if(!alive.current||expectedGeneration!==generation.current)return;
+    setEligibility(current);
+    if(!current.active){setData(undefined);setLifecycle(undefined);setPreview(undefined);return;}
+    const [result,impact]=await Promise.all([api('overview', undefined, signal),api('lifecycle',undefined,signal)]);
     if (alive.current && expectedGeneration === generation.current) {
+      setLifecycle(impact);
       setData(result);setSelectedFines(current=>current.filter(id=>result.payables.some((p:{id:string;status:string})=>p.id===id&&p.status==='UNPAID')));setPayable(current=>result.payables.some((p:{id:string;status:string})=>p.id===current&&p.status==='UNPAID')?current:'');
       if (!loaded.current) { loaded.current = true; setSource(result.defaultMethodId); }
       else setSource(current => result.methods.some((m: PaymentMethod) => m.id === current && m.status === 'ACTIVE') ? current : '');
@@ -51,6 +58,7 @@ export function PaymentAccountsPanel({ gateway, accountId, getToken, onClose }: 
   const mutate = (path: string, input: Record<string, unknown>) => api(path, { ...input, requestKey: crypto.randomUUID() });
   useEffect(() => {
     alive.current = true; controller.current = new AbortController();
+    loaded.current=false;setData(undefined);setEligibility(undefined);setLifecycle(undefined);setPreview(undefined);
     const current = ++generation.current;
     heading.current?.focus();
     setBusy(true);
@@ -87,7 +95,9 @@ export function PaymentAccountsPanel({ gateway, accountId, getToken, onClose }: 
     <p>Add demo cards, link your own biller accounts and preview a payment. Previews do not move funds.</p>
     <p role="status" className={notice ? 'payment-notice' : ''}>{busy ? 'Loading payment accounts…' : notice}</p>
     <button disabled={busy} onClick={() => void work(load)}>Refresh payment accounts</button>
+    {eligibility&&!eligibility.active&&<aside role="alert" aria-label="Workspace access restricted" className="payment-review"><h3>Workspace access restricted</h3><p>{eligibility.ownerEnabled?'Your membership in this workspace is restricted.':'The owner is disabled for payment and service access.'} New authorizations and private history access are blocked. Your history and original payment IDs are retained.</p><p>Access changes require the demo operator. Refresh after access is restored. Your workspace and funding source stay selected.</p><p>Workspace {accountId} · permission version {eligibility.epoch}</p></aside>}
     {data && <>
+      {lifecycle&&<section aria-label="Payment lifecycle" className="payment-review"><h3>Access &amp; in-flight work</h3><p>Workspace access active · permission version {lifecycle.eligibility.epoch}. Restoring access does not renew old approvals or move a rule to another source.</p><p>Automatic execution remains disabled. Captured payments keep their original IDs for reconciliation.</p><ul>{lifecycle.orders.map(o=><li key={o.id}>Payment {o.id} · {o.state} · Source {o.sourceId}{o.paymentId&&` · Original capture ${o.paymentId}`} · {o.fundsCaptured?'Reconcile the original capture; do not pay again.':'Cancel or review again if access or funding changed.'}{o.blockedReasons.length>0&&` · Blocked for new authority: ${o.blockedReasons.join(', ')}`}</li>)}{lifecycle.funding.map(o=><li key={o.id}>Wallet funding {o.id} · {o.state} · Source {o.sourceId}{o.blockedReasons.length>0&&` · Blocked: ${o.blockedReasons.join(', ')}`}</li>)}{lifecycle.mandates.map(m=><li key={m.id}>Rule {m.id} · policy {m.policyVersion} · {m.state} · Automatic execution disabled{m.blockedReasons.length>0&&` · New consent required: ${m.blockedReasons.join(', ')}`}</li>)}</ul>{lifecycle.orders.length+lifecycle.funding.length+lifecycle.mandates.length===0&&<p>No active payment reviews or rules.</p>}</section>}
       <div className="payment-summary"><strong>{formatAED(data.wallet.balanceMinor)}</strong><span>Current wallet · simulated funds</span><span>Available {formatAED(data.wallet.availableMinor)} · Held {formatAED(data.wallet.heldMinor)}</span></div>
       <div className="payment-grid">
         <section aria-label="Saved funding methods"><h3>Wallet &amp; demo cards</h3><p>Choose a preset, never enter real card details.</p>

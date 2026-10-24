@@ -6,6 +6,8 @@ x-node: &node
     - .:/app:ro
   restart: unless-stopped
 x-identity: &identity
+  ELIGIBILITY_ENFORCEMENT: 'true'
+  ELIGIBILITY_READER_SECRET: ${ELIGIBILITY_READER_SECRET:-demo-eligibility-reader-secret}
   KEYCLOAK_ISSUER: http://localhost:8085/realms/superapp
   KEYCLOAK_JWKS_URL: http://keycloak:8080/realms/superapp/protocol/openid-connect/certs
   KEYCLOAK_TOKEN_URL: http://keycloak:8080/realms/superapp/protocol/openid-connect/token

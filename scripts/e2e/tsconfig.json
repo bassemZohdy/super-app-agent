@@ -27,6 +27,7 @@
     "../verify-simulator.ts",
     "../verify-payment-inventory.ts",
     "../verify-automation-authority.ts",
-    "../verify-delegation-restart.ts"
+    "../verify-delegation-restart.ts",
+    "../payment-access.ts"
   ]
 }

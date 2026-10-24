@@ -24,7 +24,7 @@ Original stored orders retain source and biller snapshots from approval. Removin
 
 ## API contracts
 
-Shared payment contract **1.12.0**, payment-provider OpenAPI **2.16.0**. Provider routes are under `/v1/accounts/{accountId}` and require the interactive signed owner. Service/broker actors cannot use these new history routes. These are GET-only read models.
+Shared payment contract **1.13.0**, payment-provider OpenAPI **2.17.0**. Provider routes are under `/v1/accounts/{accountId}` and require the interactive signed owner. Service/broker actors cannot use these new history routes. These are GET-only read models.
 
 | Provider route | Result |
 | --- | --- |

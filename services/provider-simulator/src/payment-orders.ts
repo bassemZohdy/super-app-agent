@@ -4,6 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import type { PayableAdmission } from './payable-admissions.ts';
 import type { Actor } from '../../../packages/backend-kit/src/context.ts';
+import { AccountEligibility } from './account-eligibility.ts';
 import { MAX_PAYMENT_MINOR, type PaymentAuthorizationReview as Review, type PaymentMethod, type BillingAccount, type Payable } from '../../../packages/protocol-core/src/payments.ts';
 import type { AccountDatabase } from './database.ts';
 import { PaymentLedger, PaymentLedgerError } from './payment-ledger.ts';
@@ -19,7 +20,7 @@ const active=(order:Review)=>['AWAITING_APPROVAL','AUTHORIZATION_PENDING','REQUI
 export class PaymentOrders {
   readonly store:AccountDatabase;readonly issuer:PaymentIssuer;readonly ledger:PaymentLedger;readonly uses:PaymentResourceUses;readonly clock:()=>number;private sequence=0;
   constructor(store:AccountDatabase,issuer:PaymentIssuer,ledger:PaymentLedger,uses:PaymentResourceUses,clock=Date.now){
-    this.store=store;this.issuer=issuer;this.ledger=ledger;this.uses=uses;this.clock=clock;
+    this.store=store;store.eligibility ||=new AccountEligibility(store);this.issuer=issuer;this.ledger=ledger;this.uses=uses;this.clock=clock;
     const old=store.db.prepare("SELECT sql FROM sqlite_master WHERE name='payment_authorization_orders'").get();
     const migrate=!!old&&!String(old.sql).includes("'AUTHORIZATION_PENDING'");
     const backup=store.path+(String(old?.sql).includes("'CAPTURING'")?'.before-issuer-order-pending-v3.sqlite':'.before-order-capture-v2.sqlite');
@@ -77,22 +78,22 @@ export class PaymentOrders {
   }
   create(actor:Actor,input:{provider:string;payableId:string;expectedPayableRevision:string;methodId:string;expectedMethodVersion:number},snapshot:Payable|undefined):Review{
     return this.atomic(()=>{
-      this.refresh(actor);const payable=this.fresh(snapshot,input.provider,input.payableId,input.expectedPayableRevision),source=this.source(actor.accountId,input.methodId,input.expectedMethodVersion);
+      const eligibility=this.store.eligibility!.require(actor);this.refresh(actor);const payable=this.fresh(snapshot,input.provider,input.payableId,input.expectedPayableRevision),source=this.source(actor.accountId,input.methodId,input.expectedMethodVersion);
       const links=this.store.list(actor.accountId,'billing-account') as BillingAccount[],link=links.find(b=>b.status==='ACTIVE'&&b.provider===payable.provider&&b.reference===payable.reference);
       if(!link)return fail('BILLER_NOT_LINKED','Link this owned biller before creating an authorization review.');
       if(this.store.db.prepare("SELECT id FROM payment_authorization_orders WHERE account_id=? AND provider=? AND payable_id=? AND state IN ('AWAITING_APPROVAL','AUTHORIZATION_PENDING','REQUIRES_ACTION','AUTHORIZED','CAPTURING','CAPTURED','RECONCILIATION_REQUIRED','SETTLED')").get(actor.accountId,input.provider,input.payableId))return fail('PAYABLE_RESERVED','An active or settled order already reserves this obligation. Inspect it first.');
       const count=this.store.db.prepare('SELECT count(*) n FROM payment_authorization_orders WHERE account_id=?').get(actor.accountId) as {n:number};if(count.n>=100)return fail('ORDER_HISTORY_LIMIT','The local authorization-review history limit was reached.');
       const id=`order_${randomUUID()}`,createdAt=new Date(this.clock()).toISOString(),expiresAt=new Date(this.clock()+300000).toISOString();
       const quote={payable:structuredClone(payable),source:structuredClone(source),billingAccount:structuredClone(link),amountMinor:payable.amountMinor,feeMinor:0,totalMinor:payable.amountMinor,currency:'AED' as const,createdAt,expiresAt};
-      const approvalDigest=createHash('sha256').update(JSON.stringify([actor.sub,actor.accountId,id,quote])).digest('hex');
-      const order:Review={id,accountId:actor.accountId,ownerSub:actor.sub,quote,approvalDigest,expiresAt,createdAt,state:'AWAITING_APPROVAL',version:1,fundsCaptured:false};
+      const approvalDigest=createHash('sha256').update(JSON.stringify([actor.sub,actor.accountId,id,quote,eligibility.epoch])).digest('hex');
+      const order:Review={eligibilityEpoch:eligibility.epoch,id,accountId:actor.accountId,ownerSub:actor.sub,quote,approvalDigest,expiresAt,createdAt,state:'AWAITING_APPROVAL',version:1,fundsCaptured:false};
       this.uses.bind(actor.accountId,{resourceType:'METHOD',resourceId:source.id,resourceVersion:source.version,dependentKind:'ORDER',dependentId:id});
       this.uses.bind(actor.accountId,{resourceType:'BILLER',resourceId:link.id,resourceVersion:link.version,dependentKind:'ORDER',dependentId:id});
       this.store.db.prepare('INSERT INTO payment_authorization_orders VALUES(?,?,?,?,?,?,?)').run(id,actor.accountId,input.provider,input.payableId,order.state,Date.parse(expiresAt),JSON.stringify(order));emitGatewaySnapshot(this.store,'PAYMENT',order);return order;
     });
   }
   private decision(actor:Actor,id:string,input:{expectedVersion:number;approvalDigest:string},snapshot:Payable|undefined){
-    const order=this.sync(this.owned(actor,id));
+    const order=this.sync(this.owned(actor,id));this.store.eligibility!.require(actor,order.eligibilityEpoch||'1:1');
     if(order.version!==input.expectedVersion||order.approvalDigest!==input.approvalDigest)return fail('APPROVAL_CHANGED','The stored review changed or its approval does not match.');
     if(!active(order))return fail('ORDER_CLOSED','This authorization review is closed.');
     const current=this.fresh(snapshot,order.quote.payable.provider,order.quote.payable.id,order.quote.payable.revision);
@@ -123,7 +124,7 @@ export class PaymentOrders {
   }
   challenge(actor:Actor,id:string,input:{expectedVersion:number;approvalDigest:string;challengeId:string;decision:'APPROVE'|'REJECT'},snapshot:Payable|undefined,interactive:boolean){
     return this.atomic(()=>{
-      const order=this.decision(actor,id,input,snapshot);if(order.state!=='REQUIRES_ACTION'||!order.authorization)return fail('CHALLENGE_CLOSED','This order has no pending challenge.');
+      const order=this.decision(actor,id,input,snapshot);this.source(actor.accountId,order.quote.source.id,order.quote.source.version);if(order.state!=='REQUIRES_ACTION'||!order.authorization)return fail('CHALLENGE_CLOSED','This order has no pending challenge.');
       const auth=this.issuer.challenge(this.binding(order),input.challengeId,input.decision,interactive);
       order.authorization=auth;if(auth.state==='DECLINED')return this.close(order,'FAILED',auth.failureCode);
       order.state='AUTHORIZED';return this.save(order);
@@ -140,7 +141,7 @@ export class PaymentOrders {
   abortCapture(actor:Actor,id:string,code:string){return this.atomic(()=>{const order=this.owned(actor,id);if(order.fundsCaptured)return this.unresolved(actor,id,code);if(order.state==='CAPTURING')return this.close(order,'FAILED',code);return order;});}
   unresolved(actor:Actor,id:string,code:string){return this.atomic(()=>{const order=this.owned(actor,id);if(order.state==='SETTLED')return order;if(order.fundsCaptured){order.state='RECONCILIATION_REQUIRED';order.failureCode=code;return this.save(order);}return order;});}
   capture(actor:Actor,id:string,admission:PayableAdmission){return this.atomic(()=>{
-    const order=this.owned(actor,id);if(order.fundsCaptured)return order;
+    const order=this.owned(actor,id);if(order.fundsCaptured)return order;this.store.eligibility!.require(actor,order.eligibilityEpoch||'1:1');
     if(order.state!=='CAPTURING'||!order.authorization||order.admissionId!==admission.id||admission.state!=='ADMITTED'||!this.sameAdmission(order,admission)||Date.parse(admission.expiresAt)<=this.clock()||Date.parse(order.authorization.expiresAt)<=this.clock()||Date.parse(order.expiresAt)<=this.clock())return fail('CAPTURE_NOT_ADMITTED','A current exact provider admission and funding hold are required.');
     this.source(actor.accountId,order.quote.source.id,order.quote.source.version);
     const link=this.store.get<BillingAccount>(actor.accountId,'billing-account',order.quote.billingAccount.id);if(!link||link.status!=='ACTIVE'||link.version!==order.quote.billingAccount.version)return fail('BILLER_CHANGED','The biller link changed.');

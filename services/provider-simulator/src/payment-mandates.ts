@@ -97,22 +97,22 @@ export class PaymentMandates {
     if(t.kind==='PARKING'&&(Date.parse(t.endAt)<=Math.max(start,now)||Date.parse(t.endAt)>end||t.maximumHours*3600<l.cooldownSeconds))deny('INVALID_PARKING_POLICY','Parking needs a bounded end time and duration within the mandate window.',400);
     return {sourceSnapshots:sources,...(biller?{billerSnapshot:structuredClone(biller)}:{})};
   }
-  private approval(m:PaymentMandate){return digest({contractVersion:MANDATE_CONTRACT_VERSION,id:m.id,accountId:m.accountId,ownerSub:m.ownerSub,policyVersion:m.policyVersion,policy:m.policy,sourceSnapshots:m.sourceSnapshots,billerSnapshot:m.billerSnapshot||null,reviewExpiresAt:m.reviewExpiresAt});}
+  private approval(m:PaymentMandate){return digest({...(m.eligibilityEpoch?{eligibilityEpoch:m.eligibilityEpoch}:{}),contractVersion:MANDATE_CONTRACT_VERSION,id:m.id,accountId:m.accountId,ownerSub:m.ownerSub,policyVersion:m.policyVersion,policy:m.policy,sourceSnapshots:m.sourceSnapshots,billerSnapshot:m.billerSnapshot||null,reviewExpiresAt:m.reviewExpiresAt});}
   create(actor:Actor,policy:MandatePolicy){return this.atomic(()=>{
-    this.interactive(actor);this.list(actor);const count=this.store.db.prepare('SELECT count(*) n FROM payment_mandates WHERE account_id=?').get(actor.accountId)!.n;
+    this.interactive(actor);const eligibility=this.store.eligibility!.require(actor);this.list(actor);const count=this.store.db.prepare('SELECT count(*) n FROM payment_mandates WHERE account_id=?').get(actor.accountId)!.n;
     if(Number(count)>=100)deny('MANDATE_LIMIT','This workspace supports at most 100 retained mandates.');
     const snapshot=this.snapshot(actor,policy),now=new Date(this.clock()).toISOString();
-    const m:PaymentMandate={id:`mandate_${randomUUID()}`,accountId:actor.accountId,ownerSub:actor.sub,version:1,policyVersion:1,state:'AWAITING_APPROVAL',executionEnabled:false,policy:structuredClone(policy),...snapshot,approvalDigest:'',reviewExpiresAt:new Date(this.clock()+300000).toISOString(),createdAt:now,updatedAt:now};
+    const m:PaymentMandate={eligibilityEpoch:eligibility.epoch,id:`mandate_${randomUUID()}`,accountId:actor.accountId,ownerSub:actor.sub,version:1,policyVersion:1,state:'AWAITING_APPROVAL',executionEnabled:false,policy:structuredClone(policy),...snapshot,approvalDigest:'',reviewExpiresAt:new Date(this.clock()+300000).toISOString(),createdAt:now,updatedAt:now};
     m.approvalDigest=this.approval(m);this.store.db.prepare('INSERT INTO payment_mandates VALUES(?,?,?)').run(m.id,m.accountId,m.version);this.bind(m);this.store.db.prepare('INSERT INTO payment_mandate_versions VALUES(?,?,?)').run(m.id,m.version,JSON.stringify(m));return m;
   });}
   revise(actor:Actor,id:string,expectedVersion:number,policy:MandatePolicy){return this.atomic(()=>{
-    this.interactive(actor);const m=this.sync(this.load(actor,id));this.expected(m,expectedVersion);if(m.version>=997)deny('MANDATE_VERSION_LIMIT','Create a new mandate after closing this version-limited policy.');if(!active(m))deny('MANDATE_CLOSED','Create a new mandate after revocation or expiry.');
-    const snapshot=this.snapshot(actor,policy);this.release(m);m.policyVersion++;m.state='AWAITING_APPROVAL';m.policy=structuredClone(policy);m.sourceSnapshots=snapshot.sourceSnapshots;delete m.billerSnapshot;if(snapshot.billerSnapshot)m.billerSnapshot=snapshot.billerSnapshot;delete m.approvedAt;
+    this.interactive(actor);const eligibility=this.store.eligibility!.require(actor);const m=this.sync(this.load(actor,id));this.expected(m,expectedVersion);if(m.version>=997)deny('MANDATE_VERSION_LIMIT','Create a new mandate after closing this version-limited policy.');if(!active(m))deny('MANDATE_CLOSED','Create a new mandate after revocation or expiry.');
+    const snapshot=this.snapshot(actor,policy);this.release(m);m.eligibilityEpoch=eligibility.epoch;m.policyVersion++;m.state='AWAITING_APPROVAL';m.policy=structuredClone(policy);m.sourceSnapshots=snapshot.sourceSnapshots;delete m.billerSnapshot;if(snapshot.billerSnapshot)m.billerSnapshot=snapshot.billerSnapshot;delete m.approvedAt;
     m.reviewExpiresAt=new Date(this.clock()+300000).toISOString();m.approvalDigest=this.approval(m);this.bind(m);return this.save(m);
   });}
   approve(actor:Actor,id:string,expectedVersion:number,approvalDigest:string){return this.atomic(()=>{
     this.interactive(actor);const m=this.sync(this.load(actor,id));this.expected(m,expectedVersion);if(m.version>=998)deny('MANDATE_VERSION_LIMIT','Close this version-limited policy before creating another.');
-    if(m.state!=='AWAITING_APPROVAL'||m.approvalDigest!==approvalDigest||this.approval(m)!==approvalDigest)deny('MANDATE_APPROVAL_INVALID','Approve the exact current unexpired mandate review.');
+    this.store.eligibility!.require(actor,m.eligibilityEpoch||'1:1');if(m.state!=='AWAITING_APPROVAL'||m.approvalDigest!==approvalDigest||this.approval(m)!==approvalDigest)deny('MANDATE_APPROVAL_INVALID','Approve the exact current unexpired mandate review.');
     this.snapshot(actor,m.policy);m.state='APPROVED';m.approvedAt=new Date(this.clock()).toISOString();return this.save(m);
   });}
   revoke(actor:Actor,id:string,expectedVersion:number){return this.atomic(()=>{

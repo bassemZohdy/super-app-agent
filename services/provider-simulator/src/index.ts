@@ -1,3 +1,6 @@
+import { EligibilityError } from './account-eligibility.ts';
+import { EligibilityClient } from '../../../packages/backend-kit/src/eligibility-client.ts';
+import { eligibilityChangeSchema,type EligibilityChange } from '../../../packages/protocol-core/src/account-eligibility.ts';
 import { MandateError } from './payment-mandates.ts';
 import { verifyMandateTarget } from './mandate-targets.ts';
 import { issuerScenarioSchemas } from '../../../packages/protocol-core/src/issuer-scenarios.ts';
@@ -35,6 +38,7 @@ export function createProviderServer(provider: ProviderId, path: string, options
   const routes = operations[provider].map(operation => ({ ...operation, regex: new RegExp(`^${operation.path.replace(/\{\w+\}/g, '[^/]+')}$`), validate: operation.body ? ajv.compile(operation.body) : undefined }));
   const payments = options.paymentClient||new ProviderClient('provider-settlements', process.env.PROVIDER_SETTLEMENT_SECRET || 'demo-settlements-secret');
   const settlements=settlementProviders.includes(provider as SettlementProvider)?new ProviderSettlements(store,provider as SettlementProvider,options.settlementTransport||new SettlementClient(provider as SettlementProvider)):undefined;
+  const eligibilityReader=new EligibilityClient(),validateEligibility=ajv.compile<EligibilityChange>(eligibilityChangeSchema);
   const checkout=engine.orders?new PaymentCheckout(engine.orders,payments):undefined;
   const policy = new HttpPolicy();
   const server = http.createServer({ maxHeaderSize: 16384, requestTimeout: 15000, headersTimeout: 10000 }, async (req, res) => {
@@ -53,6 +57,16 @@ export function createProviderServer(provider: ProviderId, path: string, options
       const roles = claims.realm_access?.roles || [];
       const delegated = claims.azp === 'delegation-broker';
       const interactive = claims.azp === 'superapp-shell' && roles.includes('superapp-user') && !String(claims.preferred_username || '').startsWith('service-account-');
+      const eligibilityPath=/^\/internal\/(account-eligibility|account-lifecycle)\/([A-Za-z0-9_-]{1,160})$/.exec(url.pathname);
+      if(provider==='payments'&&eligibilityPath&&!url.search){
+        const machine=!interactive&&!delegated&&claims.act===undefined&&String(claims.preferred_username||'').startsWith('service-account-');
+        const reader=machine&&claims.azp==='provider-eligibility'&&roles.includes('provider:eligibility:read'),operator=machine&&claims.azp==='eligibility-operator'&&roles.includes('provider:eligibility:manage');
+        if(!reader&&!operator)throw new ApiError(403,'ELIGIBILITY_WORKLOAD_REQUIRED','Only the exact eligibility reader/operator workload may use this lane.');
+        const [,kind,account]=eligibilityPath;if(req.method==='GET'&&kind==='account-eligibility')return send({status:200,data:{success:true,eligibility:store.eligibility!.snapshot(account)}});
+        if(req.method==='GET'&&kind==='account-lifecycle'&&operator)return send({status:200,data:{success:true,...store.eligibility!.impact(account)}});
+        if(req.method==='POST'&&kind==='account-eligibility'&&operator){const input=await readJsonBody(req);if(!validateEligibility(input))throw new ApiError(400,'VALIDATION_ERROR','Use the exact versioned eligibility decision.');const key=req.headers['idempotency-key'];if(typeof key!=='string')throw new ApiError(400,'IDEMPOTENCY_REQUIRED','An operator request key is required.');return send({status:200,data:{success:true,eligibility:store.eligibility!.change(account,input,claims.sub,key)}});}
+        throw new ApiError(403,'ELIGIBILITY_OPERATION_DENIED','This workload cannot change or inspect this eligibility operation.');
+      }
       const scenarioRoute=/^\/internal\/issuer-scenarios\/(simrun_[a-f0-9-]{36})(?:\/(configuration|pending))?$/.exec(url.pathname);
       if(url.pathname.startsWith('/internal/issuer-scenarios/')){
         const scenarios=store.issuerScenarios;
@@ -78,7 +92,7 @@ export function createProviderServer(provider: ProviderId, path: string, options
       const subject = claimant?String(claimAccount!.owner):delegated || interactive ? claims.sub : req.headers['x-user-subject'];
       if (typeof subject !== 'string' || !subject || subject.length > 200 || /[\r\n\x00-\x1f]/.test(subject)) throw new ApiError(400, 'ACTOR_REQUIRED', 'A trusted user subject is required.');
       const accounts = claimant?[]:store.accounts(subject);
-      if (req.method === 'GET' && url.pathname === '/v1/accounts' && !delegated) return send({ status: 200, data: { success: true, accounts } });
+      if (req.method === 'GET' && url.pathname === '/v1/accounts' && !delegated) return send({ status: 200, data: { success: true, accounts:provider==='payments'?accounts.map(a=>({...a,eligibility:store.eligibility!.snapshot(a.id)})):accounts } });
       const match = /^\/v1\/accounts\/([a-zA-Z0-9_-]+)(\/.*)$/.exec(url.pathname);
       if (!match) throw new ApiError(404, 'NOT_FOUND', 'Operation not found.');
       const [, accountId, operationPath] = match;
@@ -86,9 +100,18 @@ export function createProviderServer(provider: ProviderId, path: string, options
       const operation = routes.find(route => route.method === req.method && route.regex.test(operationPath));
       if (!operation || url.search) throw new ApiError(404, 'NOT_FOUND', 'Operation not found.');
       if(claimRoute&&!claimant)throw new ApiError(403,'CLAIM_CLIENT_REQUIRED','Only the exact provider settlement workload can change a claim.');
-      if(provider==='payments'&&(operationPath.startsWith('/payment-history')||operationPath.startsWith('/payment-statement')||operationPath.startsWith('/payment-reconciliation')||operationPath.startsWith('/payment-mandates')||operationPath.startsWith('/payment-orders')||operationPath.startsWith('/wallet-funding-orders')||operationPath.startsWith('/checkout-groups')||operationPath.startsWith('/payment-refunds')||operationPath==='/payment-events')&&!interactive)throw new ApiError(403,'INTERACTIVE_REVIEW_REQUIRED','Stored authorization reviews require the signed-in owner. Unattended actors cannot approve or answer challenges.');
+      if(provider==='payments'&&(operationPath==='/payment-lifecycle'||operationPath.startsWith('/payment-history')||operationPath.startsWith('/payment-statement')||operationPath.startsWith('/payment-reconciliation')||operationPath.startsWith('/payment-mandates')||operationPath.startsWith('/payment-orders')||operationPath.startsWith('/wallet-funding-orders')||operationPath.startsWith('/checkout-groups')||operationPath.startsWith('/payment-refunds')||operationPath==='/payment-events')&&!interactive)throw new ApiError(403,'INTERACTIVE_REVIEW_REQUIRED','Stored authorization reviews require the signed-in owner. Unattended actors cannot approve or answer challenges.');
       if((operationPath.includes('/admissions')||operationPath==='/fine-selections'||operationPath==='/recharge-quotes'||operationPath.startsWith('/payment-reversals/'))&&!interactive)throw new ApiError(403,'INTERACTIVE_ADMISSION_REQUIRED','Payable admission requires the current signed-in owner.');
       const actor: Actor = { sub: subject, username: subject, name: typeof req.headers['x-user-name'] === 'string' ? Buffer.from(req.headers['x-user-name'], 'base64url').toString('utf8').slice(0, 200) : 'Demo citizen', accountId, requestId: '', authorization: interactive ? req.headers.authorization : undefined };
+      if(provider==='payments'&&req.method==='GET'&&operationPath==='/account-eligibility'&&interactive)return send({status:200,data:{success:true,eligibility:store.eligibility!.snapshot(accountId)}});
+      // Settlement claim/proof lanes retain original captured identities; they cannot admit a new charge.
+      const retainedSettlement=claimant||claims.azp==='provider-settlements'&&provider==='payments'&&req.method==='GET'&&/^\/charges\/[A-Za-z0-9_-]+$/.test(operationPath);
+      if(!retainedSettlement&&(process.env.ELIGIBILITY_ENFORCEMENT==='true'||process.env.NODE_ENV==='production')){
+        let eligibility;
+        try{eligibility=provider==='payments'?store.eligibility!.snapshot(accountId):await eligibilityReader.bootstrap({...actor,authorization:interactive?req.headers.authorization:undefined});}
+        catch{throw new ApiError(503,'ELIGIBILITY_UNAVAILABLE','Current account eligibility is unavailable; no new authority is admitted.');}
+        if(!eligibility.active||eligibility.ownerSub!==subject)throw new ApiError(403,'ACCOUNT_RESTRICTED','Current owner or workspace membership prevents access. History is retained.');actor.eligibilityEpoch=eligibility.epoch;
+      }
       let body: any = {};
       if (req.method === 'POST') {
         body = await readJsonBody(req);
@@ -188,9 +211,9 @@ export function createProviderServer(provider: ProviderId, path: string, options
       });
       send(result);
     } catch (error) {
-      const status = error instanceof HttpError ? error.status : error instanceof MandateError || error instanceof IssuerScenarioError || error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError || error instanceof SettlementError ? error.status : 503;
+      const status = error instanceof HttpError ? error.status : error instanceof EligibilityError||error instanceof MandateError || error instanceof IssuerScenarioError || error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError || error instanceof SettlementError ? error.status : 503;
       res.setHeader('Connection', 'close');
-      send({ status, data: { success: false, code: error instanceof MandateError || error instanceof IssuerScenarioError || error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError || error instanceof SettlementError ? error.code : 'PROVIDER_UNAVAILABLE', error: error instanceof HttpError ? error.message : error instanceof MandateError || error instanceof IssuerScenarioError || error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError || error instanceof SettlementError ? error.message : 'The simulator could not complete this request. Check operation status before retrying a write.' } });
+      send({ status, data: { success: false, code: error instanceof EligibilityError||error instanceof MandateError || error instanceof IssuerScenarioError || error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError || error instanceof SettlementError ? error.code : 'PROVIDER_UNAVAILABLE', error: error instanceof HttpError ? error.message : error instanceof EligibilityError||error instanceof MandateError || error instanceof IssuerScenarioError || error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError || error instanceof SettlementError ? error.message : 'The simulator could not complete this request. Check operation status before retrying a write.' } });
     }
   });
   let eventDelivery:ReturnType<typeof startPaymentEventDelivery>|undefined;

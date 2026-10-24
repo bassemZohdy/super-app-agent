@@ -24,6 +24,7 @@ export async function startEnvironment(options:{authorizationClock?:()=>number;i
   const secret = (id: string) => realm.clients.find((client: { clientId: string }) => client.clientId === id).secret as string;
   for(const provider of ['rta','dewa','etisalat','du','police'])process.env[`PROVIDER_${provider.toUpperCase()}_CLAIM_SECRET`]=secret(`provider-${provider}-settlement`);
   Object.assign(process.env, {
+    ELIGIBILITY_ENFORCEMENT:'true',ELIGIBILITY_READER_SECRET:secret('provider-eligibility'),
     PROVIDER_INTEGRATION: 'true', DOMAIN_TRANSPORT: 'http', SESSION_STORE: 'redis',
     // Exercise the strict interactive provider lane; never proxy isolated tests to live grants.
     DELEGATION_ENABLED: 'true', DELEGATION_AUTHORITY_URL: 'http://127.0.0.1:1',

@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 24 October 2026 — current owner and workspace lifecycle
+
+Deliver PAY-21 with versioned owner/membership decisions, separate machine reader/operator lanes, current eligibility checks, approval/grant epochs and atomic gateway capture fencing. Preserve history and captured original IDs; show restricted access and stale in-flight work in React without implicit reassignment. Verify revoke/restore, source changes, authority outages, restart, delegation and actual temporary Keycloak user disablement. Update current contracts/guides; preserve dated evidence. [Guide](development/payment-lifecycle.md) · [Evidence](reports/2026-10-24-payment-lifecycle.md).
+
 ## 24 October 2026 — automation authority contract and broker hardening
 
 Complete AUTO-02 threat modeling and negative authority gates. Freeze reviewed legacy read permissions independently of OpenAPI growth, reject extra authority fields, require exact pending-job token bindings and fence terminal results. Document current-entitlement/shared-budget/permit requirements before scheduled spending; qualify real local Keycloak and isolated providers while preserving normal broker records. [Threat model](architecture/payment-automation-security.md) · [Evidence](reports/2026-10-24-automation-security.md).

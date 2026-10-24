@@ -106,7 +106,7 @@ test('provider-owned eligibility uses fixed reads and cannot accept foreign or c
 test('OpenAPI and gateway contracts share strict mandate request/response schemas',t=>{
   const f=fixture(t),p=f.policy(),validate=new Ajv({strict:false}).compile(mandateSchemas.create);assert.equal(validate({policy:p}),true);assert.equal(validate({policy:p,approved:true}),false);
   const body={accountId:f.actor.accountId,requestKey:'mandate_key_01',policy:p};assert.equal(validateRequest('agent-core','POST','/api/payments/mandates',{},body),undefined);assert.ok(validateRequest('agent-core','POST','/api/payments/mandates',{},{...body,authorization:'consent'}));
-  const contract=openApi('payments');assert.ok(contract.paths['/v1/accounts/{accountId}/payment-mandates']);assert.equal(contract.info.version,'2.16.0');
+  const contract=openApi('payments');assert.ok(contract.paths['/v1/accounts/{accountId}/payment-mandates']);assert.equal(contract.info.version,'2.17.0');
 });
 test('failed lifecycle binding rolls back the entire mandate head, history and all new references',t=>{
   const f=fixture(t),original=f.engine.resourceUses!.bind.bind(f.engine.resourceUses!);let calls=0;
