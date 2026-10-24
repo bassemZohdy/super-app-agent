@@ -1,6 +1,8 @@
 # Stable demo handoff — 24 October 2026
 
-Feature work is paused at the user's request. Application code is restored exactly to **`79cd691`**, which is pushed to GitHub `main`. Only this handoff and the proposed AUTO-03 architecture are added after that application checkpoint.
+> **Superseded.** Feature work resumed later on 24 October 2026 under a new goal, and the commits after `79cd691` are on GitHub `main`. Current state is in the [changelog](../CHANGELOG.md) and [TODO.md](../../TODO.md). This page remains the dated record of the `79cd691` checkpoint.
+
+Feature work was paused at the user's request at that checkpoint. Application code is restored exactly to **`79cd691`**, which is pushed to GitHub `main`. Only this handoff and the proposed AUTO-03 architecture are added after that application checkpoint.
 
 ## Run and inspect
 

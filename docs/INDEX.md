@@ -60,6 +60,7 @@ The bounded delegation extension is documented in [ADR-0012](adr/ADR-0012-secure
 - [Voice and conversational chat](architecture/voice-and-conversation.md) — drafts, spoken replies, follow-ups and verification limits.
 - [MCP setup and tools](development/mcp.md) — authenticated core transport, reference client and legacy descriptor boundary.
 - [Application API onboarding](development/application-api.md) — the six integrated application services, bearer calls, probes and the generated OpenAPI contract.
+- [Production dependency triage](reports/2026-10-24-dependency-triage.md) — the five production audit advisories, their evidence-based dispositions, the ajv upgrade and the open Angular and zod items.
 - External specifications: [AG-UI](https://github.com/ag-ui-protocol/ag-ui), [A2UI](https://a2ui.org/), [MCP](https://modelcontextprotocol.io/) and [A2A](https://a2a-protocol.org/). Do not infer conformance from the use of names.
 
 ## Integrated provider demo

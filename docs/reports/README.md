@@ -4,6 +4,7 @@ Evidence spans the `283521a` integrated baseline, payment setup `65fec3c`, journ
 
 | Evidence | Verified scope | Interpretation |
 | --- | --- | --- |
+| [Production dependency triage](2026-10-24-dependency-triage.md) | `npm audit --omit=dev`: five advisories; ajv then upgraded to 8.20.0, leaving four | Evidence-based dispositions. Angular major upgrade needs a decision; zod via LangChain has no same-major fix and needs a reviewed LangChain change |
 | [Gateway business reservations and original attempts](2026-10-24-payment-obligations.md) | 397 tests, 18 builds; signed invoice/manual-fine/recharge races, original UNKNOWN/restart/recovery, legacy overlap migration and paced UI | PAY-08 advanced but remains open for actual automatic-caller qualification; no new scheduled authority |
 | [Current owner/workspace lifecycle](2026-10-24-payment-lifecycle.md) | 386 tests, 18 builds; signed permission/source/grant/session fences, actual Keycloak disablement, paced UI, twelve retained journeys and normal restart preservation | PAY-21 delivered; shared automatic reservations/permits, worker/simulator and parity/QA gates remain open |
 | [Automation authority review](2026-10-24-automation-security.md) | 371 tests, 18 builds; isolated exact-image signed authority/read/write compatibility and byte-preserved normal broker restart | AUTO-02 contract/hardening delivered; scheduled spending disabled until permit/budget/entitlement gates pass |

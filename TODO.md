@@ -28,7 +28,7 @@ Existing task IDs are preserved. New findings extend those tasks or receive new 
 | Sessions | Redis ownership/account claims, TTL, renewed leases, fenced saves, shared replay | Single-node AOF crash window, global quotas, HA/backup and durable workflow semantics |
 | Deployment | Loopback-published reference demo, SQLite/Redis volumes, readiness polling | Source/dependency mounts; clean-image and production deployment hardening remain open |
 
-Current results are in the [evidence register](docs/reports/README.md). The current `main` baseline passes 501 Node tests and 18 workspace builds, including the backlog slices recorded in [the changelog](docs/CHANGELOG.md); dated reports retain their earlier counts. Real local Keycloak/provider, Redis and restart checks pass. Flutter and browser results are explicitly scoped in that report. `npm run lint` now executes ESLint correctness rules; local Markdown-link and source-secret checks also run in `npm run check`.
+Current results are in the [evidence register](docs/reports/README.md). The current `main` baseline passes 515 Node tests and 18 workspace builds, including the backlog slices recorded in [the changelog](docs/CHANGELOG.md); dated reports retain their earlier counts. Real local Keycloak/provider, Redis and restart checks pass. Flutter and browser results are explicitly scoped in that report. `npm run lint` now executes ESLint correctness rules; local Markdown-link and source-secret checks also run in `npm run check`.
 
 ### Confirmed defects and regression coverage
 

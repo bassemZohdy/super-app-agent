@@ -4,6 +4,9 @@
 
 ```bash
 npm run check # ESLint, Markdown links, tracked-source secrets, tests, 18 builds
+npm run openapi:generate      # regenerate the provider OpenAPI contracts (checked by tests)
+npm run openapi:generate:apps # regenerate the application API contract (checked by tests)
+npm run sbom:generate         # local CycloneDX SBOM into dist/sbom; opt-in, no CI workflow
 npm run demo:up         # includes readiness polling
 npm run demo:wait       # check endpoints of an already running stack
 npm run test:redis
