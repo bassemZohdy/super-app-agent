@@ -50,4 +50,4 @@ A real LangGraph prepare/review/execute graph wraps the handwritten deterministi
 
 [Provider details and failure semantics](../demo/provider-backends.md) · [Authentication/security](../../SECURITY.md) · [Execution evidence](../reports/README.md)
 
-The next [payment accounts/automation extension](payment-automation-demo.md) has delivered the first linked-biller/saved-method setup and non-executable preview slice in React. Durable payment orders/ledger, finite mandates, a worker and isolated scenario controls remain planned and are not part of this as-built diagram yet. [Current setup/API guide](../development/payment-accounts.md).
+The next [payment accounts/automation extension](payment-automation-demo.md) has delivered the first linked-biller/saved-method setup and non-executable preview slice in React. A balanced local journal and checked wallet projection are implemented. Durable payment orders, finite mandates, a worker and isolated scenario controls remain planned and are not part of this as-built diagram yet. [Current setup/API guide](../development/payment-accounts.md).

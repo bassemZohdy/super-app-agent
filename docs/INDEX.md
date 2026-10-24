@@ -21,7 +21,9 @@ The bounded delegation extension is documented in [ADR-0012](adr/ADR-0012-secure
 
 ## Payment accounts and next demo work
 
-[Payment accounts and automation design](architecture/payment-automation-demo.md) defines linked biller accounts, wallet/cards, bounded automatic payments/services and an isolated simulator. [The 50-task backlog](../TODO.md#payment-accounts-and-automation-demo--planned-backlog) is the authoritative implementation checklist. PAY-01 is delivered; initial biller/card management is partial. [Current usage](development/payment-accounts.md) and [execution evidence](reports/2026-10-24-payment-accounts.md) distinguish live quote review from future funds movement. [Planning and cleanup record](reports/2026-10-24-payment-planning.md) distinguishes this pass from delivered functionality.
+[Payment accounts and automation design](architecture/payment-automation-demo.md) defines linked biller accounts, wallet/cards, bounded automatic payments/services and an isolated simulator. [The 50-task backlog](../TODO.md#payment-accounts-and-automation-demo--planned-backlog) is the authoritative implementation checklist. PAY-01/PAY-02 are delivered; initial biller/card management is partial. [Current usage](development/payment-accounts.md) and [execution evidence](reports/2026-10-24-payment-accounts.md) distinguish live quote review from future funds movement. [Planning and cleanup record](reports/2026-10-24-payment-planning.md) distinguishes this pass from delivered functionality.
+
+[Balanced journal and migration](development/payment-ledger.md) · [Actual three-wallet migration and regression evidence](reports/2026-10-24-payment-ledger.md). Stored card orders and automation remain planned.
 
 ## ADR register
 

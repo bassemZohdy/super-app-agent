@@ -21,6 +21,7 @@
     "../serve-recordings.ts",
     "../local-ai-up.ts",
     "../verify-local-ai.ts",
-    "../verify-local-ai-browser.ts"
+    "../verify-local-ai-browser.ts",
+    "../verify-payment-ledger.ts"
   ]
 }

@@ -30,7 +30,7 @@ export async function paymentOverview(actor: Actor, source = client): Promise<Pa
     payables.push({ id: `police:fine:${fine.fineId}`, provider: 'police', reference: fine.plateNumber, label: `${fine.violation} · ${fine.fineId}`, amountMinor, currency: 'AED', status: 'UNPAID', revision: paymentDigest([fine.fineId,fine.plateNumber,fine.status,amountMinor,fine.discountAmount]) });
   }
   return { contractVersion: PAYMENT_CONTRACT_VERSION, accountId: actor.accountId, previewOnly: true, methods: methods.methods, defaultMethodId: methods.defaultMethodId, presets: methods.presets,
-    billingAccounts: links.billingAccounts, candidates, payables, wallet: { balanceMinor: wallet.balanceMinor, currency: 'AED' } };
+    billingAccounts: links.billingAccounts, candidates, payables, wallet: { balanceMinor: wallet.balanceMinor, heldMinor: wallet.heldMinor, availableMinor: wallet.availableMinor, currency: 'AED' } };
 }
 export function buildPaymentPreview(overview: PaymentOverview, input: { payableId: string; methodId: string; expectedMethodVersion: number }, now = Date.now()): PaymentPreview {
   const payable = overview.payables.find(p => p.id === input.payableId);
