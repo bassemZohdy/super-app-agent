@@ -7,8 +7,9 @@ import { connectEventStream } from '../../../../packages/protocol-core/src/sse-c
 import { Component, signal, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import type { AGUISurfacePayload, UIComponentNode } from '../../../../packages/protocol-core/src/index.ts';
+import { environment } from '../environments/environment.ts';
 
-const GATEWAY_URL = (typeof import.meta !== 'undefined' && (import.meta as { env?: Record<string, string | undefined> }).env?.['NG_APP_GATEWAY_URL']) || 'http://localhost:4000';
+const GATEWAY_URL = environment.gatewayUrl;
 
 @Component({
   selector: 'app-root',

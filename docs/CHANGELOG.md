@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 24 October 2026 — Angular gateway build setting
+
+Move the Angular shell's gateway URL from an unwired `NG_APP_GATEWAY_URL` lookup into `apps/shell-angular/src/environments/environment.ts`, a single explicit build-time value. Guarded by `services/test/angular-gateway-config.test.ts`; production build and gate verified. An environment-variable-driven build setting remains open under P2-06.
+
 ## 24 October 2026 — documentation and backlog reconciliation after P2-02
 
 Consolidate the current application checkpoint in STATUS.md, reorganize the index/evidence register, refresh the active handoff and archive its superseded `79cd691` snapshot. Correct stale test totals, readiness/authentication descriptions, API versions, payment/consent/refund status, local-AI decision amendments and references to unfinished automation. Preserve task IDs/checkmarks, dated report/recording facts, personal files and durable demo state. Strengthen documentation checks for local anchors, current npm commands and backlog-count drift; no payment/identity runtime feature is enabled by this maintenance.
