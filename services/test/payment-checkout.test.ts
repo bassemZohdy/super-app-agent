@@ -117,3 +117,36 @@ test('failpoints reject unknown names and bad counts and stay inert when unarmed
   assert.throws(() => armFailpoint('checkout.after-admission', 0), /count/);
   assert.equal(failpointFirings('checkout.after-admission'), 0);
 });
+
+// SIM-06: the read-only inspector explains each failpoint outcome and clears after recovery.
+import { inspectOrder } from '../provider-simulator/src/run-inspector.ts';
+test('read-only inspector explains a committed capture with lost response and clears after recovery', async t => {
+  clearFailpoints();
+  t.after(clearFailpoints);
+  const f = fixture(t);
+  const deps = { orders: f.gateway.orders!, ledger: f.gateway.ledger!, issuer: f.gateway.issuer!, claims: f.gateway.claims! };
+  armFailpoint('checkout.after-capture-commit', 1);
+  const pending = await f.checkout.execute(f.actor, f.approved.id, input(f.approved));
+  const before = inspectOrder(deps, f.actor, pending.id);
+  assert.equal(before.order.state, 'RECONCILIATION_REQUIRED');
+  assert.equal(before.order.fundsCaptured, true);
+  assert.ok(before.mismatches.some(item => item.startsWith('CAPTURE_COMMITTED_SETTLEMENT_PENDING')), JSON.stringify(before.mismatches));
+  await f.checkout.recover(f.actor, pending.id);
+  const after = inspectOrder(deps, f.actor, pending.id);
+  assert.equal(after.order.state, 'SETTLED');
+  assert.deepEqual(after.mismatches, []);
+  assert.equal(after.card?.heldMinor, 0);
+});
+
+test('read-only inspector reports the unknown-before-capture state without exposing a mutation path', async t => {
+  clearFailpoints();
+  t.after(clearFailpoints);
+  const f = fixture(t);
+  const deps = { orders: f.gateway.orders!, ledger: f.gateway.ledger!, issuer: f.gateway.issuer!, claims: f.gateway.claims! };
+  armFailpoint('checkout.after-admission', 1);
+  const pending = await f.checkout.execute(f.actor, f.approved.id, input(f.approved));
+  const report = inspectOrder(deps, f.actor, pending.id);
+  assert.equal(report.order.fundsCaptured, false);
+  assert.ok(report.mismatches.some(item => item.startsWith('UNKNOWN_BEFORE_CAPTURE')));
+  assert.equal(f.payments.list(f.actor.accountId, 'transaction').length, 0);
+});

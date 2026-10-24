@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 25 October 2026 — read-only order inspector (SIM-06)
+
+Add `inspectOrder`, a read-only explanation of one payment order that reports the order state, ledger and card balances, settlement claim and concrete mismatch reasons. Tests show the reasons appear after a lost response and clear after recovery. The HTTP route and its operator role remain open with SIM-05.
+
 ## 25 October 2026 — named simulator failpoints (SIM-04)
 
 Add a named, process-local failpoint registry for the demo payment simulator. Three checkout boundaries (after admission, after a committed capture, after the provider settlement request) can lose their response once. Tests prove each recovers the original order with one debit and one payment. Callback-fault coverage already existed; scenario arming through guarded controls (SIM-05) remains open.
