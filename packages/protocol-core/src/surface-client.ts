@@ -20,7 +20,8 @@ export function surfaceActionPayload(view: UIComponentNode, binding: ActionBindi
   if (binding.actionType !== 'AGENT_ACTION_DISPATCH') throw new Error('This navigation action is not supported in this shell.');
   const groups = Object.keys(choiceDefaults(view));
   if (groups.length > 1) throw new Error('This surface has multiple choice groups and requires an explicit action binding.');
-  const payload = { ...binding.payload, ...formValues };
+  // Server-bound keys are authoritative: client form values may not overwrite them.
+  const payload = { ...formValues, ...binding.payload };
   delete payload.selectedChoice;
   if (groups.length === 1) {
     const groupId = groups[0];
