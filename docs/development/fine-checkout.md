@@ -14,7 +14,7 @@ Restricted/black-point fines require additional review and cannot be selected fo
 
 ## Contract and reservations
 
-Payment contract **1.4.0**, payment-provider OpenAPI **2.7.0**, Police OpenAPI **2.5.0**. DEWA/telecom remain 2.4.0, RTA 2.1.0 and DLD 2.0.0. Core adds `POST /api/payments/fine-selection-preview` with `accountId`, `items: [{payableId, expectedRevision}]`, `methodId`, `expectedMethodVersion`. As with bill preview, it accepts no mutation `requestKey`, fees, caller amount or raw card data.
+Payment contract **1.5.0**, payment-provider OpenAPI **2.8.0**, Police OpenAPI **2.5.0**. DEWA remains 2.4.0, telecom 2.5.0, RTA 2.2.0 and DLD 2.0.0. Core adds `POST /api/payments/fine-selection-preview` with `accountId`, `items: [{payableId, expectedRevision}]`, `methodId`, `expectedMethodVersion`. As with bill preview, it accepts no mutation `requestKey`, fees, caller amount or raw card data.
 
 Police adds `POST /v1/accounts/{accountId}/fine-selections` with `{items}` and a provider `Idempotency-Key`. It returns a source-owned `FINE_SET` payable whose ID binds workspace and sorted fine IDs; amount, discount, status, restriction and revision derive from current constituent obligations. Duplicate IDs, nesting, another owner, different vehicles, stale revisions and unavailable fines deny. Selection definitions persist but authorize no financial effect. Execution reads fresh source state rather than trusting a retried POST snapshot.
 

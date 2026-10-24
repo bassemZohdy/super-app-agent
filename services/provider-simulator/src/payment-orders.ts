@@ -125,7 +125,7 @@ export class PaymentOrders {
   cancel(actor:Actor,id:string,expectedVersion:number){return this.atomic(()=>{const order=this.sync(this.owned(actor,id));if(order.version!==expectedVersion)return fail('ORDER_CHANGED','Refresh this review before cancelling.');if(!active(order)||order.fundsCaptured)return fail('ORDER_CLOSED','Captured or closed orders cannot be cancelled.');return this.close(order,'CANCELLED');});}
   beginCapture(actor:Actor,id:string,input:{expectedVersion:number;approvalDigest:string},snapshot:Payable){return this.atomic(()=>{
     const order=this.decision(actor,id,input,snapshot);if(order.state!=='AUTHORIZED'||!order.authorization)return fail('ORDER_NOT_AUTHORIZED','Authorize this exact order before payment.');
-    if(!['BILL','FINE','FINE_SET'].includes(order.quote.payable.kind||''))return fail('PAYABLE_NOT_SUPPORTED','This payment flow supports utility/telecom bills and exact fine selections.');
+    if(!['BILL','FINE','FINE_SET','RECHARGE'].includes(order.quote.payable.kind||''))return fail('PAYABLE_NOT_SUPPORTED','This payment flow supports utility/telecom bills and exact fine selections.');
     this.source(actor.accountId,order.quote.source.id,order.quote.source.version);order.state='CAPTURING';order.paymentId=`payment_${randomUUID()}`;return this.save(order);
   });}
   private sameAdmission(order:Review,admission:PayableAdmission){return admission.orderId===order.id&&admission.approvalDigest===order.approvalDigest&&admission.payable.id===order.quote.payable.id&&admission.payable.revision===order.quote.payable.revision&&admission.payable.provider===order.quote.payable.provider&&admission.payable.reference===order.quote.payable.reference&&admission.payable.amountMinor===order.quote.totalMinor&&admission.payable.currency==='AED'&&admission.sourceId===order.quote.source.id&&admission.sourceVersion===order.quote.source.version&&Number.isFinite(Date.parse(admission.expiresAt))&&Date.parse(admission.expiresAt)<=Date.parse(order.authorization!.expiresAt);}
@@ -143,10 +143,12 @@ export class PaymentOrders {
     this.store.put(actor.accountId,'charge',charge,order.paymentId!);this.store.put(actor.accountId,'transaction',{id:order.paymentId,type:'PAYMENT',amount:order.quote.totalMinor/100,currency:'AED',purpose:order.quote.payable.label,status:'CAPTURED',timestamp:this.clock(),orderId:id,source:order.quote.source},order.paymentId!);
     this.uses.release(actor.accountId,'METHOD',order.quote.source.id,'HOLD',order.authorization.id);order.fundsCaptured=true;order.state='CAPTURED';return this.save(order);
   });}
+  finalized(actor:Actor,id:string){return this.atomic(()=>{const o=this.owned(actor,id);if(o.state!=='SETTLED'||o.quote.payable.kind!=='RECHARGE')return fail('RECHARGE_NOT_CONFIRMED','This recharge is not settled.');if(o.sourceFinalizationPending){o.sourceFinalizationPending=false;return this.save(o);}return o;});}
   complete(actor:Actor,id:string,admission:PayableAdmission){return this.atomic(()=>{
     const order=this.owned(actor,id);if(order.state==='SETTLED')return order;
     if(!order.fundsCaptured||admission.id!==order.admissionId||!this.sameAdmission(order,admission)||admission.state!=='APPLIED'||admission.receipt?.receiptNumber!==order.paymentId||admission.receipt?.amountMinor!==order.quote.totalMinor||admission.receipt?.currency!=='AED'||admission.receipt?.obligationId!==order.quote.payable.obligationId)return fail('SETTLEMENT_NOT_CONFIRMED','The provider has not confirmed this exact payment.');
-    order.state='SETTLED';order.receipt=admission.receipt;delete order.failureCode;
+    if(order.quote.payable.kind==='RECHARGE'&&(admission.receipt.targetReference!==order.quote.payable.reference||admission.receipt.providerBalanceMinor!==order.quote.payable.recharge!.balanceBeforeMinor+order.quote.totalMinor))return fail('SETTLEMENT_NOT_CONFIRMED','The provider has not confirmed this exact target credit.');
+    order.state='SETTLED';order.receipt=admission.receipt;if(order.quote.payable.kind==='RECHARGE')order.sourceFinalizationPending=true;delete order.failureCode;
     const transaction=this.store.get(actor.accountId,'transaction',order.paymentId!);this.store.put(actor.accountId,'transaction',{...transaction,status:'SETTLED'},order.paymentId!);
     this.uses.release(actor.accountId,'METHOD',order.quote.source.id,'ORDER',id);this.uses.release(actor.accountId,'BILLER',order.quote.billingAccount.id,'ORDER',id);return this.save(order);
   });}

@@ -1,5 +1,5 @@
 /** Payment contract v1. Additive, synthetic-account APIs; previews never authorize execution. */
-export const PAYMENT_CONTRACT_VERSION = '1.4.0';
+export const PAYMENT_CONTRACT_VERSION = '1.5.0';
 export const MAX_PAYMENT_MINOR = 100_000_000;
 export const WALLET_FUNDING_LIMITS = { minMinor: 100, maxMinor: 50000, balanceMaxMinor: 1000000, feeMinor: 0 } as const;
 export const cardPresets = [
@@ -11,6 +11,9 @@ export const cardPresets = [
 ] as const;
 export type CardPreset = typeof cardPresets[number]['id'];
 export type BillerProvider = 'dewa' | 'etisalat' | 'du' | 'rta' | 'police';
+export type RechargeProvider='rta'|'etisalat'|'du';
+export type RechargeTarget={provider:RechargeProvider;reference:string;label:string;kind:'TOLL'|'PREPAID';status:string;version:number;balanceMinor:number;currency:'AED';denominationsMinor:number[]};
+export type PaymentReceipt={receiptNumber:string;obligationId:string;amountMinor:number;currency:'AED';targetReference?:string;providerBalanceMinor?:number};
 export type PaymentMethod = {
   id: string; accountId: string; kind: 'wallet' | 'card'; nickname: string; version: number;
   status: 'ACTIVE' | 'DISABLED' | 'EXPIRED' | 'REMOVED'; currency: 'AED';
@@ -19,7 +22,7 @@ export type PaymentMethod = {
 export type BillingAccount = { id: string; accountId: string; provider: BillerProvider; reference: string; nickname: string; status: 'ACTIVE' | 'ARCHIVED'; version: number; createdAt: string };
 export type BillerCandidate = { provider: BillerProvider; reference: string; label: string; balanceMinor?: number };
 export type Payable = { id: string; provider: BillerProvider; reference: string; label: string; amountMinor: number; currency: 'AED'; revision: string; status: 'UNPAID' | 'PAID' | 'CANCELLED' | 'EXPIRED'; dueDate?: string;
-  obligationId?: string; kind?: 'BILL'|'FINE'|'FINE_SET'; items?:Payable[]; version?:number; dueState?:'CURRENT'|'DUE'|'OVERDUE'|'EXPIRED'|'CLOSED'; originalAmountMinor?:number; discountMinor?:number; discountEligible?:boolean; discountExpiresAt?:string; expiresAt?:string; period?:string; openingFixture?:boolean; paymentRestricted?:boolean };
+  obligationId?: string; kind?: 'BILL'|'FINE'|'FINE_SET'|'RECHARGE'; recharge?:{kind:'TOLL'|'PREPAID';targetVersion:number;balanceBeforeMinor:number};items?:Payable[]; version?:number; dueState?:'CURRENT'|'DUE'|'OVERDUE'|'EXPIRED'|'CLOSED'; originalAmountMinor?:number; discountMinor?:number; discountEligible?:boolean; discountExpiresAt?:string; expiresAt?:string; period?:string; openingFixture?:boolean; paymentRestricted?:boolean };
 export type PaymentPreview = {
   contractVersion: typeof PAYMENT_CONTRACT_VERSION; previewOnly: true; accountId: string; id: string;
   payable: Payable; billingAccount: BillingAccount; source: PaymentMethod; amountMinor: number; feeMinor: number;
@@ -27,7 +30,7 @@ export type PaymentPreview = {
 };
 export type CardBalance={sourceId:string;limitMinor:number;heldMinor:number;spentMinor:number;availableMinor:number;currency:'AED'};
 export type CardAuthorization={id:string;orderId:string;sourceId:string;amountMinor:number;currency:'AED';state:'REQUIRES_ACTION'|'AUTHORIZED'|'DECLINED'|'EXPIRED'|'VOIDED'|'CAPTURED';expiresAt:string;challengeId?:string;failureCode?:string};
-export type PaymentAuthorizationReview={id:string;accountId:string;ownerSub:string;version:number;state:'AWAITING_APPROVAL'|'REQUIRES_ACTION'|'AUTHORIZED'|'CAPTURING'|'CAPTURED'|'RECONCILIATION_REQUIRED'|'SETTLED'|'FAILED'|'CANCELLED';approvalDigest:string;expiresAt:string;createdAt:string;approvedAt?:string;failureCode?:string;fundsCaptured:boolean;admissionId?:string;paymentId?:string;receipt?:{receiptNumber:string;obligationId:string;amountMinor:number;currency:'AED'};
+export type PaymentAuthorizationReview={id:string;accountId:string;ownerSub:string;version:number;state:'AWAITING_APPROVAL'|'REQUIRES_ACTION'|'AUTHORIZED'|'CAPTURING'|'CAPTURED'|'RECONCILIATION_REQUIRED'|'SETTLED'|'FAILED'|'CANCELLED';approvalDigest:string;expiresAt:string;createdAt:string;approvedAt?:string;failureCode?:string;fundsCaptured:boolean;admissionId?:string;paymentId?:string;receipt?:PaymentReceipt;sourceFinalizationPending?:boolean;
   quote:{payable:Payable;billingAccount:BillingAccount;source:PaymentMethod;amountMinor:number;feeMinor:number;totalMinor:number;currency:'AED';createdAt:string;expiresAt:string};authorization?:CardAuthorization};
 export type PaymentDependency = { resourceType:'METHOD'|'BILLER';resourceId:string;dependentKind:'ORDER'|'HOLD'|'MANDATE';dependentId:string;status:'ACTIVE' };
 export type WalletFundingOrder = {
@@ -38,7 +41,7 @@ export type WalletFundingOrder = {
   authorization?:CardAuthorization;
   receipt?:{receiptNumber:string;amountMinor:number;feeMinor:number;currency:'AED';balanceMinor:number;capturedAt:string};
 };
-export type PaymentOverview = { contractVersion: string; accountId: string; previewOnly: boolean; dependencies: PaymentDependency[]; methods: PaymentMethod[]; defaultMethodId: string; presets: unknown[]; billingAccounts: BillingAccount[]; candidates: BillerCandidate[]; payables: Payable[]; orders?:PaymentAuthorizationReview[];fundingOrders?:WalletFundingOrder[];cardBalances?:CardBalance[];wallet: { balanceMinor: number; heldMinor: number; availableMinor: number; currency: 'AED' } };
+export type PaymentOverview = { contractVersion: string; accountId: string; previewOnly: boolean; dependencies: PaymentDependency[]; methods: PaymentMethod[]; defaultMethodId: string; presets: unknown[]; billingAccounts: BillingAccount[]; candidates: BillerCandidate[]; payables: Payable[];rechargeTargets?:RechargeTarget[];orders?:PaymentAuthorizationReview[];fundingOrders?:WalletFundingOrder[];cardBalances?:CardBalance[];wallet: { balanceMinor: number; heldMinor: number; availableMinor: number; currency: 'AED' } };
 export const orderStates = ['DRAFT','AWAITING_APPROVAL','READY','REQUIRES_ACTION','AUTHORIZED','CAPTURED','SETTLING','SETTLED','FAILED','CANCELLED','RECONCILIATION_REQUIRED','REFUNDING','PARTIALLY_REFUNDED','REFUNDED'] as const;
 export const settlementStates = ['UNCLAIMED','CLAIMED','APPLIED','RELEASED','UNKNOWN'] as const;
 export const attemptStates = ['PENDING','REQUIRES_ACTION','AUTHORIZED','CAPTURED','DECLINED','VOIDED','UNKNOWN'] as const;
@@ -59,7 +62,9 @@ export const paymentSchemas = {
   preview: paymentObject({ payableId: id, methodId: id, expectedMethodVersion: version }),
   fineSelection:paymentObject({items:fineSelectionItemsSchema}),
   fineSelectionPreview:paymentObject({items:fineSelectionItemsSchema,methodId:id,expectedMethodVersion:version}),
-  createOrder:paymentObject({provider:{enum:['dewa','etisalat','du','police']},payableId:id,expectedPayableRevision:digestSchema,methodId:id,expectedMethodVersion:version}),
+  rechargeQuote:paymentObject({targetReference:reference,amountMinor:minorUnitSchema,expectedTargetVersion:version,intentId:id}),
+  rechargePreview:paymentObject({provider:{enum:['rta','etisalat','du']},targetReference:reference,amountMinor:minorUnitSchema,expectedTargetVersion:version,methodId:id,expectedMethodVersion:version}),
+  createOrder:paymentObject({provider:{enum:['dewa','etisalat','du','police','rta']},payableId:id,expectedPayableRevision:digestSchema,methodId:id,expectedMethodVersion:version}),
   createWalletFunding:paymentObject({amountMinor:{type:'integer',minimum:WALLET_FUNDING_LIMITS.minMinor,maximum:WALLET_FUNDING_LIMITS.maxMinor},methodId:id,expectedMethodVersion:version}),
   approveOrder:paymentObject({expectedVersion:version,approvalDigest:digestSchema}),
   challengeOrder:paymentObject({expectedVersion:version,approvalDigest:digestSchema,challengeId:id,decision:{enum:['APPROVE','REJECT']}}),

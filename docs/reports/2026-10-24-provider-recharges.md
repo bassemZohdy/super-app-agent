@@ -1,0 +1,15 @@
+# Wallet/card provider recharges — 24 October 2026
+
+Implementation follows `8e620d8`; publication commit identifies source. PAY-15 adds owned Salik/Etisalat/du target discovery, denomination-bound intents, shared stored-order approval/capture, source claims/credit, confirmed balance receipts and original-operation recovery.
+
+Sixteen source/financial regressions pass across all three providers and both funding types, plus challenge/decline, invalid target/amount/version/intent, quote expiry, provider balance limit, changed/closed target, competing quotes, legacy-credit exclusion, proof reuse, source persistence rollback, lost responses before/after credit and final acknowledgement, and non-empty source reopen. A separate application-mapping regression verifies that the retained Salik adapter resumes its immutable intent after a captured unknown outcome instead of selecting a newer provider version or creating another quote/capture; changed amount conflicts.
+
+The complete repository check passed **231 Node tests and 18 builds**. The real-Keycloak Chrome run passed all six wallet/challenged-card provider journeys, exact intent/execution retries, restored receipts, wrong owner/target/denomination and changed-term denials. Wallet funds moved AED 1500 → AED 1400 for wallet-funded credits; the card then spent AED 100 while wallet funds stayed AED 1400. Final balances were Salik AED 114, Etisalat prepaid AED 100 and du prepaid AED 100. The recording is 155.60 seconds, VP9, 1440×1050, with six-second reviews/authorizations/challenges and eight-second receipts. [Watch it](../recordings/recharge-checkout/index.html). Existing journeys, normal deployment/preservation and final document gates are recorded below. Existing no-preview Keycloak, local-only AI and model/voice approval boundaries remain unchanged. This is a synthetic local demo, not real provider or production certification.
+
+## Regression, deployment and inspection
+
+All twelve existing real-Keycloak browser journeys passed, including unified checkout using the new stored Salik path. The normal coordinated restart preserved gateway resource/idempotency hashes, journal entries, settlement claims, issuer authorizations and saved reviews; all three wallets retained one balanced opening with matching projections. New quote/target-fence persistence is exercised with a non-empty source reopen regression, rather than claimed from the empty normal review store. Source schemas/tables are additive and no balances were reseeded. The final focused routing checks also preserve ordinary bill IDs containing the word recharge.
+
+Receipt screenshots and recording frames were visually inspected. Lint, strict harness type checking, local links across 69 Markdown documents, source-secret and diff gates pass. Backlog audit: 50 unique tasks, 14 delivered, 36 open.
+
+Post-deployment `demo:wait` and signed-owner read-only `demo:verify:inventory` pass for contract 1.5.0, provider target denominations/versions and unchanged funds/history.

@@ -21,7 +21,7 @@ The bounded delegation extension is documented in [ADR-0012](adr/ADR-0012-secure
 
 ## Payment accounts and next demo work
 
-[Payment accounts and automation design](architecture/payment-automation-demo.md) defines linked biller accounts, wallet/cards, bounded automatic payments/services and an isolated simulator. [The 50-task backlog (13 slices delivered, 37 open)](../TODO.md#payment-accounts-and-automation-demo--planned-backlog) is the authoritative implementation checklist. PAY-01–PAY-06, PAY-09–PAY-14 and preview-only SIM-01 are delivered. [Current lifecycle/scenario evidence](reports/2026-10-24-lifecycle-simulator.md) defines their tested boundary. [Current usage](development/payment-accounts.md) and [execution evidence](reports/2026-10-24-payment-checkout.md) describe quote review, explicit authorization and confirmed wallet/card bill payment. [Planning and cleanup record](reports/2026-10-24-payment-planning.md) preserves the initial planning observations and records this backlog review.
+[Payment accounts and automation design](architecture/payment-automation-demo.md) defines linked biller accounts, wallet/cards, bounded automatic payments/services and an isolated simulator. [The 50-task backlog (14 slices delivered, 36 open)](../TODO.md#payment-accounts-and-automation-demo--planned-backlog) is the authoritative implementation checklist. PAY-01–PAY-06, PAY-09–PAY-15 and preview-only SIM-01 are delivered. [Current lifecycle/scenario evidence](reports/2026-10-24-lifecycle-simulator.md) defines their tested boundary. [Current usage](development/payment-accounts.md) and [execution evidence](reports/2026-10-24-payment-checkout.md) describe quote review, explicit authorization and confirmed wallet/card bill payment. [Planning and cleanup record](reports/2026-10-24-payment-planning.md) preserves the initial planning observations and records this backlog review.
 
 [Balanced journal and migration](development/payment-ledger.md) · [Actual three-wallet migration and regression evidence](reports/2026-10-24-payment-ledger.md). Stored authorization reviews are implemented; bill capture/settlement is implemented; other payable types and automation remain planned.
 
@@ -78,3 +78,5 @@ Earlier dated reports, transcripts, videos and archived backlogs are historical 
 [Saved-card wallet funding](development/wallet-funding.md) · [Execution evidence](reports/2026-10-24-wallet-funding.md) · [Paced recording](recordings/wallet-funding/index.html).
 
 [Exact-set fine payments](development/fine-checkout.md) · [Wallet/card, race and lifecycle evidence](reports/2026-10-24-fine-checkout.md) · [Paced recording](recordings/fine-checkout/index.html).
+
+[Provider recharge guide](development/provider-recharges.md) · [Six-provider/funding journey evidence](reports/2026-10-24-provider-recharges.md) · [Paced recording](recordings/recharge-checkout/index.html).

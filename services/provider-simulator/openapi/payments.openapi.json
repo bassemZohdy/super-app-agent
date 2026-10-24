@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Demo Payment Gateway Simulator",
-    "version": "2.7.0",
+    "version": "2.8.0",
     "description": "Local synthetic API. Signed interactive user identity or broker-issued user token with current exact-operation grant required. JWT subject owns the account; caller user headers do not grant authority. A separate read-only settlement machine lane retrieves captured charge proofs. Legacy fixture mode is outside this reference security profile."
   },
   "servers": [
@@ -3229,6 +3229,9 @@
                         "fundsCaptured": {
                           "type": "boolean"
                         },
+                        "sourceFinalizationPending": {
+                          "type": "boolean"
+                        },
                         "admissionId": {
                           "type": "string",
                           "minLength": 1,
@@ -3259,6 +3262,16 @@
                             },
                             "currency": {
                               "const": "AED"
+                            },
+                            "targetReference": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "providerBalanceMinor": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 100000000
                             }
                           },
                           "required": [
@@ -3348,7 +3361,8 @@
                                     "dewa",
                                     "etisalat",
                                     "du",
-                                    "police"
+                                    "police",
+                                    "rta"
                                   ]
                                 },
                                 "reference": {
@@ -3365,7 +3379,8 @@
                                   "enum": [
                                     "BILL",
                                     "FINE",
-                                    "FINE_SET"
+                                    "FINE_SET",
+                                    "RECHARGE"
                                   ]
                                 },
                                 "version": {
@@ -3462,7 +3477,8 @@
                                           "dewa",
                                           "etisalat",
                                           "du",
-                                          "police"
+                                          "police",
+                                          "rta"
                                         ]
                                       },
                                       "reference": {
@@ -3575,6 +3591,33 @@
                                     ],
                                     "additionalProperties": false
                                   }
+                                },
+                                "recharge": {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "enum": [
+                                        "TOLL",
+                                        "PREPAID"
+                                      ]
+                                    },
+                                    "targetVersion": {
+                                      "type": "integer",
+                                      "minimum": 1,
+                                      "maximum": 1000000
+                                    },
+                                    "balanceBeforeMinor": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 100000000
+                                    }
+                                  },
+                                  "required": [
+                                    "kind",
+                                    "targetVersion",
+                                    "balanceBeforeMinor"
+                                  ],
+                                  "additionalProperties": false
                                 }
                               },
                               "required": [
@@ -4002,6 +4045,9 @@
                         "fundsCaptured": {
                           "type": "boolean"
                         },
+                        "sourceFinalizationPending": {
+                          "type": "boolean"
+                        },
                         "admissionId": {
                           "type": "string",
                           "minLength": 1,
@@ -4032,6 +4078,16 @@
                             },
                             "currency": {
                               "const": "AED"
+                            },
+                            "targetReference": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "providerBalanceMinor": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 100000000
                             }
                           },
                           "required": [
@@ -4121,7 +4177,8 @@
                                     "dewa",
                                     "etisalat",
                                     "du",
-                                    "police"
+                                    "police",
+                                    "rta"
                                   ]
                                 },
                                 "reference": {
@@ -4138,7 +4195,8 @@
                                   "enum": [
                                     "BILL",
                                     "FINE",
-                                    "FINE_SET"
+                                    "FINE_SET",
+                                    "RECHARGE"
                                   ]
                                 },
                                 "version": {
@@ -4235,7 +4293,8 @@
                                           "dewa",
                                           "etisalat",
                                           "du",
-                                          "police"
+                                          "police",
+                                          "rta"
                                         ]
                                       },
                                       "reference": {
@@ -4348,6 +4407,33 @@
                                     ],
                                     "additionalProperties": false
                                   }
+                                },
+                                "recharge": {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "enum": [
+                                        "TOLL",
+                                        "PREPAID"
+                                      ]
+                                    },
+                                    "targetVersion": {
+                                      "type": "integer",
+                                      "minimum": 1,
+                                      "maximum": 1000000
+                                    },
+                                    "balanceBeforeMinor": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 100000000
+                                    }
+                                  },
+                                  "required": [
+                                    "kind",
+                                    "targetVersion",
+                                    "balanceBeforeMinor"
+                                  ],
+                                  "additionalProperties": false
                                 }
                               },
                               "required": [
@@ -5337,6 +5423,9 @@
                           "fundsCaptured": {
                             "type": "boolean"
                           },
+                          "sourceFinalizationPending": {
+                            "type": "boolean"
+                          },
                           "admissionId": {
                             "type": "string",
                             "minLength": 1,
@@ -5367,6 +5456,16 @@
                               },
                               "currency": {
                                 "const": "AED"
+                              },
+                              "targetReference": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              "providerBalanceMinor": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 100000000
                               }
                             },
                             "required": [
@@ -5456,7 +5555,8 @@
                                       "dewa",
                                       "etisalat",
                                       "du",
-                                      "police"
+                                      "police",
+                                      "rta"
                                     ]
                                   },
                                   "reference": {
@@ -5473,7 +5573,8 @@
                                     "enum": [
                                       "BILL",
                                       "FINE",
-                                      "FINE_SET"
+                                      "FINE_SET",
+                                      "RECHARGE"
                                     ]
                                   },
                                   "version": {
@@ -5570,7 +5671,8 @@
                                             "dewa",
                                             "etisalat",
                                             "du",
-                                            "police"
+                                            "police",
+                                            "rta"
                                           ]
                                         },
                                         "reference": {
@@ -5683,6 +5785,33 @@
                                       ],
                                       "additionalProperties": false
                                     }
+                                  },
+                                  "recharge": {
+                                    "type": "object",
+                                    "properties": {
+                                      "kind": {
+                                        "enum": [
+                                          "TOLL",
+                                          "PREPAID"
+                                        ]
+                                      },
+                                      "targetVersion": {
+                                        "type": "integer",
+                                        "minimum": 1,
+                                        "maximum": 1000000
+                                      },
+                                      "balanceBeforeMinor": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 100000000
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "targetVersion",
+                                      "balanceBeforeMinor"
+                                    ],
+                                    "additionalProperties": false
                                   }
                                 },
                                 "required": [
@@ -6026,7 +6155,8 @@
                       "dewa",
                       "etisalat",
                       "du",
-                      "police"
+                      "police",
+                      "rta"
                     ]
                   },
                   "payableId": {
@@ -6136,6 +6266,9 @@
                         "fundsCaptured": {
                           "type": "boolean"
                         },
+                        "sourceFinalizationPending": {
+                          "type": "boolean"
+                        },
                         "admissionId": {
                           "type": "string",
                           "minLength": 1,
@@ -6166,6 +6299,16 @@
                             },
                             "currency": {
                               "const": "AED"
+                            },
+                            "targetReference": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "providerBalanceMinor": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 100000000
                             }
                           },
                           "required": [
@@ -6255,7 +6398,8 @@
                                     "dewa",
                                     "etisalat",
                                     "du",
-                                    "police"
+                                    "police",
+                                    "rta"
                                   ]
                                 },
                                 "reference": {
@@ -6272,7 +6416,8 @@
                                   "enum": [
                                     "BILL",
                                     "FINE",
-                                    "FINE_SET"
+                                    "FINE_SET",
+                                    "RECHARGE"
                                   ]
                                 },
                                 "version": {
@@ -6369,7 +6514,8 @@
                                           "dewa",
                                           "etisalat",
                                           "du",
-                                          "police"
+                                          "police",
+                                          "rta"
                                         ]
                                       },
                                       "reference": {
@@ -6482,6 +6628,33 @@
                                     ],
                                     "additionalProperties": false
                                   }
+                                },
+                                "recharge": {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "enum": [
+                                        "TOLL",
+                                        "PREPAID"
+                                      ]
+                                    },
+                                    "targetVersion": {
+                                      "type": "integer",
+                                      "minimum": 1,
+                                      "maximum": 1000000
+                                    },
+                                    "balanceBeforeMinor": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 100000000
+                                    }
+                                  },
+                                  "required": [
+                                    "kind",
+                                    "targetVersion",
+                                    "balanceBeforeMinor"
+                                  ],
+                                  "additionalProperties": false
                                 }
                               },
                               "required": [
@@ -6886,6 +7059,9 @@
                         "fundsCaptured": {
                           "type": "boolean"
                         },
+                        "sourceFinalizationPending": {
+                          "type": "boolean"
+                        },
                         "admissionId": {
                           "type": "string",
                           "minLength": 1,
@@ -6916,6 +7092,16 @@
                             },
                             "currency": {
                               "const": "AED"
+                            },
+                            "targetReference": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "providerBalanceMinor": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 100000000
                             }
                           },
                           "required": [
@@ -7005,7 +7191,8 @@
                                     "dewa",
                                     "etisalat",
                                     "du",
-                                    "police"
+                                    "police",
+                                    "rta"
                                   ]
                                 },
                                 "reference": {
@@ -7022,7 +7209,8 @@
                                   "enum": [
                                     "BILL",
                                     "FINE",
-                                    "FINE_SET"
+                                    "FINE_SET",
+                                    "RECHARGE"
                                   ]
                                 },
                                 "version": {
@@ -7119,7 +7307,8 @@
                                           "dewa",
                                           "etisalat",
                                           "du",
-                                          "police"
+                                          "police",
+                                          "rta"
                                         ]
                                       },
                                       "reference": {
@@ -7232,6 +7421,33 @@
                                     ],
                                     "additionalProperties": false
                                   }
+                                },
+                                "recharge": {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "enum": [
+                                        "TOLL",
+                                        "PREPAID"
+                                      ]
+                                    },
+                                    "targetVersion": {
+                                      "type": "integer",
+                                      "minimum": 1,
+                                      "maximum": 1000000
+                                    },
+                                    "balanceBeforeMinor": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 100000000
+                                    }
+                                  },
+                                  "required": [
+                                    "kind",
+                                    "targetVersion",
+                                    "balanceBeforeMinor"
+                                  ],
+                                  "additionalProperties": false
                                 }
                               },
                               "required": [
@@ -7672,6 +7888,9 @@
                         "fundsCaptured": {
                           "type": "boolean"
                         },
+                        "sourceFinalizationPending": {
+                          "type": "boolean"
+                        },
                         "admissionId": {
                           "type": "string",
                           "minLength": 1,
@@ -7702,6 +7921,16 @@
                             },
                             "currency": {
                               "const": "AED"
+                            },
+                            "targetReference": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "providerBalanceMinor": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 100000000
                             }
                           },
                           "required": [
@@ -7791,7 +8020,8 @@
                                     "dewa",
                                     "etisalat",
                                     "du",
-                                    "police"
+                                    "police",
+                                    "rta"
                                   ]
                                 },
                                 "reference": {
@@ -7808,7 +8038,8 @@
                                   "enum": [
                                     "BILL",
                                     "FINE",
-                                    "FINE_SET"
+                                    "FINE_SET",
+                                    "RECHARGE"
                                   ]
                                 },
                                 "version": {
@@ -7905,7 +8136,8 @@
                                           "dewa",
                                           "etisalat",
                                           "du",
-                                          "police"
+                                          "police",
+                                          "rta"
                                         ]
                                       },
                                       "reference": {
@@ -8018,6 +8250,33 @@
                                     ],
                                     "additionalProperties": false
                                   }
+                                },
+                                "recharge": {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "enum": [
+                                        "TOLL",
+                                        "PREPAID"
+                                      ]
+                                    },
+                                    "targetVersion": {
+                                      "type": "integer",
+                                      "minimum": 1,
+                                      "maximum": 1000000
+                                    },
+                                    "balanceBeforeMinor": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 100000000
+                                    }
+                                  },
+                                  "required": [
+                                    "kind",
+                                    "targetVersion",
+                                    "balanceBeforeMinor"
+                                  ],
+                                  "additionalProperties": false
                                 }
                               },
                               "required": [
@@ -8472,6 +8731,9 @@
                         "fundsCaptured": {
                           "type": "boolean"
                         },
+                        "sourceFinalizationPending": {
+                          "type": "boolean"
+                        },
                         "admissionId": {
                           "type": "string",
                           "minLength": 1,
@@ -8502,6 +8764,16 @@
                             },
                             "currency": {
                               "const": "AED"
+                            },
+                            "targetReference": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "providerBalanceMinor": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 100000000
                             }
                           },
                           "required": [
@@ -8591,7 +8863,8 @@
                                     "dewa",
                                     "etisalat",
                                     "du",
-                                    "police"
+                                    "police",
+                                    "rta"
                                   ]
                                 },
                                 "reference": {
@@ -8608,7 +8881,8 @@
                                   "enum": [
                                     "BILL",
                                     "FINE",
-                                    "FINE_SET"
+                                    "FINE_SET",
+                                    "RECHARGE"
                                   ]
                                 },
                                 "version": {
@@ -8705,7 +8979,8 @@
                                           "dewa",
                                           "etisalat",
                                           "du",
-                                          "police"
+                                          "police",
+                                          "rta"
                                         ]
                                       },
                                       "reference": {
@@ -8818,6 +9093,33 @@
                                     ],
                                     "additionalProperties": false
                                   }
+                                },
+                                "recharge": {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "enum": [
+                                        "TOLL",
+                                        "PREPAID"
+                                      ]
+                                    },
+                                    "targetVersion": {
+                                      "type": "integer",
+                                      "minimum": 1,
+                                      "maximum": 1000000
+                                    },
+                                    "balanceBeforeMinor": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 100000000
+                                    }
+                                  },
+                                  "required": [
+                                    "kind",
+                                    "targetVersion",
+                                    "balanceBeforeMinor"
+                                  ],
+                                  "additionalProperties": false
                                 }
                               },
                               "required": [
@@ -9253,6 +9555,9 @@
                         "fundsCaptured": {
                           "type": "boolean"
                         },
+                        "sourceFinalizationPending": {
+                          "type": "boolean"
+                        },
                         "admissionId": {
                           "type": "string",
                           "minLength": 1,
@@ -9283,6 +9588,16 @@
                             },
                             "currency": {
                               "const": "AED"
+                            },
+                            "targetReference": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "providerBalanceMinor": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 100000000
                             }
                           },
                           "required": [
@@ -9372,7 +9687,8 @@
                                     "dewa",
                                     "etisalat",
                                     "du",
-                                    "police"
+                                    "police",
+                                    "rta"
                                   ]
                                 },
                                 "reference": {
@@ -9389,7 +9705,8 @@
                                   "enum": [
                                     "BILL",
                                     "FINE",
-                                    "FINE_SET"
+                                    "FINE_SET",
+                                    "RECHARGE"
                                   ]
                                 },
                                 "version": {
@@ -9486,7 +9803,8 @@
                                           "dewa",
                                           "etisalat",
                                           "du",
-                                          "police"
+                                          "police",
+                                          "rta"
                                         ]
                                       },
                                       "reference": {
@@ -9599,6 +9917,33 @@
                                     ],
                                     "additionalProperties": false
                                   }
+                                },
+                                "recharge": {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "enum": [
+                                        "TOLL",
+                                        "PREPAID"
+                                      ]
+                                    },
+                                    "targetVersion": {
+                                      "type": "integer",
+                                      "minimum": 1,
+                                      "maximum": 1000000
+                                    },
+                                    "balanceBeforeMinor": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 100000000
+                                    }
+                                  },
+                                  "required": [
+                                    "kind",
+                                    "targetVersion",
+                                    "balanceBeforeMinor"
+                                  ],
+                                  "additionalProperties": false
                                 }
                               },
                               "required": [

@@ -1,6 +1,6 @@
 # Wallet/card bill checkout
 
-DEWA, Etisalat and du bills now use the same stored-order capture and settlement path from React's payment panel and the existing wallet-funded service/conversation routes. Explicit approval authorizes a finite hold; the separate **Pay AED …** action captures it and settles the provider-admitted bill. A receipt is shown only after the provider confirms application. Exact-set fines now use this same flow; prepaid/toll recharges, multi-provider checkout, automatic rules and full refund/reversal workflows retain their separate backlog tasks.
+DEWA, Etisalat and du bills now use the same stored-order capture and settlement path from React's payment panel and the existing wallet-funded service/conversation routes. Explicit approval authorizes a finite hold; the separate **Pay AED …** action captures it and settles the provider-admitted bill. A receipt is shown only after the provider confirms application. Exact-set fines now use this same flow; prepaid/toll recharges now extend it through explicit intents and target fences. Multi-provider checkout, automatic rules and full refund/reversal workflows retain their separate backlog tasks.
 
 ## Use the demo
 
@@ -27,7 +27,7 @@ The gateway commits hold consumption, issuer/wallet effect, balanced postings, c
 | `/api/payments/orders/execute` | `/payment-orders/{orderId}/execute` | `orderId`, `expectedVersion`, `approvalDigest` |
 | `/api/payments/orders/recover` | `/payment-orders/{orderId}/recover` | `orderId` |
 
-Current order GETs and overview expose CAPTURING, CAPTURED, RECONCILIATION_REQUIRED and SETTLED, `fundsCaptured`, provider admission/payment IDs and the confirmed receipt. Contract version is 1.4. An ordinary preview remains `previewOnly: true`; the broader overview is no longer labelled preview-only. Exact request retries return their stored response; use current status/recovery after an unknown result.
+Current order GETs and overview expose CAPTURING, CAPTURED, RECONCILIATION_REQUIRED and SETTLED, `fundsCaptured`, provider admission/payment IDs and the confirmed receipt. Contract version is 1.5. An ordinary preview remains `previewOnly: true`; the broader overview is no longer labelled preview-only. Exact request retries return their stored response; use current status/recovery after an unknown result.
 
 Source routes `/payables/{payableId}/admissions` prepare a reservation; `/{admissionId}` reads it, and `/admit`, `/cancel`, `/payments` control its guarded lifecycle. They require the current interactive owner. The source obtains gateway state itself; caller-supplied order snapshots or arbitrary URLs are never accepted. Worker execution remains disabled pending the mandate/grant contract.
 

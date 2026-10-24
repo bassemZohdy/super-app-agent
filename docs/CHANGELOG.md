@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 24 October 2026 — owned toll/prepaid provider recharges
+
+Complete PAY-15 with Salik/Etisalat/du target/denomination reviews, wallet/card/challenge execution, exact provider credit, target fencing, final-confirmation recovery and original-intent adapter resume. Verify and record all six provider/funding journeys. [Guide](development/provider-recharges.md) · [Evidence](reports/2026-10-24-provider-recharges.md).
+
 ## 24 October 2026 — exact-set wallet/card fine payments
 
 Complete PAY-14 and the remaining PAY-06 demo capture criteria. Add authoritative fine-set quotes, shared constituent locks, wallet/card/challenge execution, atomic source application, original-payment recovery and confirmed receipts. Move current manual/conversation fine payments to stored orders with exact offered bindings. [Guide](development/fine-checkout.md) · [Evidence](reports/2026-10-24-fine-checkout.md).
