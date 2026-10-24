@@ -1,0 +1,20 @@
+# Statements and original-source receipt history — 24 October 2026
+
+PAY-20 delivers paginated journal statements and payment activity, normalized owned operation details and consistent receipt facts. Posted money and provider confirmation remain separate. [Guide and exact API](../development/payment-history.md).
+
+## Executed evidence
+
+- Thirteen focused tests use real SQLite and actual checkout/refund/issuer services. They verify exact opening/credit/debit/clearing and running balances, 111 legacy operations beyond the old 100-row cap, fixed snapshot totals under newly inserted/backdated records, account/stream/malformed cursor denial, unstarted/declined/challenged/unknown status, original source/biller snapshots after removal/archive, partial group accounting, receipt gating, read-only/reopen persistence, raw uncertain captures, zero-wallet card capture/return, partial funding debit, inconsistent capture metadata and signed exact-cent formatting through safe integer limits.
+- The signed isolated browser pages **116 journal entries and 117 activity records** through actual React controls and real local Keycloak/HTTP. Financial setup uses an approved card bill, wallet bill with lost provider response, card wallet funding and partial original-card return, plus declined/challenged top-ups. Exactly **111 one-fils legacy captures** intentionally have no provider application; they remain uncertain and never become paid-service receipts.
+- Journal opening AED 1500.00 + funding AED 50.00 − wallet bill AED 299.00 − funding return AED 20.00 − legacy attempts AED 1.11 equals **AED 1229.89**. The card-funded DEWA bill has zero wallet movement. Every page retains the same summary/ceiling. Capture, clearing, return and related original IDs are checked independently.
+- The original card is removed and DEWA link archived before UI detail inspection. Its original nickname, mask ending 4242 and biller reference remain unchanged. Unknown capture, declined funding and challenge show no completed receipt. Original funding/partial return details remain separate, with cumulative refund annotation.
+- An actual payment-provider restart precedes history reads; reload preserves all statement totals. Wrong-owner and malformed/cross-context cursor requests deny. Setup uses scripted signed APIs; pagination and detail decisions use the real UI.
+- The recording is **68.88 seconds**, **10,509,433 bytes**, with six-second evidence/review holds and eight-second confirmed/reload results. Unknown and removed-source screenshots were visually inspected. The initial browser check exposed use of the nonnegative payment formatter for negative clearing; a separate exact signed statement formatter fixes it without weakening payment validation.
+- All **12 existing browser journeys** pass. The normal-stack financial restart preserves resources/idempotency, journal/claim/order/funding/group/refund/event state and issuer history. All three wallets retain one balanced opening each, with sealed postings and projections reconciled. Normal issuer scenario controls stay absent.
+- `npm test`: **358 passing tests**. All **18 workspace builds**, ESLint, E2E TypeScript and generated OpenAPI checks pass. Shared payment contract **1.12.0**, payment-provider OpenAPI **2.16.0**. Dated prior reports keep their original versions/counts.
+
+[Recording](../recordings/payment-history/index.html) · [Unknown operation](assets/payment-history-unknown.png) · [Removed-source receipt](assets/payment-history-original-source.png).
+
+Local Markdown links pass across **86 documents**, source/document secret checks and `git diff --check` pass, and normal readiness/signed-owner inventory reads preserve wallet funds and transaction history.
+
+The isolated run removes temporary SQLite files and preserves normal financial data. Local Keycloak/Redis remain shared, with random isolated conversation references and bounded TTL. Source/owner lifecycle coordination, automatic authority/budgets, full simulator controls and cross-shell/final QA keep their separate gates. The selected backlog now has **22 delivered slices and 28 open**.

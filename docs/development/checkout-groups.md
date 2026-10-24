@@ -15,7 +15,7 @@ PAY-16 adds an owned, durable group of one to ten child payment orders using one
 
 ## APIs and persistence
 
-Payment contract **1.11.0**, payment-provider OpenAPI **2.15.0**. Provider paths are relative to `/v1/accounts/{accountId}` and require the interactive owner token. Machine and delegated tokens cannot use group routes. POST requires `Idempotency-Key`.
+Payment contract **1.12.0**, payment-provider OpenAPI **2.16.0**. Provider paths are relative to `/v1/accounts/{accountId}` and require the interactive owner token. Machine and delegated tokens cannot use group routes. POST requires `Idempotency-Key`.
 
 | Provider route | Request / behavior |
 | --- | --- |

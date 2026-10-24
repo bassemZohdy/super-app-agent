@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 24 October 2026 — paginated financial statements and consistent receipts
+
+Deliver PAY-20 with owned journal/activity snapshots, exact running balances, original masked funding/biller details and explicit capture/settlement/refund outcomes. Unify receipt facts and suppress completed styling for pending acknowledgement or unknown operations; enrich the retained wallet history without rewriting financial rows. Verify more than 100 records, source/link removal, partial funding return and restart/reload in a paced signed browser run. [Guide](development/payment-history.md) · [Evidence](reports/2026-10-24-payment-history.md).
+
 ## 24 October 2026 — owned evidence-first payment recovery
 
 Deliver PAY-19 with paginated original-operation cases, frozen current-evidence decisions, fenced same-operation continuation, supported refund reviews and append-only local audit. Qualify before/after-commit response loss, gateway restart, reversal response loss, source-outage blocking and saved outcome reload with a paced signed browser run. Update shared payment/OpenAPI contracts and current guides. [Guide](development/payment-reconciliation.md) · [Evidence](reports/2026-10-24-payment-reconciliation.md).

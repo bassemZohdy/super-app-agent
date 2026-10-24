@@ -1,3 +1,5 @@
+import { PaymentReceiptFacts } from './PaymentReceiptFacts';
+import { paymentReceiptReady } from '../../../packages/protocol-core/src/payment-history.ts';
 import { useState } from 'react';
 import { formatAED, WALLET_FUNDING_LIMITS as limits, type PaymentMethod, type WalletFundingOrder } from '../../../packages/protocol-core/src/payments.ts';
 type Props={methods:PaymentMethod[];orders:WalletFundingOrder[];busy:boolean;create(input:Record<string,unknown>):void;act(order:WalletFundingOrder,action:'approve'|'challenge'|'cancel'|'execute',extra?:Record<string,unknown>):void};
@@ -27,7 +29,7 @@ export function WalletFundingPanel({methods,orders,busy,create,act}:Props){
       {o.state==='AUTHORIZED'&&<button disabled={busy} onClick={()=>act(o,'execute')}>Add {formatAED(o.quote.amountMinor)} to wallet</button>}
       {['AWAITING_APPROVAL','AUTHORIZATION_PENDING','REQUIRES_ACTION','AUTHORIZED'].includes(o.state)&&<button disabled={busy} onClick={()=>act(o,'cancel')}>Cancel wallet top-up</button>}
       {o.refundState&&<p>Original top-up {o.refundState} · Returned {formatAED(o.refundedMinor||0)} from wallet to the original card. The receipt below records the original credit.</p>}
-      {o.state==='SETTLED'&&o.receipt&&<section aria-label="Confirmed wallet funding receipt"><strong>Wallet credited · {formatAED(o.receipt.amountMinor)}</strong><p>Receipt {o.receipt.receiptNumber} · From {name(o.quote.source)}</p><p>Balance after this top-up {formatAED(o.receipt.balanceMinor)} · Card captured and wallet credit confirmed</p></section>}
+      {paymentReceiptReady(o)&&o.receipt&&<section aria-label="Confirmed wallet funding receipt"><strong>Wallet credited · {formatAED(o.receipt.amountMinor)}</strong><PaymentReceiptFacts source={o.quote.source} amountMinor={o.quote.amountMinor} feeMinor={o.quote.feeMinor} target={`Cityside wallet · ${o.accountId}`} reference={o.id} refundedMinor={o.refundedMinor} /><p>Receipt {o.receipt.receiptNumber} · From {name(o.quote.source)}</p><p>Balance after this top-up {formatAED(o.receipt.balanceMinor)} · Card captured and wallet credit confirmed</p></section>}
     </article>)}
   </section>;
 }

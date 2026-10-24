@@ -76,7 +76,9 @@
     "demo:verify:legacy-payment-events": "node --experimental-strip-types scripts/e2e/legacy-payment-events.ts",
     "record:legacy-payment-events": "node --experimental-strip-types scripts/e2e/legacy-payment-events.ts --record",
     "demo:verify:payment-reconciliation": "node --experimental-strip-types scripts/e2e/payment-reconciliation.ts",
-    "record:payment-reconciliation": "node --experimental-strip-types scripts/e2e/payment-reconciliation.ts --record"
+    "record:payment-reconciliation": "node --experimental-strip-types scripts/e2e/payment-reconciliation.ts --record",
+    "demo:verify:payment-history": "node --experimental-strip-types scripts/e2e/payment-history.ts",
+    "record:payment-history": "node --experimental-strip-types scripts/e2e/payment-history.ts --record"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^13.1.0",

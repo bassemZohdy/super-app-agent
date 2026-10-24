@@ -22,7 +22,7 @@ Pending results show **Inspect or resume refund**. Continue this original refund
 
 ## API contracts
 
-Payment contract **1.11.0**. Payment-provider OpenAPI **2.15.0**; RTA **2.3.0**, DEWA **2.5.0**, Etisalat/du/Police **2.6.0**. Provider routes are under `/v1/accounts/{accountId}` and require an interactive owner JWT; machine and delegated tokens cannot request or apply these reversals. POST requires `Idempotency-Key`.
+Payment contract **1.12.0**. Payment-provider OpenAPI **2.16.0**; RTA **2.3.0**, DEWA **2.5.0**, Etisalat/du/Police **2.6.0**. Provider routes are under `/v1/accounts/{accountId}` and require an interactive owner JWT; machine and delegated tokens cannot request or apply these reversals. POST requires `Idempotency-Key`.
 
 | Payment-provider route | Request / outcome |
 | --- | --- |
@@ -49,7 +49,7 @@ Gateway journal posting, original issuer return, cumulative claim/order/charge u
 
 The additive `payment_refunds`, `payment_card_refunds` and source `provider_payment_reversals` tables do not reseed wallets or rewrite historical journals. Restore source and gateway snapshots together. Preserve unknown reversals and their original IDs on rollback; removing an endpoint never proves non-application. Never restore only one side or edit balances to manufacture a completed refund.
 
-The existing raw `/charges/{id}/refunds` route remains guarded and cannot refund an applied/pending/unknown stored-order claim. `PaymentClaims.reversedMinor` tracks confirmed source-backed returns without releasing the original settlement fence for reuse. Refund receipt/transaction history and original source snapshots provide audit linkage; the [PAY-19 workbench](payment-reconciliation.md) consolidates guarded recovery; paginated statements remain PAY-20.
+The existing raw `/charges/{id}/refunds` route remains guarded and cannot refund an applied/pending/unknown stored-order claim. `PaymentClaims.reversedMinor` tracks confirmed source-backed returns without releasing the original settlement fence for reuse. Refund receipt/transaction history and original source snapshots provide audit linkage; the [PAY-19 workbench](payment-reconciliation.md) consolidates guarded recovery; [PAY-20 statements](payment-history.md) supply paginated financial and activity history.
 
 ## Verification
 

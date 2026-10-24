@@ -30,7 +30,7 @@ An APPLIED source read is evidence, not a caller-issued authorization. Existing 
 
 ## API
 
-Payment contract **1.11.0**, payment-provider OpenAPI **2.15.0**. Every route requires the interactive signed owner and owned account. Service/broker actors cannot use the workbench. Provider paths below are relative to `/v1/accounts/{accountId}`; POST requires an idempotency key.
+Payment contract **1.12.0**, payment-provider OpenAPI **2.16.0**. Every route requires the interactive signed owner and owned account. Service/broker actors cannot use the workbench. Provider paths below are relative to `/v1/accounts/{accountId}`; POST requires an idempotency key.
 
 | Provider route | Contract |
 | --- | --- |
@@ -49,7 +49,7 @@ The additive `payment_recovery_inspections` table binds owner/account, original 
 
 `payment_recovery_audit` is append-only through SQLite triggers. It records inspection, admission, original checkout/refund recovery start/observation/uncertainty and final result/error with safe codes. It contains no bearer tokens or raw signed assertions. Review creation and a confirmed legacy return commit with their workbench outcome/audit in one local transaction. Asynchronous provider and gateway effects remain separate transactions: a durable start may lack a final observation after a crash. Original IDs, journals, provider receipts and transactional outboxes provide effect evidence; later inspection resolves the outcome. This is local application integrity, not an administrator-resistant external audit system.
 
-Ordinary wallet/history/order/issuer/source rows are preserved on upgrade. There is no reset, arbitrary balance adjustment or automatic compensation endpoint. Restore gateway and source snapshots together; do not infer non-application from removing a record or losing connectivity. Automatic-caller budget admission, broader failpoint controls, statements and final race/shell qualification retain their own TODO gates.
+Ordinary wallet/history/order/issuer/source rows are preserved on upgrade. There is no reset, arbitrary balance adjustment or automatic compensation endpoint. Restore gateway and source snapshots together; do not infer non-application from removing a record or losing connectivity. [PAY-20 statements](payment-history.md) provide paginated history. Automatic-caller budget admission, broader failpoint controls and final race/shell qualification retain their own TODO gates.
 
 ## Verification
 

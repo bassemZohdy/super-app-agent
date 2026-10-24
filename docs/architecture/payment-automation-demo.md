@@ -131,7 +131,7 @@ SQLite permits a single simultaneous writer; the local worker/payment design mus
 
 ## Delivered refund boundary
 
-[PAY-17](../development/payment-refunds.md) requires explicit owner approval and durable source cancellation/credit removal before original-source return. Bills/fine sets allow only full synthetic cancellation; unused recharge and card-funded wallet value allow cumulative partial returns. The wallet funding reversal cannot consume holds or overdraw. Gateway issuer/journal/claim/original-order updates commit together; source response loss retains the original refund ID and blocks another request. Original settlement fences are never released for reapplication. Events, a reconciliation workbench and statements remain separate slices.
+[PAY-17](../development/payment-refunds.md) requires explicit owner approval and durable source cancellation/credit removal before original-source return. Bills/fine sets allow only full synthetic cancellation; unused recharge and card-funded wallet value allow cumulative partial returns. The wallet funding reversal cannot consume holds or overdraw. Gateway issuer/journal/claim/original-order updates commit together; source response loss retains the original refund ID and blocks another request. Original settlement fences are never released for reapplication. [PAY-18 events](../development/payment-events.md), [PAY-19 recovery](../development/payment-reconciliation.md) and [PAY-20 statements](../development/payment-history.md) supply the corresponding current manual-path views. Automatic-caller qualification retains separate gates.
 
 ## Stored-order financial status events
 
@@ -150,3 +150,5 @@ SQLite permits a single simultaneous writer; the local worker/payment design mus
 [PAY-07](../development/payment-surfaces.md) now binds displayed payable revisions/amounts, explicit source/version and stored order/digest across the service workspace. Wallet/card bills, exact fines, saved-card wallet reload and civic groups require review, authorization/challenge and a separate capture action. Cancellation and unknown recovery retain original identities; source selection and natural-language assent never spend. Automatic callers retain their separate admission/permit gates.
 
 [PAY-19 recovery](../development/payment-reconciliation.md) adds owned evidence decisions, guarded same-operation continuation, separately approved refund reviews and append-only local audit. Missing provider outcomes remain blocked. Automatic budgets, workers and general simulator failpoints retain separate gates.
+
+[PAY-20 history](../development/payment-history.md) adds snapshot-paginated journal statements, paginated pending/failed/group activity and exact original-source receipt details. Groups are not posted twice; card effects carry zero wallet movement; partial/unknown operations do not receive completed receipt styling. Source/owner lifecycle coordination and unattended budgets remain separate tasks.

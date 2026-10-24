@@ -1,3 +1,4 @@
+import { paymentReceiptReady } from '../../../packages/protocol-core/src/payment-history.ts';
 /** Conversational payments use the same stored owner reviews as the payment panel. */
 import { createHash, randomUUID } from 'node:crypto';
 import { ProviderClient, UpstreamError } from '../../../packages/backend-kit/src/provider-client.ts';
@@ -35,7 +36,7 @@ function validSources(data:PaymentOverview,cardsOnly:boolean,now:number):SourceC
   });
 }
 function render(state:SuperAppAgentState,f:SurfacePaymentFlow){
-  const r=f.record,children:UIComponentNode[]=[],items=(p:Payable)=>[text(`target_${p.id}`,`${p.label} · ${p.reference} · ${formatAED(p.amountMinor)} · revision ${p.version||p.revision.slice(0,12)}`),...(p.items||[]).map(i=>text(`item_${i.id}`,`${i.obligationId} · ${formatAED(i.amountMinor)} · Discount ${formatAED(i.discountMinor||0)}`))];
+  const r=f.record,confirmed=r?('orders' in r?r.state==='COMPLETED'&&r.orders.every(paymentReceiptReady):paymentReceiptReady(r)):false, children:UIComponentNode[]=[],items=(p:Payable)=>[text(`target_${p.id}`,`${p.label} · ${p.reference} · ${formatAED(p.amountMinor)} · revision ${p.version||p.revision.slice(0,12)}`),...(p.items||[]).map(i=>text(`item_${i.id}`,`${i.obligationId} · ${formatAED(i.amountMinor)} · Discount ${formatAED(i.discountMinor||0)}`))];
   children.push({type:'Heading',id:'payment_heading',properties:{text:r?'Exact payment review':'Choose payment funding'}});
   if(f.kind==='FUNDING')children.push(text('wallet_target',`Wallet funding target: ${f.accountId}. Saved-card capture must complete before wallet credit.`));
   if(f.notice)children.push(text('payment_notice',f.notice));
@@ -56,11 +57,11 @@ function render(state:SuperAppAgentState,f:SurfacePaymentFlow){
     children.push(text('exact_total',`Amount ${formatAED(amount-fee)} · Fees ${formatAED(fee)} · Total ${formatAED(amount)}`),text('review_reference',`Order ${r.id} · ${r.state} · review expires ${r.expiresAt}`));
     if('orders' in r){
       children.push(text('group_boundary','One source, sequential child payments. This is not atomic across providers.'));
-      for(const child of r.orders)children.push(text(`child_${child.id}`,`${child.quote.payable.label} · ${formatAED(child.quote.totalMinor)} · ${child.state}${child.receipt?` · Receipt ${child.receipt.receiptNumber}`:''}`));
+      for(const child of r.orders)children.push(text(`child_${child.id}`,`${child.quote.payable.label} · ${formatAED(child.quote.totalMinor)} · ${child.state}${paymentReceiptReady(child)&&child.receipt?` · Receipt ${child.receipt.receiptNumber}`:''}`));
       if(!f.responseUnknown&&r.state==='AWAITING_APPROVAL')children.push(button('authorize_group',`Approve checkout for ${formatAED(amount)}`,'payment_surface_authorize',terms(f,r)));
       if(!f.responseUnknown&&['READY','RECONCILIATION_REQUIRED'].includes(r.state))children.push(button('execute_group',r.state==='READY'?`Pay checkout ${formatAED(amount)}`:'Inspect or resume original checkout','payment_surface_execute',terms(f,r)));
       const child=r.orders.find(o=>o.state==='REQUIRES_ACTION');if(child&&!f.responseUnknown)addChallenge(children,f,child);
-      if(r.state==='COMPLETED')children.push(text('confirmed_receipt',`Provider-confirmed checkout · ${formatAED(r.settledMinor)} · ${r.orders.length} receipts`));
+      if(confirmed)children.push(text('confirmed_receipt',`Provider-confirmed checkout · ${formatAED(r.settledMinor)} · ${r.orders.length} receipts`));
       if(['PARTIAL','STOPPED','CANCELLED'].includes(r.state))children.push(text('partial_checkout',`Checkout stopped. Confirmed prior payments ${formatAED(r.settledMinor)} are retained; remaining lines are not a completed receipt.`));
     }else{
       if(!f.responseUnknown&&r.state==='AWAITING_APPROVAL')children.push(button('authorize_payment',`Approve authorization for ${formatAED(amount)}`,'payment_surface_authorize',terms(f,r)));
@@ -68,7 +69,7 @@ function render(state:SuperAppAgentState,f:SurfacePaymentFlow){
       if(!f.responseUnknown&&r.state==='REQUIRES_ACTION')addChallenge(children,f,r);
       if(['CAPTURING','CAPTURED','RECONCILIATION_REQUIRED'].includes(r.state)||'sourceFinalizationPending' in r&&r.sourceFinalizationPending)children.push(text('unknown_effect','Inspect or resume this original payment. An uncertain capture or provider response is not a completed receipt.'));
       if(r.state==='FAILED')children.push(text('payment_failed',`Payment stopped: ${r.failureCode||'FAILED'}. No completed payment receipt.`));
-      if(r.state==='SETTLED'&&r.receipt){children.push(text('confirmed_receipt',`Provider-confirmed payment · ${formatAED(amount)} · Receipt ${r.receipt.receiptNumber} · Paid from ${methodName(source)}`));if('quote' in r&&'billingAccount' in r.quote)children.push(text('confirmed_target',`Target ${r.quote.payable.reference}`));}
+      if(paymentReceiptReady(r)&&r.receipt){children.push(text('confirmed_receipt',`Provider-confirmed payment · ${formatAED(amount)} · Receipt ${r.receipt.receiptNumber} · Paid from ${methodName(source)}`));if('quote' in r&&'billingAccount' in r.quote)children.push(text('confirmed_target',`Target ${r.quote.payable.reference}`));}
       if(r.state==='CANCELLED')children.push(text('cancelled_payment','Payment review cancelled before capture. Reserved funds released.'));
     }
     if(r.state==='AUTHORIZATION_PENDING')children.push(text('pending_issuer','Waiting for the simulated issuer decision. Capacity is reserved; no payment captured. An unattended actor cannot answer a human challenge.'));
@@ -77,8 +78,8 @@ function render(state:SuperAppAgentState,f:SurfacePaymentFlow){
       children.push(button('cancel_payment','Cancel payment review','payment_surface_cancel',{flowId:f.id}));
     }
   }
-  state.currentSurface={version:'1.0.0',sessionId:state.sessionId,timestamp:Date.now(),view:{type:'SurfaceCard',id:r&&['SETTLED','COMPLETED'].includes(r.state)?'payment_receipt_card':r?'payment_review_card':'payment_source_card',style:{variant:r&&['SETTLED','COMPLETED'].includes(r.state)?'success':f.notice?'warning':'primary'},children}};
-  const message=f.notice||(!r?'Choose a funding source and review its exact terms. No funds moved.':r.state==='AWAITING_APPROVAL'?'Review the exact source and total. Authorization reserves capacity; payment requires another explicit action.':r.state==='AUTHORIZED'?'Funds are reserved temporarily. Use the payment button to capture this exact order.':r.state==='REQUIRES_ACTION'?'The selected card needs your explicit challenge decision. No payment captured for this challenged order.':r.state==='AUTHORIZATION_PENDING'?'The simulated issuer decision is pending. Inspect this original order after the operator resolves it.':r.state==='SETTLED'||r.state==='COMPLETED'?'The provider has confirmed the payment. Review the original source and receipt on the surface.':r.state==='CANCELLED'?'The review is closed. Any confirmed earlier checkout payments remain recorded.':r.state==='FAILED'?'This payment stopped. Review the reason; no completed payment receipt is shown.':'Review the current original payment and child states before continuing. Do not create a replacement charge for an unknown result.');
+  state.currentSurface={version:'1.0.0',sessionId:state.sessionId,timestamp:Date.now(),view:{type:'SurfaceCard',id:confirmed?'payment_receipt_card':r?'payment_review_card':'payment_source_card',style:{variant:confirmed?'success':f.notice?'warning':'primary'},children}};
+  const message=f.notice||(!r?'Choose a funding source and review its exact terms. No funds moved.':r.state==='AWAITING_APPROVAL'?'Review the exact source and total. Authorization reserves capacity; payment requires another explicit action.':r.state==='AUTHORIZED'?'Funds are reserved temporarily. Use the payment button to capture this exact order.':r.state==='REQUIRES_ACTION'?'The selected card needs your explicit challenge decision. No payment captured for this challenged order.':r.state==='AUTHORIZATION_PENDING'?'The simulated issuer decision is pending. Inspect this original order after the operator resolves it.':confirmed?'The provider has confirmed the payment. Review the original source and receipt on the surface.':r.state==='CANCELLED'?'The review is closed. Any confirmed earlier checkout payments remain recorded.':r.state==='FAILED'?'This payment stopped. Review the reason; no completed payment receipt is shown.':'Review the current original payment and child states before continuing. Do not create a replacement charge for an unknown result.');
   state.messages.push({id:randomUUID(),role:'assistant',content:message,timestamp:Date.now()});
   if(r&&terminal(r))state.paymentFlow=undefined;
 }
