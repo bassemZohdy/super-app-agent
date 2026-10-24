@@ -1,6 +1,6 @@
 # Payment accounts, funding and automation — demo plan
 
-Status: **implementation in progress**. Requested 24 October 2026, after implementation baseline `283521a`. PAY-01/PAY-02 and the initial saved-card/biller-link management slices are delivered; new saved-card order execution and automation remain planned. Current wallet effects now use a balanced journal; [migration evidence](../reports/2026-10-24-payment-ledger.md). [Execution evidence](../reports/2026-10-24-payment-accounts.md). Progress is tracked in [the payment backlog](../../TODO.md#payment-accounts-and-automation-demo--planned-backlog). This document defines the full intended behavior and boundaries; checked-in OpenAPI describes the running APIs. The current setup panel produces non-executable reviews and does not authorize funds movement.
+Status: **implementation in progress**. Requested 24 October 2026, after implementation baseline `283521a`. PAY-01–PAY-04 and the initial preview-only SIM-01 are delivered; new saved-card order execution and automation remain planned. Current wallet effects now use a balanced journal; [migration evidence](../reports/2026-10-24-payment-ledger.md). [Execution evidence](../reports/2026-10-24-payment-accounts.md). Progress is tracked in [the payment backlog](../../TODO.md#payment-accounts-and-automation-demo--planned-backlog). This document defines the full intended behavior and boundaries; checked-in OpenAPI describes the running APIs. The current setup panel produces non-executable reviews and does not authorize funds movement.
 
 ## Scope and starting point
 
@@ -98,6 +98,8 @@ Insufficient wallet funds do not silently charge a saved card. Fallback and top-
 Store business timestamps in UTC with an explicit IANA schedule zone (default Asia/Dubai), calendar-period budgets and documented month-end behavior. Jobs persist across restarts and browser logout; session/Redis expiry does not erase a mandate. Logout ends a browser session, while mandate pause/revoke ends future automation; provide a clear combined “sign out and pause automation” option. Account/card revocation and loss of entitlement also stop new jobs. A unique occurrence identity plus per-payable reservation prevents duplicate scheduler deliveries and manual/automatic double payment. Notifications remain local/in-app; no email/SMS service is needed.
 
 ## Simulator design
+
+The first [operator preview clock](../development/simulator.md) is implemented with a fixed separate data path, persistent owner/run/generation and once-only descriptive due events. It is not a network admin panel and never dispatches financial/provider work. Later execution scenarios must preserve this isolation and bind a trusted business clock to their own run context.
 
 Use an injectable persisted **business clock** for due dates, cooldowns, usage and scheduler occurrences. Keep JWT/signature/credential validation on real security time. Run IDs isolate all seed data, clocks, jobs, issuer balances and fault scripts. Time advance emits bounded deterministic events and waits for observable job outcomes; it does not create permissions. Reset affects only the selected isolated run and never the user's normal volumes.
 

@@ -1,4 +1,4 @@
-/** Real PKCE + provider/SQLite payment setup. Isolated data, no money effects or cloud calls. */
+/** Real PKCE + provider/SQLite payment setup and revisioned settlement. Isolated synthetic funds only. */
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import { chromium, type Browser, type Page } from 'playwright';
@@ -51,6 +51,24 @@ try {
   console.log('PASS: PKCE card setup, provider-verified biller link, source-bound quote and no funds moved');
   console.log('PASS: persistent idempotency/conflict, unknown fields, raw card fields, cross-user/source and unauthenticated denial');
   await mkdir('docs/reports/assets',{recursive:true});await quote.scrollIntoViewIfNeeded();await panel.screenshot({path:'docs/reports/assets/payment-accounts-review.png'});
+  const obligations=panel.getByRole('region',{name:'Bills and fines',exact:true});
+  await obligations.getByText('Seeded settled history · no new charge',{exact:true}).waitFor();
+  const book=environment.payableBook('dewa'),oldPayable=book.get(accountId,payableId);
+  const changed=book.amend(accountId,payableId,oldPayable.revision,{amountMinor:42041});
+  const providerRoot=`http://localhost:${environment.corePort+102}/v1/accounts/${accountId}`;
+  const staleReview=await fetch(`${providerRoot}/payables/${encodeURIComponent(payableId)}/reviews`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json','Idempotency-Key':crypto.randomUUID()},body:JSON.stringify({expectedRevision:oldPayable.revision})});
+  assert.equal(staleReview.status,409);assert.equal((await staleReview.json() as any).code,'PAYABLE_CHANGED');
+  const freshPreview=await api('preview',{accountId,payableId,methodId:method.id,expectedMethodVersion:1});assert.equal(freshPreview.status,200);assert.equal(freshPreview.data.preview.totalMinor,42041);assert.equal(freshPreview.data.preview.payable.revision,changed.revision);
+  book.amend(accountId,payableId,changed.revision,{amountMinor:42040});
+  const cycle=book.issueBill(accountId,{billId:'DEWA-browser-next-cycle',reference:oldPayable.reference,amountMinor:1234,dueDate:'2027-01-31',period:'2027-01'});
+  await panel.getByRole('button',{name:'Refresh payment accounts',exact:true}).click();await obligations.getByText(cycle.label,{exact:true}).waitFor();
+  book.amend(accountId,cycle.id,cycle.revision,{status:'CANCELLED'});
+  await panel.getByRole('button',{name:'Refresh payment accounts',exact:true}).click();await obligations.getByText('AED 12.34 · CANCELLED · CLOSED · revision 2',{exact:true}).waitFor();
+  assert.equal(await panel.getByRole('combobox',{name:'Unpaid obligation',exact:true}).locator(`option[value="${cycle.id}"]`).count(),0);
+  assert.equal((await fetch(`${providerRoot}/payables/${encodeURIComponent(cycle.id)}/amend`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({amountMinor:1})})).status,404);
+  assert.equal(environment.providerState('payments',accountId,'wallet').balanceMinor,150000);
+  await obligations.scrollIntoViewIfNeeded();await panel.screenshot({path:'docs/reports/assets/payment-payable-history.png'});
+  console.log('PASS: provider revisions survive lifecycle changes; stale review denies, current preview changes, prior/withdrawn cycles stay visible with no charge');
   const disabling=responseFor('methods/status');await panel.getByRole('button',{name:'Disable Daily demo',exact:true}).click();assert.equal((await disabling).status(),200);
   await panel.getByText('Card status saved. No funding fallback was selected.',{exact:true}).waitFor();
   assert.equal(await panel.getByRole('button',{name:'Review payment quote',exact:true}).isDisabled(),true);
@@ -64,9 +82,54 @@ try {
   console.log('PASS: disabled default stays explicit, changed versions fail, account switch restores only owned methods and links');
   await page.reload();await page.getByRole('button',{name:'Payment accounts',exact:true}).click();await page.getByRole('button',{name:'Disable Daily demo',exact:true}).waitFor();
   console.log('PASS: saved funding and linked resources survive browser reload');
+  const prepaidLinking=responseFor('billing-accounts');await panel.getByRole('button',{name:'Link etisalat · Prepaid mobile',exact:true}).click();assert.equal((await prepaidLinking).status(),200);
+  const withPrepaid=await api(`overview?accountId=${accountId}`);const line=withPrepaid.data.candidates.find((c:any)=>c.provider==='etisalat'&&c.reference.startsWith('PRE-'));
+  assert.equal(line.balanceMinor,5000);assert.ok(withPrepaid.data.billingAccounts.some((b:any)=>b.provider==='etisalat'&&b.reference===line.reference&&b.status==='ACTIVE'));
+  assert.equal((await api('billing-accounts',{accountId,requestKey:crypto.randomUUID(),provider:'du',reference:line.reference,nickname:'Wrong provider'})).status,403);
+  console.log('PASS: owned prepaid line linked with its current balance; cross-provider line substitution denied');
+
+  const walletDefault=responseFor('methods/default');await panel.getByRole('button',{name:'Use Cityside wallet as default',exact:true}).click();assert.equal((await walletDefault).status(),200);
+  const current=await api(`overview?accountId=${accountId}`),currentMethod=current.data.methods.find((m:any)=>m.id===method.id),currentBiller=current.data.billingAccounts.find((b:any)=>b.provider==='dewa'&&b.status==='ACTIVE');
+  const releaseHold=environment.bindPaymentUse(accountId,{resourceType:'METHOD',resourceId:method.id,resourceVersion:currentMethod.version,dependentKind:'HOLD',dependentId:'fixture-pending-hold'});
+  const releaseRule=environment.bindPaymentUse(accountId,{resourceType:'BILLER',resourceId:currentBiller.id,resourceVersion:currentBiller.version,dependentKind:'MANDATE',dependentId:'fixture-rule-reference'});
+  await panel.getByRole('button',{name:'Refresh payment accounts',exact:true}).click();await panel.getByText('hold · fixture-pending-hold',{exact:true}).waitFor();
+  assert.equal(await panel.getByRole('button',{name:'Remove Daily demo',exact:true}).isDisabled(),true);assert.equal(await panel.getByRole('button',{name:/^Archive DEWA/}).isDisabled(),true);
+  const blockedMethod=await api('methods/status',{accountId,requestKey:crypto.randomUUID(),methodId:method.id,expectedVersion:currentMethod.version,status:'REMOVED'});assert.equal(blockedMethod.status,409);assert.equal(blockedMethod.data.code,'RESOURCE_IN_USE');
+  const blockedBiller=await api('billing-accounts/archive',{accountId,requestKey:crypto.randomUUID(),billingAccountId:currentBiller.id,expectedVersion:currentBiller.version});assert.equal(blockedBiller.status,409);assert.equal(blockedBiller.data.code,'RESOURCE_IN_USE');
+  assert.equal((await api('resource-uses/release',{accountId,dependentId:'fixture-rule-reference'})).status,404);
+  await panel.getByText('hold · fixture-pending-hold',{exact:true}).scrollIntoViewIfNeeded();await panel.screenshot({path:'docs/reports/assets/payment-related-items.png'});
+  releaseHold();releaseRule();await panel.getByRole('button',{name:'Refresh payment accounts',exact:true}).click();
+  await panel.getByRole('button',{name:'Remove Daily demo',exact:true}).waitFor();
+  await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Remove Daily demo'&&!b.disabled));
+  console.log('PASS: persisted lifecycle locks are shown, direct removal/archive is denied, and trusted release unblocks management');
+
+  // A separate isolated owner exercises the source settlement contract through real signed HTTP.
+  const settlementAccount=otherAccount.accounts[0].id;
+  async function providerApi(port:number,path:string,input?:unknown,key=crypto.randomUUID()) {
+    const response=await fetch(`http://localhost:${environment!.corePort+port}/v1/accounts/${settlementAccount}${path}`,{method:input?'POST':'GET',headers:{Authorization:`Bearer ${otherToken}`,'Content-Type':'application/json','Idempotency-Key':key},...(input?{body:JSON.stringify(input)}:{})});
+    return {status:response.status,data:await response.json() as any};
+  }
+  const payableList=await providerApi(102,'/payables');assert.equal(payableList.status,200);
+  const settlementPayable=payableList.data.payables.find((p:any)=>p.status==='UNPAID');
+  const detail=await providerApi(102,`/payables/${encodeURIComponent(settlementPayable.id)}`);assert.equal(detail.status,200);
+  const startingWallet=await providerApi(107,'/wallet');assert.equal(startingWallet.data.balanceMinor,150000);
+  const captureKey=crypto.randomUUID(),captureBody={amountMinor:settlementPayable.amountMinor,merchant:'dewa',reference:detail.data.settlementReference,source:'wallet'};
+  const capture=await providerApi(107,'/charges',captureBody,captureKey);assert.equal(capture.status,200);
+  assert.equal((await providerApi(107,'/charges',captureBody,captureKey)).data.charge.id,capture.data.charge.id);
+  const settlementPath=`/payables/${encodeURIComponent(settlementPayable.id)}/payments`,settlementBody={expectedRevision:settlementPayable.revision,paymentId:capture.data.charge.id},settlementKey=crypto.randomUUID();
+  const settled=await providerApi(102,settlementPath,settlementBody,settlementKey);assert.equal(settled.status,200);assert.equal(settled.data.payable.status,'PAID');assert.equal(settled.data.receipt.amountMinor,settlementPayable.amountMinor);
+  assert.deepEqual((await providerApi(102,settlementPath,settlementBody,settlementKey)).data,settled.data);
+  assert.equal((await providerApi(102,settlementPath,settlementBody)).status,409);
+  assert.equal((await providerApi(107,'/wallet')).data.balanceMinor,150000-settlementPayable.amountMinor);
+  assert.equal((await providerApi(107,'/transactions')).data.transactions.length,1);
+  assert.equal((await providerApi(102,`/payables/${encodeURIComponent(settlementPayable.id)}`)).data.payable.status,'PAID');
+  assert.equal(environment.providerState('payments',accountId,'wallet').balanceMinor,150000);
+  console.log('PASS: separate signed-owner revision-bound settlement, capture/settlement retries and one exact journal debit; setup owner remains unchanged');
+
   await page.setViewportSize({width:390,height:844});
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),true);
-  await page.getByRole('region',{name:'Payment accounts',exact:true}).screenshot({path:'docs/reports/assets/payment-accounts-mobile.png'});
+  await panel.evaluate(e=>{e.scrollTop=0;});
+  await panel.screenshot({path:'docs/reports/assets/payment-accounts-mobile.png'});
   await page.getByRole('button',{name:'Close payment accounts',exact:true}).click();
   assert.equal(await page.getByRole('button',{name:'Payment accounts',exact:true}).evaluate(e=>document.activeElement===e),true);
   console.log('PASS: mobile layout has no horizontal overflow and close restores keyboard focus');

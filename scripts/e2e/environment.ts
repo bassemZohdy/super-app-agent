@@ -95,6 +95,16 @@ export async function startEnvironment() {
         response.writeHead(200, { 'Content-Type': types[extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-store' }); response.end(content);
       } catch { response.writeHead(500).end('Demo asset unavailable'); }
     }), appPort);
-    return { appUrl, coreUrl, corePort, cleanup, providerState: (provider: string, account: string, kind: string) => providerStores.get(provider)?.get(account, kind) };
+    const { PaymentResourceUses } = await import('../../services/provider-simulator/src/payment-resource-uses.ts');
+    const { ProviderPayables } = await import('../../services/provider-simulator/src/payables.ts');
+    return { appUrl, coreUrl, corePort, cleanup, providerState: (provider: string, account: string, kind: string) => providerStores.get(provider)?.get(account, kind),
+      // Trusted test fixture only: no HTTP route can create/release lifecycle locks.
+      bindPaymentUse: (account: string, binding: Parameters<InstanceType<typeof PaymentResourceUses>['bind']>[1]) => {
+        const uses = new PaymentResourceUses(providerStores.get('payments')!); uses.bind(account,binding);
+        return () => uses.release(account,binding.resourceType,binding.resourceId,binding.dependentKind,binding.dependentId);
+      },
+      // Trusted isolated lifecycle driver. Ordinary API clients cannot issue/amend obligations.
+      payableBook: (provider: import('../../services/provider-simulator/src/payables.ts').PayableProvider) => new ProviderPayables(providerStores.get(provider)!,provider),
+    };
   } catch (error) { await cleanup(); throw error; }
 }

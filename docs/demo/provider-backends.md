@@ -1,6 +1,6 @@
 # Provider backend demonstration
 
-This is a local integration environment, not an integration with the named real entities. Producer: the provider-simulator package. Consumers: the application microservices. Contract version: 2.0.0 for entity APIs, 2.1.0 for the additive payment-account APIs; OpenAPI 3.1. This demo security migration changes authentication while retaining `/v1` resource schemas. Sign in again for the provider audience; service-header impersonation clients must migrate. Future breaking resource changes require explicit versioning and migration.
+This is a local integration environment, not an integration with the named real entities. Producer: the provider-simulator package. Consumers: the application microservices. Contract version: 2.0.0 for RTA/DLD and 2.2.0 for DEWA/telecom/Police payables and payment setup/lifecycle APIs; OpenAPI 3.1. This demo security migration changes authentication while retaining `/v1` resource schemas. Sign in again for the provider audience; service-header impersonation clients must migrate. Future breaking resource changes require explicit versioning and migration.
 
 ## Service and account boundaries
 
@@ -99,3 +99,7 @@ All integrated JWT verification now includes access-token type and authenticated
 ## Planned payment simulator extension
 
 The gateway now persists saved synthetic cards/defaults and provider-verified biller links. A balanced journal and projection/available-funds checks now back the existing financial effects. Authorization challenges, recurring mandates and automatic service execution are not implemented yet. [Journal and migration](../development/payment-ledger.md). [Current setup APIs](../development/payment-accounts.md). [The proposed design](../architecture/payment-automation-demo.md) and [50-task backlog](../../TODO.md#payment-accounts-and-automation-demo--planned-backlog) cover those additions, linked biller/prepaid resources, payment orders and reconciliation, plus a controlled business clock and fault scenarios. They preserve synthetic money and current identity/provider boundaries. Existing `/v1` OpenAPI and commands remain authoritative until versioned changes land.
+
+Telecom inventories now include owned prepaid lines and Police includes registered vehicles independently of unpaid fines. Existing accounts gain these resources once; reads never reset modified prepaid balances or reopen paid obligations. Payment card/biller removals are guarded by persisted active related-use records. [Lifecycle evidence](../reports/2026-10-24-lifecycle-simulator.md).
+
+[Revisioned payables and history](../development/payables.md) are now available at DEWA/telecom/Police. They retain current-first legacy bill lists, add labelled prior cycles, reject changed/withdrawn obligations and reflect fine discount expiry in legacy totals too. Capture admission, settlement claims and recurring execution remain separate backlog gates.

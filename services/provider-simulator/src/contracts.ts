@@ -10,7 +10,17 @@ const list = { type: 'array', items: opaque, maxItems: 100 };
 export interface Operation { method: string; path: string; id: string; body?: Record<string, any>; result: Record<string, any>; description: string; }
 const op = (method: string, path: string, id: string, result: Record<string, any>, description: string, body?: Record<string, any>): Operation => ({ method, path, id, result, description, body });
 const paymentProof = object({ paymentId: text });
+const revision = {type:'string',pattern:'^[a-f0-9]{64}$'};
+const payableSchema = object({id:text,provider:{enum:['dewa','etisalat','du','police']},reference:text,obligationId:text,kind:{enum:['BILL','FINE']},version:{type:'integer',minimum:1,maximum:1000000},label:text,amountMinor:money,originalAmountMinor:money,discountMinor:{type:'integer',minimum:0,maximum:100000000},discountEligible:{type:'boolean'},currency:{const:'AED'},status:{enum:['UNPAID','PAID','CANCELLED','EXPIRED']},dueState:{enum:['CURRENT','DUE','OVERDUE','EXPIRED','CLOSED']},revision,dueDate:{type:'string',pattern:'^\\d{4}-\\d{2}-\\d{2}$'},expiresAt:text,discountExpiresAt:text,period:text,openingFixture:{type:'boolean'},paymentRestricted:{type:'boolean'}},['id','provider','reference','obligationId','kind','version','label','amountMinor','originalAmountMinor','discountMinor','discountEligible','currency','status','dueState','revision']);
+const payableOperations = [
+  op('GET','/payables','listVersionedPayables',{payables:{type:'array',items:payableSchema,maxItems:100}},'Read provider-owned revisioned obligations, including settled/withdrawn history and effective discounts.'),
+  op('GET','/payables/{payableId}','getVersionedPayable',{payable:payableSchema,settlementReference:text},'Read the current owned obligation and revision-bound reference without cached POST retry results.'),
+  op('POST','/payables/{payableId}/reviews','reviewVersionedPayable',{payable:payableSchema,settlementReference:text},'Require the current payable revision. This preflight does not authorize or capture funds.',object({expectedRevision:revision})),
+  op('POST','/payables/{payableId}/payments','settleVersionedPayable',{payable:payableSchema,receipt:object({receiptNumber:text,obligationId:text,amountMinor:money,currency:{const:'AED'}})},'Settle the current revision with an owned revision-bound captured payment. Durable order/claim orchestration remains a separate gate.',object({expectedRevision:revision,paymentId:text})),
+];
 const telecom = [
+  ...payableOperations,
+  op('GET', '/prepaid', 'listPrepaidLines', { lines: list }, 'List owned synthetic prepaid mobile lines and current balances.'),
   op('GET', '/subscriptions', 'listSubscriptions', { subscriptions: list }, 'List subscriptions owned by this account.'),
   op('GET', '/plans', 'listPlans', { plans: list }, 'List available demo mobile and home internet plans.'),
   op('GET', '/bills', 'listBills', { bills: list }, 'List the account’s telecom bills in AED.'),
@@ -34,6 +44,7 @@ export const operations: Record<ProviderId, Operation[]> = {
     op('GET', '/rides/bookings/{bookingId}', 'getRide', { booking: opaque }, 'Read a booking owned by this account.'),
   ],
   dewa: [
+    ...payableOperations,
     op('GET', '/consumption', 'getConsumption', { account: opaque, ecoStatus: text }, 'Read an account-owned smart meter and consumption snapshot.'),
     op('GET', '/bills', 'listUtilityBills', { bills: list }, 'Read this account’s utility bills.'),
     op('POST', '/bills/{billId}/payments', 'settleUtilityBill', { bill: opaque, receipt: opaque }, 'Settle a bill after checking its captured payment reference and amount.', paymentProof),
@@ -41,6 +52,8 @@ export const operations: Record<ProviderId, Operation[]> = {
   ],
   etisalat: telecom, du: telecom,
   police: [
+    ...payableOperations,
+    op('GET', '/vehicles', 'listRegisteredVehicles', { vehicles: list }, 'List owned registered vehicles independently of unpaid fines.'),
     op('GET', '/fines', 'listTrafficFines', { fines: list, count: { type: 'integer' }, totalPayable: { type: 'number' }, totalOriginal: { type: 'number' }, totalDiscount: { type: 'number' } }, 'List unpaid account-owned traffic fines.'),
     op('POST', '/fine-payments', 'settleTrafficFines', { receiptNumber: text, finesCleared: { type: 'integer' }, amountPaid: { type: 'number' } }, 'Settle specified fines using a captured payment.', object({ fineIds: { type: 'array', items: text, minItems: 1, maxItems: 100, uniqueItems: true }, paymentId: text })),
   ],
@@ -49,11 +62,11 @@ export const operations: Record<ProviderId, Operation[]> = {
     op('POST', '/move-ins', 'registerMoveIn', { ejariContract: text, unit: text, residentialParking: opaque }, 'Register a move-in proposal. Utility and parking activation are separate operations.', object({ contractNumber: text })),
   ],
   payments: [
-    op('GET', '/payment-methods', 'listPaymentMethods', { methods: { type: 'array', items: paymentMethodSchema, maxItems: 101 }, defaultMethodId: text, presets: { type: 'array', items: opaque } }, 'List owned synthetic funding methods. Wallet/card management does not move money.'),
+    op('GET', '/payment-methods', 'listPaymentMethods', { methods: { type: 'array', items: paymentMethodSchema, maxItems: 101 }, dependencies: { type: 'array', items: object({resourceType:{enum:['METHOD','BILLER']},resourceId:text,dependentKind:{enum:['ORDER','HOLD','MANDATE']},dependentId:text,status:{const:'ACTIVE'}}),maxItems:200 }, defaultMethodId: text, presets: { type: 'array', items: opaque } }, 'List owned synthetic funding methods. Wallet/card management does not move money.'),
     op('POST', '/payment-methods', 'createPaymentMethod', { method: paymentMethodSchema }, 'Save an owned synthetic card preset; never submit card numbers or security codes.', paymentSchemas.createMethod),
     op('POST', '/payment-methods/status', 'changePaymentMethodStatus', { method: paymentMethodSchema }, 'Version-checked card disable/reactivate/tombstone; no automatic funding fallback.', paymentSchemas.methodStatus),
     op('POST', '/payment-methods/default', 'setDefaultPaymentMethod', { defaultMethodId: text }, 'Select an active default for future drafts, without changing existing approvals.', paymentSchemas.defaultMethod),
-    op('GET', '/billing-accounts', 'listBillingAccounts', { billingAccounts: { type: 'array', items: billingAccountSchema, maxItems: 100 } }, 'List owned linked biller references.'),
+    op('GET', '/billing-accounts', 'listBillingAccounts', { billingAccounts: { type: 'array', items: billingAccountSchema, maxItems: 100 }, dependencies: { type: 'array', items: object({resourceType:{enum:['METHOD','BILLER']},resourceId:text,dependentKind:{enum:['ORDER','HOLD','MANDATE']},dependentId:text,status:{const:'ACTIVE'}}),maxItems:200 } }, 'List owned linked biller references.'),
     op('POST', '/billing-accounts', 'linkBillingAccount', { billingAccount: billingAccountSchema }, 'Verify provider ownership then link a synthetic biller account.', paymentSchemas.linkAccount),
     op('POST', '/billing-accounts/archive', 'archiveBillingAccount', { billingAccount: billingAccountSchema }, 'Archive an owned biller link while retaining its historical reference.', paymentSchemas.archiveAccount),
     op('GET', '/wallet', 'getWallet', { balance: { type: 'number' }, balanceMinor: { type: 'integer', minimum: 0 }, heldMinor: { type: 'integer', minimum: 0 }, availableMinor: { type: 'integer', minimum: 0 }, currency: { const: 'AED' } }, 'Read posted, held and available AED wallet funds from the balanced journal.'),
@@ -81,7 +94,7 @@ export function openApi(provider: ProviderId) {
         ...Object.fromEntries(['400','401','403','404','409','402','503'].map(status => [status, { $ref: '#/components/responses/Error' }])) },
     };
   }
-  return { openapi: '3.1.0', info: { title: `${providerNames[provider]} Simulator`, version: provider === 'payments' ? '2.1.0' : '2.0.0', description: 'Local synthetic API. Signed interactive user identity or broker-issued user token with current exact-operation grant required. JWT subject owns the account; caller user headers do not grant authority. A separate read-only settlement machine lane retrieves captured charge proofs. Legacy fixture mode is outside this reference security profile.' },
+  return { openapi: '3.1.0', info: { title: `${providerNames[provider]} Simulator`, version: provider === 'payments' ? '2.2.0' : ['dewa','etisalat','du','police'].includes(provider) ? '2.2.0' : '2.0.0', description: 'Local synthetic API. Signed interactive user identity or broker-issued user token with current exact-operation grant required. JWT subject owns the account; caller user headers do not grant authority. A separate read-only settlement machine lane retrieves captured charge proofs. Legacy fixture mode is outside this reference security profile.' },
     servers: [{ url: `http://localhost:${4101 + providerIds.indexOf(provider)}` }], security: [{ accessToken: [] }],
     paths, components: { securitySchemes: { accessToken: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' } },
       responses: { Unauthorized: { description: 'Missing or invalid Keycloak access token' }, Error: { description: 'Validation, ownership, delegation, payment, conflict or availability error', content: { 'application/json': { schema: object({ success: { const: false }, error: { type: 'string' }, code: { type: 'string' } }) } } } } },

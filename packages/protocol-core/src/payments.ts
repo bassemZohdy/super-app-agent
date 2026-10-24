@@ -15,14 +15,16 @@ export type PaymentMethod = {
   preset?: CardPreset; last4?: string; expiresMonth?: number; expiresYear?: number; createdAt?: string;
 };
 export type BillingAccount = { id: string; accountId: string; provider: BillerProvider; reference: string; nickname: string; status: 'ACTIVE' | 'ARCHIVED'; version: number; createdAt: string };
-export type BillerCandidate = { provider: BillerProvider; reference: string; label: string };
-export type Payable = { id: string; provider: BillerProvider; reference: string; label: string; amountMinor: number; currency: 'AED'; revision: string; status: 'UNPAID' | 'PAID'; dueDate?: string };
+export type BillerCandidate = { provider: BillerProvider; reference: string; label: string; balanceMinor?: number };
+export type Payable = { id: string; provider: BillerProvider; reference: string; label: string; amountMinor: number; currency: 'AED'; revision: string; status: 'UNPAID' | 'PAID' | 'CANCELLED' | 'EXPIRED'; dueDate?: string;
+  obligationId?: string; kind?: 'BILL'|'FINE'; version?:number; dueState?:'CURRENT'|'DUE'|'OVERDUE'|'EXPIRED'|'CLOSED'; originalAmountMinor?:number; discountMinor?:number; discountEligible?:boolean; discountExpiresAt?:string; expiresAt?:string; period?:string; openingFixture?:boolean; paymentRestricted?:boolean };
 export type PaymentPreview = {
   contractVersion: typeof PAYMENT_CONTRACT_VERSION; previewOnly: true; accountId: string; id: string;
   payable: Payable; billingAccount: BillingAccount; source: PaymentMethod; amountMinor: number; feeMinor: number;
   totalMinor: number; currency: 'AED'; createdAt: string; expiresAt: string; digest: string;
 };
-export type PaymentOverview = { contractVersion: string; accountId: string; previewOnly: true; methods: PaymentMethod[]; defaultMethodId: string; presets: unknown[]; billingAccounts: BillingAccount[]; candidates: BillerCandidate[]; payables: Payable[]; wallet: { balanceMinor: number; heldMinor: number; availableMinor: number; currency: 'AED' } };
+export type PaymentDependency = { resourceType:'METHOD'|'BILLER';resourceId:string;dependentKind:'ORDER'|'HOLD'|'MANDATE';dependentId:string;status:'ACTIVE' };
+export type PaymentOverview = { contractVersion: string; accountId: string; previewOnly: true; dependencies: PaymentDependency[]; methods: PaymentMethod[]; defaultMethodId: string; presets: unknown[]; billingAccounts: BillingAccount[]; candidates: BillerCandidate[]; payables: Payable[]; wallet: { balanceMinor: number; heldMinor: number; availableMinor: number; currency: 'AED' } };
 export const orderStates = ['DRAFT','AWAITING_APPROVAL','READY','REQUIRES_ACTION','AUTHORIZED','CAPTURED','SETTLING','SETTLED','FAILED','CANCELLED','RECONCILIATION_REQUIRED','REFUNDING','PARTIALLY_REFUNDED','REFUNDED'] as const;
 export const settlementStates = ['UNCLAIMED','CLAIMED','APPLIED','RELEASED','UNKNOWN'] as const;
 export const attemptStates = ['PENDING','REQUIRES_ACTION','AUTHORIZED','CAPTURED','DECLINED','VOIDED','UNKNOWN'] as const;

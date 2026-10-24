@@ -1,3 +1,5 @@
+import { PaymentResourceError } from './payment-resource-uses.ts';
+import { PayableError } from './payables.ts';
 import { PaymentLedgerError } from './payment-ledger.ts';
 import { verifyBillerReference } from './payment-ownership.ts';
 import { PaymentRegistryError } from './payment-registry.ts';
@@ -84,9 +86,9 @@ export function createProviderServer(provider: ProviderId, path: string) {
       });
       send(result);
     } catch (error) {
-      const status = error instanceof HttpError ? error.status : error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError ? error.status : 503;
+      const status = error instanceof HttpError ? error.status : error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError ? error.status : 503;
       res.setHeader('Connection', 'close');
-      send({ status, data: { success: false, code: error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError ? error.code : 'PROVIDER_UNAVAILABLE', error: error instanceof HttpError ? error.message : error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError ? error.message : 'The simulator could not complete this request. Check operation status before retrying a write.' } });
+      send({ status, data: { success: false, code: error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError ? error.code : 'PROVIDER_UNAVAILABLE', error: error instanceof HttpError ? error.message : error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError ? error.message : 'The simulator could not complete this request. Check operation status before retrying a write.' } });
     }
   });
   return { server, store };

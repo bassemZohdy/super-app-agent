@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "DEWA Simulator",
-    "version": "2.0.0",
+    "version": "2.2.0",
     "description": "Local synthetic API. Signed interactive user identity or broker-issued user token with current exact-operation grant required. JWT subject owns the account; caller user headers do not grant authority. A separate read-only settlement machine lane retrieves captured charge proofs. Legacy fixture mode is outside this reference security profile."
   },
   "servers": [
@@ -62,6 +62,909 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/accounts/{accountId}/payables": {
+      "get": {
+        "operationId": "dewa_listVersionedPayables",
+        "description": "Read provider-owned revisioned obligations, including settled/withdrawn history and effective discounts.",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "payables": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "provider": {
+                            "enum": [
+                              "dewa",
+                              "etisalat",
+                              "du",
+                              "police"
+                            ]
+                          },
+                          "reference": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "obligationId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "kind": {
+                            "enum": [
+                              "BILL",
+                              "FINE"
+                            ]
+                          },
+                          "version": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000000
+                          },
+                          "label": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "amountMinor": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 100000000
+                          },
+                          "originalAmountMinor": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 100000000
+                          },
+                          "discountMinor": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "discountEligible": {
+                            "type": "boolean"
+                          },
+                          "currency": {
+                            "const": "AED"
+                          },
+                          "status": {
+                            "enum": [
+                              "UNPAID",
+                              "PAID",
+                              "CANCELLED",
+                              "EXPIRED"
+                            ]
+                          },
+                          "dueState": {
+                            "enum": [
+                              "CURRENT",
+                              "DUE",
+                              "OVERDUE",
+                              "EXPIRED",
+                              "CLOSED"
+                            ]
+                          },
+                          "revision": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{64}$"
+                          },
+                          "dueDate": {
+                            "type": "string",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                          },
+                          "expiresAt": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "discountExpiresAt": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "period": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "openingFixture": {
+                            "type": "boolean"
+                          },
+                          "paymentRestricted": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "provider",
+                          "reference",
+                          "obligationId",
+                          "kind",
+                          "version",
+                          "label",
+                          "amountMinor",
+                          "originalAmountMinor",
+                          "discountMinor",
+                          "discountEligible",
+                          "currency",
+                          "status",
+                          "dueState",
+                          "revision"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "maxItems": 100
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "payables"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "402": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/accounts/{accountId}/payables/{payableId}": {
+      "get": {
+        "operationId": "dewa_getVersionedPayable",
+        "description": "Read the current owned obligation and revision-bound reference without cached POST retry results.",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "payableId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "payable": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "provider": {
+                          "enum": [
+                            "dewa",
+                            "etisalat",
+                            "du",
+                            "police"
+                          ]
+                        },
+                        "reference": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "obligationId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "kind": {
+                          "enum": [
+                            "BILL",
+                            "FINE"
+                          ]
+                        },
+                        "version": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 1000000
+                        },
+                        "label": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "amountMinor": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 100000000
+                        },
+                        "originalAmountMinor": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 100000000
+                        },
+                        "discountMinor": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 100000000
+                        },
+                        "discountEligible": {
+                          "type": "boolean"
+                        },
+                        "currency": {
+                          "const": "AED"
+                        },
+                        "status": {
+                          "enum": [
+                            "UNPAID",
+                            "PAID",
+                            "CANCELLED",
+                            "EXPIRED"
+                          ]
+                        },
+                        "dueState": {
+                          "enum": [
+                            "CURRENT",
+                            "DUE",
+                            "OVERDUE",
+                            "EXPIRED",
+                            "CLOSED"
+                          ]
+                        },
+                        "revision": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        },
+                        "dueDate": {
+                          "type": "string",
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                        },
+                        "expiresAt": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "discountExpiresAt": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "period": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "openingFixture": {
+                          "type": "boolean"
+                        },
+                        "paymentRestricted": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "provider",
+                        "reference",
+                        "obligationId",
+                        "kind",
+                        "version",
+                        "label",
+                        "amountMinor",
+                        "originalAmountMinor",
+                        "discountMinor",
+                        "discountEligible",
+                        "currency",
+                        "status",
+                        "dueState",
+                        "revision"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "settlementReference": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "payable",
+                    "settlementReference"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "402": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/accounts/{accountId}/payables/{payableId}/reviews": {
+      "post": {
+        "operationId": "dewa_reviewVersionedPayable",
+        "description": "Require the current payable revision. This preflight does not authorize or capture funds.",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "payableId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "expectedRevision": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "expectedRevision"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "payable": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "provider": {
+                          "enum": [
+                            "dewa",
+                            "etisalat",
+                            "du",
+                            "police"
+                          ]
+                        },
+                        "reference": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "obligationId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "kind": {
+                          "enum": [
+                            "BILL",
+                            "FINE"
+                          ]
+                        },
+                        "version": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 1000000
+                        },
+                        "label": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "amountMinor": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 100000000
+                        },
+                        "originalAmountMinor": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 100000000
+                        },
+                        "discountMinor": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 100000000
+                        },
+                        "discountEligible": {
+                          "type": "boolean"
+                        },
+                        "currency": {
+                          "const": "AED"
+                        },
+                        "status": {
+                          "enum": [
+                            "UNPAID",
+                            "PAID",
+                            "CANCELLED",
+                            "EXPIRED"
+                          ]
+                        },
+                        "dueState": {
+                          "enum": [
+                            "CURRENT",
+                            "DUE",
+                            "OVERDUE",
+                            "EXPIRED",
+                            "CLOSED"
+                          ]
+                        },
+                        "revision": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        },
+                        "dueDate": {
+                          "type": "string",
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                        },
+                        "expiresAt": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "discountExpiresAt": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "period": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "openingFixture": {
+                          "type": "boolean"
+                        },
+                        "paymentRestricted": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "provider",
+                        "reference",
+                        "obligationId",
+                        "kind",
+                        "version",
+                        "label",
+                        "amountMinor",
+                        "originalAmountMinor",
+                        "discountMinor",
+                        "discountEligible",
+                        "currency",
+                        "status",
+                        "dueState",
+                        "revision"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "settlementReference": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "payable",
+                    "settlementReference"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "402": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/accounts/{accountId}/payables/{payableId}/payments": {
+      "post": {
+        "operationId": "dewa_settleVersionedPayable",
+        "description": "Settle the current revision with an owned revision-bound captured payment. Durable order/claim orchestration remains a separate gate.",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "payableId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "expectedRevision": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "paymentId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  }
+                },
+                "required": [
+                  "expectedRevision",
+                  "paymentId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "payable": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "provider": {
+                          "enum": [
+                            "dewa",
+                            "etisalat",
+                            "du",
+                            "police"
+                          ]
+                        },
+                        "reference": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "obligationId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "kind": {
+                          "enum": [
+                            "BILL",
+                            "FINE"
+                          ]
+                        },
+                        "version": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 1000000
+                        },
+                        "label": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "amountMinor": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 100000000
+                        },
+                        "originalAmountMinor": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 100000000
+                        },
+                        "discountMinor": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 100000000
+                        },
+                        "discountEligible": {
+                          "type": "boolean"
+                        },
+                        "currency": {
+                          "const": "AED"
+                        },
+                        "status": {
+                          "enum": [
+                            "UNPAID",
+                            "PAID",
+                            "CANCELLED",
+                            "EXPIRED"
+                          ]
+                        },
+                        "dueState": {
+                          "enum": [
+                            "CURRENT",
+                            "DUE",
+                            "OVERDUE",
+                            "EXPIRED",
+                            "CLOSED"
+                          ]
+                        },
+                        "revision": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        },
+                        "dueDate": {
+                          "type": "string",
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                        },
+                        "expiresAt": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "discountExpiresAt": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "period": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "openingFixture": {
+                          "type": "boolean"
+                        },
+                        "paymentRestricted": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "provider",
+                        "reference",
+                        "obligationId",
+                        "kind",
+                        "version",
+                        "label",
+                        "amountMinor",
+                        "originalAmountMinor",
+                        "discountMinor",
+                        "discountEligible",
+                        "currency",
+                        "status",
+                        "dueState",
+                        "revision"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "receipt": {
+                      "type": "object",
+                      "properties": {
+                        "receiptNumber": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "obligationId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "amountMinor": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 100000000
+                        },
+                        "currency": {
+                          "const": "AED"
+                        }
+                      },
+                      "required": [
+                        "receiptNumber",
+                        "obligationId",
+                        "amountMinor",
+                        "currency"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "payable",
+                    "receipt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "402": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
           }
         }
       }

@@ -37,6 +37,7 @@ export async function integratedRequest(service: string, actor: Actor, method: s
     const bill = billId ? bills.find((b: any) => b.billId === billId) : bills[0];
     if (!bill) throw new UpstreamError(404, 'NOT_FOUND', 'Bill not found.');
     if (bill.status === 'PAID') return { success: true, bill, chargedAmount: 0, receipt: { billId: bill.billId, ...(bill.premiseId ? { premiseId: bill.premiseId } : {}), receiptNumber: bill.receiptNumber, amountPaid: bill.totalAmount.toFixed(2), currency: 'AED' } };
+    if (bill.status !== 'UNPAID' || bill.expiresAt && Date.parse(bill.expiresAt) <= Date.now()) throw new UpstreamError(409, 'PAYABLE_UNAVAILABLE', 'This bill is no longer payable.');
     const payment = await charge(provider, `bill:${bill.billId}`, bill.totalAmount);
     const settled = await call(provider, 'POST', `/bills/${encodeURIComponent(bill.billId)}/payments`, { paymentId: payment.charge.id }, stableKey(`bill:${provider}:${bill.billId}`));
     return { ...settled, receipt: { ...settled.receipt, ...(bill.premiseId ? { premiseId: bill.premiseId } : {}) }, chargedAmount: bill.totalAmount, remainingBalance: payment.remainingBalance };
