@@ -226,7 +226,9 @@ const successfulWithoutDuplicate = (data: unknown): Result => ({ status: 200, da
 export function createApplicationServer(service: string, legacy: Legacy) {
   const policy = new HttpPolicy();
   return http.createServer({ maxHeaderSize: 16384, requestTimeout: 15000, headersTimeout: 10000 }, async (req, res) => {
-    const send = (status: number, data: unknown) => { res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(data)); };
+    const suppliedRequestId = req.headers['x-request-id'];
+    const requestId = typeof suppliedRequestId === 'string' && /^[A-Za-z0-9_.-]{1,200}$/.test(suppliedRequestId) ? suppliedRequestId : randomUUID();
+    const send = (status: number, data: unknown) => { res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Request-Id': requestId }); res.end(JSON.stringify(data)); };
     try {
       const release = policy.admit(req.socket.remoteAddress || 'unknown'); res.once('finish', release); res.once('close', release);
       const url = new URL(req.url || '/', 'http://application');
@@ -242,7 +244,7 @@ export function createApplicationServer(service: string, legacy: Legacy) {
         if (!user || !user.realm_access?.roles?.includes('superapp-user') || String(user.preferred_username || '').startsWith('service-account-')) return send(401, { success: false, code: 'UNAUTHENTICATED', error: 'A signed-in user token is required.' });
         const account = req.headers['x-account-id'];
         actor = actorFor({ sub: user.sub, preferred_username: user.preferred_username, name: user.name }, typeof account === 'string' ? account : undefined, req.headers.authorization);
-        if (typeof req.headers['x-request-id'] === 'string') actor.requestId = req.headers['x-request-id'].slice(0, 200);
+        actor.requestId = requestId;
       }
       const body = (await readJsonBody(req)) as RequestBody;
       if (integrated && url.pathname !== '/accounts' && service !== 'service-telecom') {
