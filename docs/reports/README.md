@@ -4,7 +4,8 @@ Evidence spans the `283521a` integrated baseline, payment setup `65fec3c`, journ
 
 | Evidence | Verified scope | Interpretation |
 | --- | --- | --- |
-| [Signed financial status events](2026-10-24-payment-events.md) | 278 tests, 18 builds, actual callback/lost-response recovery and terminal-reversal browser | PAY-18 infrastructure progress; named issuer scenarios and retained-path coverage remain open |
+| [Isolated issuer scenarios](2026-10-24-issuer-scenarios.md) | 292 tests, 18 builds, eight operator-configured signed browser outcomes and pending restart | SIM-03 delivered; general controls/failpoints and remaining PAY-18 paths stay open |
+| [Signed financial status events](2026-10-24-payment-events.md) | 278 tests, 18 builds, actual callback/lost-response recovery and terminal-reversal browser | PAY-18 infrastructure evidence; the later issuer report supplies SIM-03 while retained-path qualification remains open |
 | [Original-source refunds](2026-10-24-payment-refunds.md) | 264 tests, 18 builds; source/issuer/journal reversal and paced UI scenarios | PAY-17 delivered; events, consolidated recovery, statements and automatic services retain their gates |
 | [Grouped checkout](2026-10-24-checkout-groups.md) | 245 tests, 18 builds, three paced real-Keycloak group scenarios | PAY-16 evidence; the later refund report adds PAY-17, while events, automation and shell parity retain their separate gates |
 | [Wallet/card provider recharges](2026-10-24-provider-recharges.md) | 231 tests, 18 builds and six real-Keycloak paced recharge journeys | PAY-15 evidence; the later grouped-checkout report adds PAY-16, while refunds and automation remain open |

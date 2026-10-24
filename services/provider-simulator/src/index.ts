@@ -1,3 +1,5 @@
+import { issuerScenarioSchemas } from '../../../packages/protocol-core/src/issuer-scenarios.ts';
+import { IssuerScenarioError,type IssuerScenarioContext } from './issuer-scenarios.ts';
 import { startPaymentEventDelivery } from './payment-events.ts';
 import type { PaymentEvent } from '../../../packages/protocol-core/src/payment-events.ts';
 import { PaymentResourceError } from './payment-resource-uses.ts';
@@ -25,7 +27,7 @@ import { ProviderEngine, ApiError, type ApiResult } from './engine.ts';
 import { operations, openApi, providerIds, type ProviderId } from './contracts.ts';
 export const callers: Record<ProviderId, string[]> = { rta: ['service-ride','service-catalog','service-wallet'], dewa: ['service-food','service-wallet','service-catalog'], etisalat: ['service-telecom'], du: ['service-telecom'], police: ['service-wallet'], dld: ['service-catalog'], payments: ['service-wallet','service-food','service-ride','service-telecom','provider-settlements'] };
 const canonical = (value: any): any => Array.isArray(value) ? value.map(canonical) : value && typeof value === 'object' ? Object.fromEntries(Object.keys(value).sort().map(k => [k, canonical(value[k])])) : value;
-export function createProviderServer(provider: ProviderId, path: string, options:{authorizationClock?:()=>number;settlementTransport?:ClaimTransport;paymentClient?:ProviderClient}={}) {
+export function createProviderServer(provider: ProviderId, path: string, options:{authorizationClock?:()=>number;settlementTransport?:ClaimTransport;paymentClient?:ProviderClient;issuerScenario?:IssuerScenarioContext}={}) {
   const store = new AccountDatabase(path), engine = new ProviderEngine(provider, store,options);
   const ajv = new Ajv({ strict: false, allErrors: true });
   const routes = operations[provider].map(operation => ({ ...operation, regex: new RegExp(`^${operation.path.replace(/\{\w+\}/g, '[^/]+')}$`), validate: operation.body ? ajv.compile(operation.body) : undefined }));
@@ -39,7 +41,7 @@ export function createProviderServer(provider: ProviderId, path: string, options
       const release = policy.admit(req.socket.remoteAddress || 'unknown'); res.once('finish', release); res.once('close', release);
       const url = new URL(req.url || '/', 'http://provider');
       if (req.method === 'GET' && url.pathname === '/health') return send({ status: 200, data: { status: 'ok', provider, storage: 'sqlite' } });
-      if (req.method === 'GET' && url.pathname === '/openapi.json') return send({ status: 200, data: openApi(provider) });
+      if (req.method === 'GET' && url.pathname === '/openapi.json') return send({ status: 200, data: openApi(provider,store.issuerScenarios?.context.runId) });
       if(provider==='payments'&&req.method==='POST'&&url.pathname==='/internal/payment-events'&&!url.search){
         const event=await readJsonBody(req) as PaymentEvent;
         const header=(name:string)=>typeof req.headers[name]==='string'?req.headers[name] as string:'';
@@ -49,6 +51,20 @@ export function createProviderServer(provider: ProviderId, path: string, options
       const roles = claims.realm_access?.roles || [];
       const delegated = claims.azp === 'delegation-broker';
       const interactive = claims.azp === 'superapp-shell' && roles.includes('superapp-user') && !String(claims.preferred_username || '').startsWith('service-account-');
+      const scenarioRoute=/^\/internal\/issuer-scenarios\/(simrun_[a-f0-9-]{36})(?:\/(configuration|pending))?$/.exec(url.pathname);
+      if(url.pathname.startsWith('/internal/issuer-scenarios/')){
+        const scenarios=store.issuerScenarios;
+        if(!scenarios||!scenarioRoute||url.search||scenarioRoute[1]!==scenarios.context.runId)throw new ApiError(404,'SCENARIO_NOT_FOUND','No issuer controls are installed for this run.');
+        if(!interactive||claims.act!==undefined)throw new ApiError(403,'SCENARIO_OPERATOR_REQUIRED','A signed interactive run operator is required.');scenarios.operator(claims.sub);
+        if(req.method==='GET'&&!scenarioRoute[2])return send({status:200,data:{success:true,...scenarios.status(claims.sub)}});
+        if(req.method==='POST'&&['configuration','pending'].includes(scenarioRoute[2])){
+          const input=await readJsonBody(req),schema=issuerScenarioSchemas[scenarioRoute[2] as keyof typeof issuerScenarioSchemas];
+          if(!ajv.validate(schema,input))throw new ApiError(400,'VALIDATION_ERROR','The run configuration has invalid or unsupported fields.');
+          if(scenarioRoute[2]==='configuration')return send({status:200,data:{success:true,...scenarios.configure(claims.sub,input as Parameters<typeof scenarios.configure>[1])}});
+          const pending=input as {accountId:string;orderId:string;decision:'APPROVE'|'DECLINE';requestKey:string};return send({status:200,data:{success:true,authorization:engine.issuer!.resolvePending(claims.sub,pending.accountId,pending.orderId,pending.decision,pending.requestKey)}});
+        }
+        throw new ApiError(404,'SCENARIO_NOT_FOUND','Unknown issuer run operation.');
+      }
       const claimRoute=provider==='payments'&&req.method==='POST'&&/^\/v1\/accounts\/[A-Za-z0-9_-]+\/charges\/[^/]+\/settlement\/(claim|ack|release)$/.test(url.pathname);
       const claimant=claimRoute&&!interactive&&!delegated?claimantFor({azp:claims.azp,realm_access:claims.realm_access}):undefined;
       if (claims.act !== undefined) throw new ApiError(403, 'ACTOR_CHAIN_UNSUPPORTED', 'Caller supplied or unsupported actor chains are not accepted.');
@@ -161,9 +177,9 @@ export function createProviderServer(provider: ProviderId, path: string, options
       });
       send(result);
     } catch (error) {
-      const status = error instanceof HttpError ? error.status : error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError || error instanceof SettlementError ? error.status : 503;
+      const status = error instanceof HttpError ? error.status : error instanceof IssuerScenarioError || error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError || error instanceof SettlementError ? error.status : 503;
       res.setHeader('Connection', 'close');
-      send({ status, data: { success: false, code: error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError || error instanceof SettlementError ? error.code : 'PROVIDER_UNAVAILABLE', error: error instanceof HttpError ? error.message : error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError || error instanceof SettlementError ? error.message : 'The simulator could not complete this request. Check operation status before retrying a write.' } });
+      send({ status, data: { success: false, code: error instanceof IssuerScenarioError || error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError || error instanceof SettlementError ? error.code : 'PROVIDER_UNAVAILABLE', error: error instanceof HttpError ? error.message : error instanceof IssuerScenarioError || error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError || error instanceof SettlementError ? error.message : 'The simulator could not complete this request. Check operation status before retrying a write.' } });
     }
   });
   let eventDelivery:ReturnType<typeof startPaymentEventDelivery>|undefined;

@@ -136,3 +136,7 @@ SQLite permits a single simultaneous writer; the local worker/payment design mus
 ## Stored-order financial status events
 
 [PAY-18 infrastructure](../development/payment-events.md) appends immutable event bindings in the same SQLite commit as financial/source transitions. Persisted leased workers deliver signed callbacks to a deduplicating gateway inbox with original local binding/version checks. Source events are inspection hints; user-authorized original-order recovery still performs authoritative provider lookup before a receipt. No user bearer token enters the worker. Named issuer-run presets, legacy raw capture event coverage and broader simulator acceptance remain open; no callback activates an automatic rule.
+
+## Reproducible issuer decisions
+
+[SIM-03](../development/issuer-scenarios.md) configures eight finite outcomes through an authenticated isolated-run operator, with pristine/path/identity confinement. Each authorization freezes run ID/policy revision. Pending capacity survives provider restart without capture; a separate issuer decision and customer execution are required. Source/version, expiry, challenge and refund guards remain independent. Normal/copied databases cannot be armed and ordinary payment bodies cannot select run outcomes. General operator lifecycle controls and remaining event-path qualification stay separate.

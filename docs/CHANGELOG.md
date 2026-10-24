@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 24 October 2026 — authenticated isolated issuer outcomes
+
+Deliver SIM-03 with eight run-scoped operator presets, pristine/path/identity confinement, frozen issuer decisions and persisted pending authorization. Pending capacity survives provider restart without capture and still requires customer execution. Add shared conditional control contracts, state migrations/backups, negative authority checks and an eight-case paced browser recording. Normal provider controls remain absent. [Guide](development/issuer-scenarios.md) · [Evidence](reports/2026-10-24-issuer-scenarios.md).
+
 ## 24 October 2026 — transactional signed payment status events
 
 Advance PAY-18 with stored-order/source outboxes, bounded leased delivery, producer-specific callback signatures, deduplicating monotonic inbox and owned inspection hints. Prove actual source-commit response loss followed by a signed notification and explicit original-payment recovery; late events cannot regress a reversed bill. Retain SIM-03 and remaining legacy event/path gates as open. [Guide](development/payment-events.md) · [Evidence](reports/2026-10-24-payment-events.md).

@@ -1,6 +1,6 @@
 import type { PaymentEventStatus } from './payment-events.ts';
 /** Payment contract v1. Additive, synthetic-account APIs; previews never authorize execution. */
-export const PAYMENT_CONTRACT_VERSION = '1.8.0';
+export const PAYMENT_CONTRACT_VERSION = '1.9.0';
 export const MAX_PAYMENT_MINOR = 100_000_000;
 export const WALLET_FUNDING_LIMITS = { minMinor: 100, maxMinor: 50000, balanceMaxMinor: 1000000, feeMinor: 0 } as const;
 export const cardPresets = [
@@ -30,12 +30,12 @@ export type PaymentPreview = {
   totalMinor: number; currency: 'AED'; createdAt: string; expiresAt: string; digest: string;
 };
 export type CardBalance={refundedMinor?:number;sourceId:string;limitMinor:number;heldMinor:number;spentMinor:number;availableMinor:number;currency:'AED'};
-export type CardAuthorization={id:string;orderId:string;sourceId:string;amountMinor:number;currency:'AED';state:'REQUIRES_ACTION'|'AUTHORIZED'|'DECLINED'|'EXPIRED'|'VOIDED'|'CAPTURED';expiresAt:string;challengeId?:string;failureCode?:string};
+export type CardAuthorization={id:string;orderId:string;sourceId:string;amountMinor:number;currency:'AED';state:'PENDING'|'REQUIRES_ACTION'|'AUTHORIZED'|'DECLINED'|'EXPIRED'|'VOIDED'|'CAPTURED';scenario?:{runId:string;revision:number;preset:string};expiresAt:string;challengeId?:string;failureCode?:string};
 export type RefundedPayment={refundedMinor?:number;refundState?:'PARTIALLY_REFUNDED'|'REFUNDED'};
 export type ReversalReceipt={refundId:string;paymentId:string;orderId:string;approvalDigest:string;amountMinor:number;cumulativeMinor:number;currency:'AED';provider:string;reversedAt:string;providerBalanceMinor?:number};
 export type PaymentRefund={id:string;accountId:string;ownerSub:string;version:number;state:'AWAITING_APPROVAL'|'REVERSING'|'RECONCILIATION_REQUIRED'|'REFUNDED'|'FAILED'|'CANCELLED';approvalDigest:string;createdAt:string;expiresAt:string;failureCode?:string;receipt?:ReversalReceipt;
  quote:{origin:'PAYMENT'|'WALLET_FUNDING';orderId:string;paymentId:string;source:PaymentMethod;amountMinor:number;originalAmountMinor:number;expectedRefundedMinor:number;currency:'AED';reason:string;originalApprovalDigest:string;payable?:Payable;admissionId?:string}};
-export type PaymentAuthorizationReview=RefundedPayment & {id:string;accountId:string;ownerSub:string;version:number;state:'AWAITING_APPROVAL'|'REQUIRES_ACTION'|'AUTHORIZED'|'CAPTURING'|'CAPTURED'|'RECONCILIATION_REQUIRED'|'SETTLED'|'FAILED'|'CANCELLED';approvalDigest:string;expiresAt:string;createdAt:string;approvedAt?:string;failureCode?:string;fundsCaptured:boolean;admissionId?:string;paymentId?:string;receipt?:PaymentReceipt;sourceFinalizationPending?:boolean;
+export type PaymentAuthorizationReview=RefundedPayment & {id:string;accountId:string;ownerSub:string;version:number;state:'AWAITING_APPROVAL'|'AUTHORIZATION_PENDING'|'REQUIRES_ACTION'|'AUTHORIZED'|'CAPTURING'|'CAPTURED'|'RECONCILIATION_REQUIRED'|'SETTLED'|'FAILED'|'CANCELLED';approvalDigest:string;expiresAt:string;createdAt:string;approvedAt?:string;failureCode?:string;fundsCaptured:boolean;admissionId?:string;paymentId?:string;receipt?:PaymentReceipt;sourceFinalizationPending?:boolean;
   quote:{payable:Payable;billingAccount:BillingAccount;source:PaymentMethod;amountMinor:number;feeMinor:number;totalMinor:number;currency:'AED';createdAt:string;expiresAt:string};authorization?:CardAuthorization};
 export type PaymentDependency = { resourceType:'METHOD'|'BILLER';resourceId:string;dependentKind:'ORDER'|'HOLD'|'MANDATE';dependentId:string;status:'ACTIVE' };
 export type CheckoutGroup = {
@@ -44,17 +44,17 @@ export type CheckoutGroup = {
   excluded:{provider:BillerProvider;payableId:string;reason:'ALREADY_PAID'}[];
 };
 export type CheckoutGroupView = CheckoutGroup & {orders:PaymentAuthorizationReview[];settledMinor:number;
-  state:'AWAITING_APPROVAL'|'READY'|'REQUIRES_ACTION'|'RECONCILIATION_REQUIRED'|'PARTIAL'|'STOPPED'|'CANCELLED'|'COMPLETED'};
+  state:'AWAITING_APPROVAL'|'AUTHORIZATION_PENDING'|'READY'|'REQUIRES_ACTION'|'RECONCILIATION_REQUIRED'|'PARTIAL'|'STOPPED'|'CANCELLED'|'COMPLETED'};
 export type WalletFundingOrder = RefundedPayment & {
   id:string; accountId:string; ownerSub:string; version:number;
-  state:'AWAITING_APPROVAL'|'REQUIRES_ACTION'|'AUTHORIZED'|'SETTLED'|'FAILED'|'CANCELLED';
+  state:'AWAITING_APPROVAL'|'AUTHORIZATION_PENDING'|'REQUIRES_ACTION'|'AUTHORIZED'|'SETTLED'|'FAILED'|'CANCELLED';
   approvalDigest:string; createdAt:string; expiresAt:string; fundsCaptured:boolean; failureCode?:string;
   quote:{source:PaymentMethod;amountMinor:number;feeMinor:number;totalMinor:number;currency:'AED';walletAccountId:string};
   authorization?:CardAuthorization;
   receipt?:{receiptNumber:string;amountMinor:number;feeMinor:number;currency:'AED';balanceMinor:number;capturedAt:string};
 };
 export type PaymentOverview = { contractVersion: string; accountId: string; previewOnly: boolean; dependencies: PaymentDependency[]; methods: PaymentMethod[]; defaultMethodId: string; presets: unknown[]; billingAccounts: BillingAccount[]; candidates: BillerCandidate[]; payables: Payable[];rechargeTargets?:RechargeTarget[];orders?:PaymentAuthorizationReview[];checkoutGroups?:CheckoutGroupView[];refunds?:PaymentRefund[];events?:PaymentEventStatus;fundingOrders?:WalletFundingOrder[];cardBalances?:CardBalance[];wallet: { balanceMinor: number; heldMinor: number; availableMinor: number; currency: 'AED' } };
-export const orderStates = ['DRAFT','AWAITING_APPROVAL','READY','REQUIRES_ACTION','AUTHORIZED','CAPTURED','SETTLING','SETTLED','FAILED','CANCELLED','RECONCILIATION_REQUIRED','REFUNDING','PARTIALLY_REFUNDED','REFUNDED'] as const;
+export const orderStates = ['DRAFT','AWAITING_APPROVAL','AUTHORIZATION_PENDING','READY','REQUIRES_ACTION','AUTHORIZED','CAPTURED','SETTLING','SETTLED','FAILED','CANCELLED','RECONCILIATION_REQUIRED','REFUNDING','PARTIALLY_REFUNDED','REFUNDED'] as const;
 export const settlementStates = ['UNCLAIMED','CLAIMED','APPLIED','RELEASED','UNKNOWN'] as const;
 export const attemptStates = ['PENDING','REQUIRES_ACTION','AUTHORIZED','CAPTURED','DECLINED','VOIDED','UNKNOWN'] as const;
 const id = { type: 'string', minLength: 1, maxLength: 160, pattern: '^[A-Za-z0-9][A-Za-z0-9_.:-]*$' };

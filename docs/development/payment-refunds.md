@@ -22,7 +22,7 @@ Pending results show **Inspect or resume refund**. Continue this original refund
 
 ## API contracts
 
-Payment contract **1.8.0**. Payment-provider OpenAPI **2.11.0**; RTA **2.3.0**, DEWA **2.5.0**, Etisalat/du/Police **2.6.0**. Provider routes are under `/v1/accounts/{accountId}` and require an interactive owner JWT; machine and delegated tokens cannot request or apply these reversals. POST requires `Idempotency-Key`.
+Payment contract **1.9.0**. Payment-provider OpenAPI **2.12.0**; RTA **2.3.0**, DEWA **2.5.0**, Etisalat/du/Police **2.6.0**. Provider routes are under `/v1/accounts/{accountId}` and require an interactive owner JWT; machine and delegated tokens cannot request or apply these reversals. POST requires `Idempotency-Key`.
 
 | Payment-provider route | Request / outcome |
 | --- | --- |
@@ -63,4 +63,6 @@ The browser uses real local Keycloak/Redis with temporary provider/application S
 
 A reconciliation workbench, statements, automatic policies and Angular/Flutter refund parity retain separate backlog gates. No external payment network or preview identity feature is enabled.
 
-[Signed financial status events](payment-events.md) append with stored order/source transitions and arrive as owned inspection hints. Callbacks never authorize funds or replace authoritative provider lookup. Named issuer scenarios and legacy event-path qualification keep PAY-18 in progress.
+[Signed financial status events](payment-events.md) append with stored order/source transitions and arrive as owned inspection hints. Callbacks never authorize funds or replace authoritative provider lookup. SIM-03 now supplies named issuer scenarios; legacy event-path qualification keeps PAY-18 in progress.
+
+[Isolated issuer scenarios](issuer-scenarios.md) add operator-bound named outcomes and `AUTHORIZATION_PENDING`. Pending card capacity cannot capture/credit or dispatch later group lines; the original real-time deadline and separate customer execution remain enforced. Normal providers expose no run controls.
