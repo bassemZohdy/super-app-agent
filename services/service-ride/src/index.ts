@@ -1,6 +1,5 @@
 import { createApplicationServer } from '../../../packages/backend-kit/src/application.ts';
 import { validateRequest, toolSchema, invalidInput, toMinor, fromMinor, MAX_MONEY, MAX_DURATION_HOURS } from '../../../packages/protocol-core/src/request-validation.ts';
-import http from 'node:http';
 
 export interface Driver {
   id: string;
@@ -496,16 +495,6 @@ export function executeRideRequest(method: string, pathname: string, query: Reco
       parameters: toolSchema('service-ride', tool.name) || tool.parameters }));
   }
   return result;
-}
-
-function sendJson(res: http.ServerResponse, statusCode: number, data: any) {
-  res.writeHead(statusCode, {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  });
-  res.end(JSON.stringify(data));
 }
 
 export const server = createApplicationServer('service-ride', executeRideRequest);

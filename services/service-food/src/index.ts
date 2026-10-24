@@ -1,6 +1,5 @@
 import { createApplicationServer } from '../../../packages/backend-kit/src/application.ts';
 import { validateRequest, toolSchema, invalidInput, toMinor, fromMinor, MAX_MONEY } from '../../../packages/protocol-core/src/request-validation.ts';
-import http from 'node:http';
 
 export interface MenuItem {
   id: string;
@@ -401,16 +400,6 @@ export function executeFoodRequest(method: string, pathname: string, query: Reco
       parameters: toolSchema('service-food', tool.name) || tool.parameters }));
   }
   return result;
-}
-
-function sendJson(res: http.ServerResponse, statusCode: number, data: any) {
-  res.writeHead(statusCode, {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  });
-  res.end(JSON.stringify(data));
 }
 
 export const server = createApplicationServer('service-food', executeFoodRequest);

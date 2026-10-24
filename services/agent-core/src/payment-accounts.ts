@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { ProviderClient, UpstreamError } from '../../../packages/backend-kit/src/provider-client.ts';
 import type { Actor } from '../../../packages/backend-kit/src/context.ts';
-import { PAYMENT_CONTRACT_VERSION, MAX_PAYMENT_MINOR, type BillingAccount, type BillerCandidate, type Payable, type PaymentMethod, type PaymentPreview, type PaymentOverview } from '../../../packages/protocol-core/src/payments.ts';
+import { PAYMENT_CONTRACT_VERSION, MAX_PAYMENT_MINOR, type BillerCandidate, type Payable, type PaymentPreview, type PaymentOverview } from '../../../packages/protocol-core/src/payments.ts';
 const client = new ProviderClient('service-wallet', process.env.SERVICE_WALLET_CLIENT_SECRET || 'demo-wallet-secret');
 export const paymentDigest = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 export async function paymentOverview(actor: Actor, source = client): Promise<PaymentOverview> {
