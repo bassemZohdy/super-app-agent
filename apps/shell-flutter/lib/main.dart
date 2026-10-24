@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:async';
 
 import 'event_stream.dart';
+import 'delegation_panel.dart';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -379,7 +380,9 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
       if (mounted) {
         setState(
           () => _connectionLabel = data['llm']?['enabled'] == true
-              ? 'OpenRouter ready'
+              ? (data['llm']?['ready'] == true
+                    ? 'Local model ready'
+                    : 'Local model warming up')
               : 'Demo mode',
         );
       }
@@ -677,6 +680,21 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
         backgroundColor: Colors.white,
         foregroundColor: const Color(0xFF285C76),
         actions: [
+          IconButton(
+            tooltip: 'Delegated access',
+            onPressed: _requestPending
+                ? null
+                : () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => DelegationPanel(
+                        gateway: _gatewayUrl,
+                        accountId: _accountId,
+                        authorization: _authorization,
+                      ),
+                    ),
+                  ),
+            icon: const Icon(Icons.verified_user_outlined),
+          ),
           IconButton(
             tooltip: 'Saved conversations',
             onPressed: _requestPending ? null : _showSessions,

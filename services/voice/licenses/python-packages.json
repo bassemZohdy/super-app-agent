@@ -1,0 +1,297 @@
+[
+  {
+    "name": "annotated-doc",
+    "version": "0.0.5",
+    "licenseMetadata": "MIT"
+  },
+  {
+    "name": "annotated-types",
+    "version": "0.8.0",
+    "licenseMetadata": "MIT"
+  },
+  {
+    "name": "anyio",
+    "version": "4.15.1",
+    "licenseMetadata": "MIT"
+  },
+  {
+    "name": "attrs",
+    "version": "26.1.0",
+    "licenseMetadata": "MIT"
+  },
+  {
+    "name": "av",
+    "version": "19.0.2",
+    "licenseMetadata": "BSD-3-Clause"
+  },
+  {
+    "name": "babel",
+    "version": "2.18.0",
+    "licenseMetadata": "BSD-3-Clause"
+  },
+  {
+    "name": "certifi",
+    "version": "2026.10.23",
+    "licenseMetadata": "MPL-2.0"
+  },
+  {
+    "name": "cffi",
+    "version": "2.1.1",
+    "licenseMetadata": "MIT-0"
+  },
+  {
+    "name": "click",
+    "version": "8.5.0",
+    "licenseMetadata": "BSD-3-Clause"
+  },
+  {
+    "name": "cloudpickle",
+    "version": "3.1.2",
+    "licenseMetadata": "BSD-3-Clause"
+  },
+  {
+    "name": "csvw",
+    "version": "4.1.1",
+    "licenseMetadata": "Apache 2.0"
+  },
+  {
+    "name": "ctranslate2",
+    "version": "4.8.3",
+    "licenseMetadata": "MIT"
+  },
+  {
+    "name": "dlinfo",
+    "version": "2.0.0",
+    "licenseMetadata": "MIT"
+  },
+  {
+    "name": "docopt",
+    "version": "0.6.2",
+    "licenseMetadata": "MIT"
+  },
+  {
+    "name": "fastapi",
+    "version": "0.136.3",
+    "licenseMetadata": "MIT"
+  },
+  {
+    "name": "faster-whisper",
+    "version": "1.2.1",
+    "licenseMetadata": "MIT"
+  },
+  {
+    "name": "filelock",
+    "version": "4.2.4",
+    "licenseMetadata": "MIT"
+  },
+  {
+    "name": "flatbuffers",
+    "version": "25.12.19",
+    "licenseMetadata": "Apache 2.0"
+  },
+  {
+    "name": "fsspec",
+    "version": "2026.9.0",
+    "licenseMetadata": "BSD-3-Clause"
+  },
+  {
+    "name": "h11",
+    "version": "0.16.0",
+    "licenseMetadata": "MIT"
+  },
+  {
+    "name": "hf-xet",
+    "version": "1.7.0",
+    "licenseMetadata": "Apache-2.0"
+  },
+  {
+    "name": "httpcore",
+    "version": "1.0.9",
+    "licenseMetadata": "BSD-3-Clause"
+  },
+  {
+    "name": "httpx",
+    "version": "0.28.1",
+    "licenseMetadata": "BSD-3-Clause"
+  },
+  {
+    "name": "huggingface_hub",
+    "version": "1.33.0",
+    "licenseMetadata": "Apache-2.0"
+  },
+  {
+    "name": "idna",
+    "version": "3.20",
+    "licenseMetadata": "BSD-3-Clause"
+  },
+  {
+    "name": "isodate",
+    "version": "0.7.2",
+    "licenseMetadata": "Copyright (c) 2021, Hugo van Kemenade and contributors"
+  },
+  {
+    "name": "joblib",
+    "version": "1.6.0",
+    "licenseMetadata": "BSD-3-Clause"
+  },
+  {
+    "name": "jsonschema",
+    "version": "4.26.0",
+    "licenseMetadata": "MIT"
+  },
+  {
+    "name": "jsonschema-specifications",
+    "version": "2025.9.1",
+    "licenseMetadata": "MIT"
+  },
+  {
+    "name": "language-tags",
+    "version": "1.3.2",
+    "licenseMetadata": "MIT"
+  },
+  {
+    "name": "num2words",
+    "version": "0.5.14",
+    "licenseMetadata": "LGPL"
+  },
+  {
+    "name": "numpy",
+    "version": "2.5.4",
+    "licenseMetadata": "BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0"
+  },
+  {
+    "name": "onnxruntime",
+    "version": "1.31.0",
+    "licenseMetadata": "MIT License"
+  },
+  {
+    "name": "packaging",
+    "version": "26.3",
+    "licenseMetadata": "Apache-2.0 OR BSD-2-Clause"
+  },
+  {
+    "name": "phonemizer-fork",
+    "version": "3.3.2",
+    "licenseMetadata": "GNU GENERAL PUBLIC LICENSE"
+  },
+  {
+    "name": "protobuf",
+    "version": "7.36.2",
+    "licenseMetadata": "3-Clause BSD License"
+  },
+  {
+    "name": "pycparser",
+    "version": "3.12",
+    "licenseMetadata": "BSD-3-Clause"
+  },
+  {
+    "name": "pydantic",
+    "version": "2.14.1",
+    "licenseMetadata": "MIT"
+  },
+  {
+    "name": "pydantic_core",
+    "version": "2.50.1",
+    "licenseMetadata": "MIT"
+  },
+  {
+    "name": "pyparsing",
+    "version": "3.3.3",
+    "licenseMetadata": "MIT"
+  },
+  {
+    "name": "python-dateutil",
+    "version": "3.0.0",
+    "licenseMetadata": "Dual License"
+  },
+  {
+    "name": "PyYAML",
+    "version": "6.0.3",
+    "licenseMetadata": "MIT"
+  },
+  {
+    "name": "rdflib",
+    "version": "7.6.0",
+    "licenseMetadata": "BSD-3-Clause"
+  },
+  {
+    "name": "referencing",
+    "version": "0.37.0",
+    "licenseMetadata": "MIT"
+  },
+  {
+    "name": "regex",
+    "version": "2026.9.29",
+    "licenseMetadata": "Apache-2.0 AND CNRI-Python"
+  },
+  {
+    "name": "rfc3986",
+    "version": "1.5.0",
+    "licenseMetadata": "Apache 2.0"
+  },
+  {
+    "name": "rpds-py",
+    "version": "2026.9.1",
+    "licenseMetadata": "MIT"
+  },
+  {
+    "name": "segments",
+    "version": "2.4.0",
+    "licenseMetadata": "Apache 2.0"
+  },
+  {
+    "name": "six",
+    "version": "1.17.0",
+    "licenseMetadata": "MIT"
+  },
+  {
+    "name": "soundfile",
+    "version": "0.14.0",
+    "licenseMetadata": "BSD 3-Clause License"
+  },
+  {
+    "name": "starlette",
+    "version": "1.9.0",
+    "licenseMetadata": "BSD-3-Clause"
+  },
+  {
+    "name": "termcolor",
+    "version": "3.3.0",
+    "licenseMetadata": "MIT"
+  },
+  {
+    "name": "tokenizers",
+    "version": "0.23.3",
+    "licenseMetadata": "See upstream licence"
+  },
+  {
+    "name": "tqdm",
+    "version": "4.70.1",
+    "licenseMetadata": "MPL-2.0 AND MIT"
+  },
+  {
+    "name": "typing-inspection",
+    "version": "0.4.4",
+    "licenseMetadata": "MIT"
+  },
+  {
+    "name": "typing_extensions",
+    "version": "4.16.0",
+    "licenseMetadata": "PSF-2.0"
+  },
+  {
+    "name": "tzdata",
+    "version": "2026.5",
+    "licenseMetadata": "Apache-2.0"
+  },
+  {
+    "name": "uritemplate",
+    "version": "4.2.0",
+    "licenseMetadata": "BSD 3-Clause OR Apache-2.0"
+  },
+  {
+    "name": "uvicorn",
+    "version": "0.54.0",
+    "licenseMetadata": "BSD-3-Clause"
+  }
+]

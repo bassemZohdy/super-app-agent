@@ -1,16 +1,16 @@
 # Provider backend demonstration
 
-This is a local integration environment, not an integration with the named real entities. Producer: the provider-simulator package. Consumers: the application microservices. Contract version: 1.0.0, OpenAPI 3.1. Additive changes retain `/v1`; breaking changes require a new version and consumer migration.
+This is a local integration environment, not an integration with the named real entities. Producer: the provider-simulator package. Consumers: the application microservices. Contract version: 2.0.0, OpenAPI 3.1. This demo security migration changes authentication while retaining `/v1` resource schemas. Sign in again for the provider audience; service-header impersonation clients must migrate. Future breaking resource changes require explicit versioning and migration.
 
 ## Service and account boundaries
 
 Each provider runs the same HTTP runtime with its own `PROVIDER_ID`, SQLite file and named volume. The provider owns business rules and records. Application services never read a provider’s database. Both layers validate input, and the provider checks resource/account ownership on every operation.
 
-User access tokens have audience `agent-core`; the application services verify the JWT signature, issuer, expiration, audience and `superapp-user` role. They derive the acting subject from that verified JWT. They obtain separate Keycloak service tokens through `grant_type=client_credentials`. Provider tokens have audience `provider-api`, an authorized client (`azp`), and a provider role. A user token cannot be used directly as a provider token.
+Interactive user tokens include `agent-core` and `provider-api`. Application and provider services verify them independently, including expected client/user role and ownership from signed `sub`. Applications forward the user bearer; `X-User-Subject` cannot override it. General service-header impersonation is denied in the reference profile; a separate machine lane reads captured payment proofs.
 
-`X-User-Subject` is a **trusted application assertion**, accepted only from an allowed, authenticated service client. It is not a signed user delegation chain or production token exchange. The browser cannot set a user subject through the concierge API. Account IDs are deterministic opaque references derived from the user subject and account slot. Membership is checked server-side; knowing an ID does not grant access.
+Delegated calls use the separate trusted broker, supported RFC 7523 and private-key client authentication. Providers validate its short-lived user token and check the current exact-operation grant/token binding online. See the [delegation guide](../development/delegation.md) for consent, key isolation, runner access and limits. Existing internal subjects/account IDs are preserved. Legacy fixtures retain their earlier explicit compatibility profile.
 
-## Demo grants
+## Retained machine credentials
 
 | Client ID | Provider grants | Demo client secret |
 | --- | --- | --- |
@@ -28,19 +28,14 @@ Roles are `provider:<entity>`; the settlement verifier gets only `provider:payme
 
 Source: `services/provider-simulator/src/contracts.ts`. Generate checked-in contracts with `npm run openapi:generate`. `npm test` checks schema validity and exact agreement with the runtime. Each simulator serves its contract at `/openapi.json`. Public health/docs endpoints do not return account records.
 
-All account operations require a bearer service token and `X-User-Subject`. POST requests require JSON and `Idempotency-Key` (1–200 printable ASCII characters). Body limits are 64 KiB. Unknown fields are rejected by request schemas. Lists currently return at most 100 records; pagination is not implemented.
+Account operations require a signed interactive user token or a registered broker token plus current grant. Caller user headers confer no authority. Delegated account enumeration is denied; each grant targets one exact owned operation. POST requests require JSON and `Idempotency-Key` (1–200 printable ASCII characters). Body limits are 64 KiB. Unknown fields are rejected by request schemas. Lists currently return at most 100 records; pagination is not implemented.
 
 Errors are `{success:false, code, error}` with 400/401/403/404/409/402/503 as appropriate; body-size rejection uses 413. Replay with the same key and canonical request returns the saved status/body. A changed method, path or body under the same account/key returns 409. Keys persist for the lifetime of the provider database; this is intentionally longer than the Redis conversation TTL.
 
 ```bash
-# Confidential service client; demo credentials only.
-curl -s http://localhost:8085/realms/superapp/protocol/openid-connect/token \
-  -d grant_type=client_credentials -d client_id=service-wallet \
-  -d client_secret=demo-wallet-secret
-# Use access_token from the response, the verified demo user's subject,
-# and an account ID returned by the application /api/accounts endpoint.
+# Supply the user token privately from normal login; ACCOUNT_ID is owned.
 curl http://localhost:4107/v1/accounts/ACCOUNT_ID/wallet \
-  -H 'Authorization: Bearer SERVICE_ACCESS_TOKEN' -H 'X-User-Subject: USER_SUBJECT'
+  -H 'Authorization: Bearer USER_ACCESS_TOKEN'
 ```
 
 Never put real tokens in documentation, URLs, terminal recordings or committed files.

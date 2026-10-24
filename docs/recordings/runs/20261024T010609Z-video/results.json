@@ -1,0 +1,274 @@
+{
+  "status": "passed",
+  "createdAt": "2026-10-24T01:10:35.846Z",
+  "source": "efee3a95f293dcf3ff21334ecd5fabc1e122e2d3",
+  "dirty": true,
+  "video": true,
+  "pacing": {
+    "scale": 1,
+    "chapter": 3500,
+    "review": 6000,
+    "action": 1500,
+    "receipt": 8000,
+    "end": 7000
+  },
+  "chapters": [
+    {
+      "id": "01",
+      "title": "Sign in and choose an account",
+      "description": "Real local Keycloak PKCE · isolated SQLite data · simulated services and money",
+      "start": 0.24724030499999936,
+      "end": 11.925359854999998,
+      "status": "passed",
+      "checks": [
+        {
+          "at": 5.851084297999998,
+          "message": "Real PKCE sign-in reached the authenticated account workspace"
+        }
+      ]
+    },
+    {
+      "id": "02",
+      "title": "Wallet: review, cancel and top up",
+      "description": "Review first. Cancelled approvals cannot be replayed. A confirmed top-up changes the ledger once.",
+      "start": 11.925376219999999,
+      "end": 45.86708665500001,
+      "status": "passed",
+      "checks": [
+        {
+          "at": 15.761630585999999,
+          "message": "Payments opened without a chat/model request"
+        },
+        {
+          "at": 21.811216967999997,
+          "message": "Changing the offered top-up amount is rejected with HTTP 403 and no debit"
+        },
+        {
+          "at": 21.904993241,
+          "message": "Cancelled approval replay rejected with HTTP 409; balance unchanged"
+        },
+        {
+          "at": 30.158366051,
+          "message": "Payments opened without a chat/model request"
+        },
+        {
+          "at": 37.822397581,
+          "message": "topup_wallet returned its asserted receipt and a new revision"
+        },
+        {
+          "at": 45.842047238999996,
+          "message": "Replaying the consumed top-up approval is rejected with HTTP 409"
+        },
+        {
+          "at": 45.867053109,
+          "message": "Exactly one 50 AED top-up appears in the independently read ledger"
+        }
+      ]
+    },
+    {
+      "id": "03",
+      "title": "Parking: select, activate and extend",
+      "description": "Review the account-owned vehicle and zone. Confirm two hours, then review the extension receipt.",
+      "start": 45.867090878999996,
+      "end": 76.677171475,
+      "status": "passed",
+      "checks": [
+        {
+          "at": 49.619809748,
+          "message": "Mobility opened without a chat/model request"
+        },
+        {
+          "at": 58.80743462099999,
+          "message": "activate_parking returned its asserted receipt and a new revision"
+        },
+        {
+          "at": 68.642357288,
+          "message": "extend_parking returned its asserted receipt and a new revision"
+        },
+        {
+          "at": 76.67712456299999,
+          "message": "Provider state shows the same ticket extended to three hours; exact 12 AED debit"
+        }
+      ]
+    },
+    {
+      "id": "04",
+      "title": "Utilities: review and settle a fresh bill",
+      "description": "Fresh isolated DEWA bill. Review meter data and line items before paying from the simulated wallet.",
+      "start": 76.677179517,
+      "end": 96.106513848,
+      "status": "passed",
+      "checks": [
+        {
+          "at": 80.320294862,
+          "message": "Utilities opened without a chat/model request"
+        },
+        {
+          "at": 88.00863805699998,
+          "message": "pay_utilities_bill returned its asserted receipt and a new revision"
+        },
+        {
+          "at": 96.041842896,
+          "message": "Bill is PAID in the provider and wallet matches the authoritative bill amount"
+        }
+      ]
+    },
+    {
+      "id": "05",
+      "title": "Telecom: review a subscription and pay its bill",
+      "description": "Etisalat is a simulator. Confirm only the offered provider and bill; verify settlement independently.",
+      "start": 96.106520881,
+      "end": 115.56123794099999,
+      "status": "passed",
+      "checks": [
+        {
+          "at": 99.744828683,
+          "message": "Telecom opened without a chat/model request"
+        },
+        {
+          "at": 107.44541202599999,
+          "message": "pay_telecom_bill returned its asserted receipt and a new revision"
+        },
+        {
+          "at": 115.47828485499998,
+          "message": "Selected Etisalat bill is paid once for its exact amount"
+        }
+      ]
+    },
+    {
+      "id": "06",
+      "title": "Traffic fines: review and settle",
+      "description": "Natural-language request through the same guarded core. Read violations and discounts before confirmation.",
+      "start": 115.561247312,
+      "end": 136.552093541,
+      "status": "passed",
+      "checks": [
+        {
+          "at": 128.450395619,
+          "message": "pay_police_fines returned its asserted receipt and a new revision"
+        },
+        {
+          "at": 136.483715742,
+          "message": "No unpaid fines remain and the exact payable amount was debited"
+        }
+      ]
+    },
+    {
+      "id": "07",
+      "title": "Ride: choose and confirm a real demo booking",
+      "description": "Chat prepares a proposal. The receipt carries a real provider booking ID; unknown tracking IDs must fail.",
+      "start": 136.55210313600003,
+      "end": 157.49747296400002,
+      "status": "passed",
+      "checks": [
+        {
+          "at": 149.395499332,
+          "message": "book_ride returned its asserted receipt and a new revision"
+        },
+        {
+          "at": 157.42494299,
+          "message": "Actual booking tracks correctly; an invented booking returns HTTP 404"
+        }
+      ]
+    },
+    {
+      "id": "08",
+      "title": "Dining: choose a meal and verify the order",
+      "description": "A separate service journey with an account-owned persisted order and a traceable order reference.",
+      "start": 157.49748014,
+      "end": 178.61606768200002,
+      "status": "passed",
+      "checks": [
+        {
+          "at": 170.302344936,
+          "message": "order_food returned its asserted receipt and a new revision"
+        },
+        {
+          "at": 178.5151161,
+          "message": "Actual order tracks correctly; an invented order returns HTTP 404"
+        }
+      ]
+    },
+    {
+      "id": "09",
+      "title": "Move in: activate a reviewed tenancy plan",
+      "description": "Read the proposal before confirmation. DLD, utility connection and residential permit records must agree.",
+      "start": 178.61607605900002,
+      "end": 198.009380664,
+      "status": "passed",
+      "checks": [
+        {
+          "at": 182.262500647,
+          "message": "Housing opened without a chat/model request"
+        },
+        {
+          "at": 189.91877201000003,
+          "message": "confirm_movein returned its asserted receipt and a new revision"
+        },
+        {
+          "at": 197.934990236,
+          "message": "Only confirmed move-in created matching persistent tenancy, connection and permit records"
+        }
+      ]
+    },
+    {
+      "id": "10",
+      "title": "Unified checkout: avoid paying settled bills twice",
+      "description": "The earlier utility bill and fines are already settled. Only the remaining Salik recharge may debit the wallet.",
+      "start": 198.009411136,
+      "end": 219.034536951,
+      "status": "passed",
+      "checks": [
+        {
+          "at": 209.21498827,
+          "message": "Review quote excludes already-paid bills and matches the remaining 100 AED effect"
+        },
+        {
+          "at": 210.89475458200002,
+          "message": "confirm_smartcity_checkout returned its asserted receipt and a new revision"
+        },
+        {
+          "at": 218.95878513600002,
+          "message": "Already-settled DEWA/fines were not charged again; only 100 AED recharged Salik"
+        }
+      ]
+    },
+    {
+      "id": "11",
+      "title": "Switch accounts and restore the conversation",
+      "description": "Household funds stay separate. Return to Personal, then reload the saved dining receipt and transcript.",
+      "start": 219.03454032700003,
+      "end": 237.03516306300003,
+      "status": "passed",
+      "checks": [
+        {
+          "at": 222.650225278,
+          "message": "Saved conversation history opens the original dining receipt without creating another order"
+        },
+        {
+          "at": 222.70664174400002,
+          "message": "Household account has separate fresh funds and no personal receipt"
+        },
+        {
+          "at": 228.95628537300001,
+          "message": "Personal receipt, revision, transcript and balance survive account switch and reload"
+        }
+      ]
+    },
+    {
+      "id": "12",
+      "title": "Sign out and return to the login screen",
+      "description": "The private workspace closes. All services, balances and receipts in this recording are simulated.",
+      "start": 237.035165416,
+      "end": 247.685922693,
+      "status": "passed",
+      "checks": [
+        {
+          "at": 240.627377276,
+          "message": "Signed-out screen has no private account selector or receipt"
+        }
+      ]
+    }
+  ],
+  "scope": "Isolated local provider/application SQLite; real local Keycloak and Redis; deterministic replies; no real agencies, UAE PASS or money."
+}

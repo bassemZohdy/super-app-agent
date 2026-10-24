@@ -1,3 +1,4 @@
+/** Historical text connector for explicit diagnostics/tests; application inference uses local-conversation.ts. */
 import { acquireModelBudget, boundedMessages } from './model-budget.ts';
 /**
  * Server-side inference. No API key: explicit local demo mode.
@@ -10,13 +11,6 @@ export interface OpenRouterConfig {
   baseUrl: string;
 }
 
-export interface OpenRouterTTSConfig {
-  apiKey: string;
-  model: string;
-  voice: string;
-  baseUrl: string;
-}
-
 export function getOpenRouterConfig(): OpenRouterConfig {
   return {
     apiKey: process.env.OPENROUTER_API_KEY || '',
@@ -25,62 +19,6 @@ export function getOpenRouterConfig(): OpenRouterConfig {
   };
 }
 
-export function getOpenRouterTTSConfig(): OpenRouterTTSConfig {
-  return {
-    apiKey: process.env.OPENROUTER_API_KEY || '',
-    model: process.env.OPENROUTER_TTS_MODEL || 'hexgrad/kokoro-82m',
-    voice: process.env.OPENROUTER_TTS_VOICE || 'alloy',
-    baseUrl: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
-  };
-}
-
-export interface TTSResult {
-  audioBase64: string;
-  format: string;
-  model: string;
-  voice: string;
-}
-
-export async function invokeOpenRouterTTS(
-  input: string,
-  options: { voice?: string; language?: string } = {}
-): Promise<TTSResult | null> {
-  const config = getOpenRouterTTSConfig();
-  if (!config.apiKey || process.env.ENABLE_OPENROUTER_TTS !== 'true' || !input || !input.trim()) {
-    return null;
-  }
-  const base = new URL(config.baseUrl);
-  if (base.hostname !== 'openrouter.ai' || base.protocol !== 'https:' || base.username || base.password) throw new Error('Only the official HTTPS OpenRouter endpoint is allowed');
-  const url = new URL(config.baseUrl.replace(/\/$/, '') + '/audio/speech');
-  const selectedVoice = options.voice || config.voice;
-  const response = await fetch(url, {
-    method: 'POST',
-    signal: AbortSignal.timeout(15_000),
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${config.apiKey}`,
-      'HTTP-Referer': 'https://superapp-agent.internal',
-      'X-Title': 'SuperApp Agent Platform',
-    },
-    body: JSON.stringify({
-      model: config.model,
-      input: input.slice(0, 3000),
-      voice: selectedVoice,
-      response_format: 'mp3',
-    }),
-  });
-  if (!response.ok) {
-    throw new Error(`OpenRouter TTS failed: HTTP ${response.status}`);
-  }
-  const arrayBuffer = await response.arrayBuffer();
-  const audioBase64 = Buffer.from(arrayBuffer).toString('base64');
-  return {
-    audioBase64,
-    format: 'audio/mpeg',
-    model: config.model,
-    voice: selectedVoice,
-  };
-}
 export function isLiveLLMEnabled(): boolean {
   return Boolean(getOpenRouterConfig().apiKey) && process.env.ENABLE_LIVE_LLM !== 'false';
 }

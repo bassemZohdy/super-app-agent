@@ -1,0 +1,32 @@
+{
+  "successful": true,
+  "reviewMs": 6000,
+  "receiptMs": 8000,
+  "chapters": [
+    {
+      "title": "Sign in and open delegated access",
+      "elapsedSeconds": 5.312
+    },
+    {
+      "title": "Review actor, account, operation and five-minute consent",
+      "elapsedSeconds": 11.35
+    },
+    {
+      "title": "Explicitly approve bounded wallet reads",
+      "elapsedSeconds": 17.447
+    },
+    {
+      "title": "Broker exchanges assertion and provider authorizes exact read",
+      "elapsedSeconds": 23.652
+    },
+    {
+      "title": "Inspect consent-to-effect audit",
+      "elapsedSeconds": 31.701
+    },
+    {
+      "title": "Withdraw consent and verify execution is disabled",
+      "elapsedSeconds": 37.803
+    }
+  ],
+  "synthetic": true
+}

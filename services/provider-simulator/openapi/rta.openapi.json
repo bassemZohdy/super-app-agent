@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "RTA Simulator",
-    "version": "1.0.0",
-    "description": "Local demonstration API. No connection to a real entity. Service credentials authenticate the caller; X-User-Subject identifies the delegated user. Account ownership is checked for every resource."
+    "version": "2.0.0",
+    "description": "Local synthetic API. Signed interactive user identity or broker-issued user token with current exact-operation grant required. JWT subject owns the account; caller user headers do not grant authority. A separate read-only settlement machine lane retrieves captured charge proofs. Legacy fixture mode is outside this reference security profile."
   },
   "servers": [
     {
@@ -12,7 +12,7 @@
   ],
   "security": [
     {
-      "serviceCredentials": []
+      "accessToken": []
     }
   ],
   "paths": {
@@ -71,16 +71,6 @@
         "operationId": "rta_listParkingZones",
         "description": "List simulated parking zones.",
         "parameters": [
-          {
-            "name": "X-User-Subject",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 200
-            }
-          },
           {
             "name": "accountId",
             "in": "path",
@@ -155,16 +145,6 @@
         "description": "List this account’s parking sessions.",
         "parameters": [
           {
-            "name": "X-User-Subject",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 200
-            }
-          },
-          {
             "name": "accountId",
             "in": "path",
             "required": true,
@@ -235,16 +215,6 @@
         "operationId": "rta_activateParking",
         "description": "Create a parking session for an account-owned plate.",
         "parameters": [
-          {
-            "name": "X-User-Subject",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 200
-            }
-          },
           {
             "name": "accountId",
             "in": "path",
@@ -366,16 +336,6 @@
         "description": "Extend an existing, owned parking session.",
         "parameters": [
           {
-            "name": "X-User-Subject",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 200
-            }
-          },
-          {
             "name": "accountId",
             "in": "path",
             "required": true,
@@ -494,16 +454,6 @@
         "description": "Issue an account-owned simulated residential permit.",
         "parameters": [
           {
-            "name": "X-User-Subject",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 200
-            }
-          },
-          {
             "name": "accountId",
             "in": "path",
             "required": true,
@@ -600,16 +550,6 @@
         "description": "Read this account’s simulated toll tag balance.",
         "parameters": [
           {
-            "name": "X-User-Subject",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 200
-            }
-          },
-          {
             "name": "accountId",
             "in": "path",
             "required": true,
@@ -689,16 +629,6 @@
         "operationId": "rta_rechargeSalik",
         "description": "Recharge the toll tag using a captured payment.",
         "parameters": [
-          {
-            "name": "X-User-Subject",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 200
-            }
-          },
           {
             "name": "accountId",
             "in": "path",
@@ -818,16 +748,6 @@
         "description": "Read simulated toll passings.",
         "parameters": [
           {
-            "name": "X-User-Subject",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 200
-            }
-          },
-          {
             "name": "accountId",
             "in": "path",
             "required": true,
@@ -897,16 +817,6 @@
         "description": "List simulated EV charger availability.",
         "parameters": [
           {
-            "name": "X-User-Subject",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 200
-            }
-          },
-          {
             "name": "accountId",
             "in": "path",
             "required": true,
@@ -975,16 +885,6 @@
         "operationId": "rta_startCharging",
         "description": "Start a simulated charging session.",
         "parameters": [
-          {
-            "name": "X-User-Subject",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 200
-            }
-          },
           {
             "name": "accountId",
             "in": "path",
@@ -1088,16 +988,6 @@
         "description": "List demo vehicle and fare options.",
         "parameters": [
           {
-            "name": "X-User-Subject",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 200
-            }
-          },
-          {
             "name": "accountId",
             "in": "path",
             "required": true,
@@ -1166,16 +1056,6 @@
         "operationId": "rta_bookRide",
         "description": "Create an account-owned demo ride.",
         "parameters": [
-          {
-            "name": "X-User-Subject",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 200
-            }
-          },
           {
             "name": "accountId",
             "in": "path",
@@ -1283,16 +1163,6 @@
         "description": "Read a booking owned by this account.",
         "parameters": [
           {
-            "name": "X-User-Subject",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 200
-            }
-          },
-          {
             "name": "accountId",
             "in": "path",
             "required": true,
@@ -1365,35 +1235,18 @@
   },
   "components": {
     "securitySchemes": {
-      "serviceCredentials": {
-        "type": "oauth2",
-        "flows": {
-          "clientCredentials": {
-            "tokenUrl": "http://localhost:8085/realms/superapp/protocol/openid-connect/token",
-            "scopes": {}
-          }
-        }
-      }
-    },
-    "parameters": {
-      "actor": {
-        "name": "X-User-Subject",
-        "in": "header",
-        "required": true,
-        "schema": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 200
-        },
-        "description": "Trusted application service assertion of a verified user subject; never supplied directly by a browser."
+      "accessToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
       }
     },
     "responses": {
       "Unauthorized": {
-        "description": "Missing or invalid service bearer token"
+        "description": "Missing or invalid Keycloak access token"
       },
       "Error": {
-        "description": "Validation, ownership, payment, conflict or availability error",
+        "description": "Validation, ownership, delegation, payment, conflict or availability error",
         "content": {
           "application/json": {
             "schema": {

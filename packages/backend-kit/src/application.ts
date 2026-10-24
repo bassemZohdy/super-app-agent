@@ -36,10 +36,10 @@ export async function integratedRequest(service: string, actor: Actor, method: s
     const { bills } = await call(provider, 'GET', '/bills');
     const bill = billId ? bills.find((b: any) => b.billId === billId) : bills[0];
     if (!bill) throw new UpstreamError(404, 'NOT_FOUND', 'Bill not found.');
-    if (bill.status === 'PAID') return { success: true, bill, chargedAmount: 0, receipt: { billId: bill.billId, receiptNumber: bill.receiptNumber, amountPaid: bill.totalAmount.toFixed(2), currency: 'AED' } };
+    if (bill.status === 'PAID') return { success: true, bill, chargedAmount: 0, receipt: { billId: bill.billId, ...(bill.premiseId ? { premiseId: bill.premiseId } : {}), receiptNumber: bill.receiptNumber, amountPaid: bill.totalAmount.toFixed(2), currency: 'AED' } };
     const payment = await charge(provider, `bill:${bill.billId}`, bill.totalAmount);
     const settled = await call(provider, 'POST', `/bills/${encodeURIComponent(bill.billId)}/payments`, { paymentId: payment.charge.id }, stableKey(`bill:${provider}:${bill.billId}`));
-    return { ...settled, chargedAmount: bill.totalAmount, remainingBalance: payment.remainingBalance };
+    return { ...settled, receipt: { ...settled.receipt, ...(bill.premiseId ? { premiseId: bill.premiseId } : {}) }, chargedAmount: bill.totalAmount, remainingBalance: payment.remainingBalance };
   };
   const settleFines = async (fineIds?: string[]) => {
     const report = await call('police', 'GET', '/fines');
@@ -102,7 +102,7 @@ export async function integratedRequest(service: string, actor: Actor, method: s
         const restaurant = restaurants.find(r => r.id === body.restaurantId);
         const items = body.items.map((id: string) => restaurant?.items.find(item => item.id === id));
         if (!restaurant || items.some((item: any) => !item)) throw new UpstreamError(404, 'NOT_FOUND', 'Menu item not found.');
-        const order = { orderId: randomUUID(), restaurantId: restaurant.id, restaurantName: restaurant.name, items, totalAmount: items.reduce((sum: number, item: any) => sum + Math.round(item.price * 100), 0) / 100, status: 'CONFIRMED', estimatedDelivery: '25 min', timestamp: Date.now() };
+        const order = { orderId: randomUUID(), restaurantId: restaurant.id, restaurantName: restaurant.name, items, totalAmount: items.reduce((sum: number, item: any) => sum + Math.round(item.price * 100), 0) / 100, status: 'CONFIRMED', estimatedDeliveryTime: '25 min', timestamp: Date.now() };
         db.put(actor.accountId, 'order', order, order.orderId); return successful({ order });
       }
       if (method === 'GET' && path.startsWith('/orders/track/')) { const order = db.get(actor.accountId, 'order', path.split('/').pop()!); if (!order) throw new UpstreamError(404, 'NOT_FOUND', 'Order not found.'); return successful({ order }); }
@@ -110,7 +110,7 @@ export async function integratedRequest(service: string, actor: Actor, method: s
     if (service === 'service-wallet') {
       if (method === 'GET' && path === '/wallet/balance') return successfulWithoutDuplicate(await call('payments', method, '/wallet'));
       if (method === 'GET' && path === '/wallet/transactions') return successfulWithoutDuplicate(await call('payments', method, '/transactions'));
-      if (method === 'GET' && path === '/fines/check') return successfulWithoutDuplicate(await call('police', method, '/fines'));
+      if (method === 'GET' && path === '/fines/check') { const report = await call('police', method, '/fines'); return successful({ ...report, plateNumber: asset.plate, earlyDiscountAED: report.totalDiscount, discountLabel: 'Provider-reported discount' }); }
       if (method === 'POST' && path === '/wallet/topup') return successfulWithoutDuplicate(await call('payments', method, '/topups', { amountMinor: Math.round(body.amount * 100), source: 'demo_approved' }));
       if (method === 'POST' && path === '/wallet/pay') return successfulWithoutDuplicate(await charge('superapp', body.referenceId || actor.requestId, body.amount));
       if (method === 'POST' && path === '/fines/pay') return successfulWithoutDuplicate(await settleFines(body.fineIds));

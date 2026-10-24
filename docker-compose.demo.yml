@@ -14,6 +14,8 @@ x-identity: &identity
   KEYCLOAK_INTROSPECTION_CLIENT_SECRET: ${KEYCLOAK_VERIFIER_SECRET:-demo-verifier-secret}
   KEYCLOAK_AUDIENCE: agent-core
   NODE_ENV: development
+  DELEGATION_ENABLED: 'true'
+  DELEGATION_AUTHORITY_URL: http://delegation-broker:4010
 x-providers: &providers
   PROVIDER_RTA_URL: http://provider-rta:4101
   PROVIDER_DEWA_URL: http://provider-dewa:4102
@@ -23,6 +25,42 @@ x-providers: &providers
   PROVIDER_DLD_URL: http://provider-dld:4106
   PROVIDER_PAYMENTS_URL: http://provider-payments:4107
 services:
+  voice:
+    profiles: [local-ai]
+    build:
+      context: .
+      dockerfile: services/voice/Dockerfile
+    image: cityside-local-voice:0.1.0
+    restart: unless-stopped
+    volumes: [voice-models:/models]
+    cpus: 2
+    mem_limit: 2g
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:4200/health', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+  conversation:
+    profiles: [local-ai]
+    image: ghcr.io/ggml-org/llama.cpp:server@sha256:8c74db29f1a2bef3f0a331b52c4d6214601dfceed4bee0b94cc48b3b23ff257d
+    command: ["-m", "/models/llm/qwen2.5-1.5b-instruct-q4_k_m.gguf", "--alias", "cityside-local", "--host", "0.0.0.0", "--port", "4201", "--ctx-size", "8192", "--threads", "2", "--parallel", "1", "--n-gpu-layers", "0", "--no-ui", "-lv", "1"]
+    volumes: [voice-models:/models:ro]
+    cpus: 2
+    mem_limit: 3g
+    restart: unless-stopped
+  delegation-broker:
+    <<: *node
+    command: [node, --experimental-strip-types, services/delegation/src/index.ts]
+    environment:
+      <<: [*identity, *providers]
+      PORT: '4010'
+      DELEGATION_DB_PATH: /data/delegation/grants.sqlite
+      DELEGATION_KEY_DIR: /data/delegation/keys
+    ports: ['127.0.0.1:4010:4010']
+    volumes:
+      - .:/app:ro
+      - delegation-data:/data/delegation
+    depends_on: [keycloak]
   redis:
     image: redis:8.2-alpine
     command: [redis-server, --appendonly, 'yes', --appendfsync, everysec]
@@ -34,7 +72,7 @@ services:
       timeout: 2s
       retries: 20
   keycloak:
-    image: quay.io/keycloak/keycloak:26.6.4
+    image: quay.io/keycloak/keycloak:26.6.4@sha256:0aae0de7fca85525f727d3354df17896092de8bb26ae4c12d89c77e5df8cbce4
     command: [start-dev, --import-realm]
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
@@ -240,16 +278,22 @@ services:
       REDIS_URL: redis://redis:6379
       SESSION_TTL_SECONDS: ${SESSION_TTL_SECONDS:-3600}
       KEYCLOAK_PUBLIC_ISSUER: http://localhost:8085/realms/superapp
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-openrouter/free}
-      ENABLE_LIVE_LLM: ${ENABLE_LIVE_LLM:-true}
-      OPENROUTER_ALLOW_PAID_MODELS: ${OPENROUTER_ALLOW_PAID_MODELS:-false}
+      VOICE_SERVICE_URL: http://voice:4200
+      ENABLE_LOCAL_LLM: ${ENABLE_LOCAL_LLM:-true}
+      CONVERSATION_SERVICE_URL: http://conversation:4201
       SERVICE_RIDE_URL: http://service-ride:4001
       SERVICE_FOOD_URL: http://service-food:4002
       SERVICE_WALLET_URL: http://service-wallet:4003
       SERVICE_CATALOG_URL: http://service-catalog:4004
       SERVICE_PROFILE_URL: http://service-profile:4005
       SERVICE_TELECOM_URL: http://service-telecom:4006
+      PROVIDER_RTA_URL: http://provider-rta:4101
+      PROVIDER_DEWA_URL: http://provider-dewa:4102
+      PROVIDER_ETISALAT_URL: http://provider-etisalat:4103
+      PROVIDER_DU_URL: http://provider-du:4104
+      PROVIDER_POLICE_URL: http://provider-police:4105
+      PROVIDER_DLD_URL: http://provider-dld:4106
+      PROVIDER_PAYMENTS_URL: http://provider-payments:4107
     ports: ['127.0.0.1:4000:4000']
     depends_on:
       redis:
@@ -257,6 +301,8 @@ services:
       keycloak:
         condition: service_started
 volumes:
+  voice-models: {}
+  delegation-data: {}
   redis-data: {}
   keycloak-data: {}
   rta-data: {}

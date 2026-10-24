@@ -5,8 +5,8 @@ import type { SuperAppAgentState } from './langgraph/state.ts';
 export function handleConversation(state: SuperAppAgentState, prompt: string): boolean {
   const text = prompt.trim().toLowerCase().replace(/[.!?]+$/g, '');
   let reply: string | undefined;
-  if (/^(hi|hello|hey|marhaba|مرحبا|السلام عليكم)$/.test(text)) {
-    reply = 'Hello! I can help with rides, food, wallet balances, parking, utilities and move-in proposals. What would you like to do?';
+  if (/^(hi|hello|hey|marhaba|مرحبا|السلام عليكم)(?:[, ]+(?:rashid|there|راشد))?$/.test(text)) {
+    reply = 'Hello, I’m Rashid. I can help you get around, check bills and balances, or plan a move. What would you like to take care of?';
   } else if (/^(help|what can you do|how does this work)$/.test(text)) {
     reply = 'Tell me what you need, or use the microphone to draft your request. I will show options and an approval surface. Review the details and use its confirmation button for a booking or payment. These services use demo data.';
   } else if (/^(thanks|thank you|شكرا)$/.test(text)) {

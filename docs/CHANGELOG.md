@@ -1,5 +1,21 @@
 # Documentation changelog
 
+## 24 October 2026 — internal open-source text and voice
+
+Replace active hosted conversation with private CPU llama.cpp/Qwen; add revision-pinned KittenTTS/Whisper, a bounded internal FastAPI module and explicit model setup. Add authenticated speech/dictation, editable draft review, strict no-cloud/browser fallback, preset/speed/preview/stop controls in React/Angular and honest native/Arabic limits. Preserve button-bound approvals and model budgets, record upstream licences and generate an original voice sample. VoiceStudio is unnecessary for this scope. [Setup and licences](development/local-ai.md) · [Evidence](reports/2026-10-24-local-ai.md).
+
+## 24 October 2026 — supported JWT-grant delegation demo
+
+Implement the separate trusted broker, private-key RFC 7523 exchange, linked identity, durable exact-operation grants/token bindings, online provider authorization, narrowing/revocation, idempotent bounded writes and audit. Forward signed interactive identity and reject service-header impersonation in the reference profile. Add consent controls in all three shells, guarded MCP tools, real Keycloak attack checks, scoped tests, updated OpenAPI and paced browser evidence. Record the observed overlong-assertion behavior and independently enforced 90-second limits. [Decision](adr/ADR-0012-secure-delegation-demo.md) · [Guide](development/delegation.md) · [Evidence](reports/2026-10-24-delegation-demo.md). Production/security review remains open.
+
+## 24 October 2026 — proposed secure identity delegation analysis
+
+Analyze the supplied no-preview Keycloak RFC 7523 blueprint against the current 26.6.4 demo and tagged primary sources. Correct the native-delegation feature history; identify issuer/client and token/grant binding decisions, trusted-header migration, consent/revocation, atomic limits and optional Java mapper gates. Add [the analysis](architecture/secure-identity-delegation.md) and 36 unchecked OBO tasks in [TODO](../TODO.md), from scoped approval and exact-image proof through demo evidence and separately gated production readiness. Documentation only; no realm, runtime, credentials, providers, workflows or deployment changed by this proposal.
+
+## 24 October 2026 — asserted browser journeys and paced recording
+
+Replace the stale UI recorder and hand-authored fixture transcripts with one twelve-chapter browser harness using real local Keycloak, Redis and isolated REST/SQLite services. Assert approvals, exact financial effects, tracking, move-in, no-double-charge checkout, history/account restoration and logout. Visual review also caught and fixed missing utility premise references, dining delivery-field drift, dropped ride ETA, incomplete fine plate/discount fields and receipts, and paid bills included in a new checkout quote; add contract and visible-placeholder regressions. Add configurable 6-second reviews/8-second receipts, failure screenshots, strict harness checks, measured chapters/captions, MP4/WebM and preservation of historical/last successful recordings. [Guide](development/recording.md).
+
 ## 24 October 2026 — publication cleanup
 
 Reconciled the source/evidence references for GitHub publication, fixed the ADR index table, included the browser cancellation screenshot, consolidated typed action discovery and removed redundant endpoint checks. Repeated code/document/security-pattern, Flutter and integrated demo gates before committing. Private environment values, local databases, builds and caches remain excluded. Historical reports and recordings remain dated.

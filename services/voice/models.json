@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "tts": {
+    "repo": "KittenML/kitten-tts-mini-0.8",
+    "revision": "c02725660cea441db4c383af69f1f26f5cd00947",
+    "license": "Apache-2.0",
+    "source": "https://huggingface.co/KittenML/kitten-tts-mini-0.8",
+    "files": [
+      "config.json",
+      "kitten_tts_mini_v0_8.onnx",
+      "voices.npz",
+      "README.md"
+    ]
+  },
+  "asr": {
+    "repo": "Systran/faster-whisper-base",
+    "revision": "ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66",
+    "license": "MIT",
+    "source": "https://huggingface.co/Systran/faster-whisper-base",
+    "files": [
+      "config.json",
+      "model.bin",
+      "tokenizer.json",
+      "vocabulary.txt",
+      "README.md"
+    ]
+  },
+  "llm": {
+    "repo": "Qwen/Qwen2.5-1.5B-Instruct-GGUF",
+    "revision": "91cad51170dc346986eccefdc2dd33a9da36ead9",
+    "license": "Apache-2.0",
+    "source": "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF",
+    "files": [
+      "qwen2.5-1.5b-instruct-q4_k_m.gguf",
+      "LICENSE",
+      "README.md"
+    ]
+  }
+}

@@ -1,7 +1,9 @@
 import { BrowserAuth, type BrowserAuthConfig } from '../../../packages/protocol-core/src/oidc-client.ts';
+import { DelegationPanel } from './DelegationPanel.tsx';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowUp, ArrowUpRight, AudioLines, Building2, CarFront, Check, ChevronDown, CircleHelp, Compass, CreditCard, House, MapPin, Menu, MessageSquare, Mic, Plus, Settings2, ShieldCheck, Sparkles, Square, Volume2, Wifi, X, Zap } from 'lucide-react';
 import { VoiceClient, type VoiceState } from '../../../packages/protocol-core/src/voice-client.ts';
+import { LocalVoiceApi, type LocalVoiceConfig } from '../../../packages/protocol-core/src/voice-api.ts';
 import { checkedSurface, readCoreResponse } from '../../../packages/protocol-core/src/surface-client.ts';
 import { connectEventStream } from '../../../packages/protocol-core/src/sse-client.ts';
 import type { AGUISurfacePayload } from '../../../packages/protocol-core/src/index.ts';
@@ -15,7 +17,7 @@ const services = [
   { id: 'telecom', name: 'Stay connected', short: 'Telecom', detail: 'Etisalat & du', icon: Wifi, color: 'blue', prompt: 'Show my Etisalat subscriptions and bills' },
   { id: 'housing', name: 'A place to call home', short: 'Housing', detail: 'Ejari & moving in', icon: House, color: 'teal', prompt: 'I just signed my Ejari lease, help me move in' },
 ];
-type ModelStatus = { model: string; enabled: boolean; configured: boolean; mode: string };
+type ModelStatus = { ready?: boolean; model: string; enabled: boolean; configured: boolean; mode: string };
 type ChatMessage = { id: string; role: 'user' | 'assistant'; text: string; error?: boolean; retry?: string };
 
 
@@ -39,17 +41,22 @@ export function App() {
   const [connection, setConnection] = useState<'checking' | 'online' | 'offline'>('checking');
   const [inference, setInference] = useState<'connected' | 'error' | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [delegationOpen, setDelegationOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobilePanel, setMobilePanel] = useState(false);
   const [readReplies, setReadReplies] = useState(false);
+  const [voiceProfile, setVoiceProfile] = useState('Jasper');
+  const [voiceSpeed, setVoiceSpeed] = useState(1);
+  const [voiceConfig, setVoiceConfig] = useState<LocalVoiceConfig | null>(null);
+  const voiceApi = useRef<LocalVoiceApi | null>(null);
   const [language, setLanguage] = useState('en-US');
   const [voiceState, setVoiceState] = useState<VoiceState>('idle');
   const [voiceError, setVoiceError] = useState('');
   const [canListen, setCanListen] = useState(false);
   const [canSpeak, setCanSpeak] = useState(false);
   const voice = useRef<VoiceClient>();
-  const voiceOptions = useRef({ readReplies, language });
-  voiceOptions.current = { readReplies, language };
+  const voiceOptions = useRef({ readReplies, language, voiceProfile, voiceSpeed });
+  voiceOptions.current = { readReplies, language, voiceProfile, voiceSpeed };
   const busy = useRef(false);
   const revision = useRef<string>();
   const messagesEnd = useRef<HTMLDivElement>(null);
@@ -142,17 +149,26 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    const api = new LocalVoiceApi(GATEWAY_URL, getToken); voiceApi.current = api;
     const client = new VoiceClient({
       onTranscript: text => setDraft(text),
       onState: setVoiceState,
       onError: setVoiceError,
+      allowBrowserFallback: false,
+      fetchAudio: (text, language, signal) => api.speech(text, language, voiceOptions.current.voiceProfile, voiceOptions.current.voiceSpeed, signal),
+      transcribeAudio: (input, signal) => api.transcribe(input, signal),
     });
     voice.current = client;
-    setCanListen(client.canListen); setCanSpeak(client.canSpeak);
+    setCanListen(false); setCanSpeak(false);
     const hidden = () => { if (document.hidden) client.cancel(); };
     document.addEventListener('visibilitychange', hidden);
     return () => { client.dispose(); document.removeEventListener('visibilitychange', hidden); };
   }, []);
+  const refreshVoice = async () => {
+    try { const config = await voiceApi.current!.config(); setVoiceConfig(config); setCanListen(Boolean(voice.current?.canListen && config.asrReady)); setCanSpeak(Boolean(voice.current?.canSpeak && config.ttsReady)); setVoiceError(''); }
+    catch (e) { setCanListen(false); setCanSpeak(false); setVoiceError((e as Error).message); }
+  };
+  useEffect(() => { if (authReady && !loginRequired) void refreshVoice(); }, [authReady, loginRequired]);
 
   const applySurface = (value: unknown) => {
     const next = checkedSurface(value, sessionRef.current);
@@ -161,7 +177,7 @@ export function App() {
     setSurface(next);
     if (next.assistantMessage) {
       append({ role: 'assistant', text: next.assistantMessage.text });
-      if (voiceOptions.current.readReplies) voice.current?.speak(next.assistantMessage.text, voiceOptions.current.language);
+      if (voiceOptions.current.readReplies && voiceOptions.current.language === 'en-US') voice.current?.speak(next.assistantMessage.text, voiceOptions.current.language);
     }
   };
   useEffect(() => {
@@ -245,7 +261,7 @@ export function App() {
     voice.current?.cancel(); resetConversation(); history.replaceState(null, '', '/'); input.current?.focus();
   };
   const statusLabel = connection === 'offline' ? 'Gateway offline' : connection === 'checking' ? 'Connecting…'
-    : inference === 'error' ? 'Model needs attention' : model?.enabled ? inference === 'connected' ? 'OpenRouter connected' : 'OpenRouter ready' : 'Demo mode';
+    : inference === 'error' ? 'Model needs attention' : model?.enabled ? inference === 'connected' ? 'Local model connected' : model.ready ? 'Local model ready' : 'Local model warming up' : 'Demo mode';
 
   if (loginRequired) return <main className="login-screen"><div className="login-card"><span className="brand-mark"><Building2 size={30} /></span><h1>Your city.<br />Your account.</h1><p>Sign in to manage your personal and household services with Rashid.</p>{authError && <p role="alert" className="login-error">{authError}</p>}<button className="login-button" onClick={() => void auth.current?.login().catch(error => setAuthError(error.message))}>Sign in with Keycloak</button><small>Demo accounts: bassem or demo-commuter.<br />Password: demo123</small></div></main>;
   if (!authReady) return <main className="login-screen"><p role="status">Preparing your city workspace…</p></main>;
@@ -275,7 +291,9 @@ export function App() {
           <div className="breadcrumb"><button className="icon-button mobile-menu" aria-label="Open navigation" aria-controls="city-navigation" aria-expanded={menuOpen} onClick={() => setMenuOpen(true)}><Menu size={20} /></button><span>Your space</span><span className="breadcrumb-slash">/</span><strong>Concierge</strong></div>
           <div className="topbar-actions"><span className={`connection-status ${connection === 'offline' || inference === 'error' ? 'is-error' : ''}`} role="status"><i />{statusLabel}</span><button className="icon-button" aria-label="Conversation settings" aria-expanded={settingsOpen} onClick={() => setSettingsOpen(!settingsOpen)}><Settings2 size={18} /></button></div>
         </header>
-        {settingsOpen && <section className="settings-panel" aria-label="Conversation settings"><div className="settings-title"><strong>Conversation settings</strong><button className="icon-button" aria-label="Close settings" onClick={() => setSettingsOpen(false)}><X size={17} /></button></div><p>Model: {model?.model || 'Unavailable'}</p><p>{model?.enabled ? 'Live replies through OpenRouter.' : 'Demo replies. Enable live inference in the server environment.'}</p><label>Voice language<select value={language} onChange={e => { voice.current?.cancel(); setLanguage(e.target.value); }}><option value="en-US">English</option><option value="ar-AE">Arabic</option></select></label><label className="checkbox-label"><input type="checkbox" checked={readReplies} disabled={!canSpeak} onChange={e => { setReadReplies(e.target.checked); if (!e.target.checked) voice.current?.cancel(); }} />Read replies aloud</label><small>Microphone input fills a draft for you to review. Your browser may use its speech service.</small><button className="text-button" onClick={() => void checkConnection()}>Check connection again</button></section>}
+        <button className="text-button" aria-expanded={delegationOpen} onClick={() => setDelegationOpen(!delegationOpen)}>Delegated access</button>
+        {delegationOpen && <DelegationPanel gateway={GATEWAY_URL} accountId={accountId} getToken={getToken} />}
+        {settingsOpen && <section className="settings-panel" aria-label="Conversation settings"><div className="settings-title"><strong>Conversation settings</strong><button className="icon-button" aria-label="Close settings" onClick={() => setSettingsOpen(false)}><X size={17} /></button></div><p>Model: {model?.model || 'Unavailable'}</p><p>{model?.enabled ? 'Private replies from the local open-source model.' : 'Demo replies. Enable live inference in the server environment.'}</p><label>Voice language<select value={language} onChange={e => { voice.current?.cancel(); setLanguage(e.target.value); if (e.target.value !== 'en-US') setReadReplies(false); }}><option value="en-US">English</option><option value="ar-AE">Arabic dictation · text replies</option></select></label><label className="checkbox-label"><input type="checkbox" checked={readReplies} disabled={!canSpeak || language !== 'en-US'} onChange={e => { setReadReplies(e.target.checked); if (!e.target.checked) voice.current?.cancel(); }} />Read replies aloud</label><h3>Voice studio</h3><p>{voiceConfig?.ttsReady && voiceConfig?.asrReady ? 'Local open-source speech is ready.' : 'Local voice is not ready. Text chat remains available.'}</p><label>Voice preset<select aria-label="Voice preset" value={voiceProfile} onChange={e => { voice.current?.cancel(); setVoiceProfile(e.target.value); }}>{(voiceConfig?.voices || [{id:'Jasper', name:'Jasper'}]).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label><label>Speaking speed · {voiceSpeed.toFixed(2)}×<input aria-label="Speaking speed" type="range" min="0.8" max="1.2" step="0.05" value={voiceSpeed} onChange={e => { voice.current?.cancel(); setVoiceSpeed(Number(e.target.value)); }} /></label><button className="text-button" disabled={!canSpeak || voiceState !== 'idle'} onClick={() => voice.current?.speak('Marhaba. I am Rashid, your city concierge. Tell me what you need, and we will take it one step at a time.', 'en-US')}>Preview voice</button><button className="text-button" onClick={() => voice.current?.cancel()}>Stop voice</button><button className="text-button" onClick={() => void refreshVoice()}>Refresh local voice</button><small>Speech runs on the local app server using open-source models. Short microphone recordings become editable drafts; review them before Send. Sent messages follow your chat settings.</small><button className="text-button" onClick={() => void checkConnection()}>Check connection again</button></section>}
         {historyOpen && <section className="settings-panel history-panel" aria-label="Saved conversations"><div className="settings-title"><strong>Saved conversations</strong><button className="icon-button" aria-label="Close conversations" onClick={() => setHistoryOpen(false)}><X size={17}/></button></div>{recentSessions.filter(item => item.accountId === accountId).map(item => <div className="history-row" key={item.sessionId}><button className="text-button" onClick={() => void restoreConversation(item.sessionId, accountId)}>{item.title}</button><button className="icon-button" aria-label={`Delete ${item.title}`} onClick={() => void (async () => { const response = await fetch(`${GATEWAY_URL}/api/sessions/${item.sessionId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${await getToken()}` } }); if (response.ok) { if (item.sessionId === sessionId) resetConversation(); void loadHistory(); } })()}><X size={14}/></button></div>)}{!recentSessions.some(item => item.accountId === accountId) && <p>No saved conversations for this account yet.</p>}</section>}
         <div className="workspace-content">
           <section className={`conversation ${mobilePanel ? 'mobile-hidden' : ''}`} aria-label="Concierge conversation">
@@ -298,10 +316,10 @@ export function App() {
             </div>
             <div className="composer-area">
               {surface && <button className="mobile-surface-toggle" onClick={() => setMobilePanel(true)}><Check size={15} /> View service details <ArrowUpRight size={15} /></button>}
-              {(voiceError || voiceState !== 'idle') && <div className="voice-status" role="status">{voiceError || (voiceState === 'listening' ? 'Listening… your words will appear below.' : 'Reading the reply aloud.')}<button onClick={() => { voice.current?.cancel(); setVoiceError(''); }}>Dismiss</button></div>}
+              {(voiceError || voiceState !== 'idle') && <div className="voice-status" role="status">{voiceError || (voiceState === 'listening' ? 'Listening… stop when you are done (up to 15 seconds).' : voiceState === 'transcribing' ? 'Transcribing locally… review the draft before sending.' : 'Reading the reply aloud.')}<button onClick={() => { voice.current?.cancel(); setVoiceError(''); }}>Dismiss</button></div>}
               <form className={`composer ${pending ? 'is-pending' : ''}`} onSubmit={e => { e.preventDefault(); send(); }}>
                 <textarea ref={input} aria-label="Message Rashid" placeholder="Ask Rashid anything about your city…" value={draft} maxLength={4000} rows={2} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }} />
-                <div className="composer-toolbar"><span><Sparkles size={13} /> Your city, simplified</span><div><button type="button" className={`icon-button ${voiceState === 'listening' ? 'recording' : ''}`} disabled={pending || !canListen} title={canListen ? 'Dictate a message' : 'Voice input is unavailable in this browser'} aria-label={voiceState === 'listening' ? 'Stop microphone' : 'Use microphone'} onClick={() => { setVoiceError(''); voiceState === 'listening' ? voice.current?.stopListening() : voice.current?.startListening(language); }}>{voiceState === 'listening' ? <Square size={17} /> : <Mic size={18} />}</button>{voiceState === 'speaking' && <button type="button" className="icon-button" aria-label="Stop reading" onClick={() => voice.current?.cancel()}><Volume2 size={18} /></button>}<button type="submit" className="send-button" disabled={pending || !draft.trim()} aria-label="Send message">{pending ? <AudioLines size={18} /> : <ArrowUp size={19} />}</button></div></div>
+                <div className="composer-toolbar"><span><Sparkles size={13} /> Your city, simplified</span><div><button type="button" className={`icon-button ${voiceState === 'listening' ? 'recording' : ''}`} disabled={pending || !canListen || voiceState === 'transcribing'} title={canListen ? 'Dictate a message' : 'Voice input is unavailable in this browser'} aria-label={voiceState === 'listening' ? 'Stop microphone' : 'Use microphone'} onClick={() => { setVoiceError(''); voiceState === 'listening' ? voice.current?.stopListening() : voice.current?.startListening(language); }}>{voiceState === 'listening' ? <Square size={17} /> : <Mic size={18} />}</button>{voiceState === 'speaking' && <button type="button" className="icon-button" aria-label="Stop reading" onClick={() => voice.current?.cancel()}><Volume2 size={18} /></button>}<button type="submit" className="send-button" disabled={pending || !draft.trim()} aria-label="Send message">{pending ? <AudioLines size={18} /> : <ArrowUp size={19} />}</button></div></div>
               </form>
               <p className="composer-note"><ShieldCheck size={12} /> You’re in control. Review and confirm before any service action.</p>
             </div>
@@ -313,7 +331,7 @@ export function App() {
               <div className="panel-intro"><h2>More living.<br />Less life admin.</h2><p>Everything you need for the everyday, in one place. Start with a conversation.</p></div>
               <div className="service-directory">{services.map(service => <button key={service.id} disabled={pending} onClick={() => openService(service.id)}><span className={`directory-icon ${service.color}`}><service.icon size={19} /></span><span>{service.short}<small>{service.detail}</small></span><ArrowUpRight size={15} /></button>)}</div>
               <div className="workspace-tip"><MessageSquare size={19} /><div>One request. A few things, sorted.<p>Try “Help me move in and set up my utilities.” I’ll bring the steps together.</p></div></div>
-              <p className="demo-note">A working preview with simulated city services.<br />{model?.enabled ? 'Conversations powered by OpenRouter.' : 'Local demo conversations.'}</p>
+              <p className="demo-note">A working preview with simulated city services.<br />{model?.enabled ? 'Local open-source conversations.' : 'Local demo conversations.'}</p>
             </>}
           </aside>
         </div>

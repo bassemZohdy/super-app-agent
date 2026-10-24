@@ -1,29 +1,28 @@
 # Voice and conversational chat
 
-React and Angular offer microphone drafts and opt-in browser speech after sign-in. Flutter displays assistant text; native speech remains open. Typed messages and submitted transcripts use the same selected-account session and provider-backed service path.
+React and Angular use an internal open-source speech module and local Qwen conversation. VoiceStudio is not required. Flutter displays text replies; native speech remains open. [Setup, sources and licences](../development/local-ai.md).
 
-## Using the chat
+## User flow
 
-1. Choose **Use microphone** and grant browser access. English and Arabic recognition locales depend on the browser; service routing mainly understands English.
-2. Review or edit the transcript, then press **Send**. The current React interface does not automatically submit dictation.
-3. Read the reply and inspect the service surface. Follow-ups such as “explain this” retain the current proposal; explicit service names can change the topic.
-4. Enable **Read replies aloud** for browser speech synthesis. Spoken replies default off. Cancel voice, editing, a new request, tab hiding and teardown cancel audio.
-5. Execute service effects through the offered confirmation button. Chat assent does not book/pay. Cancellation clears an outstanding proposal and cannot undo a completed provider operation.
+1. Sign in and open Conversation settings → Voice studio. Choose Jasper, Bruno, Hugo or Luna, a speed and Preview voice. Stop voice cancels playback.
+2. Use microphone captures a short recording, then shows Transcribing locally. English and Arabic dictation become an editable draft. Review before Send; nothing is auto-submitted.
+3. Read the reply and inspect the service surface. Read replies aloud is opt-in and English-only. Arabic uses text replies. Full localised service routing still needs evaluation.
+4. Execute effects only through the offered confirmation button. Chat assent, dictation and generated prose cannot book/pay. Cancel invalidates an outstanding approval and cannot undo a completed provider operation.
 
-## Replies and persistence
+Editing, new requests, language/preset changes, hiding and teardown cancel capture/fetch/playback. Explicit draft errors leave typing available. Server inference may finish after browser cancellation within bounded deadlines. No automatic browser recognition, OS synthesis or cloud fallback is enabled.
 
-Committed custom surfaces carry `assistantMessage: { id, text }` with the current revision. HTTP and SSE carry the same reply; web clients deduplicate the revision and do not speak progress events. Domain failures use sanitized outcome messages.
+## Boundaries and persistence
 
-`conversation.ts` supplies bounded deterministic greetings, help, explanations, assent handling, cancellation and follow-ups. With a configured key and live inference enabled, the graph also calls OpenRouter with the last 12 turns and bounded current service surface. Generated text reaches clients. Routing, capability execution and approval checks remain deterministic; generated prose does not authorize a mutation. A model failure remains visible alongside available service results.
+MediaRecorder → authenticated `/api/voice/transcribe` → private FastAPI → bounded FFmpeg decode → faster-whisper base CPU/int8 → draft. Audio is limited to 45 KB and 15 seconds; capture auto-stops earlier. File signatures, fixed formats, pipe-only decode and duration/output/time limits reject non-audio/playlist inputs. Audio is not written or logged by inference.
 
-Redis integration persists the last 100 turns, surface and reconciliation state under a subject/account binding. The fixture runner keeps conversation state in memory. Explanations describe a surface snapshot rather than a fresh provider check. Neither mode implements a versioned durable workflow engine or model-selected tool planning.
+Committed assistant text → bounded speech companion → authenticated `/api/a2ui/tts` → private KittenTTS ONNX CPU → WAV playback. Four presets and speeds 0.8–1.2× are allowlisted. Speech input is limited to 480 characters; markup, URLs and code are removed, and long text is shortened while full details stay visible. Arabic synthesis is explicitly unavailable.
 
-## Audio and privacy
+The active graph calls private llama.cpp/Qwen with bounded recent chat and current service context. Model responses reach HTTP/SSE clients; errors remain visible. Routing, tool selection, service validation and approval remain deterministic. The old OpenRouter text module is retained only for explicit diagnostics/tests, not active inference. Hosted TTS was removed.
 
-`voice-client.ts` wraps browser recognition and speech synthesis. Missing APIs, permission/network/language/playback failures leave text input available. Recognition and synthesis cancel each other; disposal detaches callbacks. Transcript input is limited to 4,000 characters and spoken playback to 3,000 characters.
+Committed custom surfaces carry `assistantMessage: { id, text }`. Web clients deduplicate revisions and never speak progress events. Redis persists up to 100 turns, surface and approval state under the selected subject/account and TTL; submitted transcripts follow that normal chat retention. Fixture tests use memory. Explanations describe snapshots, not a new provider check. Model-selected planning and durable workflow migration remain separate backlog items.
 
-Browser speech recognition may process audio remotely. The app stores no raw microphone audio; submitted transcripts follow normal session retention and may be sent to OpenRouter when enabled. The authenticated `/api/a2ui/tts` endpoint remains an optional server adapter with fallback information. Its existence does not prove a working OpenRouter neural voice or browser integration with that endpoint; current React playback uses browser synthesis.
+`GET /api/voice/config` reports installed presets/readiness and limits. `/health` probes actual llama.cpp readiness and voice model-file readiness; first inference still loads speech engines. Speech APIs require an access token; private inference services publish no host port. Model revisions/dependencies are pinned, and only explicit setup downloads files. See [security boundaries](../../SECURITY.md).
 
 ## Evidence and limits
 
-Node tests use fake speech engines to check drafts, cancellation, lifecycle/errors, and HTTP/SSE conversation consistency. Controlled model tests cover generated replies, retained context and visible provider errors. The [current report](../reports/2026-10-24-demo-completion.md) records the real provider/key result. Actual microphone/speaker permissions, recognition quality, neural TTS and native speech/device execution remain unverified. Full Arabic service understanding and production audio/egress consent remain in [TODO](../../TODO.md).
+[Executed local AI checks](../reports/2026-10-24-local-ai.md) cover real CPU speech/transcription/model output plus browser draft review and playback controls. Unit/API tests cover cancellation, late permissions, no remote fallback, silence, invalid audio and limits. Synthetic browser audio does not establish physical microphone/speaker quality, accessibility or all devices. Arabic evaluation, native speech and production audio operations remain open in [TODO](../../TODO.md).

@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "types": [
+      "node"
+    ],
+    "jsx": "react"
+  },
+  "include": [
+    "./*.ts",
+    "../record-e2e-scenarios.ts",
+    "../record-video-scenarios.ts",
+    "../serve-recordings.ts",
+    "../local-ai-up.ts",
+    "../verify-local-ai.ts",
+    "../verify-local-ai-browser.ts"
+  ]
+}

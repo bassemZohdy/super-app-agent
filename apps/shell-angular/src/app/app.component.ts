@@ -1,5 +1,7 @@
 import { BrowserAuth } from '../../../../packages/protocol-core/src/oidc-client.ts';
+import { delegationResult } from '../../../../packages/protocol-core/src/delegation-client.ts';
 import { VoiceClient, type VoiceState } from '../../../../packages/protocol-core/src/voice-client.ts';
+import { LocalVoiceApi, type LocalVoiceConfig } from '../../../../packages/protocol-core/src/voice-api.ts';
 import { checkedSurface, choiceDefaults, readCoreResponse, surfaceActionPayload } from '../../../../packages/protocol-core/src/surface-client.ts';
 import { connectEventStream } from '../../../../packages/protocol-core/src/sse-client.ts';
 import { Component, signal, OnInit, OnDestroy } from '@angular/core';
@@ -41,13 +43,29 @@ import type { AGUISurfacePayload, A2UIMessageEnvelope, UIComponentNode } from '.
             <button [disabled]="pending" (click)="sendIntent('I signed my Ejari lease, help me move in')">Moving in</button>
           </div>
           <details class="voice-settings">
+            <summary (click)="loadDelegations()">Delegated access</summary>
+            <p>Cityside demo broker · current account only · five-minute consent. Review the exact operation before allowing it.</p>
+            <button [disabled]="delegationBusy" (click)="createDelegation(false)">Allow up to 3 wallet balance checks</button>
+            <button [disabled]="delegationBusy" (click)="createDelegation(true)">Approve one AED 1 demo wallet credit</button>
+            <p role="status">{{ delegationNotice() }}</p>
+            <div *ngFor="let grant of delegationGrants()">
+              <strong>{{ grant.purpose }}</strong><p>{{ grant.used }}/{{ grant.maxOperations }} executions · {{ grant.revokedAt ? 'Revoked' : grant.expiresAt <= now() ? 'Expired' : 'Active' }}</p>
+              <button [disabled]="delegationBusy || grant.revokedAt || grant.expiresAt <= now() || grant.used >= grant.maxOperations" (click)="runDelegation(grant.id)">Run approved operation</button>
+              <button [disabled]="delegationBusy || grant.revokedAt" (click)="revokeDelegation(grant.id)">Revoke consent</button>
+              <button [disabled]="delegationBusy" (click)="delegationHistory(grant.id)">View audit history</button>
+            </div>
+          </details>
+          <details class="voice-settings">
             <summary>Voice &amp; conversation settings</summary>
             <div class="voice-controls">
-              <button [disabled]="pending || !voice?.canListen" [attr.aria-pressed]="voiceState() === 'listening'" (click)="toggleMicrophone()">{{ voiceState() === 'listening' ? 'Stop microphone' : 'Use microphone' }}</button>
-              <select aria-label="Voice language" [value]="voiceLanguage" (change)="setVoiceLanguage($any($event.target).value)"><option value="en-US">English</option><option value="ar-AE">Arabic</option></select>
-              <label><input type="checkbox" [checked]="readReplies" [disabled]="!voice?.canSpeak" (change)="setReadReplies($any($event.target).checked)" /> Read replies aloud</label>
+              <button [disabled]="pending || !voice?.canListen || !localVoice()?.asrReady || voiceState() === 'transcribing'" [attr.aria-pressed]="voiceState() === 'listening'" (click)="toggleMicrophone()">{{ voiceState() === 'listening' ? 'Stop microphone' : 'Use microphone' }}</button>
+              <select aria-label="Voice language" [value]="voiceLanguage" (change)="setVoiceLanguage($any($event.target).value)"><option value="en-US">English</option><option value="ar-AE">Arabic dictation · text replies</option></select>
+              <label><input type="checkbox" [checked]="readReplies" [disabled]="!voice?.canSpeak || !localVoice()?.ttsReady || voiceLanguage !== 'en-US'" (change)="setReadReplies($any($event.target).checked)" /> Read replies aloud</label>
+              <label>Voice preset<select aria-label="Voice preset" [value]="voiceProfile" (change)="voice?.cancel(); voiceProfile = $any($event.target).value"><option *ngFor="let item of localVoice()?.voices" [value]="item.id">{{ item.name }}</option></select></label>
+              <label>Speaking speed · {{ voiceSpeed }}×<input aria-label="Speaking speed" type="range" min="0.8" max="1.2" step="0.05" [value]="voiceSpeed" (input)="setVoiceSpeed($any($event.target).value)" /></label>
+              <button [disabled]="!localVoice()?.ttsReady || voiceState() !== 'idle'" (click)="previewVoice()">Preview voice</button><button (click)="voice?.cancel()">Stop voice</button><button (click)="refreshVoice()">Refresh local voice</button>
               <button *ngIf="voiceState() !== 'idle'" (click)="voice?.cancel()">Cancel voice</button>
-              <p role="status">{{ voiceError() || (voiceState() === 'listening' ? 'Listening. Review your draft, then press Send.' : 'Dictation fills a draft. Your browser may use its speech service.') }}</p>
+              <p role="status">{{ voiceError() || (voiceState() === 'listening' ? 'Listening. Stop when done; drafts are limited to 15 seconds.' : voiceState() === 'transcribing' ? 'Transcribing locally. Review your draft before sending.' : 'Open-source speech runs on the local app server. Dictation stays a draft until Send.') }}</p>
             </div>
           </details>
           <div class="input-row">
@@ -149,6 +167,20 @@ import type { AGUISurfacePayload, A2UIMessageEnvelope, UIComponentNode } from '.
   `]
 })
 export class AppComponent implements OnInit, OnDestroy {
+  delegationGrants = signal<any[]>([]);
+  delegationNotice = signal('');
+  delegationBusy = false;
+  now = () => Date.now();
+  private async delegationApi(path = '', method = 'GET', body?: unknown) {
+    const response = await fetch(`http://localhost:4000/api/delegation/grants${path}`, { method, headers: { Authorization: `Bearer ${await this.auth?.token()}`, 'Content-Type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+    const data = await response.json(); if (!response.ok) throw new Error(data.error || data.code); return data;
+  }
+  async loadDelegations() { try { const data = await this.delegationApi(); this.delegationGrants.set(data.grants.filter((g: any) => g.accountId === this.accountId)); } catch (e) { this.delegationNotice.set((e as Error).message); } }
+  private async delegationWork(fn: () => Promise<void>) { this.delegationBusy = true; try { await fn(); await this.loadDelegations(); } catch (e) { this.delegationNotice.set((e as Error).message); } finally { this.delegationBusy = false; } }
+  createDelegation(write: boolean) { void this.delegationWork(async () => { await this.delegationApi('', 'POST', { accountId: this.accountId, provider: 'payments', method: write ? 'POST' : 'GET', path: write ? '/topups' : '/wallet', body: write ? { amountMinor: 100, source: 'demo_approved' } : {}, purpose: write ? 'Approve one synthetic AED 1 wallet credit' : 'Check my synthetic wallet balance', expiresInSeconds: 300, maxOperations: write ? 1 : 3 }); this.delegationNotice.set('Consent saved. Review the grant before running it.'); }); }
+  runDelegation(id: string) { void this.delegationWork(async () => { const data = await this.delegationApi(`/${id}/execute`, 'POST', { requestKey: crypto.randomUUID() }); this.delegationNotice.set(delegationResult(data.result)); }); }
+  revokeDelegation(id: string) { void this.delegationWork(async () => { await this.delegationApi(`/${id}`, 'DELETE'); this.delegationNotice.set('Consent revoked. Further delegated operations will be denied.'); }); }
+  delegationHistory(id: string) { void this.delegationWork(async () => { const data = await this.delegationApi(`/${id}/history`); this.delegationNotice.set(data.history.map((e: any) => e.event).join(', ')); }); }
   auth?: BrowserAuth;
   authReady = signal(false);
   loginRequired = signal(false);
@@ -158,9 +190,10 @@ export class AppComponent implements OnInit, OnDestroy {
   accountId = '';
   signIn() { void this.auth?.login().catch(error => this.authError.set(error.message)); }
   async switchAccount(id: string) {
-    if (this.pending) return;
+    if (this.pending || this.delegationBusy) return;
     this.streamController.abort(); this.streamController = new AbortController();
     this.accountId = id; this.sessionId = `ng_${crypto.randomUUID()}`;
+    this.delegationGrants.set([]); void this.loadDelegations();
     this.messages.set([]); this.surface.set(null); this.choices.set({});
     this.connectStream();
   }
@@ -171,13 +204,20 @@ export class AppComponent implements OnInit, OnDestroy {
   draft = signal('');
   readReplies = false;
   voiceLanguage = 'en-US';
+  voiceProfile = 'Jasper';
+  voiceSpeed = 1;
+  localVoice = signal<LocalVoiceConfig | null>(null);
+  voiceApi?: LocalVoiceApi;
+  setVoiceSpeed(value: string) { this.voice?.cancel(); this.voiceSpeed = Number(value); }
+  previewVoice() { this.voice?.speak('Marhaba. I am Rashid, your city concierge. Tell me what you need, and we will take it one step at a time.', 'en-US'); }
+  async refreshVoice() { try { this.localVoice.set(await this.voiceApi!.config()); this.voiceError.set(''); } catch (e) { this.voiceError.set((e as Error).message); } }
   private visibilityHandler = () => { if (document.hidden) this.voice?.cancel(); };
   toggleMicrophone() {
     this.voiceError.set('');
     if (this.voiceState() === 'listening') this.voice?.stopListening();
     else this.voice?.startListening(this.voiceLanguage);
   }
-  setVoiceLanguage(value: string) { this.voice?.cancel(); this.voiceLanguage = value; }
+  setVoiceLanguage(value: string) { this.voice?.cancel(); this.voiceLanguage = value; if (value !== 'en-US') this.readReplies = false; }
   setReadReplies(value: boolean) { this.readReplies = value; if (!value) this.voice?.cancel(); }
   private streamController = new AbortController();
   messages = signal<Array<{ role: string; text: string }>>([
@@ -195,7 +235,7 @@ export class AppComponent implements OnInit, OnDestroy {
     this.surface.set(surface);
     if (surface.assistantMessage) {
       this.messages.update(prev => [...prev, { role: 'assistant', text: surface.assistantMessage!.text }]);
-      if (this.readReplies) this.voice?.speak(surface.assistantMessage.text, this.voiceLanguage);
+      if (this.readReplies && this.voiceLanguage === 'en-US') this.voice?.speak(surface.assistantMessage.text, this.voiceLanguage);
     }
   }
   showError(text: string) { this.messages.update(prev => [...prev, { role: 'assistant', text }]); }
@@ -208,8 +248,10 @@ export class AppComponent implements OnInit, OnDestroy {
   keycloakToken = 'demo-local'; // local demo only
 
   async ngOnInit() {
-    void fetch('http://localhost:4000/health').then(r => r.json()).then(data => this.connectionLabel.set(data.llm?.enabled ? 'OpenRouter ready' : 'Demo mode')).catch(() => this.connectionLabel.set('Gateway offline'));
-    this.voice = new VoiceClient({ onTranscript: text => this.draft.set(text), onState: state => this.voiceState.set(state), onError: error => this.voiceError.set(error) });
+    void fetch('http://localhost:4000/health').then(r => r.json()).then(data => this.connectionLabel.set(data.llm?.enabled ? data.llm?.ready ? 'Local model ready' : 'Local model warming up' : 'Demo mode')).catch(() => this.connectionLabel.set('Gateway offline'));
+    this.voiceApi = new LocalVoiceApi('http://localhost:4000', () => this.auth?.token() || 'demo-local');
+    this.voice = new VoiceClient({ onTranscript: text => this.draft.set(text), onState: state => this.voiceState.set(state), onError: error => this.voiceError.set(error), allowBrowserFallback: false,
+      fetchAudio: (text, language, signal) => this.voiceApi!.speech(text, language, this.voiceProfile, this.voiceSpeed, signal), transcribeAudio: (input, signal) => this.voiceApi!.transcribe(input, signal) });
     document.addEventListener('visibilitychange', this.visibilityHandler);
     try {
       const config = await (await fetch('http://localhost:4000/api/auth/config')).json();
@@ -219,6 +261,7 @@ export class AppComponent implements OnInit, OnDestroy {
       if (!response.ok) throw new Error('Could not load your accounts. Sign in again.');
       const data = await response.json(); this.accounts.set(data.accounts); this.accountId = data.accounts[0]?.id || ''; this.userName.set(data.user?.name || 'Demo citizen');
       this.connectStream();
+      void this.refreshVoice();
     } catch (error) { this.authError.set((error as Error).message); this.loginRequired.set(true); }
     finally { this.authReady.set(true); }
   }

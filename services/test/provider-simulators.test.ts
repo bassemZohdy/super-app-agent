@@ -111,3 +111,14 @@ test('Keycloak provider grants and provider client allowlists agree for every se
     }
   }
 });
+
+test('ride receipts persist the selected driver ETA instead of dropping or hardcoding arrival time', t => {
+  const { engine, store, actor } = seeded(t, 'rta');
+  const options = engine.execute(actor, 'GET', '/rides/options', {}).data.options;
+  for (const driver of options.slice(0, 2)) {
+    const booking = store.transaction(() => engine.execute(actor, 'POST', '/rides/bookings', { driverId: driver.id })).data.booking;
+    assert.equal(booking.etaMinutes, driver.etaMinutes);
+    assert.equal(booking.estimatedArrival, `${driver.etaMinutes} min`);
+    assert.equal(engine.execute(actor, 'GET', `/rides/bookings/${booking.bookingId}`, {}).data.booking.etaMinutes, driver.etaMinutes);
+  }
+});

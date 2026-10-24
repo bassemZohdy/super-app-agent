@@ -47,6 +47,15 @@ export async function handleMcp(req: IncomingMessage, res: ServerResponse, execu
       annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false } }, body => call('POST', '/api/a2ui/action', body));
     server.registerTool('cityside_conversations', { description: 'List the signed-in citizen’s saved conversations.', inputSchema: inputs.empty,
       annotations: { readOnlyHint: true, openWorldHint: false } }, () => call('GET', '/api/sessions'));
+    server.registerTool('cityside_delegations', { description: 'Inspect explicitly consented grants. This tool cannot create or expand user consent.', inputSchema: inputs.empty,
+      annotations: { readOnlyHint: true, openWorldHint: false } }, () => call('GET', '/api/delegation/grants'));
+    const grantId = { type: 'string', pattern: '^[a-f0-9-]{36}$' };
+    server.registerTool('cityside_execute_delegation', { description: 'Execute one exact previously consented operation. Current grant limits, expiry and revocation are checked at the provider. Requires a stable requestKey; uncertain executions cannot be bypassed by retrying.',
+      inputSchema: input({ type: 'object', required: ['grantId', 'requestKey'], additionalProperties: false, properties: { grantId, requestKey: { type: 'string', pattern: '^[a-zA-Z0-9_-]{8,100}$' } } }),
+      annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false } }, body => call('POST', `/api/delegation/grants/${body.grantId}/execute`, { requestKey: body.requestKey }));
+    server.registerTool('cityside_revoke_delegation', { description: 'Withdraw the signed-in owner’s existing delegation consent. Does not undo completed effects.',
+      inputSchema: input({ type: 'object', required: ['grantId'], additionalProperties: false, properties: { grantId } }),
+      annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false } }, body => call('DELETE', `/api/delegation/grants/${body.grantId}`));
     return server;
   }, { maxRequestBodySize: 65536 });
   try { await toNodeHandler(handler, { maxRequestBodySize: 65536 })(req, res); }
