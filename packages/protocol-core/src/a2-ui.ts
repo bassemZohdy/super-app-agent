@@ -4,6 +4,7 @@
  */
 
 import { validateAGUISurface, type AGUISurfacePayload, type ValidationResult } from './ag-ui.ts';
+import { describeInput } from './describe-input.ts';
 
 export const SUPPORTED_MESSAGE_TYPES = [
   'A2UI_HANDSHAKE',
@@ -113,7 +114,7 @@ export function validateA2UIMessage(envelope: unknown): ValidationResult<A2UIMes
 
   if (!SUPPORTED_MESSAGE_TYPES.includes(env.type)) {
     errors.push(
-      `Invalid message type '${env.type}'. Expected one of: ${SUPPORTED_MESSAGE_TYPES.join(', ')}`
+      `Invalid message type '${describeInput(env.type)}'. Expected one of: ${SUPPORTED_MESSAGE_TYPES.join(', ')}`
     );
   }
 

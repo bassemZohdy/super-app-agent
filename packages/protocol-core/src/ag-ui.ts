@@ -3,6 +3,8 @@
  * Declarative component tree specification and validation engine.
  */
 
+import { describeInput } from './describe-input.ts';
+
 export const SUPPORTED_COMPONENT_TYPES = [
   'SurfaceCard',
   'Heading',
@@ -230,7 +232,7 @@ export function validateUIComponentNode(
     errors.push(`${path}: Missing or invalid 'id' string`);
   }
   if (!SUPPORTED_COMPONENT_TYPES.some((type) => type === n.type)) {
-    errors.push(`${path}: Invalid component type '${n.type}'. Expected one of: ${SUPPORTED_COMPONENT_TYPES.join(', ')}`);
+    errors.push(`${path}: Invalid component type '${describeInput(n.type)}'. Expected one of: ${SUPPORTED_COMPONENT_TYPES.join(', ')}`);
   }
   if (n.properties !== undefined && !isPlainRecord(n.properties)) {
     errors.push(`${path}.properties: Must be an object`);
@@ -291,9 +293,9 @@ export function validateUIComponentNode(
           errors.push(`${prefix}: Must be an object`);
           return;
         }
-        if (!EVENT_NAMES.some((name) => name === evt.event)) errors.push(`${prefix}: Invalid event '${evt.event}'`);
+        if (!EVENT_NAMES.some((name) => name === evt.event)) errors.push(`${prefix}: Invalid event '${describeInput(evt.event)}'`);
         if (!ACTION_TYPES.some((name) => name === evt.actionType)) {
-          errors.push(`${prefix}: Invalid actionType '${evt.actionType}'`);
+          errors.push(`${prefix}: Invalid actionType '${describeInput(evt.actionType)}'`);
         }
         if (!isPlainRecord(evt.payload)) {
           errors.push(`${prefix}: Payload must be an object`);
@@ -320,7 +322,7 @@ export function validateAGUISurface(data: unknown): ValidationResult<AGUISurface
   const payload = data as Record<string, unknown>;
 
   if (payload.version !== '1.0.0') {
-    errors.push(`Invalid version '${payload.version}'. Expected '1.0.0'`);
+    errors.push(`Invalid version '${describeInput(payload.version)}'. Expected '1.0.0'`);
   }
 
   if (typeof payload.sessionId !== 'string' || !payload.sessionId.trim() || payload.sessionId.length > 128) {
