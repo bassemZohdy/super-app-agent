@@ -21,7 +21,7 @@ The panel scrolls independently, stacks on small screens and returns focus to it
 
 ## Current APIs
 
-Core paths use the authenticated signed owner. GET requires `accountId` as a query parameter; POST includes it in JSON. Provider paths are under `/v1/accounts/{accountId}` and independently verify that owner. New provider OpenAPI is **2.8.0**, additive to the existing `/v1` financial routes.
+Core paths use the authenticated signed owner. GET requires `accountId` as a query parameter; POST includes it in JSON. Provider paths are under `/v1/accounts/{accountId}` and independently verify that owner. New provider OpenAPI is **2.9.0**, additive to the existing `/v1` financial routes.
 
 | Core route | Provider route / behavior |
 | --- | --- |
@@ -63,3 +63,5 @@ For DEWA/Etisalat/du, the stored review now offers explicit Pay after authorizat
 [Pay selected traffic fines](fine-checkout.md): select exact IDs under the source picker, review current discounts, authorize wallet/card funds and explicitly Pay. The individual obligation selector also supports single-fine execution.
 
 [Recharge toll/prepaid provider balances](provider-recharges.md) through the separate target/denomination/source form. A provider credit does not top up the Cityside wallet; each subsequent recharge requires a fresh explicit intent.
+
+[Grouped checkout](checkout-groups.md) freezes one source for sequential child payments, retains separate provider receipts, and stops/resumes the original line on challenge or uncertain settlement. It does not imply cross-provider atomicity.

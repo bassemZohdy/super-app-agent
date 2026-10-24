@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 24 October 2026 — durable one-source grouped checkout
+
+Deliver PAY-16 with exact group/source review, immutable child payments, sequential per-line authorization, challenges, partial receipts and same-child recovery. Persist original unified civic checkout plans to prevent fresh recharge on response-loss retry. Verify wallet/card success and partial card failure with a paced recording; retain refunds and automation as open work. [Guide](development/checkout-groups.md) · [Evidence](reports/2026-10-24-checkout-groups.md).
+
 ## 24 October 2026 — owned toll/prepaid provider recharges
 
 Complete PAY-15 with Salik/Etisalat/du target/denomination reviews, wallet/card/challenge execution, exact provider credit, target fencing, final-confirmation recovery and original-intent adapter resume. Verify and record all six provider/funding journeys. [Guide](development/provider-recharges.md) · [Evidence](reports/2026-10-24-provider-recharges.md).

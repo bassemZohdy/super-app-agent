@@ -62,6 +62,8 @@ route('agent-core', 'GET', '/api/payments/overview', object({ accountId: id }, [
 route('agent-core','GET','/api/payments/wallet-funding-orders',object({accountId:id},['accountId']));
 route('agent-core','POST','/api/payments/wallet-funding-orders',withPaymentAccount(paymentSchemas.createWalletFunding));
 for(const [action,schema] of Object.entries({approve:paymentSchemas.approveOrder,challenge:paymentSchemas.challengeOrder,cancel:paymentSchemas.cancelOrder,execute:paymentSchemas.executeOrder}))route('agent-core','POST',`/api/payments/wallet-funding-orders/${action}`,withPaymentAccount(withOrderId(schema)));
+route('agent-core','POST','/api/payments/checkout-groups',withPaymentAccount(paymentSchemas.createCheckoutGroup));
+for(const [action,schema] of Object.entries({approve:paymentSchemas.approveOrder,execute:paymentSchemas.executeOrder,cancel:paymentSchemas.cancelOrder}))route('agent-core','POST',`/api/payments/checkout-groups/${action}`,withPaymentAccount(withOrderId(schema)));
 route('agent-core','GET','/api/payments/orders',object({accountId:id},['accountId']));
 for (const [path, schema] of Object.entries({
   methods: paymentSchemas.createMethod, 'methods/status': paymentSchemas.methodStatus, 'methods/default': paymentSchemas.defaultMethod,
@@ -107,7 +109,7 @@ route('service-wallet', 'POST', '/wallet/pay', object({ amount: moneySchema, pur
 route('service-wallet', 'POST', '/wallet/topup', object({ amount: moneySchema, source: text(), currency: currency('USD') }, ['amount']), [], 'wallet_topup');
 route('service-wallet', 'GET', '/fines/check', object({ plateNumber: text(128) }), ['/fines'], 'citizenpay_getFines');
 route('service-wallet', 'POST', '/fines/pay', object({ fineIds: {...list(id,20),minItems:1,uniqueItems:true},expectedPayables:fineSelectionItemsSchema,expectedAmountMinor:{type:'integer',minimum:1,maximum:100000000} }, ['fineIds']), ['/fines/settle'], 'citizenpay_payFines');
-route('service-wallet', 'POST', '/pay/unified', object({ items: list(object({ agency: text(128), purpose: text(), amount: moneySchema }, ['agency', 'purpose', 'amount'])), currency: currency('AED') }, ['items']), ['/pay/multi-agency'], 'citizenpay_unifiedPay');
+route('service-wallet', 'POST', '/pay/unified', { ...object({ items: list(object({ agency: text(128), purpose: text(), amount: moneySchema }, ['agency', 'purpose', 'amount'])), currency: currency('AED'),methodId:id,expectedMethodVersion:{type:'integer',minimum:1,maximum:1000000} }, ['items']),dependencies:{methodId:['expectedMethodVersion'],expectedMethodVersion:['methodId']} }, ['/pay/multi-agency'], 'citizenpay_unifiedPay');
 for(const provider of ['etisalat','du']){
   route('service-telecom','GET',`/telecom/${provider}/prepaid`,object());
   route('service-telecom','POST',`/telecom/${provider}/prepaid/recharges`,object({lineId:id,amountMinor:{type:'integer',minimum:1,maximum:100000000},expectedTargetVersion:{type:'integer',minimum:1,maximum:1000000}},['lineId','amountMinor','expectedTargetVersion']));

@@ -142,15 +142,36 @@ export async function integratedRequest(service: string, actor: Actor, method: s
       if (method === 'POST' && path === '/wallet/topup') return successfulWithoutDuplicate(await call('payments', method, '/topups', { amountMinor: Math.round(body.amount * 100), source: 'demo_approved' }));
       if (method === 'POST' && path === '/wallet/pay') return successfulWithoutDuplicate(await charge('superapp', body.referenceId || actor.requestId, body.amount));
       if (method === 'POST' && path === '/fines/pay') return successfulWithoutDuplicate(await settleFines(body.fineIds));
-      if (method === 'POST' && path === '/pay/unified') {
-        const steps: any[] = [];
-        try {
-          const utility = await settleBill('dewa'); steps.push({ service: 'dewa', receipt: utility.receipt });
-          const fines = await settleFines(); steps.push({ service: 'police', receipt: fines.receiptNumber });
-          const toll = await recharge(100); steps.push({ service: 'rta', receipt: toll.transactionId });
-          const grandTotal = utility.chargedAmount + fines.amountPaid + 100;
-          return successful({ govTransactionHash: actor.requestId, settlementPlatform: 'Demo payment gateway', grandTotal, breakdown: { utilities: utility.chargedAmount, fines: fines.amountPaid, salik: 100 }, remainingBalance: (await call('payments', 'GET', '/wallet')).balance, steps });
-        } catch { return { status: 502, data: { success: false, code: 'PROVIDER_OUTCOME_UNKNOWN', outcome: 'UNKNOWN', error: 'Settlement stopped. Check provider payment status before retrying.', steps } }; }
+      if (method === 'POST' && ['/pay/unified','/pay/multi-agency'].includes(path)) {
+        // Persist the reviewed plan before dispatch. A lost response resumes these child IDs, never a new recharge.
+        const intentId=stableKey(`unified:${actor.requestId}`),terms=JSON.stringify(body);
+        let intent=db.get(actor.accountId,'checkout-intent',intentId);
+        if(intent&&intent.terms!==terms)throw new UpstreamError(409,'CHECKOUT_INTENT_CONFLICT','This request already has different checkout terms.');
+        if(!intent){
+          const items:any[]=[];
+          for(const p of (await call('dewa','GET','/payables')).payables)if(p.kind==='BILL'&&p.status==='UNPAID')items.push({provider:p.provider,payableId:p.id,expectedPayableRevision:p.revision});
+          const fines=(await call('police','GET','/payables')).payables.filter((p:any)=>p.kind==='FINE'&&p.status==='UNPAID');
+          if(fines.length){const p=(await call('police','POST','/fine-selections',{items:fines.map((p:any)=>({payableId:p.id,expectedRevision:p.revision}))},stableKey(`unified-fines:${intentId}`))).payable;items.push({provider:p.provider,payableId:p.id,expectedPayableRevision:p.revision});}
+          let rechargeQuote;
+          try{rechargeQuote=(await call('rta','GET',`/recharge-intents/${intentId}`)).payable;}catch(e){if(!(e instanceof UpstreamError)||e.status!==404)throw e;}
+          if(!rechargeQuote){const target=(await call('rta','GET','/recharge-targets')).targets[0];rechargeQuote=(await call('rta','POST','/recharge-quotes',{targetReference:target.reference,amountMinor:10000,expectedTargetVersion:target.version,intentId},stableKey(`unified-recharge:${intentId}`))).payable;}
+          items.push({provider:'rta',payableId:rechargeQuote.id,expectedPayableRevision:rechargeQuote.revision});
+          const links=(await call('payments','GET','/billing-accounts')).billingAccounts;
+          for(const item of items){const p=(await call(item.provider,'GET',`/payables/${encodeURIComponent(item.payableId)}`)).payable;if(!links.some((b:any)=>b.status==='ACTIVE'&&b.provider===p.provider&&b.reference===p.reference)){try{await call('payments','POST','/billing-accounts',{provider:p.provider,reference:p.reference,nickname:`${p.provider.toUpperCase()} account`},stableKey(`unified-link:${p.provider}:${p.reference}`));}catch(e){if(!(e instanceof UpstreamError)||e.code!=='BILLER_ALREADY_LINKED')throw e;}}}
+          const planned={terms,input:{items,methodId:body.methodId||'wallet',expectedMethodVersion:body.expectedMethodVersion||1}};
+          db.transaction(()=>{intent=db.get(actor.accountId,'checkout-intent',intentId);if(!intent){db.put(actor.accountId,'checkout-intent',planned,intentId);intent=planned;}});
+          if(intent.terms!==terms)throw new UpstreamError(409,'CHECKOUT_INTENT_CONFLICT','This request already has different checkout terms.');
+        }
+        let group;
+        if(intent.groupId)group=(await call('payments','GET',`/checkout-groups/${intent.groupId}`)).group;
+        else{group=(await call('payments','POST','/checkout-groups',intent.input,stableKey(`unified-group:${intentId}`))).group;db.put(actor.accountId,'checkout-intent',{...intent,groupId:group.id},intentId);}
+        group=(await call('payments','GET',`/checkout-groups/${group.id}`)).group;
+        if(group.state==='AWAITING_APPROVAL')group=(await call('payments','POST',`/checkout-groups/${group.id}/approve`,{expectedVersion:group.version,approvalDigest:group.approvalDigest},stableKey(`unified-approve:${group.id}`))).group;
+        if(group.state!=='COMPLETED')group=(await call('payments','POST',`/checkout-groups/${group.id}/execute`,{expectedVersion:group.version,approvalDigest:group.approvalDigest},`unified-run:${randomUUID()}`)).group;
+        const steps=group.orders.filter((o:any)=>o.state==='SETTLED').map((o:any)=>({service:o.quote.payable.provider,orderId:o.id,receipt:o.receipt}));
+        if(group.state!=='COMPLETED')return {status:group.state==='RECONCILIATION_REQUIRED'?502:409,data:{success:false,code:`CHECKOUT_${group.state}`,error:'Checkout stopped. Inspect its original child payments and continue this group after resolving the affected line.',group,steps}};
+        const paid=(provider:string)=>group.orders.filter((o:any)=>o.quote.payable.provider===provider).reduce((sum:number,o:any)=>sum+o.quote.totalMinor,0)/100;
+        return successful({group,govTransactionHash:group.id,settlementPlatform:'Demo payment gateway',grandTotal:group.totalMinor/100,breakdown:{utilities:paid('dewa'),fines:paid('police'),salik:paid('rta')},remainingBalance:(await call('payments','GET','/wallet')).balance,steps});
       }
     }
     if (service === 'service-catalog') {
