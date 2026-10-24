@@ -10,7 +10,7 @@ Implemented demo portions of P0-01/P0-03/P0-05/P0-06 are recorded in [ADR-0010](
 
 **Reviewed: 24 October 2026.** Scope: agent-core, six application APIs, seven provider simulators, capability catalog, React/Angular/Flutter, four mini-apps, custom protocols, model client, identity/gateway configuration, containers, scripts, tests and architecture documentation.
 
-**Integrated baseline:** implementation commit `283521a` on `main`; the [evidence register](docs/reports/README.md) separates the provider, delegation and local AI checks. The recommended stack now has seven provider simulators, six authenticated application APIs, Keycloak browser/service login, SQLite account data and Redis sessions. Earlier P0 fixes remain integrated. This remains a local demonstration; open production criteria below are not implied complete.
+**Integrated baseline:** provider/delegation/local-AI foundation `283521a`, payment setup `65fec3c` and journal `58dc0dd`; the [evidence register](docs/reports/README.md) also identifies the subsequent lifecycle/preview and payable additions. The recommended stack now has seven provider simulators, six authenticated application APIs, Keycloak browser/service login, SQLite account data and Redis sessions. Earlier P0 fixes remain integrated. This remains a local demonstration; open production criteria below are not implied complete.
 
 Existing task IDs are preserved. New findings extend those tasks or receive new IDs; completed work is separated from remaining work. Historical demo checkmarks remain in [the archived backlog](docs/history/demo-backlog-pre-production.md).
 
@@ -28,7 +28,7 @@ Existing task IDs are preserved. New findings extend those tasks or receive new 
 | Sessions | Redis ownership/account claims, TTL, renewed leases, fenced saves, shared replay | Single-node AOF crash window, global quotas, HA/backup and durable workflow semantics |
 | Deployment | Loopback-published reference demo, SQLite/Redis volumes, readiness polling | Source/dependency mounts; clean-image and production deployment hardening remain open |
 
-Current results are in the [evidence register](docs/reports/README.md). The latest delivered baseline passed 143 Node tests and 18 workspace builds; dated reports retain their earlier counts. Real local Keycloak/provider, Redis and restart checks pass. Flutter and browser results are explicitly scoped in that report. `npm run lint` now executes ESLint correctness rules; local Markdown-link and source-secret checks also run in `npm run check`.
+Current results are in the [evidence register](docs/reports/README.md). The latest delivered baseline passed 162 Node tests and 18 workspace builds; dated reports retain their earlier counts. Real local Keycloak/provider, Redis and restart checks pass. Flutter and browser results are explicitly scoped in that report. `npm run lint` now executes ESLint correctness rules; local Markdown-link and source-secret checks also run in `npm run check`.
 
 ### Confirmed defects and regression coverage
 
@@ -47,7 +47,7 @@ The original probes used isolated synthetic fixtures. Later regressions and loca
 
 ## Execution order
 
-**Next selected demo scope:** [Payment accounts and automation](#payment-accounts-and-automation-demo--planned-backlog), with 50 unchecked slices and its own risk-first dependency order. The list below retains the broader platform/release ordering.
+**Next selected demo scope:** [Payment accounts and automation](#payment-accounts-and-automation-demo--planned-backlog), with 50 slices (5 delivered foundations, 45 open) and its own risk-first dependency order. The list below retains the broader platform/release ordering.
 
 1. **Retain correctness gates:** P0-09/P0-12/P0-10 are implemented; finish P1-12/P1-13/P1-14 parity and contract boundaries without weakening those guards.
 2. **Identity and service boundary:** P0-01/P0-13, P1-02, P0-03, P1-10 and P0-04. Mini-app/manual and agent paths must share the same authorization rules.
@@ -59,11 +59,45 @@ P0 = blocks use with real users, identity, money or government records. P1 = req
 
 ## Payment accounts and automation demo — planned backlog
 
-**Status: implementation in progress.** PAY-01/PAY-02 are delivered; PAY-03/PAY-04 have verified management foundations and remain partial. The other 48 items remain unchecked; see [execution evidence](docs/reports/2026-10-24-payment-accounts.md). Requested 24 October 2026. [Design and simulator boundaries](docs/architecture/payment-automation-demo.md) define the current-versus-planned behavior, account vocabulary, state machine, consent model and scenario matrix. This is the next local-demo workstream; original P0/P1/OBO tasks keep their separate acceptance criteria. No real cards, bank accounts, money or agency contracts are required. Production readiness is not implied.
+**Status: implementation in progress.** PAY-01–PAY-04 and the initial preview-only SIM-01 are delivered. The other 45 items remain unchecked; see [execution evidence](docs/reports/2026-10-24-lifecycle-simulator.md). Requested 24 October 2026. [Design and simulator boundaries](docs/architecture/payment-automation-demo.md) define the current-versus-planned behavior, account vocabulary, state machine, consent model and scenario matrix. This is the next local-demo workstream; original P0/P1/OBO tasks keep their separate acceptance criteria. No real cards, bank accounts, money or agency contracts are required. Production readiness is not implied.
 
 **Build order:** PAY-01–PAY-10 establish contracts/accounting/authorization; PAY-11–PAY-20 complete manual payments and recovery; PAY-21 coordinates source/account lifecycle with AUTO-01; AUTO-01–AUTO-07 establish consent/worker/dry-run before AUTO-08–AUTO-15 enable any automatic effect. Build SIM-01–SIM-05 alongside the earliest affected slices; SIM-06 and QA-01–QA-08 gate the complete demo. Every slice includes its relevant API/UI states and focused tests; the final QA tasks add cross-system assurance rather than postpone all testing. Items within a phase can proceed independently only when their stated dependencies are met.
 
 **Scope defaults:** AED integer fils; owner-bound personal/household workspaces; linked DEWA/telecom/toll/vehicle resources; wallet and local saved-card tokens; no implicit fallback/overdraft; full bill/fine settlement first. Bills, top-ups, narrowly approved fines, parking extensions and subscription renewals get separate opt-in rules. Other service effects remain review-required. React first, explicit Angular/Flutter parity before demo completion. Roles below are responsible disciplines, not assigned individuals.
+
+### Delivery checkpoints and scenario coverage
+
+This review is a planning/documentation pass. Preserve the existing implementation changes; complete remaining slices in the following checkpoints. A delivered foundation does not make its downstream payment or automatic service executable.
+
+| Backlog group | Total | Delivered | Open |
+| --- | ---: | ---: | ---: |
+| Payment accounts and execution, PAY | 21 | 4 | 17 |
+| Consent and automatic services, AUTO | 15 | 0 | 15 |
+| Isolated simulation, SIM | 6 | 1 | 5 |
+| Acceptance and evidence, QA | 8 | 0 | 8 |
+| **Total** | **50** | **5** | **45** |
+
+1. **Manual-payment foundation:** implement PAY-05/PAY-06 next, then PAY-07–PAY-10, with the relevant SIM-02/SIM-03 fixtures. Review a current payable, bind the exact funding source, authorize finite funds and prove settlement/refund exclusion before enabling a new charge path.
+2. **Complete manual journeys:** PAY-11–PAY-20 and relevant SIM-04 faults. Bills, fines and each top-up target use the same owned order/receipt/recovery path. Finish source/owner lifecycle integration through PAY-21 when AUTO-01 exists.
+3. **Bounded automation:** AUTO-01–AUTO-07 establish explicit mandates, tested authority, durable jobs, scheduling and dry-run. Then AUTO-08–AUTO-15 add each opt-in service and revocation. Source defaults, saved cards and chat messages never activate a rule.
+4. **Operate and demonstrate:** finish SIM-05/SIM-06 controls/inspection and QA-01–QA-08 cross-system evidence. Run relevant negative checks during each slice; final QA is the integrated release gate, not the first testing pass.
+
+| Reviewable demo scenario | Implementation tasks | Required failure/recovery case |
+| --- | --- | --- |
+| Manage personal/household billers and cards | PAY-03, PAY-04, PAY-21 | Wrong owner, disabled source, dependent order/rule blocks removal |
+| Pay DEWA/Etisalat/du bills with wallet or card | PAY-05–PAY-12, PAY-20 | Insufficient funds/limit, decline, challenge, stale or already-paid bill |
+| Add wallet funds from a synthetic card | PAY-13, PAY-17, PAY-20 | No self-funding/free-credit bypass; duplicate and failed capture do not credit |
+| Recharge a toll tag or prepaid mobile | PAY-15, PAY-20 | Exact owned target/denomination; another target cannot reuse proof |
+| Pay selected fines with wallet or card | PAY-14, PAY-20 | Changed discount, duplicate selection, paid/restricted fine |
+| Group payments, inspect history and recover | PAY-16–PAY-20 | Partial checkout, lost response, original-source refund and unknown settlement |
+| Approve, preview, pause and revoke a rule | AUTO-01–AUTO-07, AUTO-14, AUTO-15 | No effect from a draft; current consent/caps/expiry enforced at admission |
+| Autopay linked bills | AUTO-08 | Over-cap, withdrawn/paid invoice, unattended challenge |
+| Auto-reload wallet, toll or mobile | AUTO-09, AUTO-10 | No credit loop, duplicate occurrence or implicit fallback chain |
+| Optional automatic fine payment | AUTO-11 | Separate opt-in vehicle/type/amount/count policy; default remains manual |
+| Automatic parking extension and renewal | AUTO-12, AUTO-13 | Departure/end time stops parking; unsupported service requires review |
+| Operate an isolated scenario and explain outcomes | SIM-01–SIM-06, QA-01–QA-08 | Restart, duplicates, revocation, failpoints and scoped reset preserve funds/authority |
+
+All scenarios require persisted owned state, truthful pending/unknown outcomes and observable provider/journal effects. QA-07 records asserted states with at least six-second reviews and eight-second receipts. No new bank, PSP, hosted model, external notification service or real card input is needed.
 
 ### P0 demo foundations — payment contracts, accounts and funding
 
@@ -71,13 +105,13 @@ P0 = blocks use with real users, identity, money or government records. P1 = req
 
 - [x] **PAY-02 — Migrate balances into a balanced payment journal.** **Owner:** payments/data. **Modifies:** payments database/projections; **creates:** versioned migrations, journal entries/postings and holds. Import each existing wallet balance as one auditable opening entry, retain historical IDs/idempotency, and prevent reseeding or replay. **Done when:** a seeded and an upgraded database display the same funds after reopen/repeated migration; postings balance per currency, available funds exclude holds, overflow/negative-balance writes fail, and backup/rollback behavior is exercised. **Delivered:** versioned balanced journal, checked wallet projection, available-funds holds and atomic legacy capture/top-up/refund postings; migration/backup/restore/reopen tests and actual three-wallet upgrade retain prior resources/idempotency. [Evidence](docs/reports/2026-10-24-payment-ledger.md). **Depends:** PAY-01.
 
-- [ ] **PAY-03 — Link and manage owned biller/service accounts (partial).** **Owner:** providers/UI. **Reuses:** account picker and signed resource checks; **creates:** linked-account API and React management screen. Support utility premises, telecom subscriptions/prepaid numbers, toll tags and owned vehicle/fine references, with nickname/status/verified synthetic ownership. **Done when:** personal/household links restore after restart, duplicates and another user's resource are rejected, and unlink shows dependent orders/rules rather than silently orphaning them. **Current:** DEWA/telecom subscription/Salik/fine references, direct provider ownership verification, duplicate rejection, archive/history and React account switching/reload work. Prepaid resources and order/mandate-dependent unlink guards remain. **Depends:** PAY-01.
+- [x] **PAY-03 — Link and manage owned biller/service accounts.** **Owner:** providers/UI. **Reuses:** account picker and signed resource checks; **creates:** linked-account API and React management screen. Support utility premises, telecom subscriptions/prepaid numbers, toll tags and owned vehicle/fine references, with nickname/status/verified synthetic ownership. **Done when:** personal/household links restore after restart, duplicates and another user's resource are rejected, and unlink shows dependent orders/rules rather than silently orphaning them. **Delivered:** provider-verified utility/subscription/prepaid/tag/registered-vehicle links, safe existing-account upgrades, persisted lifecycle-use guards and related-item UI; vehicles remain discoverable after fines are paid. Future producer wiring must use the guard contract. [Evidence](docs/reports/2026-10-24-lifecycle-simulator.md). **Depends:** PAY-01.
 
-- [ ] **PAY-04 — Add saved synthetic card management (partial).** **Owner:** payments/UI. **Creates:** local token registry and method picker; **reuses:** account-owned UI/auth. Add named approve/decline/challenge/expired-card presets, masked metadata, status, default selection and removal controls; never ask for PAN/CVV or bank credentials. **Done when:** create/select/disable/remove and restart work, ownership is checked server-side, dependent mandates/holds block unsafe removal, and changing the default does not rewrite an approved rule. **Current:** four synthetic presets, masked owned tokens, defaults, disable/retire, optimistic versions, persistence and React controls work; no money moves. Holds/mandate dependency guards must land before execution is enabled. **Depends:** PAY-01.
+- [x] **PAY-04 — Add saved synthetic card management.** **Owner:** payments/UI. **Creates:** local token registry and method picker; **reuses:** account-owned UI/auth. Add named approve/decline/challenge/expired-card presets, masked metadata, status, default selection and removal controls; never ask for PAN/CVV or bank credentials. **Done when:** create/select/disable/remove and restart work, ownership is checked server-side, dependent mandates/holds block unsafe removal, and changing the default does not rewrite an approved rule. **Delivered:** masked presets, persisted defaults/status/tombstones, strict versions, related order/hold/mandate use guards, direct API denial and trusted-release behavior. Issuer/mandate producers are not enabled by these references; their integration remains gated by execution tasks. [Evidence](docs/reports/2026-10-24-lifecycle-simulator.md). **Depends:** PAY-01.
 
 - [ ] **PAY-05 — Simulate issuer authorization and interactive challenges.** **Owner:** payments/simulator. **Creates:** local issuer adapter, finite synthetic limits, one-time challenge API/UI and expiry states. Bind challenges to owner/order/source/amount; unattended execution cannot answer for the user. **Done when:** approve, challenge-success/failure/expiry, disabled/expired card and insufficient-limit paths have deterministic persisted outcomes; replay or substituted challenges fail. **Depends:** PAY-04, SIM-01.
 
-- [ ] **PAY-06 — Expose versioned payables and lifecycle changes.** **Owner:** providers/API. **Modifies:** DEWA/telecom/fine resources and adapters; **creates:** typed payable summaries. Include provider account, exact obligation IDs, revisions, amount/currency, due/expiry state, fine discount eligibility and paid/cancelled status. **Done when:** multiple bills/cycles are visible, ownership holds, stale amounts/discounts cannot be used for capture, and withdrawal/already-paid status prevents a new payment. **Depends:** PAY-01, PAY-03.
+- [ ] **PAY-06 — Expose versioned payables and lifecycle changes.** **Owner:** providers/API. **Modifies:** DEWA/telecom/fine resources and adapters; **creates:** typed payable summaries. Include provider account, exact obligation IDs, revisions, amount/currency, due/expiry state, fine discount eligibility and paid/cancelled status. **Done when:** multiple bills/cycles are visible, ownership holds, stale amounts/discounts cannot be used for capture, and withdrawal/already-paid status prevents a new payment. **Progress:** provider-owned revisions, prior-cycle history, current fine discounts/expiry, guarded lifecycle seam, revision-bound settlement and React history are implemented. Stored-order pre-capture admission and reservation remain PAY-07–PAY-10 work, so the full capture criterion stays open. [Guide](docs/development/payables.md) · [Evidence](docs/reports/2026-10-24-payables.md). **Depends:** PAY-01, PAY-03.
 
 - [ ] **PAY-07 — Review an authoritative quote with a selected funding source.** **Owner:** payment/UI. **Modifies:** A2UI review, manual routes and approval digest; **reuses:** explicit confirmation/cancellation. Show biller, items, fees, AED total, wallet available funds or masked card, source version and expiry. **Done when:** changed source/quote/amount/resource, expired approval and chat/voice assent cannot execute; cancel leaves funds unchanged and Send alone cannot approve. **Depends:** PAY-03–PAY-06.
 
@@ -97,7 +131,7 @@ P0 = blocks use with real users, identity, money or government records. P1 = req
 
 - [ ] **PAY-14 — Pay an exact set of current fines using wallet or card.** **Owner:** fines/payments/UI. **Modifies:** fine selection/quote/settlement; **reuses:** common order/source flow. **Done when:** each selected ID is owned/unpaid, duplicates and stale discount/amount revisions fail, required synthetic restrictions are surfaced, and manual/parallel retries cannot pay the same fine twice. **Depends:** PAY-06, PAY-11, PAY-12.
 
-- [ ] **PAY-15 — Recharge toll and telecom prepaid balances.** **Owner:** RTA/telecom/UI. **Modifies:** Salik adapters; **creates:** Etisalat/du prepaid resources and recharge UI/contracts. Keep wallet top-up, mobile recharge and toll recharge distinct targets with owned references and displayed denominations. **Done when:** either approved funding type produces one captured payment and one correct provider credit, with truthful pending/decline/unknown outcomes and no cross-target proof reuse. **Depends:** PAY-03, PAY-08, PAY-12.
+- [ ] **PAY-15 — Recharge toll and telecom prepaid balances.** **Owner:** RTA/telecom/UI. **Modifies:** Salik adapters; **reuses:** owned Etisalat/du prepaid inventory; **creates:** recharge execution UI/contracts. Keep wallet top-up, mobile recharge and toll recharge distinct targets with owned references and displayed denominations. **Done when:** either approved funding type produces one captured payment and one correct provider credit, with truthful pending/decline/unknown outcomes and no cross-target proof reuse. **Depends:** PAY-03, PAY-08, PAY-12.
 
 - [ ] **PAY-16 — Select one explicit funding policy for grouped checkout.** **Owner:** orchestration/UI. **Modifies:** unified checkout and totals; **reuses:** child orders and per-payable guards. Start with one selected source for all eligible lines; do not imply atomic multi-provider settlement or silent split tender. **Done when:** already-paid items are excluded, each successful line has one debit/receipt, later failure preserves prior results, and retry resumes/reconciles affected lines without charging settled ones again. **Depends:** PAY-11, PAY-12, PAY-14, PAY-15.
 
@@ -145,7 +179,7 @@ P0 = blocks use with real users, identity, money or government records. P1 = req
 
 ### Simulator slices — deterministic, isolated and inspectable
 
-- [ ] **SIM-01 — Create isolated scenarios with a persistent business clock.** **Owner:** simulator/test. **Creates:** scenario/run identity, injectable business time and bounded advance command; **reuses:** isolated provider volumes/environment. **Done when:** a run repeats from a seed across restart, advance deterministically emits due work, fixture reset cannot touch normal demo data, and JWT/key/credential validity continues to use real security time. This starts with a preview-only run. **Depends:** PAY-01.
+- [x] **SIM-01 — Create isolated scenarios with a persistent business clock.** **Owner:** simulator/test. **Creates:** scenario/run identity, injectable business time and bounded advance command; **reuses:** isolated provider volumes/environment. **Done when:** a run repeats from a seed across restart, advance deterministically emits due work, fixture reset cannot touch normal demo data, and JWT/key/credential validity continues to use real security time. This starts with a preview-only run. **Delivered:** fixed-path operator CLI, persistent owner/run/seed/time, bounded/idempotent advances and reset, deterministic due preview events and injectable clock; cross-process, containment, concurrency and real-time JWT tests pass. No network admin controls or provider effects are enabled. [Guide](docs/development/simulator.md) · [Evidence](docs/reports/2026-10-24-lifecycle-simulator.md). **Depends:** PAY-01.
 
 - [ ] **SIM-02 — Generate realistic bill, fine and service lifecycle events.** **Owner:** provider simulator. **Modifies:** static fixture/engine resources; **creates:** multiple invoice periods, updates/withdrawals, discount changes, prepaid/toll usage, parking departure and renewal events. **Done when:** source-owned state and quotes agree, repeated event delivery does not create another bill/debit, and a stale event cannot revive a paid/withdrawn obligation. **Depends:** SIM-01, PAY-03, PAY-06.
 

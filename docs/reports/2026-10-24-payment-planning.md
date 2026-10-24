@@ -1,6 +1,6 @@
 # Payment/automation planning and cleanup — 24 October 2026
 
-Status: **planning completed; payment/automation implementation not started**. Baseline source: `283521a`. User request: clean up documentation/files first, then plan proper demo simulation for payment accounts, bills/top-ups/fines, wallet/cards, autopay and automatic services.
+Historical initial-pass status: **planning completed; payment/automation implementation not started at that point**. See the backlog review below for the subsequent implementation status. Baseline source: `283521a`. User request: clean up documentation/files first, then plan proper demo simulation for payment accounts, bills/top-ups/fines, wallet/cards, autopay and automatic services.
 
 ## Cleanup completed before adding the plan
 
@@ -33,3 +33,19 @@ Automation defaults to off and requires separate consent. Existing small delegat
 - Removed duplicate compared byte-for-byte by SHA-256 with retained canonical media.
 
 No new financial runtime behavior, endpoint, mandate, worker or simulator control was enabled. The full application/inference/payment integration suites were not rerun for a planning/recording-reference change; their latest delivered results remain linked in the evidence register.
+
+## Backlog and cleanup review — 24 October 2026
+
+The current planning pass preserves existing payment/simulator implementation changes and dated evidence. TODO now tracks **50 tasks: 5 delivered foundations and 45 open** (PAY: 4/21, AUTO: 0/15, SIM: 1/6, QA: 0/8). The current lifecycle/preview evidence is a working-tree addition after journal `58dc0dd`; it must not be mistaken for the initial planning result above.
+
+- Corrected stale all-unchecked counts, baseline/evidence descriptions, inventory-test counts and the distinction between the implemented preview clock and future execution controls.
+- Added delivery checkpoints and a scenario-to-task map in TODO for owned accounts/cards, bills, wallet/mobile/toll top-ups, fines, grouped checkout/refunds, bounded autopay, parking/renewals and recovery.
+- Audited tracked files for temporary files, logs, backups and byte-identical documentation/artifacts. No tracked temporary files/logs/backups were found. Consolidated the duplicate revoked-consent screenshot into its canonical dated recording artifact and updated the report link; dated evidence remains available.
+- Preserved private environment files, runtime databases, model downloads, installed dependencies and existing implementation changes. No application behavior or automation activation was changed by this planning review.
+
+Validation for this review:
+
+- Local Markdown links pass across all 55 documents; source/docs secret-pattern checks pass.
+- Backlog audit passes: 50 unique IDs, 5 delivered/45 open, component dispositions and acceptance criteria on every task, valid references and no dependency cycles.
+- Tracked temporary/log/backup and byte-identical documentation/artifact audits pass after consolidation. `git diff --check` passes.
+- Application and financial integration suites were not rerun for this documentation/file-maintenance pass. Historical feature test counts above remain observations of their original source.

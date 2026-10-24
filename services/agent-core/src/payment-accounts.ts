@@ -2,39 +2,28 @@ import { createHash, randomUUID } from 'node:crypto';
 import { ProviderClient, UpstreamError } from '../../../packages/backend-kit/src/provider-client.ts';
 import type { Actor } from '../../../packages/backend-kit/src/context.ts';
 import { PAYMENT_CONTRACT_VERSION, MAX_PAYMENT_MINOR, type BillingAccount, type BillerCandidate, type Payable, type PaymentMethod, type PaymentPreview, type PaymentOverview } from '../../../packages/protocol-core/src/payments.ts';
-import { toMinor } from '../../../packages/protocol-core/src/request-validation.ts';
 const client = new ProviderClient('service-wallet', process.env.SERVICE_WALLET_CLIENT_SECRET || 'demo-wallet-secret');
 export const paymentDigest = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 export async function paymentOverview(actor: Actor, source = client): Promise<PaymentOverview> {
   const read = (provider: string, path: string) => source.call(provider, actor, 'GET', path);
-  const [methods, links, wallet, dewa, dewaBills, etisalat, etisalatBills, du, duBills, salik, fines] = await Promise.all([
+  const [methods, links, wallet, dewa, dewaBills, etisalat, etisalatBills, du, duBills, salik, fines, etisalatPrepaid, duPrepaid, vehicles] = await Promise.all([
     read('payments','/payment-methods'), read('payments','/billing-accounts'), read('payments','/wallet'),
-    read('dewa','/consumption'), read('dewa','/bills'), read('etisalat','/subscriptions'), read('etisalat','/bills'),
-    read('du','/subscriptions'), read('du','/bills'), read('rta','/salik'), read('police','/fines'),
+    read('dewa','/consumption'), read('dewa','/payables'), read('etisalat','/subscriptions'), read('etisalat','/payables'),
+    read('du','/subscriptions'), read('du','/payables'), read('rta','/salik'), read('police','/payables'), read('etisalat','/prepaid'), read('du','/prepaid'), read('police','/vehicles'),
   ]);
   const candidates: BillerCandidate[] = [{ provider: 'dewa', reference: dewa.account.accountNumber, label: `DEWA · ${dewa.account.accountNumber}` }, { provider: 'rta', reference: salik.tagNumber, label: `Salik · ${salik.tagNumber}` }];
   for (const [provider, data] of [['etisalat', etisalat], ['du', du]] as const) for (const subscription of data.subscriptions) {
     if (subscription.status === 'ACTIVE') candidates.push({ provider, reference: subscription.subscriptionId, label: `${provider} · ${subscription.name}` });
   }
-  for (const plate of new Set<string>(fines.fines.map((fine: { plateNumber: string }) => fine.plateNumber))) candidates.push({ provider: 'police', reference: plate, label: `Traffic fines · ${plate}` });
-  const payables: Payable[] = [];
-  for (const [provider, bills] of [['dewa',dewaBills.bills], ['etisalat',etisalatBills.bills], ['du',duBills.bills]] as const) for (const bill of bills) {
-    if (!['UNPAID','PAID'].includes(bill.status)) continue;
-    const reference = provider === 'dewa' ? dewa.account.accountNumber : bill.subscriptionId;
-    const amountMinor = toMinor(bill.totalAmount);
-    payables.push({ id: `${provider}:bill:${bill.billId}`, provider, reference, label: `${provider.toUpperCase()} bill ${bill.billId}`, amountMinor, currency: 'AED', status: bill.status,
-      revision: paymentDigest([provider,reference,bill.billId,bill.status,amountMinor,bill.dueDate]), ...(bill.dueDate ? { dueDate: bill.dueDate } : {}) });
-  }
-  for (const fine of fines.fines) {
-    const amountMinor = toMinor(fine.payableAmount);
-    payables.push({ id: `police:fine:${fine.fineId}`, provider: 'police', reference: fine.plateNumber, label: `${fine.violation} · ${fine.fineId}`, amountMinor, currency: 'AED', status: 'UNPAID', revision: paymentDigest([fine.fineId,fine.plateNumber,fine.status,amountMinor,fine.discountAmount]) });
-  }
-  return { contractVersion: PAYMENT_CONTRACT_VERSION, accountId: actor.accountId, previewOnly: true, methods: methods.methods, defaultMethodId: methods.defaultMethodId, presets: methods.presets,
+  for (const [provider,data] of [['etisalat',etisalatPrepaid],['du',duPrepaid]] as const) for (const line of data.lines) if(line.status === 'ACTIVE') candidates.push({provider,reference:line.lineId,label:`${provider} · ${line.name}`,balanceMinor:line.balanceMinor});
+  for (const vehicle of vehicles.vehicles) if(vehicle.status === 'ACTIVE') candidates.push({provider:'police',reference:vehicle.plateNumber,label:`Traffic fines · ${vehicle.plateNumber}`});
+  const payables: Payable[] = [...dewaBills.payables,...etisalatBills.payables,...duBills.payables,...fines.payables];
+  return { contractVersion: PAYMENT_CONTRACT_VERSION, accountId: actor.accountId, previewOnly: true, dependencies: [...methods.dependencies,...links.dependencies], methods: methods.methods, defaultMethodId: methods.defaultMethodId, presets: methods.presets,
     billingAccounts: links.billingAccounts, candidates, payables, wallet: { balanceMinor: wallet.balanceMinor, heldMinor: wallet.heldMinor, availableMinor: wallet.availableMinor, currency: 'AED' } };
 }
 export function buildPaymentPreview(overview: PaymentOverview, input: { payableId: string; methodId: string; expectedMethodVersion: number }, now = Date.now()): PaymentPreview {
   const payable = overview.payables.find(p => p.id === input.payableId);
-  if (!payable || payable.status !== 'UNPAID') throw new UpstreamError(409, 'PAYABLE_UNAVAILABLE', 'Choose a current unpaid obligation.');
+  if (!payable || payable.status !== 'UNPAID' || payable.paymentRestricted) throw new UpstreamError(409, 'PAYABLE_UNAVAILABLE', 'Choose a current unpaid obligation.');
   const billingAccount = overview.billingAccounts.find(b => b.status === 'ACTIVE' && b.accountId === overview.accountId && b.provider === payable.provider && b.reference === payable.reference);
   if (!billingAccount) throw new UpstreamError(409, 'BILLER_NOT_LINKED', 'Link this owned biller account before reviewing payment.');
   const source = overview.methods.find(m => m.id === input.methodId && m.accountId === overview.accountId);

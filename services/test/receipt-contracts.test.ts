@@ -27,6 +27,7 @@ test('integrated receipt mappings preserve utility premise, owned fine plate/dis
   const pay = () => integratedRequest('service-food', actor, 'POST', '/utilities/pay', {}, { billId: bill.billId }, legacy);
   const paid = await pay(); assert.equal(paid.status, 200); assert.equal(paid.data.receipt.premiseId, bill.premiseId);
   status = 'PAID'; const replay = await pay(); assert.equal(replay.data.receipt.premiseId, bill.premiseId); assert.equal(captures, 1);
+  status = 'CANCELLED'; const withdrawn=await pay();assert.equal(withdrawn.status,409);assert.equal(withdrawn.data.code,'PAYABLE_UNAVAILABLE');assert.equal(captures,1);
   const fines = await integratedRequest('service-wallet', actor, 'GET', '/fines/check', {}, {}, legacy);
   assert.equal(fines.data.plateNumber, assetsFor(actor.accountId).plate); assert.equal(fines.data.earlyDiscountAED, 30);
   const restaurant = restaurants[0];

@@ -47,7 +47,7 @@ export function PaymentAccountsPanel({ gateway, accountId, getToken, onClose }: 
   }, [accountId]);
   const available = data?.methods.filter(m => m.status === 'ACTIVE') || [];
   const linked = (provider: string, reference: string) => data?.billingAccounts.some(b => b.status === 'ACTIVE' && b.provider === provider && b.reference === reference);
-  const currentPayables = data?.payables.filter(p => p.status === 'UNPAID' && linked(p.provider, p.reference)) || [];
+  const currentPayables = data?.payables.filter(p => p.status === 'UNPAID' && !p.paymentRestricted && linked(p.provider, p.reference)) || [];
   const currentMethod = available.find(m => m.id === source);
   async function review() {
     setBusy(true); setNotice(''); setPreview(undefined);
@@ -55,6 +55,9 @@ export function PaymentAccountsPanel({ gateway, accountId, getToken, onClose }: 
     catch (e) { if (alive.current) setNotice((e as Error).message); }
     finally { if (alive.current) setBusy(false); }
   }
+  const linkedBalance = (b: BillingAccount) => { const current=data?.candidates.find(c=>c.provider===b.provider&&c.reference===b.reference); return current?.balanceMinor === undefined ? '' : ` · Balance ${formatAED(current.balanceMinor)}`; };
+  const related = (type: 'METHOD'|'BILLER', id: string) => data?.dependencies?.filter(d=>d.resourceType===type&&d.resourceId===id)||[];
+  const relatedItems = (type: 'METHOD'|'BILLER', id: string) => related(type,id).length > 0 && <aside className="payment-related" aria-label="Related payment items"><p>Removal is blocked by active items. Complete, cancel or reconcile them first.</p><ul>{related(type,id).map(d=><li key={`${d.dependentKind}:${d.dependentId}`}>{d.dependentKind.toLowerCase()} · {d.dependentId}</li>)}</ul></aside>;
   const methodName = (m: PaymentMethod) => `${m.nickname}${m.last4 ? ` ·•••• ${m.last4}` : ''}`;
   const changeStatus = (m: PaymentMethod, status: string) => work(async () => { await mutate('methods/status', { methodId: m.id, expectedVersion: m.version, status }); setNotice('Card status saved. No funding fallback was selected.'); });
   const archive = (b: BillingAccount) => work(async () => { await mutate('billing-accounts/archive', { billingAccountId: b.id, expectedVersion: b.version }); setNotice('Biller link archived. Its history is retained.'); });
@@ -75,16 +78,25 @@ export function PaymentAccountsPanel({ gateway, accountId, getToken, onClose }: 
           <ul>{data.methods.filter(m => m.status !== 'REMOVED').map(m => <li key={m.id}>
             <strong>{methodName(m)}</strong><p>{m.status}{data.defaultMethodId === m.id ? ' · Default for future drafts' : ''}{m.expiresYear ? ` · expires ${m.expiresMonth}/${m.expiresYear}` : ''}</p>
             <div className="payment-actions"><button disabled={busy || m.status !== 'ACTIVE' || data.defaultMethodId === m.id} onClick={() => void work(async () => { await mutate('methods/default', { methodId: m.id, expectedVersion: m.version }); setNotice('Default saved for future drafts. Existing approvals are unchanged.'); })}>Use {m.nickname} as default</button>
-              {m.kind === 'card' && <>{m.status !== 'EXPIRED' && <button disabled={busy} onClick={() => void changeStatus(m, m.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE')}>{m.status === 'ACTIVE' ? 'Disable' : 'Enable'} {m.nickname}</button>}<button disabled={busy || data.defaultMethodId === m.id} onClick={() => void changeStatus(m, 'REMOVED')}>Remove {m.nickname}</button></>}
-            </div>
+              {m.kind === 'card' && <>{m.status !== 'EXPIRED' && <button disabled={busy} onClick={() => void changeStatus(m, m.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE')}>{m.status === 'ACTIVE' ? 'Disable' : 'Enable'} {m.nickname}</button>}<button disabled={busy || data.defaultMethodId === m.id || related('METHOD',m.id).length > 0} onClick={() => void changeStatus(m, 'REMOVED')}>Remove {m.nickname}</button></>}
+            </div>{relatedItems('METHOD',m.id)}
           </li>)}</ul>
         </section>
         <section aria-label="Linked biller accounts"><h3>Your biller accounts</h3><p>Only resources verified by their provider can be linked.</p>
-          <ul>{data.candidates.filter(c => !linked(c.provider, c.reference)).map(c => <li key={`${c.provider}:${c.reference}`}><strong>{c.label}</strong><p>{c.reference}</p><button disabled={busy} onClick={() => void work(async () => { await mutate('billing-accounts', { provider: c.provider, reference: c.reference, nickname: c.label.slice(0,64) }); setNotice('Owned biller account linked.'); })}>Link {c.label}</button></li>)}</ul>
-          <ul>{data.billingAccounts.filter(b => b.status === 'ACTIVE').map(b => <li key={b.id}><strong>{b.nickname}</strong><p>{b.reference} · verified owner</p><button disabled={busy} onClick={() => void archive(b)}>Archive {b.nickname}</button></li>)}</ul>
+          <ul>{data.candidates.filter(c => !linked(c.provider, c.reference)).map(c => <li key={`${c.provider}:${c.reference}`}><strong>{c.label}</strong><p>{c.reference}{c.balanceMinor !== undefined ? ` · Balance ${formatAED(c.balanceMinor)}` : ''}</p><button disabled={busy} onClick={() => void work(async () => { await mutate('billing-accounts', { provider: c.provider, reference: c.reference, nickname: c.label.slice(0,64) }); setNotice('Owned biller account linked.'); })}>Link {c.label}</button></li>)}</ul>
+          <ul>{data.billingAccounts.filter(b => b.status === 'ACTIVE').map(b => <li key={b.id}><strong>{b.nickname}</strong><p>{b.reference} · verified owner{linkedBalance(b)}</p>{relatedItems('BILLER',b.id)}<button disabled={busy || related('BILLER',b.id).length > 0} onClick={() => void archive(b)}>Archive {b.nickname}</button></li>)}</ul>
           {!data.billingAccounts.some(b => b.status === 'ACTIVE') && <p>No biller accounts linked yet.</p>}
         </section>
       </div>
+      <section className="payment-obligations" aria-label="Bills and fines"><h3>Bills &amp; fines</h3><p>Current provider amounts and earlier cycles for your linked accounts. Settled opening fixtures are labelled and do not represent a new payment.</p>
+        <ul>{data.payables.filter(p=>linked(p.provider,p.reference)).map(p=><li key={p.id}>
+          <strong>{p.label}</strong><p>{formatAED(p.amountMinor)} · {p.status} · {p.dueState || 'CURRENT'}{p.version ? ` · revision ${p.version}` : ''}</p>
+          {p.dueDate && <p>Due {p.dueDate}{p.period ? ` · Cycle ${p.period}` : ''}</p>}
+          {!!p.discountMinor && <p>Discount {formatAED(p.discountMinor)}{p.discountExpiresAt ? ` · until ${new Date(p.discountExpiresAt).toLocaleString()}` : ''}</p>}
+          {p.paymentRestricted && <p>Additional review required before this fine can be paid.</p>}{p.openingFixture && <p>Seeded settled history · no new charge</p>}
+        </li>)}</ul>
+        {!data.payables.some(p=>linked(p.provider,p.reference)) && <p>Link a biller account to view its obligations.</p>}
+      </section>
       <section className="payment-review" aria-label="Payment review"><h3>Review a payment</h3><p>Review the current bill or fine with your chosen source. This screen creates a preview only; existing wallet payments are available from the service navigation.</p>
         <label>Unpaid obligation<select value={payable} onChange={e => { setPayable(e.target.value); setPreview(undefined); }}><option value="">Choose a linked bill or fine</option>{currentPayables.map(p => <option key={p.id} value={p.id}>{p.label} · {formatAED(p.amountMinor)}</option>)}</select></label>
         <label>Payment source<select value={source} onChange={e => { setSource(e.target.value); setPreview(undefined); }}><option value="">Choose a funding source</option>{available.map(m => <option key={m.id} value={m.id}>{methodName(m)}</option>)}</select></label>

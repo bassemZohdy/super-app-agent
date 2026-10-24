@@ -1,6 +1,6 @@
 # Documentation index
 
-Updated **24 October 2026** against implementation commit `283521a`: provider/Redis demo, supported Keycloak delegation and internal open-source text/voice. Current execution evidence is grouped in [the evidence register](reports/README.md). Dated reports retain their original observations; proposed work is never counted as implemented.
+Updated **24 October 2026**: provider/Redis, supported Keycloak delegation and local text/voice foundation `283521a`; payment setup `65fec3c`; journal `58dc0dd`; the [evidence register](reports/README.md) identifies current lifecycle/preview additions and groups execution results. Dated reports retain their original observations; proposed work is never counted as implemented.
 
 The bounded delegation extension is documented in [ADR-0012](adr/ADR-0012-secure-delegation-demo.md). The latest delivered text/speech checks are in [the local AI report](reports/2026-10-24-local-ai.md).
 
@@ -21,9 +21,13 @@ The bounded delegation extension is documented in [ADR-0012](adr/ADR-0012-secure
 
 ## Payment accounts and next demo work
 
-[Payment accounts and automation design](architecture/payment-automation-demo.md) defines linked biller accounts, wallet/cards, bounded automatic payments/services and an isolated simulator. [The 50-task backlog](../TODO.md#payment-accounts-and-automation-demo--planned-backlog) is the authoritative implementation checklist. PAY-01/PAY-02 are delivered; initial biller/card management is partial. [Current usage](development/payment-accounts.md) and [execution evidence](reports/2026-10-24-payment-accounts.md) distinguish live quote review from future funds movement. [Planning and cleanup record](reports/2026-10-24-payment-planning.md) distinguishes this pass from delivered functionality.
+[Payment accounts and automation design](architecture/payment-automation-demo.md) defines linked biller accounts, wallet/cards, bounded automatic payments/services and an isolated simulator. [The 50-task backlog (5 foundations delivered, 45 open)](../TODO.md#payment-accounts-and-automation-demo--planned-backlog) is the authoritative implementation checklist. PAY-01–PAY-04 and preview-only SIM-01 are delivered. [Current lifecycle/scenario evidence](reports/2026-10-24-lifecycle-simulator.md) defines their tested boundary. [Current usage](development/payment-accounts.md) and [execution evidence](reports/2026-10-24-payment-accounts.md) distinguish live quote review from future funds movement. [Planning and cleanup record](reports/2026-10-24-payment-planning.md) preserves the initial planning observations and records this backlog review.
 
 [Balanced journal and migration](development/payment-ledger.md) · [Actual three-wallet migration and regression evidence](reports/2026-10-24-payment-ledger.md). Stored card orders and automation remain planned.
+
+[Provider-owned payable revisions and history](development/payables.md) · [Verification and remaining capture boundary](reports/2026-10-24-payables.md). PAY-06 remains open until its stored-order capture criteria pass.
+
+[Preview simulator CLI](development/simulator.md) — persistent isolated business time and due events; no financial execution or network admin controls.
 
 ## ADR register
 

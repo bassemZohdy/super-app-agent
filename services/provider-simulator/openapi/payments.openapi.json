@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Demo Payment Gateway Simulator",
-    "version": "2.1.0",
+    "version": "2.2.0",
     "description": "Local synthetic API. Signed interactive user identity or broker-issued user token with current exact-operation grant required. JWT subject owns the account; caller user headers do not grant authority. A separate read-only settlement machine lane retrieves captured charge proofs. Legacy fixture mode is outside this reference security profile."
   },
   "servers": [
@@ -225,6 +225,49 @@
                       },
                       "maxItems": 101
                     },
+                    "dependencies": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "resourceType": {
+                            "enum": [
+                              "METHOD",
+                              "BILLER"
+                            ]
+                          },
+                          "resourceId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "dependentKind": {
+                            "enum": [
+                              "ORDER",
+                              "HOLD",
+                              "MANDATE"
+                            ]
+                          },
+                          "dependentId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "status": {
+                            "const": "ACTIVE"
+                          }
+                        },
+                        "required": [
+                          "resourceType",
+                          "resourceId",
+                          "dependentKind",
+                          "dependentId",
+                          "status"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "maxItems": 200
+                    },
                     "defaultMethodId": {
                       "type": "string",
                       "minLength": 1,
@@ -241,6 +284,7 @@
                   "required": [
                     "success",
                     "methods",
+                    "dependencies",
                     "defaultMethodId",
                     "presets"
                   ],
@@ -934,11 +978,55 @@
                         "additionalProperties": false
                       },
                       "maxItems": 100
+                    },
+                    "dependencies": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "resourceType": {
+                            "enum": [
+                              "METHOD",
+                              "BILLER"
+                            ]
+                          },
+                          "resourceId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "dependentKind": {
+                            "enum": [
+                              "ORDER",
+                              "HOLD",
+                              "MANDATE"
+                            ]
+                          },
+                          "dependentId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "status": {
+                            "const": "ACTIVE"
+                          }
+                        },
+                        "required": [
+                          "resourceType",
+                          "resourceId",
+                          "dependentKind",
+                          "dependentId",
+                          "status"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "maxItems": 200
                     }
                   },
                   "required": [
                     "success",
-                    "billingAccounts"
+                    "billingAccounts",
+                    "dependencies"
                   ],
                   "additionalProperties": false
                 }

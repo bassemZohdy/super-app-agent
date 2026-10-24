@@ -50,7 +50,10 @@
     "local-ai:test": "docker compose -f docker-compose.demo.yml exec -T voice python -m unittest -v test_api",
     "local-ai:browser": "node --experimental-strip-types scripts/verify-local-ai-browser.ts",
     "demo:verify:payment-accounts": "node --experimental-strip-types scripts/e2e/payment-accounts.ts",
-    "demo:verify:payment-ledger": "node --experimental-strip-types scripts/verify-payment-ledger.ts"
+    "demo:verify:payment-ledger": "node --experimental-strip-types scripts/verify-payment-ledger.ts",
+    "simulator": "node --experimental-strip-types scripts/simulator.ts",
+    "simulator:verify": "node --experimental-strip-types scripts/verify-simulator.ts",
+    "demo:verify:inventory": "node --experimental-strip-types scripts/verify-payment-inventory.ts"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^13.1.0",

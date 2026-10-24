@@ -1,3 +1,4 @@
+import type { PaymentResourceUses } from './payment-resource-uses.ts';
 import { randomUUID } from 'node:crypto';
 import { cardPresets, type PaymentMethod, type BillingAccount } from '../../../packages/protocol-core/src/payments.ts';
 import type { AccountDatabase } from './database.ts';
@@ -9,7 +10,7 @@ const reject = (status: number, code: string, message: string): never => { throw
 export function walletMethod(accountId: string): PaymentMethod {
   return { id: 'wallet', accountId, kind: 'wallet', nickname: 'Cityside wallet', status: 'ACTIVE', version: 1, currency: 'AED' };
 }
-export function paymentRegistry(db: AccountDatabase, accountId: string, method: string, path: string, body: Record<string, any>) {
+export function paymentRegistry(db: AccountDatabase, accountId: string, method: string, path: string, body: Record<string, any>, uses: PaymentResourceUses) {
   const rows = (kind: string, inactive: string) => db.db.prepare("SELECT body FROM resources WHERE account_id=? AND kind=? ORDER BY CASE WHEN json_extract(body,'$.status')=? THEN 1 ELSE 0 END,rowid DESC LIMIT 100").all(accountId,kind,inactive).map(row => JSON.parse(String(row.body)));
   const methods = () => [walletMethod(accountId), ...rows('payment-method', 'REMOVED') as PaymentMethod[]];
   const nextVersion = (current: number) => current >= 1_000_000 ? reject(409, 'VERSION_LIMIT', 'This record reached its demo version limit.') : current + 1;
@@ -19,7 +20,7 @@ export function paymentRegistry(db: AccountDatabase, accountId: string, method: 
     if (found.version !== expectedVersion) return reject(409, 'METHOD_CHANGED', 'This payment method changed. Refresh before continuing.');
     return found;
   };
-  if (method === 'GET' && path === '/payment-methods') return { methods: methods(), defaultMethodId: db.get<string>(accountId, 'default-method') || 'wallet', presets: cardPresets };
+  if (method === 'GET' && path === '/payment-methods') return { methods: methods(), dependencies: uses.list(accountId, 'METHOD'), defaultMethodId: db.get<string>(accountId, 'default-method') || 'wallet', presets: cardPresets };
   if (method === 'POST' && path === '/payment-methods') {
     if (methods().filter(m => m.kind === 'card' && m.status !== 'REMOVED').length >= 20) return reject(409, 'METHOD_LIMIT', 'The demo supports up to 20 saved cards per account.');
     const preset = cardPresets.find(p => p.id === body.preset)!;
@@ -39,10 +40,11 @@ export function paymentRegistry(db: AccountDatabase, accountId: string, method: 
     if (item.kind === 'wallet') return reject(409, 'WALLET_FIXED', 'The wallet cannot be removed or disabled.');
     if (item.status === 'REMOVED' || item.status === 'EXPIRED' && body.status !== 'REMOVED') return reject(409, 'METHOD_UNAVAILABLE', 'This card cannot be reactivated.');
     if (body.status === 'REMOVED' && db.get(accountId, 'default-method') === item.id) return reject(409, 'DEFAULT_METHOD_IN_USE', 'Choose another default before removing this card.');
+    if (body.status === 'REMOVED') uses.assertRemovable(accountId, 'METHOD', item.id);
     // Tombstones preserve historical references. No automatic fallback is selected.
     item.status = body.status; item.version = nextVersion(item.version); db.put(accountId, 'payment-method', item, item.id); return { method: item };
   }
-  if (method === 'GET' && path === '/billing-accounts') return { billingAccounts: rows('billing-account', 'ARCHIVED') };
+  if (method === 'GET' && path === '/billing-accounts') return { billingAccounts: rows('billing-account', 'ARCHIVED'), dependencies: uses.list(accountId, 'BILLER') };
   if (method === 'POST' && path === '/billing-accounts') {
     const links = rows('billing-account', 'ARCHIVED') as BillingAccount[];
     if (links.some(l => l.status === 'ACTIVE' && l.provider === body.provider && l.reference === body.reference)) return reject(409, 'BILLER_ALREADY_LINKED', 'This biller account is already linked.');
@@ -54,6 +56,7 @@ export function paymentRegistry(db: AccountDatabase, accountId: string, method: 
     const link = db.get<BillingAccount>(accountId, 'billing-account', body.billingAccountId);
     if (!link) return reject(404, 'BILLER_NOT_FOUND', 'Biller account not found for this account.');
     if (link.version !== body.expectedVersion) return reject(409, 'BILLER_CHANGED', 'This biller account changed. Refresh before continuing.');
+    uses.assertRemovable(accountId, 'BILLER', link.id);
     link.status = 'ARCHIVED'; link.version = nextVersion(link.version); db.put(accountId, 'billing-account', link, link.id); return { billingAccount: link };
   }
   return undefined;

@@ -1,3 +1,5 @@
+import { PaymentResourceUses } from './payment-resource-uses.ts';
+import { ProviderPayables, type PayableProvider } from './payables.ts';
 import { PaymentLedger } from './payment-ledger.ts';
 import { paymentRegistry } from './payment-registry.ts';
 import { randomUUID } from 'node:crypto';
@@ -15,11 +17,15 @@ const ok = (data: Record<string, any>): ApiResult => ({ status: 200, data: { suc
 const minor = (amount: number) => Math.round(amount * 100);
 const major = (amount: number) => amount / 100;
 export class ProviderEngine {
-  readonly provider: ProviderId; readonly store: AccountDatabase; readonly ledger?: PaymentLedger;
-  constructor(provider: ProviderId, store: AccountDatabase) { this.provider = provider; this.store = store; if (provider === 'payments') this.ledger = new PaymentLedger(store); }
+  readonly provider: ProviderId; readonly store: AccountDatabase; readonly ledger?: PaymentLedger; readonly resourceUses?: PaymentResourceUses; readonly payables?: ProviderPayables;
+  constructor(provider: ProviderId, store: AccountDatabase, options: {businessClock?:()=>number} = {}) { this.provider = provider; this.store = store; if (provider === 'payments') { this.ledger = new PaymentLedger(store); this.resourceUses = new PaymentResourceUses(store); } if(['dewa','etisalat','du','police'].includes(provider)) this.payables=new ProviderPayables(store,provider as PayableProvider,options.businessClock); }
   seed(actor: Actor) {
     const db = this.store, account = actor.accountId;
-    if (db.get(account, 'seed')) return;
+    if (db.get(account, 'seed')) {
+      if (['etisalat','du','police'].includes(this.provider) && !db.get(account, 'account-resources-v2')) db.transaction(() => this.seedAccountResources(actor));
+      this.payables?.initializeHistory(account);
+      return;
+    }
     const asset = assetsFor(account);
     db.transaction(() => {
       if (this.provider === 'rta') db.put(account, 'salik', { balance: 14, tagNumber: asset.salikTag, status: 'ACTIVE', currency: 'AED' });
@@ -39,8 +45,22 @@ export class ProviderEngine {
         db.put(account, 'bill', { billId: `BILL-${this.provider}-${account.slice(-8)}`, subscriptionId, amountMinor: 29900, totalAmount: 299, currency: 'AED', status: 'UNPAID', dueDate: '2026-11-30' });
       }
       if (this.provider === 'payments') this.ledger!.initializeAccount(account);
+      this.seedAccountResources(actor);
       db.put(account, 'seed', true);
     });
+    this.payables?.initializeHistory(account);
+  }
+  private seedAccountResources(actor: Actor) {
+    const db = this.store, account = actor.accountId, suffix = account.slice(-8);
+    if (db.get(account, 'account-resources-v2') || !['etisalat','du','police'].includes(this.provider)) return;
+    if (this.provider === 'police') {
+      const id = `VEH-${suffix}`;
+      if (!db.get(account, 'vehicle', id)) db.put(account, 'vehicle', { vehicleId: id, plateNumber: assetsFor(account).plate, status: 'ACTIVE', name: 'Demo registered vehicle' }, id);
+    } else {
+      const id = `PRE-${this.provider}-${suffix}`;
+      if (!db.get(account, 'prepaid-line', id)) db.put(account, 'prepaid-line', { lineId: id, provider: this.provider, name: 'Prepaid mobile', phoneLabel: `Demo line ${suffix}`, balanceMinor: 5000, currency: 'AED', status: 'ACTIVE', denominationsMinor: [2500,5000,10000] }, id);
+    }
+    db.put(account, 'account-resources-v2', { version: 2 });
   }
   private proof(proof: any, merchant: string, reference: string, amountMinor: number) {
     if (!proof || proof.status !== 'CAPTURED' || proof.refunded || proof.merchant !== merchant || proof.reference !== reference || proof.amountMinor !== amountMinor) fail(409, 'INVALID_PAYMENT_PROOF', 'A matching captured payment is required.');
@@ -48,8 +68,17 @@ export class ProviderEngine {
   execute(actor: Actor, method: string, path: string, body: any, proof?: any): ApiResult {
     const db = this.store, a = actor.accountId, asset = assetsFor(a);
     const now = () => new Date().toISOString();
+    if(this.payables) {
+      if(method === 'GET' && path === '/payables') return ok({payables:this.payables.list(a)});
+      if(method === 'GET' && /^\/payables\/[^/]+$/.test(path)) { const payable=this.payables.get(a,decodeURIComponent(path.split('/')[2])); return ok({payable,settlementReference:this.payables.settlementReference(payable)}); }
+      if(method === 'POST' && /^\/payables\/[^/]+\/reviews$/.test(path)) {
+        const payable=this.payables.inspect(a,decodeURIComponent(path.split('/')[2]),body.expectedRevision);
+        return ok({payable,settlementReference:this.payables.settlementReference(payable)});
+      }
+      if(method === 'POST' && /^\/payables\/[^/]+\/payments$/.test(path)) return ok(this.payables.settle(a,decodeURIComponent(path.split('/')[2]),body.expectedRevision,body.paymentId,proof));
+    }
     if (this.provider === 'payments') {
-      const registry = paymentRegistry(db, a, method, path, body);
+      const registry = paymentRegistry(db, a, method, path, body, this.resourceUses!);
       if (registry) return ok(registry);
       const wallet = this.ledger!.summary(a);
       if (method === 'GET' && path === '/wallet') return ok({ ...wallet, balance: major(wallet.balanceMinor) });
@@ -126,15 +155,16 @@ export class ProviderEngine {
     }
     if (this.provider === 'dewa') {
       if (method === 'GET' && path === '/consumption') return ok({ account: db.get(a, 'consumption'), ecoStatus: 'Demo smart meter snapshot' });
-      if (method === 'GET' && path === '/bills') return ok({ bills: [db.get(a, 'bill')] });
+      if (method === 'GET' && path === '/bills') return ok({ bills: this.billRecords(a) });
       if (method === 'POST' && /^\/bills\/[^/]+\/payments$/.test(path)) return this.payBill(a, path.split('/')[2], body.paymentId, proof);
       if (method === 'POST' && path === '/connections') { if (body.contractNumber !== asset.contractNumber) fail(404, 'NOT_FOUND', 'Tenancy not found.'); const connection = { premiseId: asset.premiseId, status: 'CONNECTED_ACTIVE', depositWaived: true }; db.put(a, 'connection', connection); return ok({ connection }); }
     }
     if (this.provider === 'etisalat' || this.provider === 'du') {
+      if (method === 'GET' && path === '/prepaid') return ok({ lines: db.list(a, 'prepaid-line') });
       if (method === 'GET' && path === '/subscriptions') return ok({ subscriptions: db.list(a, 'subscription') });
       const plans = [{ planId: 'home_299', name: 'Home internet 250 Mbps', monthlyAmount: 299, currency: 'AED' }, { planId: 'home_399', name: 'Home internet 500 Mbps', monthlyAmount: 399, currency: 'AED' }];
       if (method === 'GET' && path === '/plans') return ok({ plans });
-      if (method === 'GET' && path === '/bills') return ok({ bills: [db.get(a, 'bill')] });
+      if (method === 'GET' && path === '/bills') return ok({ bills: this.billRecords(a) });
       if (method === 'POST' && /^\/bills\/[^/]+\/payments$/.test(path)) return this.payBill(a, path.split('/')[2], body.paymentId, proof);
       if (method === 'POST' && /^\/subscriptions\/[^/]+\/plan$/.test(path)) {
         const subscription = db.get(a, 'subscription', path.split('/')[2]); const plan = plans.find(p => p.planId === body.planId);
@@ -143,14 +173,17 @@ export class ProviderEngine {
       }
     }
     if (this.provider === 'police') {
-      const fines = db.list(a, 'fine').filter(f => f.status === 'UNPAID');
+      if (method === 'GET' && path === '/vehicles') return ok({ vehicles: db.list(a, 'vehicle') });
+      const summaries=new Map(this.payables!.list(a).map(p=>[p.obligationId,p]));
+      const fines = db.list(a, 'fine').filter(f => summaries.get(f.fineId)?.status === 'UNPAID').map(f=>({...f,payableAmount:summaries.get(f.fineId)!.amountMinor/100,discountAmount:summaries.get(f.fineId)!.discountMinor!/100}));
       if (method === 'GET' && path === '/fines') return ok({ fines, count: fines.length, totalPayable: major(fines.reduce((sum, f) => sum + minor(f.payableAmount), 0)), totalOriginal: fines.reduce((sum, f) => sum + f.originalAmount, 0), totalDiscount: fines.reduce((sum, f) => sum + f.discountAmount, 0) });
       if (method === 'POST' && path === '/fine-payments') {
         const selected = fines.filter(f => body.fineIds.includes(f.fineId));
         if (selected.length !== body.fineIds.length) fail(404, 'NOT_FOUND', 'Unpaid fines not found.');
+        for(const fine of selected) { const payable=this.payables!.inspect(a,`police:fine:${fine.fineId}`,summaries.get(fine.fineId)!.revision); if(payable.version! >= 1_000_000) fail(409,'VERSION_LIMIT','The obligation reached its demo revision limit.'); }
         const amount = selected.reduce((sum, f) => sum + minor(f.payableAmount), 0);
         this.proof(proof, 'police', `fines:${[...body.fineIds].sort().join(',')}`, amount);
-        for (const fine of selected) db.put(a, 'fine', { ...fine, status: 'PAID', receiptNumber: body.paymentId, paidAt: now() }, fine.fineId);
+        for (const fine of selected) db.put(a, 'fine', { ...fine, status: 'PAID', payableVersion:(fine.payableVersion||1)+1,paidAmount:fine.payableAmount, receiptNumber: body.paymentId, paidAt: now() }, fine.fineId);
         return ok({ receiptNumber: body.paymentId, finesCleared: selected.length, amountPaid: major(amount) });
       }
     }
@@ -166,11 +199,17 @@ export class ProviderEngine {
     return fail(404, 'NOT_FOUND', 'Operation not found.');
   }
   private payBill(account: string, billId: string, paymentId: string, proof: any) {
-    const bill = this.store.get(account, 'bill');
-    if (bill?.billId !== billId) fail(404, 'NOT_FOUND', 'Bill not found.');
-    if (bill.status !== 'UNPAID') fail(409, 'ALREADY_PAID', 'Bill is already settled.');
+    const record=this.store.db.prepare("SELECT id,body FROM resources WHERE account_id=? AND kind='bill' AND json_extract(body,'$.billId')=?").get(account,billId);
+    if (!record) return fail(404, 'NOT_FOUND', 'Bill not found.');
+    const bill=JSON.parse(String(record.body));
+    if (bill.status === 'PAID') fail(409, 'ALREADY_PAID', 'Bill is already settled.');
+    if (bill.status !== 'UNPAID') fail(409,'PAYABLE_UNAVAILABLE','This bill is no longer payable.');
+    const payable=this.payables!.list(account).find(p=>p.obligationId===billId)!;
+    this.payables!.inspect(account,payable.id,payable.revision);
+    if(payable.version! >= 1_000_000) fail(409,'VERSION_LIMIT','The obligation reached its demo revision limit.');
     this.proof(proof, this.provider, `bill:${billId}`, minor(bill.totalAmount));
-    bill.status = 'PAID'; bill.receiptNumber = paymentId; bill.paidAt = new Date().toISOString(); this.store.put(account, 'bill', bill);
+    bill.status = 'PAID'; bill.payableVersion=(bill.payableVersion||1)+1; bill.receiptNumber = paymentId; bill.paidAt = new Date().toISOString(); this.store.put(account, 'bill', bill,String(record.id));
     return ok({ bill, receipt: { billId, receiptNumber: paymentId, amountPaid: bill.totalAmount.toFixed(2), currency: 'AED' } });
   }
+  private billRecords(account: string) { return this.store.db.prepare("SELECT body FROM resources WHERE account_id=? AND kind='bill' ORDER BY CASE WHEN id='current' THEN 0 ELSE 1 END,rowid DESC LIMIT 100").all(account).map(row=>JSON.parse(String(row.body))); }
 }

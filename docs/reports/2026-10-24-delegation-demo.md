@@ -47,7 +47,7 @@ Store tests cover cross-user/client/account/operation binding substitution, exac
 
 [Watch the current delegation recording](../recordings/delegation/index.html). [Dated chapter manifest](../recordings/delegation/runs/2026-10-24T03-12-57-597Z/chapters.json) records actual chapter times and successful completion; browser playback and seeking to the bounded-write chapter succeeded without a media error; the prior read-only run is retained. The recording uses synthetic `demo-commuter`, real Keycloak/Redis and the running provider stack, not the isolated twelve-chapter provider databases. It adds exactly one approved AED 1 synthetic credit. No browser trace, network dump, token, private key or raw assertion is recorded.
 
-![Revoked consent with further execution disabled](assets/2026-10-24-delegation-revoked.png)
+![Revoked consent with further execution disabled](../recordings/delegation/runs/2026-10-24T03-12-57-597Z/revoked.png)
 
 The Flutter consent widget test also verifies that initial inspection creates nothing, explicit consent does not execute, a separate run succeeds and withdrawal disables execution. The three shell implementations compile/analyze as reported by their gates; only React's new grant flow has actual browser evidence in this pass. Flutter native-device execution and complete Angular/Flutter grant-flow browser parity remain open. Existing dated twelve-chapter videos are preserved rather than relabeled as delegation coverage.
 

@@ -171,6 +171,8 @@ export async function runJourneys({ video }: { video: boolean }) {
     await begin('06', 'Traffic fines: review and settle', 'Natural-language request through the same guarded core. Read violations and discounts before confirmation.');
     await chat('Check my police traffic fines', 'police_fines_card'); const fines = await api(3, '/fines/check'); const beforeFines = await balance(); assert.ok(fines.count > 0);
     await confirm('pay_police_fines', 'police_fines_settled_card'); assert.equal((await api(3, '/fines/check')).count, 0); assert.equal(await balance(), beforeFines - Math.round(fines.totalPayable * 100)); check('No unpaid fines remain and the exact payable amount was debited'); await shot('06-fines-receipt');
+    const paymentSetup = await fetch(`${environment.coreUrl}/api/payments/overview?accountId=${personal}`, { headers: { Authorization: authorization } }); assert.equal(paymentSetup.status,200);
+    assert.ok((await paymentSetup.json()).candidates.some((candidate: {provider:string;reference:string})=>candidate.provider==='police'&&candidate.reference===fines.fines[0].plateNumber)); check('Owned vehicle remains linkable after every fine is paid');
 
     await begin('07', 'Ride: choose and confirm a real demo booking', 'Chat prepares a proposal. The receipt carries a real provider booking ID; unknown tracking IDs must fail.');
     await chat('Find me a cab ride to Downtown Dubai', 'ride_card');

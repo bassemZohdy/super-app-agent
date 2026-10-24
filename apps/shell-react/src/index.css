@@ -169,3 +169,5 @@ h1 { font-size: clamp(35px, 3.45vw, 52px); line-height: 1.18; letter-spacing: -2
 @media(max-width: 800px) { .payment-grid { grid-template-columns: 1fr; gap: 12px; } .payment-accounts { margin: 12px; padding: 18px; } .payment-accounts > header { align-items: flex-start; } }
 
 .workspace-tools { display: flex; gap: 22px; padding: 0 28px; flex-wrap: wrap; }
+
+.payment-related { border-left: 3px solid #b68149; background: #fbf5ee; padding: 10px 14px; margin: 12px 0; } .payment-related p { margin: 0; } .payment-related li { padding: 4px 0; border: 0; font-size: 12px; }

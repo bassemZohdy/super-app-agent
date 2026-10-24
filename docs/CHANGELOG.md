@@ -1,5 +1,17 @@
 # Documentation changelog
 
+## 24 October 2026 — provider-owned payable revisions and history
+
+Advance PAY-06 with source-owned bill/fine summaries, labelled prior cycles, exact-revision review/settlement, trusted lifecycle changes and React history. Keep legacy current-bill ordering, current fine discounts and terminal-state checks. Test persistence, stale revisions, ownership, restricted/withdrawn/expired obligations and signed-owner settlement with journal assertions. Stored-order capture admission and settlement/refund claims remain open. [Guide](development/payables.md) · [Evidence](reports/2026-10-24-payables.md).
+
+## 24 October 2026 — payment backlog review and documentation cleanup
+
+Reconcile the 50 payment/automation tasks as 5 delivered foundations and 45 open, add delivery checkpoints and scenario coverage, correct current baseline/preview-clock/testing references, and consolidate the byte-identical revoked-consent screenshot into its canonical dated recording artifact. Preserve existing implementation changes and historical results. This review adds no payment execution or automation activation. [Backlog](../TODO.md#payment-accounts-and-automation-demo--planned-backlog) · [Cleanup record](reports/2026-10-24-payment-planning.md).
+
+## 24 October 2026 — owned prepaid/vehicle links, lifecycle guards and preview clock
+
+Deliver PAY-03/PAY-04 storage/lifecycle contracts and the initial SIM-01 preview CLI. Add one-time owned prepaid/vehicle inventory upgrades, source-provider link verification, persisted related-use removal/archive guards and UI, plus fixed-path deterministic run/clock/event/reset persistence. Prove guard behavior with trusted isolated lifecycle fixtures and real API/UI denial; no actual issuer or mandate producer is implied. Add post-fine vehicle discovery to the twelve journeys and verify JWT security time stays real. [Guide](development/simulator.md) · [Evidence](reports/2026-10-24-lifecycle-simulator.md).
+
 ## 24 October 2026 — balanced payment journal and legacy migration
 
 Deliver PAY-02: versioned journal/postings, one-time carried wallet balances and consistent pre-migration backup, checked projection, shared available-funds holds, and atomic existing payment/refund/top-up records. Add SQL sealing guards, failure/restore/reopen regressions, a controlled live migration verifier and recovery guidance. Existing twelve journeys and the payment setup browser pass; the actual three-wallet database preserves prior resources/idempotency. Card orders, settlement claims and automation remain open. [Guide](development/payment-ledger.md) · [Evidence](reports/2026-10-24-payment-ledger.md).

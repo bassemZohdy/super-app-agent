@@ -1,12 +1,14 @@
 # Execution evidence register
 
-Evidence spans the `283521a` integrated baseline, payment setup `65fec3c`, and the subsequent journal publication on 24 October 2026. Results describe the source and environment recorded, not a production certification. Planning updates do not create new feature evidence.
+Evidence spans the `283521a` integrated baseline, payment setup `65fec3c`, journal `58dc0dd`, and the subsequent lifecycle/preview and payable additions on 24 October 2026. Results describe the source and environment recorded, not a production certification. Planning updates do not create new feature evidence.
 
 | Evidence | Verified scope | Interpretation |
 | --- | --- | --- |
+| [Provider-owned payable revisions](2026-10-24-payables.md) | 162 tests, 18 builds; source revision/lifecycle and isolated signed-owner settlement checks | PAY-06 progress; stored-order capture admission and claim/refund gates remain open |
+| [Lifecycle and preview simulation](2026-10-24-lifecycle-simulator.md) | 155 tests, 18 builds, twelve journeys, lifecycle/prepaid browser, and cross-process preview CLI | PAY-03/PAY-04 guard contracts and initial SIM-01; issuer/automation producers remain open |
 | [Payment journal](2026-10-24-payment-ledger.md) | 143 tests, 18 builds, twelve existing journeys, setup browser and actual three-wallet migration/backup proof | PAY-02 delivered; executable saved-card orders and automation remain open |
 | [Payment accounts](2026-10-24-payment-accounts.md) | 136 tests, 18 builds and real-Keycloak isolated setup/quote/browser checks | PAY-01 delivered; no new financial execution or automation |
-| [Local AI](2026-10-24-local-ai.md) | 130 Node tests, 18 builds, 12 browser journeys, four speech API tests, actual CPU text/speech/dictation, synthetic browser capture/playback, Flutter analysis/six tests, delegation security | Latest delivered baseline; physical/native/Arabic speech limits remain |
+| [Local AI](2026-10-24-local-ai.md) | 130 Node tests, 18 builds, 12 browser journeys, four speech API tests, actual CPU text/speech/dictation, synthetic browser capture/playback, Flutter analysis/six tests, delegation security | Text/speech baseline; physical/native/Arabic speech limits remain |
 | [Delegation](2026-10-24-delegation-demo.md) | Exact-image RFC 7523, separate broker, current grants, bounded writes/revocation, paced browser evidence | Supported no-preview demo; recurring payment mandates are not implemented |
 | [Demo completion](2026-10-24-demo-completion.md) | Provider/Redis/manual/MCP/restart/security and then-current 114 tests/17 builds | Earlier stage; hosted-model observations are historical |
 | [Provider browser recording](../recordings/runs/20261024T010609Z-video/report.md) | Twelve isolated journeys, 34 checks, measured pacing and then-current 120 tests/17 builds | Canonical dated recording, independent of later model changes |
@@ -14,4 +16,4 @@ Evidence spans the `283521a` integrated baseline, payment setup `65fec3c`, and t
 
 Current setup: [local development](../development/local-development.md), [local AI](../development/local-ai.md), [delegation](../development/delegation.md). Proposed work and its acceptance gates live in [TODO](../../TODO.md).
 
-[Payment/automation planning and cleanup](2026-10-24-payment-planning.md) records documentation/media maintenance and 50 proposed tasks. It is planning evidence; the subsequent payment-account report records the first delivered setup slice. Recurring mandates and automatic services remain unimplemented.
+[Payment/automation planning and cleanup](2026-10-24-payment-planning.md) records documentation/media maintenance, the original 50-task plan and the subsequent backlog review (5 delivered foundations, 45 open). It is planning evidence; the subsequent payment-account report records the first delivered setup slice. Recurring mandates and automatic services remain unimplemented.
