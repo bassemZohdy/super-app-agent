@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 24 October 2026 — finite owner-approved mandate records
+
+Deliver AUTO-01 with strict six-family actor/audience/target/source policies, finite caps/counts/windows, exact owner approval, append-only versions and atomic lifecycle references. Verify signed ownership, changed terms, source guards, provider restart and zero consent-time money effects. Automatic execution remains disabled. [Guide](development/payment-mandates.md) · [Evidence](reports/2026-10-24-payment-mandates.md).
+
 ## 24 October 2026 — authenticated isolated issuer outcomes
 
 Deliver SIM-03 with eight run-scoped operator presets, pristine/path/identity confinement, frozen issuer decisions and persisted pending authorization. Pending capacity survives provider restart without capture and still requires customer execution. Add shared conditional control contracts, state migrations/backups, negative authority checks and an eight-case paced browser recording. Normal provider controls remain absent. [Guide](development/issuer-scenarios.md) · [Evidence](reports/2026-10-24-issuer-scenarios.md).

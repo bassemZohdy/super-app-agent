@@ -21,7 +21,7 @@ The panel scrolls independently, stacks on small screens and returns focus to it
 
 ## Current APIs
 
-Core paths use the authenticated signed owner. GET requires `accountId` as a query parameter; POST includes it in JSON. Provider paths are under `/v1/accounts/{accountId}` and independently verify that owner. New provider OpenAPI is **2.12.0**, additive to the existing `/v1` financial routes.
+Core paths use the authenticated signed owner. GET requires `accountId` as a query parameter; POST includes it in JSON. Provider paths are under `/v1/accounts/{accountId}` and independently verify that owner. New provider OpenAPI is **2.13.0**, additive to the existing `/v1` financial routes.
 
 | Core route | Provider route / behavior |
 | --- | --- |
@@ -71,3 +71,5 @@ For DEWA/Etisalat/du, the stored review now offers explicit Pay after authorizat
 [Signed financial status events](payment-events.md) append with stored order/source transitions and arrive as owned inspection hints. Callbacks never authorize funds or replace authoritative provider lookup. SIM-03 now supplies named issuer scenarios; legacy event-path qualification keeps PAY-18 in progress.
 
 [Isolated issuer scenarios](issuer-scenarios.md) add operator-bound named outcomes and `AUTHORIZATION_PENDING`. Pending card capacity cannot capture/credit or dispatch later group lines; the original real-time deadline and separate customer execution remain enforced. Normal providers expose no run controls.
+
+[AUTO-01 finite consent records](payment-mandates.md) use the same signed owner and resource-use guards, with separate create/revise/approve/revoke/history APIs. They do not enable automatic execution or add a rule editor to this panel.

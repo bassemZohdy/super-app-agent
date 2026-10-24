@@ -69,7 +69,8 @@
     "record:payment-events": "node --experimental-strip-types scripts/e2e/payment-events.ts --record",
     "simulator:issuer": "node --experimental-strip-types scripts/e2e/issuer-scenarios.ts",
     "demo:verify:issuer-scenarios": "node --experimental-strip-types scripts/e2e/issuer-scenarios.ts",
-    "record:issuer-scenarios": "node --experimental-strip-types scripts/e2e/issuer-scenarios.ts --record"
+    "record:issuer-scenarios": "node --experimental-strip-types scripts/e2e/issuer-scenarios.ts --record",
+    "demo:verify:mandates": "node --experimental-strip-types scripts/e2e/payment-mandates.ts"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^13.1.0",

@@ -22,7 +22,7 @@ Pending results show **Inspect or resume refund**. Continue this original refund
 
 ## API contracts
 
-Payment contract **1.9.0**. Payment-provider OpenAPI **2.12.0**; RTA **2.3.0**, DEWA **2.5.0**, Etisalat/du/Police **2.6.0**. Provider routes are under `/v1/accounts/{accountId}` and require an interactive owner JWT; machine and delegated tokens cannot request or apply these reversals. POST requires `Idempotency-Key`.
+Payment contract **1.9.0**. Payment-provider OpenAPI **2.13.0**; RTA **2.3.0**, DEWA **2.5.0**, Etisalat/du/Police **2.6.0**. Provider routes are under `/v1/accounts/{accountId}` and require an interactive owner JWT; machine and delegated tokens cannot request or apply these reversals. POST requires `Idempotency-Key`.
 
 | Payment-provider route | Request / outcome |
 | --- | --- |

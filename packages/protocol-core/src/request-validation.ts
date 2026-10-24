@@ -1,4 +1,5 @@
-import { fineSelectionItemsSchema, paymentSchemas, withPaymentAccount, withOrderId } from './payments.ts';
+import { mandateSchemas } from './payment-mandates.ts';
+import { fineSelectionItemsSchema, paymentSchemas, paymentObject, withPaymentAccount, withOrderId } from './payments.ts';
 import { Ajv, type ValidateFunction } from 'ajv';
 
 type Schema = Record<string, any>;
@@ -66,6 +67,10 @@ route('agent-core','POST','/api/payments/refunds',withPaymentAccount(paymentSche
 for(const [action,schema] of Object.entries({execute:paymentSchemas.executeOrder,recover:paymentSchemas.recoverOrder,cancel:paymentSchemas.cancelOrder}))route('agent-core','POST',`/api/payments/refunds/${action}`,withPaymentAccount(withOrderId(schema)));
 route('agent-core','POST','/api/payments/checkout-groups',withPaymentAccount(paymentSchemas.createCheckoutGroup));
 for(const [action,schema] of Object.entries({approve:paymentSchemas.approveOrder,execute:paymentSchemas.executeOrder,cancel:paymentSchemas.cancelOrder}))route('agent-core','POST',`/api/payments/checkout-groups/${action}`,withPaymentAccount(withOrderId(schema)));
+route('agent-core','GET','/api/payments/mandates',object({accountId:id},['accountId']));
+route('agent-core','POST','/api/payments/mandates',withPaymentAccount(mandateSchemas.create));
+for(const [action,schema] of Object.entries({revise:mandateSchemas.revise,approve:mandateSchemas.approve,revoke:mandateSchemas.revoke}))route('agent-core','POST',`/api/payments/mandates/${action}`,withPaymentAccount(paymentObject({...schema.properties,mandateId:id},[...schema.required,'mandateId'])));
+route('agent-core','GET','/api/payments/mandates/history',object({accountId:id,mandateId:id},['accountId','mandateId']));
 route('agent-core','GET','/api/payments/orders',object({accountId:id},['accountId']));
 for (const [path, schema] of Object.entries({
   methods: paymentSchemas.createMethod, 'methods/status': paymentSchemas.methodStatus, 'methods/default': paymentSchemas.defaultMethod,

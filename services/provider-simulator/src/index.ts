@@ -1,3 +1,5 @@
+import { MandateError } from './payment-mandates.ts';
+import { verifyMandateTarget } from './mandate-targets.ts';
 import { issuerScenarioSchemas } from '../../../packages/protocol-core/src/issuer-scenarios.ts';
 import { IssuerScenarioError,type IssuerScenarioContext } from './issuer-scenarios.ts';
 import { startPaymentEventDelivery } from './payment-events.ts';
@@ -84,7 +86,7 @@ export function createProviderServer(provider: ProviderId, path: string, options
       const operation = routes.find(route => route.method === req.method && route.regex.test(operationPath));
       if (!operation || url.search) throw new ApiError(404, 'NOT_FOUND', 'Operation not found.');
       if(claimRoute&&!claimant)throw new ApiError(403,'CLAIM_CLIENT_REQUIRED','Only the exact provider settlement workload can change a claim.');
-      if(provider==='payments'&&(operationPath.startsWith('/payment-orders')||operationPath.startsWith('/wallet-funding-orders')||operationPath.startsWith('/checkout-groups')||operationPath.startsWith('/payment-refunds')||operationPath==='/payment-events')&&!interactive)throw new ApiError(403,'INTERACTIVE_REVIEW_REQUIRED','Stored authorization reviews require the signed-in owner. Unattended actors cannot approve or answer challenges.');
+      if(provider==='payments'&&(operationPath.startsWith('/payment-mandates')||operationPath.startsWith('/payment-orders')||operationPath.startsWith('/wallet-funding-orders')||operationPath.startsWith('/checkout-groups')||operationPath.startsWith('/payment-refunds')||operationPath==='/payment-events')&&!interactive)throw new ApiError(403,'INTERACTIVE_REVIEW_REQUIRED','Stored authorization reviews require the signed-in owner. Unattended actors cannot approve or answer challenges.');
       if((operationPath.includes('/admissions')||operationPath==='/fine-selections'||operationPath==='/recharge-quotes'||operationPath.startsWith('/payment-reversals/'))&&!interactive)throw new ApiError(403,'INTERACTIVE_ADMISSION_REQUIRED','Payable admission requires the current signed-in owner.');
       const actor: Actor = { sub: subject, username: subject, name: typeof req.headers['x-user-name'] === 'string' ? Buffer.from(req.headers['x-user-name'], 'base64url').toString('utf8').slice(0, 200) : 'Demo citizen', accountId, requestId: '', authorization: interactive ? req.headers.authorization : undefined };
       let body: any = {};
@@ -142,6 +144,10 @@ export function createProviderServer(provider: ProviderId, path: string, options
         store.transaction(()=>{const previous=store.db.prepare('SELECT fingerprint FROM idempotency WHERE account_id=? AND key=?').get(accountId,key as string);if(previous&&previous.fingerprint!==fingerprint)throw new ApiError(409,'IDEMPOTENCY_CONFLICT','This request key has different terms.');store.db.prepare('INSERT INTO idempotency VALUES(?,?,?,?,?) ON CONFLICT(account_id,key) DO NOTHING').run(accountId,key as string,fingerprint,200,JSON.stringify(result.data));});return send(result);
       }
       if (provider === 'payments' && req.method === 'POST' && operationPath === '/billing-accounts') await verifyBillerReference(payments, actor, body);
+      if(engine.mandates&&req.method==='POST'&&(operationPath==='/payment-mandates'||/^\/payment-mandates\/[^/]+\/(revise|approve)$/.test(operationPath))){
+        const policy=operationPath.endsWith('/approve')?engine.mandates.get(actor,operationPath.split('/')[2]).policy:body.policy;
+        await verifyMandateTarget(payments,actor,policy);
+      }
       let payableSnapshot:import('../../../packages/protocol-core/src/payments.ts').Payable|undefined;
       if(provider==='payments'&&req.method==='POST'&&(operationPath==='/payment-orders'||/^\/payment-orders\/[^/]+\/(approve|challenge)$/.test(operationPath))){
         const order=operationPath==='/payment-orders'?undefined:engine.orders!.get(actor,operationPath.split('/')[2]);
@@ -177,9 +183,9 @@ export function createProviderServer(provider: ProviderId, path: string, options
       });
       send(result);
     } catch (error) {
-      const status = error instanceof HttpError ? error.status : error instanceof IssuerScenarioError || error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError || error instanceof SettlementError ? error.status : 503;
+      const status = error instanceof HttpError ? error.status : error instanceof MandateError || error instanceof IssuerScenarioError || error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError || error instanceof SettlementError ? error.status : 503;
       res.setHeader('Connection', 'close');
-      send({ status, data: { success: false, code: error instanceof IssuerScenarioError || error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError || error instanceof SettlementError ? error.code : 'PROVIDER_UNAVAILABLE', error: error instanceof HttpError ? error.message : error instanceof IssuerScenarioError || error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError || error instanceof SettlementError ? error.message : 'The simulator could not complete this request. Check operation status before retrying a write.' } });
+      send({ status, data: { success: false, code: error instanceof MandateError || error instanceof IssuerScenarioError || error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError || error instanceof SettlementError ? error.code : 'PROVIDER_UNAVAILABLE', error: error instanceof HttpError ? error.message : error instanceof MandateError || error instanceof IssuerScenarioError || error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError || error instanceof SettlementError ? error.message : 'The simulator could not complete this request. Check operation status before retrying a write.' } });
     }
   });
   let eventDelivery:ReturnType<typeof startPaymentEventDelivery>|undefined;

@@ -1,3 +1,4 @@
+import { mandateSchemas,mandateRecordSchema } from '../../../packages/protocol-core/src/payment-mandates.ts';
 import { issuerScenarioSchemas } from '../../../packages/protocol-core/src/issuer-scenarios.ts';
 import { paymentEventSchema } from '../../../packages/protocol-core/src/payment-events.ts';
 import { paymentSchemas, paymentMethodSchema, billingAccountSchema } from '../../../packages/protocol-core/src/payments.ts';
@@ -117,6 +118,13 @@ export const operations: Record<ProviderId, Operation[]> = {
     op('POST', '/move-ins', 'registerMoveIn', { ejariContract: text, unit: text, residentialParking: opaque }, 'Register a move-in proposal. Utility and parking activation are separate operations.', object({ contractNumber: text })),
   ],
   payments: [
+    op('GET','/payment-mandates','listPaymentMandates',{mandates:{type:'array',maxItems:100,items:mandateRecordSchema},executionEnabled:{const:false}},'Read owned finite consent records. No scheduler, execution permit or spending authority is enabled.'),
+    op('POST','/payment-mandates','createPaymentMandate',{mandate:mandateRecordSchema},'Store a finite exact-target/source policy for explicit owner review; no automatic execution.',mandateSchemas.create),
+    op('GET','/payment-mandates/{mandateId}','getPaymentMandate',{mandate:mandateRecordSchema},'Read the current owned policy and approval state.'),
+    op('GET','/payment-mandates/{mandateId}/history','getPaymentMandateHistory',{history:{type:'array',maxItems:1000,items:mandateRecordSchema}},'Read immutable consent history, including superseded policy/source snapshots.'),
+    op('POST','/payment-mandates/{mandateId}/revise','revisePaymentMandate',{mandate:mandateRecordSchema},'Replace the current policy with a new unapproved review. Prior approval never carries over.',mandateSchemas.revise),
+    op('POST','/payment-mandates/{mandateId}/approve','approvePaymentMandate',{mandate:mandateRecordSchema},'Record explicit owner consent to the exact current digest and policy version. Execution remains disabled.',mandateSchemas.approve),
+    op('POST','/payment-mandates/{mandateId}/revoke','revokePaymentMandate',{mandate:mandateRecordSchema},'Close the mandate and release lifecycle references; no committed effect is reversed.',mandateSchemas.revoke),
     op('GET','/payment-events','getPaymentEventStatus',{events:object({pending:{type:'integer',minimum:0},failed:{type:'integer',minimum:0},received:{type:'integer',minimum:0},updates:{type:'array',maxItems:20,items:object({id:text,producer:text,subjectKind:text,subjectId:text,type:text,version:{type:'integer',minimum:1},observedState:text,currentState:text,needsInspection:{type:'boolean'},receivedAt:text})}})},'Inspect owned asynchronous event delivery and status-check hints. Events do not authorize money effects or assert provider settlement.'),
     op('GET','/payment-refunds','listPaymentRefunds',{refunds:{type:'array',maxItems:100,items:refundSchema}},'List owned original-source refund reviews, pending reversals and confirmed results.'),
     op('GET','/payment-refunds/{refundId}','getPaymentRefund',{refund:refundSchema},'Read current refund authority/outcome using its original identity.'),
@@ -186,7 +194,7 @@ export function openApi(provider: ProviderId,issuerRunId?:string) {
         ...Object.fromEntries(['400','401','403','404','409','402','503'].map(status => [status, { $ref: '#/components/responses/Error' }])) },
     };
   }
-  return { openapi: '3.1.0', info: { title: `${providerNames[provider]} Simulator`, version: provider === 'payments' ? '2.12.0' : provider==='rta'?'2.3.0':provider==='police'?'2.6.0':['etisalat','du'].includes(provider)?'2.6.0':provider==='dewa'?'2.5.0' : '2.0.0', description: 'Local synthetic API. Signed interactive user identity or broker-issued user token with current exact-operation grant required. JWT subject owns the account; caller user headers do not grant authority. A separate read-only settlement machine lane retrieves captured charge proofs. Legacy fixture mode is outside this reference security profile.' },
+  return { openapi: '3.1.0', info: { title: `${providerNames[provider]} Simulator`, version: provider === 'payments' ? '2.13.0' : provider==='rta'?'2.3.0':provider==='police'?'2.6.0':['etisalat','du'].includes(provider)?'2.6.0':provider==='dewa'?'2.5.0' : '2.0.0', description: 'Local synthetic API. Signed interactive user identity or broker-issued user token with current exact-operation grant required. JWT subject owns the account; caller user headers do not grant authority. A separate read-only settlement machine lane retrieves captured charge proofs. Legacy fixture mode is outside this reference security profile.' },
     servers: [{ url: `http://localhost:${4101 + providerIds.indexOf(provider)}` }], security: [{ accessToken: [] }],
     paths, components: { securitySchemes: { ...(provider==='payments'?{paymentEventHmac:{type:'apiKey',in:'header',name:'X-Payment-Event-Signature',description:'HMAC-SHA256 over canonical method/path/source/kid/timestamp/nonce/event with a separate configured key per producer. Companion headers are required.'}}:{}),accessToken: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' } },
       responses: { Unauthorized: { description: 'Missing or invalid Keycloak access token' }, Error: { description: 'Validation, ownership, delegation, payment, conflict or availability error', content: { 'application/json': { schema: object({ success: { const: false }, error: { type: 'string' }, code: { type: 'string' } }) } } } } },
