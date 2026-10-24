@@ -1,3 +1,5 @@
+import { PaymentRefunds } from './payment-refunds.ts';
+import { ProviderReversals } from './provider-reversals.ts';
 import { PaymentResourceUses } from './payment-resource-uses.ts';
 import { PaymentIssuer } from './payment-issuer.ts';
 import { CheckoutGroups } from './checkout-groups.ts';
@@ -24,8 +26,8 @@ const ok = (data: Record<string, any>): ApiResult => ({ status: 200, data: { suc
 const minor = (amount: number) => Math.round(amount * 100);
 const major = (amount: number) => amount / 100;
 export class ProviderEngine {
-  readonly provider: ProviderId; readonly store: AccountDatabase; readonly ledger?: PaymentLedger; readonly resourceUses?: PaymentResourceUses; readonly payables?: ProviderPayables;readonly issuer?:PaymentIssuer;readonly orders?:PaymentOrders;readonly claims?:PaymentClaims;readonly admissions?:PayableAdmissions;readonly groups?:CheckoutGroups;readonly funding?:WalletFunding;readonly recharges?:ProviderRecharges;
-  constructor(provider: ProviderId, store: AccountDatabase, options: {businessClock?:()=>number;authorizationClock?:()=>number} = {}) { this.provider = provider; this.store = store; if (provider === 'payments') { this.ledger = new PaymentLedger(store,options.authorizationClock); this.resourceUses = new PaymentResourceUses(store);this.issuer=new PaymentIssuer(store,options.authorizationClock);this.orders=new PaymentOrders(store,this.issuer,this.ledger,this.resourceUses,options.authorizationClock);this.groups=new CheckoutGroups(this.orders);this.claims=new PaymentClaims(store);this.funding=new WalletFunding(store,this.issuer,this.ledger,this.resourceUses,options.authorizationClock); } if(['dewa','etisalat','du','police'].includes(provider)) {this.payables=new ProviderPayables(store,provider as PayableProvider,options.businessClock);} if(['rta','etisalat','du'].includes(provider))this.recharges=new ProviderRecharges(store,provider as import('../../../packages/protocol-core/src/payments.ts').RechargeProvider,options.businessClock);if(this.payables||this.recharges)this.admissions=new PayableAdmissions(store,{inspect:(a,id,revision)=>this.obligationBook(id).inspect(a,id,revision),applyAdmitted:(a,p,paymentId,at)=>this.obligationBook(p.id).applyAdmitted(a,p,paymentId,at)},options.businessClock); }
+  readonly provider: ProviderId; readonly store: AccountDatabase; readonly ledger?: PaymentLedger; readonly resourceUses?: PaymentResourceUses; readonly payables?: ProviderPayables;readonly issuer?:PaymentIssuer;readonly orders?:PaymentOrders;readonly claims?:PaymentClaims;readonly admissions?:PayableAdmissions;readonly refunds?:PaymentRefunds;readonly reversals?:ProviderReversals;readonly groups?:CheckoutGroups;readonly funding?:WalletFunding;readonly recharges?:ProviderRecharges;
+  constructor(provider: ProviderId, store: AccountDatabase, options: {businessClock?:()=>number;authorizationClock?:()=>number} = {}) { this.provider = provider; this.store = store; if (provider === 'payments') { this.ledger = new PaymentLedger(store,options.authorizationClock); this.resourceUses = new PaymentResourceUses(store);this.issuer=new PaymentIssuer(store,options.authorizationClock);this.orders=new PaymentOrders(store,this.issuer,this.ledger,this.resourceUses,options.authorizationClock);this.groups=new CheckoutGroups(this.orders);this.claims=new PaymentClaims(store);this.funding=new WalletFunding(store,this.issuer,this.ledger,this.resourceUses,options.authorizationClock);this.refunds=new PaymentRefunds(this.orders,this.funding,this.claims); } if(['dewa','etisalat','du','police'].includes(provider)) {this.payables=new ProviderPayables(store,provider as PayableProvider,options.businessClock);} if(['rta','etisalat','du'].includes(provider))this.recharges=new ProviderRecharges(store,provider as import('../../../packages/protocol-core/src/payments.ts').RechargeProvider,options.businessClock);if(this.payables||this.recharges)this.admissions=new PayableAdmissions(store,{inspect:(a,id,revision)=>this.obligationBook(id).inspect(a,id,revision),applyAdmitted:(a,p,paymentId,at)=>this.obligationBook(p.id).applyAdmitted(a,p,paymentId,at)},options.businessClock);if(this.admissions)this.reversals=new ProviderReversals(store,provider,this.admissions,this.payables,this.recharges); }
   private obligationBook(id:string){if(id.startsWith(`${this.provider}:recharge:`)&&this.recharges)return this.recharges;if(this.payables)return this.payables;return fail(404,'PAYABLE_NOT_FOUND','Payment obligation not found.');}
   seed(actor: Actor) {
     const db = this.store, account = actor.accountId;
@@ -73,9 +75,10 @@ export class ProviderEngine {
   private proof(proof: any, merchant: string, reference: string, amountMinor: number) {
     if (!proof || proof.status !== 'CAPTURED' || proof.refunded || proof.merchant !== merchant || proof.reference !== reference || proof.amountMinor !== amountMinor) fail(409, 'INVALID_PAYMENT_PROOF', 'A matching captured payment is required.');
   }
-  execute(actor: Actor, method: string, path: string, body: any, proof?: any, payableSnapshot?:import('../../../packages/protocol-core/src/payments.ts').Payable,gatewayOrder?:import('../../../packages/protocol-core/src/payments.ts').PaymentAuthorizationReview): ApiResult {
+  execute(actor: Actor, method: string, path: string, body: any, proof?: any, payableSnapshot?:import('../../../packages/protocol-core/src/payments.ts').Payable,gatewayOrder?:import('../../../packages/protocol-core/src/payments.ts').PaymentAuthorizationReview,refundReview?:import('../../../packages/protocol-core/src/payments.ts').PaymentRefund): ApiResult {
     const db = this.store, a = actor.accountId, asset = assetsFor(a);
     const now = () => new Date().toISOString();
+    if(this.reversals&&/^\/payment-reversals\/[^/]+$/.test(path)){const id=path.split('/')[2];if(method==='GET')return ok({reversal:this.reversals.get(a,id)});if(method==='POST'){if(refundReview?.id!==id)fail(409,'REVERSAL_MISMATCH','The gateway refund identity must match this route.');return ok({reversal:this.reversals.apply(a,refundReview!)});}}
     if(this.recharges){if(method==='GET'&&/^\/recharge-intents\/[^/]+$/.test(path))return ok(this.recharges.byIntent(a,decodeURIComponent(path.split('/')[2])));if(method==='GET'&&path==='/recharge-targets')return ok({targets:this.recharges.targets(a)});if(method==='POST'&&path==='/recharge-quotes')return ok({payable:this.recharges.quote(a,body)});}
     if(this.admissions) {
       if(this.provider==='police'&&method==='POST'&&path==='/fine-selections')return ok({payable:this.payables!.selectFines(a,body.items)});
@@ -112,6 +115,10 @@ export class ProviderEngine {
         if(order.state!=='SETTLED')return {status:402,data:{success:false,code:order.failureCode||'PAYMENT_DECLINED',error:'The finite demo funding source could not fund this top-up. Inspect the wallet funding review.'}};
         return ok({transaction:db.get(a,'transaction',order.id),newBalance:order.receipt!.balanceMinor/100});
       }
+      if(method==='GET'&&path==='/payment-refunds')return ok({refunds:this.refunds!.list(actor)});
+      if(method==='GET'&&/^\/payment-refunds\/[^/]+$/.test(path))return ok({refund:this.refunds!.get(actor,path.split('/')[2])});
+      if(method==='POST'&&path==='/payment-refunds')return ok({refund:this.refunds!.create(actor,body)});
+      if(method==='POST'&&/^\/payment-refunds\/[^/]+\/cancel$/.test(path))return ok({refund:this.refunds!.cancel(actor,path.split('/')[2],body.expectedVersion)});
       if(method==='GET'&&path==='/checkout-groups')return ok({groups:this.groups!.list(actor)});
       if(method==='GET'&&/^\/checkout-groups\/[^/]+$/.test(path))return ok({group:this.groups!.get(actor,path.split('/')[2])});
       if(method==='GET'&&path==='/payment-orders')return ok({orders:this.orders!.list(actor)});

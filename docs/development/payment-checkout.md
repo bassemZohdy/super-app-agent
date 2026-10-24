@@ -1,6 +1,6 @@
 # Wallet/card bill checkout
 
-DEWA, Etisalat and du bills now use the same stored-order capture and settlement path from React's payment panel and the existing wallet-funded service/conversation routes. Explicit approval authorizes a finite hold; the separate **Pay AED …** action captures it and settles the provider-admitted bill. A receipt is shown only after the provider confirms application. Exact-set fines now use this same flow; prepaid/toll recharges now extend it through explicit intents and target fences. Multi-provider checkout, automatic rules and full refund/reversal workflows retain their separate backlog tasks.
+DEWA, Etisalat and du bills now use the same stored-order capture and settlement path from React's payment panel and the existing wallet-funded service/conversation routes. Explicit approval authorizes a finite hold; the separate **Pay AED …** action captures it and settles the provider-admitted bill. A receipt is shown only after the provider confirms application. Exact-set fines now use this same flow; prepaid/toll recharges now extend it through explicit intents and target fences. Sequential grouped checkout and source-backed refund/reversal are implemented; automatic rules retain their separate backlog tasks.
 
 ## Use the demo
 
@@ -10,7 +10,7 @@ DEWA, Etisalat and du bills now use the same stored-order capture and settlement
 4. Inspect the confirmed amount/source and receipt. Card payments consume the card's finite limit and leave wallet funds unchanged. Wallet captures consume their hold and debit the balanced journal once.
 5. If status is CAPTURING/CAPTURED/RECONCILIATION_REQUIRED, use **Inspect or resume payment** on that order. Recovery preserves payment identity; it never starts a replacement debit. A captured-but-unconfirmed operation is not displayed as a paid bill.
 
-Cancellation remains available before capture. After capture, cancellation cannot void a committed payment. Paid/pending/unknown settlement claims block generic refunds; new stored-order refunds require the future original-source reconciliation/reversal workflow. No automatic refund or balance edit is inferred from a timeout.
+Cancellation remains available before capture. After capture, cancellation cannot void a committed payment. Paid/pending/unknown settlement claims block generic refunds; stored-order refunds use the separately approved original-source reversal workflow. No automatic refund or balance edit is inferred from a timeout.
 
 ## Admission and capture boundary
 
@@ -42,3 +42,5 @@ The order table migrates existing review IDs/snapshots into its capture-state sc
 `demo:verify:payment-authorization` now includes a real challenged-card payment, unchanged wallet balance, finite issuer spend and receipt restoration after reload. `demo:verify:payment-accounts` includes idempotent wallet bill execution and source claim/refund checks. Existing twelve journeys verify the migrated conversational/manual wallet paths. Focused tests cover both sources, lost responses before/after provider commit, exact recovery, source changes, hold expiry, admission substitution/cancellation and old-order migration. [Evidence](../reports/2026-10-24-payment-checkout.md).
 
 [Grouped checkout](checkout-groups.md) freezes one source for sequential child payments, retains separate provider receipts, and stops/resumes the original line on challenge or uncertain settlement. It does not imply cross-provider atomicity.
+
+[Original-source refunds](payment-refunds.md) now cancel eligible full bills/fine sets or reverse bounded unused recharge/funding value. Confirmed returns annotate original receipts and group children; uncertain reversals keep their original ID and do not restore funds.

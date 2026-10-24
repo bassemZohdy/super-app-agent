@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import type { AccountDatabase } from './database.ts';
 export const settlementProviders=['rta','dewa','etisalat','du','police'] as const;
 export type SettlementProvider=typeof settlementProviders[number];
-export type PaymentClaim={claimId:string;paymentId:string;provider:SettlementProvider;attemptId:string;reference:string;amountMinor:number;currency:'AED';orderId:string;captureAttemptId:string;state:'LEGACY_UNKNOWN'|'CLAIMED'|'APPLIED'|'RELEASED';createdAt:string;receiptDigest?:string};
+export type PaymentClaim={claimId:string;paymentId:string;provider:SettlementProvider;attemptId:string;reference:string;amountMinor:number;currency:'AED';orderId:string;captureAttemptId:string;state:'LEGACY_UNKNOWN'|'CLAIMED'|'APPLIED'|'RELEASED';createdAt:string;receiptDigest?:string;reversedMinor?:number};
 export class SettlementError extends Error{
   readonly status:number;readonly code:string;
   constructor(status:number,code:string,message:string){super(message);this.status=status;this.code=code;}
@@ -51,5 +51,10 @@ export class PaymentClaims{
   private bound(account:string,paymentId:string,provider:SettlementProvider,input:{claimId:string;attemptId:string}){this.charge(account,paymentId,provider);const claim=this.get(account,paymentId);if(!claim||claim.provider!==provider||claim.claimId!==input.claimId||claim.attemptId!==input.attemptId)return settlementFailure('CLAIM_MISMATCH','The claim is not bound to this provider attempt.');return claim;}
   acknowledge(account:string,paymentId:string,provider:SettlementProvider,input:{claimId:string;attemptId:string;receiptDigest:string}){return this.atomic(()=>{const claim=this.bound(account,paymentId,provider,input);if(claim.state==='APPLIED'){if(claim.receiptDigest!==input.receiptDigest)return settlementFailure('RECEIPT_CONFLICT','The applied receipt cannot be changed.');return {claim};}if(claim.state!=='CLAIMED')return settlementFailure('CLAIM_CLOSED','Only an admitted claim can be acknowledged.');claim.state='APPLIED';claim.receiptDigest=input.receiptDigest;return {claim:this.save(account,claim)};});}
   release(account:string,paymentId:string,provider:SettlementProvider,input:{claimId:string;attemptId:string;reason:'NOT_APPLIED'}){return this.atomic(()=>{const claim=this.bound(account,paymentId,provider,input);if(claim.state==='RELEASED')return {claim};if(claim.state!=='CLAIMED'||input.reason!=='NOT_APPLIED')return settlementFailure('CLAIM_NOT_RELEASABLE','An applied or unknown claim cannot be released as non-application.');claim.state='RELEASED';return {claim:this.save(account,claim)};});}
+  recordReversal(account:string,paymentId:string,provider:SettlementProvider,amountMinor:number,expectedMinor:number){return this.atomic(()=>{
+    const claim=this.get(account,paymentId),charge=this.charge(account,paymentId,provider);
+    if(!claim||claim.state!=='APPLIED'||(claim.reversedMinor||0)!==expectedMinor||!Number.isSafeInteger(amountMinor)||amountMinor<1||expectedMinor+amountMinor>charge.amountMinor)return settlementFailure('REVERSAL_NOT_CONFIRMED','An applied exact capture and current cumulative reversal are required.');
+    claim.reversedMinor=expectedMinor+amountMinor;return this.save(account,claim);
+  });}
   assertRefundable(account:string,paymentId:string){const claim=this.get(account,paymentId);if(claim&&claim.state!=='RELEASED')settlementFailure(claim.state==='LEGACY_UNKNOWN'?'SETTLEMENT_STATUS_UNKNOWN':'SETTLEMENT_IN_USE','Settlement is pending, applied or unknown. Refund requires verified non-application or a supported provider reversal.');}
 }

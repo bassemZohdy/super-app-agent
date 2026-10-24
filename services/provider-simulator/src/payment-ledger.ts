@@ -126,6 +126,13 @@ export class PaymentLedger {
       return {id,...this.summary(accountId)};
     });
   }
+  /** Reverse an external-card wallet credit using available funds, never active holds or an overdraft. */
+  reverseFunding(accountId:string,refundId:string,amountMinor:number){return this.atomic(()=>{
+    this.amount(amountMinor);const before=this.summary(accountId);
+    if(before.availableMinor<amountMinor)fail('INSUFFICIENT_AVAILABLE_FUNDS','Refund needs unreserved wallet funds; spent/held funds cannot be returned.');
+    const id=this.append(accountId,'REFUND',`funding-refund:${refundId}`,[{account:'wallet',amountMinor:-amountMinor},{account:'external-clearing',amountMinor}]);
+    this.store.put(accountId,'wallet',{...this.wallet(accountId),balanceMinor:before.balanceMinor-amountMinor});return {id,...this.summary(accountId)};
+  });}
   reserve(accountId:string,reference:string,amountMinor:number,expiresAt:number) {
     return this.atomic(()=>{
       this.amount(amountMinor);

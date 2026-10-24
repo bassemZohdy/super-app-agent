@@ -1,6 +1,6 @@
 # Provider backend demonstration
 
-This is a local integration environment, not an integration with the named real entities. Producer: the provider-simulator package. Consumers: the application microservices. Contract version: 2.0.0 for DLD, 2.2.0 for RTA status/recharge, 2.4.0 for DEWA, 2.5.0 for telecom/Police, and 2.9.0 for payment setup/authorization/capture/settlement claims; OpenAPI 3.1. This demo security migration changes authentication while retaining `/v1` resource schemas. Sign in again for the provider audience; service-header impersonation clients must migrate. Future breaking resource changes require explicit versioning and migration.
+This is a local integration environment, not an integration with the named real entities. Producer: the provider-simulator package. Consumers: the application microservices. Contract version: 2.0.0 for DLD, 2.3.0 for RTA status/recharge, 2.5.0 for DEWA, 2.6.0 for telecom/Police, and 2.10.0 for payment setup/authorization/capture/settlement claims; OpenAPI 3.1. This demo security migration changes authentication while retaining `/v1` resource schemas. Sign in again for the provider audience; service-header impersonation clients must migrate. Future breaking resource changes require explicit versioning and migration.
 
 ## Service and account boundaries
 
@@ -113,3 +113,5 @@ DEWA/Etisalat/du service payments now use wallet-funded stored orders and the sa
 [Provider recharges](../development/provider-recharges.md) cover Salik/Etisalat/du with wallet/card funding. The new APIs bind target/version/denomination to one intent and keep target fences through final confirmation. Existing Salik application calls now use that stored flow; new raw recharge capture namespaces deny.
 
 [Grouped checkout](../development/checkout-groups.md) adds owner-approved one-source groups with sequential child execution, partial receipts and original-payment recovery. The civic unified adapter persists the original group before dispatch; no new recharge is inferred on retry.
+
+[Original-source refunds](../development/payment-refunds.md) now cancel eligible full bills/fine sets or reverse bounded unused recharge/funding value. Confirmed returns annotate original receipts and group children; uncertain reversals keep their original ID and do not restore funds.

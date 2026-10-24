@@ -133,6 +133,17 @@ export class ProviderPayables {
     const body={...record.body,status:'PAID',payableVersion:this.next(payable.version!),receiptNumber:paymentId,paidAt:new Date(this.clock()).toISOString(),...(this.provider==='police'?{paidAmount:payable.amountMinor/100}:{})};
     this.store.put(account,this.provider==='police'?'fine':'bill',body,record.key);return {payable:this.describe(account,{key:record.key,body}),receipt:{receiptNumber:paymentId,obligationId:payable.obligationId!,amountMinor:payable.amountMinor,currency:'AED' as const}};
   }
+  /** Demo provider policy: full cancellation of the original settled bill/fine set; never partial settlement or reopening. */
+  reverse(account:string,p:Payable,paymentId:string,amountMinor:number,expectedMinor:number,refundId:string){return this.atomic(()=>{
+    if(expectedMinor!==0||amountMinor!==p.amountMinor)return deny(409,'FULL_REVERSAL_REQUIRED','Bills and fines require full cancellation of this original payment.');
+    const parts=p.items||[p];
+    for(const part of parts){const record=this.locate(account,part.id),current=this.describe(account,record);
+      if(current.status!=='PAID'||record.body.receiptNumber!==paymentId||current.amountMinor!==part.amountMinor||current.version!==part.version!+1)return deny(409,'REVERSAL_TERMS_CHANGED','The original settled obligation cannot be cancelled under these terms.');
+      const body={...record.body,status:'CANCELLED',payableVersion:this.next(current.version!),reversedAmountMinor:part.amountMinor,refundId,reversedAt:new Date(this.clock()).toISOString()};
+      this.store.put(account,this.provider==='police'?'fine':'bill',body,record.key);
+    }
+    return {};
+  });}
   settle(account: string, id: string, revision: string, paymentId: string, proof: any) {
     return this.atomic(() => {
       if(id.startsWith('police:selection:'))return deny(409,'ADMISSION_REQUIRED','Fine selections require their stored-order capture admission.');

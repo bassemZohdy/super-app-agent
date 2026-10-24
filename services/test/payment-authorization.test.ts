@@ -36,7 +36,7 @@ test('stored owner approval creates one finite card hold, locks real dependencie
   const body=operations.payments.find(op=>op.id==='createAuthorizationOrder')!.result.order;assert.equal(new Ajv({strict:false}).compile(body)(order),true);
   assert.throws(()=>registry('/payment-methods/status',{methodId:order.quote.source.id,expectedVersion:1,status:'REMOVED'}),/active payment/);
   const approved=orders.approve(actor,order.id,decision(order),payable);assert.equal(approved.state,'AUTHORIZED');assert.equal(approved.fundsCaptured,false);
-  assert.deepEqual(issuer.summary(actor.accountId,order.quote.source.id),{sourceId:order.quote.source.id,limitMinor:200000,heldMinor:42040,spentMinor:0,availableMinor:157960,currency:'AED'});
+  assert.deepEqual(issuer.summary(actor.accountId,order.quote.source.id),{sourceId:order.quote.source.id,limitMinor:200000,refundedMinor:0,heldMinor:42040,spentMinor:0,availableMinor:157960,currency:'AED'});
   assert.equal(uses.list(actor.accountId).filter(d=>d.dependentKind==='HOLD').length,1);
   assert.throws(()=>orders.approve(actor,order.id,decision(order),payable),orderError('APPROVAL_CHANGED'));
   orders.cancel(actor,approved.id,approved.version);assert.equal(issuer.summary(actor.accountId,order.quote.source.id).heldMinor,0);assert.equal(uses.list(actor.accountId).length,0);

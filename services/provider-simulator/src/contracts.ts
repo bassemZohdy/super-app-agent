@@ -31,11 +31,19 @@ const authorizationSchema=object({id:text,orderId:text,sourceId:text,amountMinor
 const reviewSchema=object({id:text,accountId:text,ownerSub:text,version:{type:'integer',minimum:1},state:{enum:['AWAITING_APPROVAL','REQUIRES_ACTION','AUTHORIZED','CAPTURING','CAPTURED','RECONCILIATION_REQUIRED','SETTLED','FAILED','CANCELLED']},approvalDigest:revision,expiresAt:text,createdAt:text,approvedAt:text,failureCode:text,fundsCaptured:{type:'boolean'},sourceFinalizationPending:{type:'boolean'},admissionId:text,paymentId:text,receipt:receiptSchema,authorization:authorizationSchema,
   quote:object({payable:payableSchema,source:paymentMethodSchema,billingAccount:billingAccountSchema,amountMinor:money,feeMinor:{type:'integer',minimum:0,maximum:100000000},totalMinor:money,currency:{const:'AED'},createdAt:text,expiresAt:text})},['id','accountId','ownerSub','version','state','approvalDigest','expiresAt','createdAt','fundsCaptured','quote']);
 const groupSchema=object({id:text,accountId:text,ownerSub:text,version:{type:'integer',minimum:1},approvalDigest:revision,createdAt:text,expiresAt:text,approvedAt:text,cancelledAt:text,lastFailureCode:text,source:paymentMethodSchema,totalMinor:money,currency:{const:'AED'},orderIds:{type:'array',minItems:1,maxItems:10,items:text},excluded:{type:'array',maxItems:10,items:object({provider:{enum:['dewa','etisalat','du','police','rta']},payableId:text,reason:{const:'ALREADY_PAID'}})},orders:{type:'array',minItems:1,maxItems:10,items:reviewSchema},settledMinor:{type:'integer',minimum:0,maximum:100000000},state:{enum:['AWAITING_APPROVAL','READY','REQUIRES_ACTION','RECONCILIATION_REQUIRED','PARTIAL','STOPPED','CANCELLED','COMPLETED']}},['id','accountId','ownerSub','version','approvalDigest','createdAt','expiresAt','source','totalMinor','currency','orderIds','excluded','orders','settledMinor','state']);
+reviewSchema.properties.refundedMinor={type:'integer',minimum:0,maximum:100000000};reviewSchema.properties.refundState={enum:['PARTIALLY_REFUNDED','REFUNDED']};
 const fundingSchema=object({id:text,accountId:text,ownerSub:text,version:{type:'integer',minimum:1},state:{enum:['AWAITING_APPROVAL','REQUIRES_ACTION','AUTHORIZED','SETTLED','FAILED','CANCELLED']},approvalDigest:revision,createdAt:text,expiresAt:text,fundsCaptured:{type:'boolean'},failureCode:text,authorization:authorizationSchema,
   quote:object({source:paymentMethodSchema,amountMinor:money,feeMinor:{const:0},totalMinor:money,currency:{const:'AED'},walletAccountId:text}),
   receipt:object({receiptNumber:text,amountMinor:money,feeMinor:{const:0},currency:{const:'AED'},balanceMinor:{type:'integer',minimum:0,maximum:1000000},capturedAt:text})},['id','accountId','ownerSub','version','state','approvalDigest','createdAt','expiresAt','fundsCaptured','quote']);
-const cardBalances={type:'array',maxItems:100,items:object({sourceId:text,limitMinor:money,heldMinor:{type:'integer',minimum:0},spentMinor:{type:'integer',minimum:0},availableMinor:{type:'integer',minimum:0},currency:{const:'AED'}})};
+fundingSchema.properties.refundedMinor={type:'integer',minimum:0,maximum:100000000};fundingSchema.properties.refundState={enum:['PARTIALLY_REFUNDED','REFUNDED']};
+const reversalReceiptSchema=object({refundId:text,paymentId:text,orderId:text,approvalDigest:revision,amountMinor:money,cumulativeMinor:money,currency:{const:'AED'},provider:{enum:['payments','dewa','etisalat','du','police','rta']},reversedAt:text,providerBalanceMinor:{type:'integer',minimum:0,maximum:100000000}},['refundId','paymentId','orderId','approvalDigest','amountMinor','cumulativeMinor','currency','provider','reversedAt']);
+const refundSchema=object({id:text,accountId:text,ownerSub:text,version:{type:'integer',minimum:1},state:{enum:['AWAITING_APPROVAL','REVERSING','RECONCILIATION_REQUIRED','REFUNDED','FAILED','CANCELLED']},approvalDigest:revision,createdAt:text,expiresAt:text,failureCode:text,receipt:reversalReceiptSchema,
+ quote:object({origin:{enum:['PAYMENT','WALLET_FUNDING']},orderId:text,paymentId:text,source:paymentMethodSchema,amountMinor:money,originalAmountMinor:money,expectedRefundedMinor:{type:'integer',minimum:0,maximum:100000000},currency:{const:'AED'},reason:text,originalApprovalDigest:revision,payable:payableSchema,admissionId:text},['origin','orderId','paymentId','source','amountMinor','originalAmountMinor','expectedRefundedMinor','currency','reason','originalApprovalDigest'])},['id','accountId','ownerSub','version','state','approvalDigest','createdAt','expiresAt','quote']);
+const reversalSchema=object({refundId:text,approvalDigest:revision,state:{enum:['APPLIED','REJECTED']},receipt:reversalReceiptSchema,failureCode:text},['refundId','approvalDigest','state']);
+const reversalOperations=[op('GET','/payment-reversals/{refundId}','getPaymentReversal',{reversal:reversalSchema},'Read an owned source reversal result after a lost response. No money return is inferred from a request alone.'),op('POST','/payment-reversals/{refundId}','applyPaymentReversal',{reversal:reversalSchema},'Fetch and verify the current gateway refund, reverse only the exact applied original payment, and persist an APPLIED or REJECTED decision atomically.',object({}))];
+const cardBalances={type:'array',maxItems:100,items:object({sourceId:text,refundedMinor:{type:'integer',minimum:0,maximum:100000000},limitMinor:money,heldMinor:{type:'integer',minimum:0},spentMinor:{type:'integer',minimum:0},availableMinor:{type:'integer',minimum:0},currency:{const:'AED'}},['sourceId','limitMinor','heldMinor','spentMinor','availableMinor','currency'])};
 const claimSchema=object({claimId:text,paymentId:text,provider:{enum:['rta','dewa','etisalat','du','police']},attemptId:text,reference:text,amountMinor:money,currency:{const:'AED'},orderId:text,captureAttemptId:text,state:{enum:['LEGACY_UNKNOWN','CLAIMED','APPLIED','RELEASED']},createdAt:text,receiptDigest:revision},['claimId','paymentId','provider','attemptId','reference','amountMinor','currency','orderId','captureAttemptId','state','createdAt']);
+claimSchema.properties.reversedMinor={type:'integer',minimum:0,maximum:100000000};
 const settlementStatus=op('GET','/settlement-attempts/{paymentId}','inspectSettlementAttempt',{settlement:object({attemptId:text,paymentId:text,state:{enum:['PENDING','APPLIED','RELEASED']},gatewayConfirmed:{type:'boolean'},failureCode:text},['attemptId','paymentId','state','gatewayConfirmed'])},'Inspect an owned persisted settlement fence and safely retry its gateway acknowledgement/release. Historical used-payment records can reconcile as applied.');
 const admissionSchema=object({id:text,orderId:text,payable:payableSchema,approvalDigest:revision,sourceId:text,sourceVersion:{type:'integer',minimum:1},preparedAt:text,expiresAt:text,state:{enum:['PREPARED','ADMITTED','APPLIED','CANCELLED']},receipt:receiptSchema,targetReleased:{type:'boolean'}},['id','orderId','payable','approvalDigest','sourceId','sourceVersion','preparedAt','expiresAt','state']);
 const admissionOperations=[
@@ -47,6 +55,7 @@ const admissionOperations=[
   op('POST','/payables/{payableId}/admissions/{admissionId}/payments','settleAdmittedPayable',{payable:payableSchema,receipt:receiptSchema},'Apply the exact admitted captured order through gateway settlement claims.',paymentProof),
 ];
 const telecom = [
+  ...reversalOperations,
   ...rechargeOperations,
   ...admissionOperations,
   settlementStatus,
@@ -60,6 +69,7 @@ const telecom = [
 ];
 export const operations: Record<ProviderId, Operation[]> = {
   rta: [
+    ...reversalOperations,
     ...rechargeOperations,
     ...admissionOperations,
     ...payableOperations,
@@ -79,6 +89,7 @@ export const operations: Record<ProviderId, Operation[]> = {
     op('GET', '/rides/bookings/{bookingId}', 'getRide', { booking: opaque }, 'Read a booking owned by this account.'),
   ],
   dewa: [
+    ...reversalOperations,
     ...admissionOperations,
     settlementStatus,
     ...payableOperations,
@@ -89,6 +100,7 @@ export const operations: Record<ProviderId, Operation[]> = {
   ],
   etisalat: telecom, du: telecom,
   police: [
+    ...reversalOperations,
     op('POST','/fine-selections','quoteFineSelection',{payable:payableSchema},'Review one to twenty distinct owned current fines for one vehicle; revisions, discounts and restrictions derive from source state.',paymentSchemas.fineSelection),
     ...admissionOperations,
     settlementStatus,
@@ -102,6 +114,12 @@ export const operations: Record<ProviderId, Operation[]> = {
     op('POST', '/move-ins', 'registerMoveIn', { ejariContract: text, unit: text, residentialParking: opaque }, 'Register a move-in proposal. Utility and parking activation are separate operations.', object({ contractNumber: text })),
   ],
   payments: [
+    op('GET','/payment-refunds','listPaymentRefunds',{refunds:{type:'array',maxItems:100,items:refundSchema}},'List owned original-source refund reviews, pending reversals and confirmed results.'),
+    op('GET','/payment-refunds/{refundId}','getPaymentRefund',{refund:refundSchema},'Read current refund authority/outcome using its original identity.'),
+    op('POST','/payment-refunds','createPaymentRefund',{refund:refundSchema},'Freeze original source, capture, current cumulative amount and reason. Full bill/fine cancellation or bounded partial unused-credit/funding reversal.',paymentSchemas.createRefund),
+    op('POST','/payment-refunds/{refundId}/execute','executePaymentRefund',{refund:refundSchema},'Explicitly approve source reversal, then return confirmed value only to the original funding source.',paymentSchemas.executeOrder),
+    op('POST','/payment-refunds/{refundId}/recover','recoverPaymentRefund',{refund:refundSchema},'Inspect the same provider reversal before completing its original-source refund. Unknown outcomes remain blocked.',paymentSchemas.recoverOrder),
+    op('POST','/payment-refunds/{refundId}/cancel','cancelPaymentRefund',{refund:refundSchema},'Cancel only before reversal starts.',paymentSchemas.cancelOrder),
     op('GET','/checkout-groups','listCheckoutGroups',{groups:{type:'array',maxItems:100,items:groupSchema}},'List owned sequential checkout groups with authoritative child receipts and partial outcomes.'),
     op('GET','/checkout-groups/{groupId}','getCheckoutGroup',{group:groupSchema},'Inspect original child payments after reload or an uncertain response.'),
     op('POST','/checkout-groups','createCheckoutGroup',{group:groupSchema},'Freeze one selected source for up to ten current obligations. Already-paid items are excluded; no funds move.',paymentSchemas.createCheckoutGroup),
@@ -158,7 +176,7 @@ export function openApi(provider: ProviderId) {
         ...Object.fromEntries(['400','401','403','404','409','402','503'].map(status => [status, { $ref: '#/components/responses/Error' }])) },
     };
   }
-  return { openapi: '3.1.0', info: { title: `${providerNames[provider]} Simulator`, version: provider === 'payments' ? '2.9.0' : provider==='rta'?'2.2.0':provider==='police'?'2.5.0':['etisalat','du'].includes(provider)?'2.5.0':provider==='dewa'?'2.4.0' : '2.0.0', description: 'Local synthetic API. Signed interactive user identity or broker-issued user token with current exact-operation grant required. JWT subject owns the account; caller user headers do not grant authority. A separate read-only settlement machine lane retrieves captured charge proofs. Legacy fixture mode is outside this reference security profile.' },
+  return { openapi: '3.1.0', info: { title: `${providerNames[provider]} Simulator`, version: provider === 'payments' ? '2.10.0' : provider==='rta'?'2.3.0':provider==='police'?'2.6.0':['etisalat','du'].includes(provider)?'2.6.0':provider==='dewa'?'2.5.0' : '2.0.0', description: 'Local synthetic API. Signed interactive user identity or broker-issued user token with current exact-operation grant required. JWT subject owns the account; caller user headers do not grant authority. A separate read-only settlement machine lane retrieves captured charge proofs. Legacy fixture mode is outside this reference security profile.' },
     servers: [{ url: `http://localhost:${4101 + providerIds.indexOf(provider)}` }], security: [{ accessToken: [] }],
     paths, components: { securitySchemes: { accessToken: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' } },
       responses: { Unauthorized: { description: 'Missing or invalid Keycloak access token' }, Error: { description: 'Validation, ownership, delegation, payment, conflict or availability error', content: { 'application/json': { schema: object({ success: { const: false }, error: { type: 'string' }, code: { type: 'string' } }) } } } } },

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Etisalat Simulator",
-    "version": "2.5.0",
+    "version": "2.6.0",
     "description": "Local synthetic API. Signed interactive user identity or broker-issued user token with current exact-operation grant required. JWT subject owns the account; caller user headers do not grant authority. A separate read-only settlement machine lane retrieves captured charge proofs. Legacy fixture mode is outside this reference security profile."
   },
   "servers": [
@@ -62,6 +62,369 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/accounts/{accountId}/payment-reversals/{refundId}": {
+      "get": {
+        "operationId": "etisalat_getPaymentReversal",
+        "description": "Read an owned source reversal result after a lost response. No money return is inferred from a request alone.",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "refundId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "reversal": {
+                      "type": "object",
+                      "properties": {
+                        "refundId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "approvalDigest": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        },
+                        "state": {
+                          "enum": [
+                            "APPLIED",
+                            "REJECTED"
+                          ]
+                        },
+                        "receipt": {
+                          "type": "object",
+                          "properties": {
+                            "refundId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "paymentId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "orderId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "approvalDigest": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{64}$"
+                            },
+                            "amountMinor": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 100000000
+                            },
+                            "cumulativeMinor": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 100000000
+                            },
+                            "currency": {
+                              "const": "AED"
+                            },
+                            "provider": {
+                              "enum": [
+                                "payments",
+                                "dewa",
+                                "etisalat",
+                                "du",
+                                "police",
+                                "rta"
+                              ]
+                            },
+                            "reversedAt": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "providerBalanceMinor": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 100000000
+                            }
+                          },
+                          "required": [
+                            "refundId",
+                            "paymentId",
+                            "orderId",
+                            "approvalDigest",
+                            "amountMinor",
+                            "cumulativeMinor",
+                            "currency",
+                            "provider",
+                            "reversedAt"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "failureCode": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        }
+                      },
+                      "required": [
+                        "refundId",
+                        "approvalDigest",
+                        "state"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "reversal"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "402": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "post": {
+        "operationId": "etisalat_applyPaymentReversal",
+        "description": "Fetch and verify the current gateway refund, reverse only the exact applied original payment, and persist an APPLIED or REJECTED decision atomically.",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "refundId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "reversal": {
+                      "type": "object",
+                      "properties": {
+                        "refundId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "approvalDigest": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        },
+                        "state": {
+                          "enum": [
+                            "APPLIED",
+                            "REJECTED"
+                          ]
+                        },
+                        "receipt": {
+                          "type": "object",
+                          "properties": {
+                            "refundId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "paymentId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "orderId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "approvalDigest": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{64}$"
+                            },
+                            "amountMinor": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 100000000
+                            },
+                            "cumulativeMinor": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 100000000
+                            },
+                            "currency": {
+                              "const": "AED"
+                            },
+                            "provider": {
+                              "enum": [
+                                "payments",
+                                "dewa",
+                                "etisalat",
+                                "du",
+                                "police",
+                                "rta"
+                              ]
+                            },
+                            "reversedAt": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "providerBalanceMinor": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 100000000
+                            }
+                          },
+                          "required": [
+                            "refundId",
+                            "paymentId",
+                            "orderId",
+                            "approvalDigest",
+                            "amountMinor",
+                            "cumulativeMinor",
+                            "currency",
+                            "provider",
+                            "reversedAt"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "failureCode": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        }
+                      },
+                      "required": [
+                        "refundId",
+                        "approvalDigest",
+                        "state"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "reversal"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "402": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
           }
         }
       }

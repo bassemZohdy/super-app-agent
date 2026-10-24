@@ -10,7 +10,7 @@ PAY-13 uses the existing finite synthetic issuer and balanced journal. Select a 
 4. Read the source, amount, fee and total, then choose **Authorize wallet top-up**. Card capacity is held for at most two minutes. A challenge requires an explicit signed-owner decision. The wallet is still unchanged.
 5. Choose **Add AED … to wallet**. Only a confirmed atomic card capture and wallet credit produce **Wallet credited**. Cancel before capture to release the hold. Reload or refresh after a lost response to inspect the same review and receipt.
 
-Funding uses the shared per-card issuer limit, including bill authorizations/captures. Disabled, changed, expired, declined or exhausted sources cannot fall back to another card. Account switching clears the UI state; another owner/workspace cannot see or use the original source or receipt. Refunds and automatic low-balance rules remain PAY-17/AUTO-09 work. Angular/Flutter parity remains QA-06.
+Funding uses the shared per-card issuer limit, including bill authorizations/captures. Disabled, changed, expired, declined or exhausted sources cannot fall back to another card. Account switching clears the UI state; another owner/workspace cannot see or use the original source or receipt. [Original-card funding refunds](payment-refunds.md) now debit available wallet funds and return captured value within cumulative bounds; spent/held funds cannot cause an overdraft. Automatic low-balance rules remain AUTO-09 work. Angular/Flutter parity remains QA-06.
 
 ## Protocol and persistence
 

@@ -18,6 +18,7 @@ export class PaymentIssuer {
       amount_minor INTEGER NOT NULL CHECK(typeof(amount_minor)='integer' AND amount_minor BETWEEN 1 AND 100000000),
       state TEXT NOT NULL CHECK(state IN ('REQUIRES_ACTION','AUTHORIZED','DECLINED','EXPIRED','VOIDED','CAPTURED')),expires_at INTEGER NOT NULL,
       binding_digest TEXT NOT NULL,body TEXT NOT NULL,UNIQUE(account_id,order_id));
+      CREATE TABLE IF NOT EXISTS payment_card_refunds(id TEXT PRIMARY KEY,account_id TEXT NOT NULL REFERENCES accounts(id),order_id TEXT NOT NULL,source_id TEXT NOT NULL,amount_minor INTEGER NOT NULL CHECK(typeof(amount_minor)='integer' AND amount_minor BETWEEN 1 AND 100000000));
       CREATE INDEX IF NOT EXISTS issuer_source ON payment_card_authorizations(account_id,source_id,state);`));
   }
   private atomic<T>(fn:()=>T):T{
@@ -37,8 +38,10 @@ export class PaymentIssuer {
       if(!method||method.kind!=='card')return deny('METHOD_NOT_FOUND','Card not found for this account.');
       const preset=cardPresets.find(p=>p.id===method.preset);if(!preset)return deny('METHOD_UNAVAILABLE','Unknown synthetic issuer preset.');
       const row=this.store.db.prepare("SELECT coalesce(sum(CASE WHEN state IN ('REQUIRES_ACTION','AUTHORIZED') THEN amount_minor ELSE 0 END),0) held,coalesce(sum(CASE WHEN state='CAPTURED' THEN amount_minor ELSE 0 END),0) spent FROM payment_card_authorizations WHERE account_id=? AND source_id=?").get(account,sourceId) as {held:number;spent:number};
+      const refunded=Number(this.store.db.prepare('SELECT coalesce(sum(amount_minor),0) n FROM payment_card_refunds WHERE account_id=? AND source_id=?').get(account,sourceId)!.n);
+      if(refunded>row.spent)return deny('ISSUER_INCONSISTENT','Card refunds exceed captured value.');row.spent-=refunded;
       if(row.held+row.spent>preset.limitMinor)return deny('ISSUER_INCONSISTENT','The issuer limit needs reconciliation.');
-      return {sourceId,limitMinor:preset.limitMinor,heldMinor:row.held,spentMinor:row.spent,availableMinor:preset.limitMinor-row.held-row.spent,currency:'AED'};
+      return {sourceId,refundedMinor:refunded,limitMinor:preset.limitMinor,heldMinor:row.held,spentMinor:row.spent,availableMinor:preset.limitMinor-row.held-row.spent,currency:'AED'};
     });
   }
   private card(binding:IssuerBinding){
@@ -82,6 +85,18 @@ export class PaymentIssuer {
     });
   }
   void(binding:IssuerBinding){return this.atomic(()=>{const auth=this.bound(binding);if(auth.state==='CAPTURED')return deny('ALREADY_CAPTURED','Captured funds require the refund workflow.');if(['REQUIRES_ACTION','AUTHORIZED'].includes(auth.state)){auth.state='VOIDED';this.save(auth);}return auth;});}
+  /** Refund the original captured source, including a subsequently disabled/removed card. No new authorization is granted. */
+  refund(account:string,owner:string,orderId:string,sourceId:string,amountMinor:number,refundId:string){return this.atomic(()=>{
+    if(!this.store.owns(owner,account))return deny('OWNER_CHANGED','Refund owner mismatch.');
+    if(!Number.isSafeInteger(amountMinor)||amountMinor<1||amountMinor>MAX_PAYMENT_MINOR)return deny('INVALID_REFUND_AMOUNT','Refund must use bounded integer fils.');
+    const prior=this.store.db.prepare('SELECT * FROM payment_card_refunds WHERE id=?').get(refundId);
+    if(prior){if(prior.account_id!==account||prior.order_id!==orderId||prior.source_id!==sourceId||prior.amount_minor!==amountMinor)return deny('REFUND_CONFLICT','This refund has different source or amount terms.');return;}
+    const auth=this.store.db.prepare('SELECT state,source_id,amount_minor FROM payment_card_authorizations WHERE account_id=? AND order_id=?').get(account,orderId);
+    if(!auth||auth.state!=='CAPTURED'||auth.source_id!==sourceId)return deny('CAPTURE_NOT_FOUND','The original captured card authorization is required.');
+    const refunded=Number(this.store.db.prepare('SELECT coalesce(sum(amount_minor),0) n FROM payment_card_refunds WHERE account_id=? AND order_id=?').get(account,orderId)!.n);
+    if(refunded+amountMinor>Number(auth.amount_minor))return deny('REFUND_LIMIT','Refunds cannot exceed the original card capture.');
+    this.store.db.prepare('INSERT INTO payment_card_refunds VALUES(?,?,?,?,?)').run(refundId,account,orderId,sourceId,amountMinor);
+  });}
   /** Trusted capture seam for PAY-09; no public route is enabled before settlement claim admission exists. */
   capture(binding:IssuerBinding){return this.atomic(()=>{const auth=this.bound(binding);if(auth.state==='CAPTURED')return auth;if(auth.state!=='AUTHORIZED')return deny('AUTHORIZATION_UNAVAILABLE','A current authorized hold is required.');this.card(binding);auth.state='CAPTURED';return this.save(auth);});}
 }

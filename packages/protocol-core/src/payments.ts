@@ -1,5 +1,5 @@
 /** Payment contract v1. Additive, synthetic-account APIs; previews never authorize execution. */
-export const PAYMENT_CONTRACT_VERSION = '1.6.0';
+export const PAYMENT_CONTRACT_VERSION = '1.7.0';
 export const MAX_PAYMENT_MINOR = 100_000_000;
 export const WALLET_FUNDING_LIMITS = { minMinor: 100, maxMinor: 50000, balanceMaxMinor: 1000000, feeMinor: 0 } as const;
 export const cardPresets = [
@@ -28,9 +28,13 @@ export type PaymentPreview = {
   payable: Payable; billingAccount: BillingAccount; source: PaymentMethod; amountMinor: number; feeMinor: number;
   totalMinor: number; currency: 'AED'; createdAt: string; expiresAt: string; digest: string;
 };
-export type CardBalance={sourceId:string;limitMinor:number;heldMinor:number;spentMinor:number;availableMinor:number;currency:'AED'};
+export type CardBalance={refundedMinor?:number;sourceId:string;limitMinor:number;heldMinor:number;spentMinor:number;availableMinor:number;currency:'AED'};
 export type CardAuthorization={id:string;orderId:string;sourceId:string;amountMinor:number;currency:'AED';state:'REQUIRES_ACTION'|'AUTHORIZED'|'DECLINED'|'EXPIRED'|'VOIDED'|'CAPTURED';expiresAt:string;challengeId?:string;failureCode?:string};
-export type PaymentAuthorizationReview={id:string;accountId:string;ownerSub:string;version:number;state:'AWAITING_APPROVAL'|'REQUIRES_ACTION'|'AUTHORIZED'|'CAPTURING'|'CAPTURED'|'RECONCILIATION_REQUIRED'|'SETTLED'|'FAILED'|'CANCELLED';approvalDigest:string;expiresAt:string;createdAt:string;approvedAt?:string;failureCode?:string;fundsCaptured:boolean;admissionId?:string;paymentId?:string;receipt?:PaymentReceipt;sourceFinalizationPending?:boolean;
+export type RefundedPayment={refundedMinor?:number;refundState?:'PARTIALLY_REFUNDED'|'REFUNDED'};
+export type ReversalReceipt={refundId:string;paymentId:string;orderId:string;approvalDigest:string;amountMinor:number;cumulativeMinor:number;currency:'AED';provider:string;reversedAt:string;providerBalanceMinor?:number};
+export type PaymentRefund={id:string;accountId:string;ownerSub:string;version:number;state:'AWAITING_APPROVAL'|'REVERSING'|'RECONCILIATION_REQUIRED'|'REFUNDED'|'FAILED'|'CANCELLED';approvalDigest:string;createdAt:string;expiresAt:string;failureCode?:string;receipt?:ReversalReceipt;
+ quote:{origin:'PAYMENT'|'WALLET_FUNDING';orderId:string;paymentId:string;source:PaymentMethod;amountMinor:number;originalAmountMinor:number;expectedRefundedMinor:number;currency:'AED';reason:string;originalApprovalDigest:string;payable?:Payable;admissionId?:string}};
+export type PaymentAuthorizationReview=RefundedPayment & {id:string;accountId:string;ownerSub:string;version:number;state:'AWAITING_APPROVAL'|'REQUIRES_ACTION'|'AUTHORIZED'|'CAPTURING'|'CAPTURED'|'RECONCILIATION_REQUIRED'|'SETTLED'|'FAILED'|'CANCELLED';approvalDigest:string;expiresAt:string;createdAt:string;approvedAt?:string;failureCode?:string;fundsCaptured:boolean;admissionId?:string;paymentId?:string;receipt?:PaymentReceipt;sourceFinalizationPending?:boolean;
   quote:{payable:Payable;billingAccount:BillingAccount;source:PaymentMethod;amountMinor:number;feeMinor:number;totalMinor:number;currency:'AED';createdAt:string;expiresAt:string};authorization?:CardAuthorization};
 export type PaymentDependency = { resourceType:'METHOD'|'BILLER';resourceId:string;dependentKind:'ORDER'|'HOLD'|'MANDATE';dependentId:string;status:'ACTIVE' };
 export type CheckoutGroup = {
@@ -40,7 +44,7 @@ export type CheckoutGroup = {
 };
 export type CheckoutGroupView = CheckoutGroup & {orders:PaymentAuthorizationReview[];settledMinor:number;
   state:'AWAITING_APPROVAL'|'READY'|'REQUIRES_ACTION'|'RECONCILIATION_REQUIRED'|'PARTIAL'|'STOPPED'|'CANCELLED'|'COMPLETED'};
-export type WalletFundingOrder = {
+export type WalletFundingOrder = RefundedPayment & {
   id:string; accountId:string; ownerSub:string; version:number;
   state:'AWAITING_APPROVAL'|'REQUIRES_ACTION'|'AUTHORIZED'|'SETTLED'|'FAILED'|'CANCELLED';
   approvalDigest:string; createdAt:string; expiresAt:string; fundsCaptured:boolean; failureCode?:string;
@@ -48,7 +52,7 @@ export type WalletFundingOrder = {
   authorization?:CardAuthorization;
   receipt?:{receiptNumber:string;amountMinor:number;feeMinor:number;currency:'AED';balanceMinor:number;capturedAt:string};
 };
-export type PaymentOverview = { contractVersion: string; accountId: string; previewOnly: boolean; dependencies: PaymentDependency[]; methods: PaymentMethod[]; defaultMethodId: string; presets: unknown[]; billingAccounts: BillingAccount[]; candidates: BillerCandidate[]; payables: Payable[];rechargeTargets?:RechargeTarget[];orders?:PaymentAuthorizationReview[];checkoutGroups?:CheckoutGroupView[];fundingOrders?:WalletFundingOrder[];cardBalances?:CardBalance[];wallet: { balanceMinor: number; heldMinor: number; availableMinor: number; currency: 'AED' } };
+export type PaymentOverview = { contractVersion: string; accountId: string; previewOnly: boolean; dependencies: PaymentDependency[]; methods: PaymentMethod[]; defaultMethodId: string; presets: unknown[]; billingAccounts: BillingAccount[]; candidates: BillerCandidate[]; payables: Payable[];rechargeTargets?:RechargeTarget[];orders?:PaymentAuthorizationReview[];checkoutGroups?:CheckoutGroupView[];refunds?:PaymentRefund[];fundingOrders?:WalletFundingOrder[];cardBalances?:CardBalance[];wallet: { balanceMinor: number; heldMinor: number; availableMinor: number; currency: 'AED' } };
 export const orderStates = ['DRAFT','AWAITING_APPROVAL','READY','REQUIRES_ACTION','AUTHORIZED','CAPTURED','SETTLING','SETTLED','FAILED','CANCELLED','RECONCILIATION_REQUIRED','REFUNDING','PARTIALLY_REFUNDED','REFUNDED'] as const;
 export const settlementStates = ['UNCLAIMED','CLAIMED','APPLIED','RELEASED','UNKNOWN'] as const;
 export const attemptStates = ['PENDING','REQUIRES_ACTION','AUTHORIZED','CAPTURED','DECLINED','VOIDED','UNKNOWN'] as const;
@@ -61,6 +65,7 @@ export const fineSelectionItemsSchema={type:'array',minItems:1,maxItems:20,items
 export const minorUnitSchema = { type: 'integer', minimum: 1, maximum: MAX_PAYMENT_MINOR };
 export const paymentObject = (properties: Record<string, unknown>, required = Object.keys(properties)) => ({ type: 'object', properties, required, additionalProperties: false });
 export const paymentSchemas = {
+  createRefund:paymentObject({origin:{enum:['PAYMENT','WALLET_FUNDING']},orderId:id,expectedVersion:version,amountMinor:minorUnitSchema,reason:{type:'string',minLength:1,maxLength:160,pattern:'\\S'}}),
   createCheckoutGroup:paymentObject({items:{type:'array',minItems:1,maxItems:10,uniqueItems:true,items:paymentObject({provider:{enum:['dewa','etisalat','du','police','rta']},payableId:id,expectedPayableRevision:digestSchema})},methodId:id,expectedMethodVersion:version}),
   createMethod: paymentObject({ preset: { enum: cardPresets.map(p => p.id) }, nickname }),
   methodStatus: paymentObject({ methodId: id, expectedVersion: version, status: { enum: ['ACTIVE','DISABLED','REMOVED'] } }),
