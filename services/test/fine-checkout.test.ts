@@ -51,12 +51,12 @@ test('a changed fine or expired discount invalidates an already-approved selecti
   const p=f.selection([fine]),o=f.approve(p);f.setTime(f.now()+1000);await assert.rejects(f.checkout.execute(f.actor,o.id,input(o)),(e:any)=>e.code==='PAYABLE_CHANGED');assert.equal(f.db.list(f.actor.accountId,'charge').length,0);assert.equal(f.gateway.issuer!.summary(f.actor.accountId,f.method.id).spentMinor,0);
 });
 test('overlapping single/group selections reserve each fine before capture, blocking legacy settlement and amendment',async t=>{
-  const f=fixture(t),p=f.selection(),group=f.approve(p),single=f.approve(f.fines[0]);const pending=f.gateway.orders!.beginCapture(f.actor,group.id,input(group),p);
+  const f=fixture(t),p=f.selection(),group=f.approve(p);assert.throws(()=>f.approve(f.fines[0]),(e:any)=>e.code==='PAYABLE_RESERVED');const pending=f.gateway.orders!.beginCapture(f.actor,group.id,input(group),p);
   const prepared=f.provider.admissions!.prepare(f.actor.accountId,p.id,{orderId:group.id,expectedRevision:p.revision,approvalDigest:group.approvalDigest,sourceId:'wallet',sourceVersion:1,expiresAt:group.authorization!.expiresAt}),attached=f.gateway.orders!.attachAdmission(f.actor,group.id,prepared);
   const admitted=f.provider.admissions!.admit(f.actor.accountId,prepared.id,attached);
   assert.equal(pending.state,'CAPTURING');assert.throws(()=>f.provider.payables!.amend(f.actor.accountId,f.fines[0].id,f.fines[0].revision,{amountMinor:1}),(e:any)=>e.code==='PAYABLE_RESERVED');
   assert.throws(()=>f.source.transaction(()=>f.provider.execute(f.actor,'POST','/fine-payments',{fineIds:[f.fines[0].obligationId],paymentId:'foreign'})),(e:any)=>e.code==='PAYABLE_RESERVED');
-  const blocked=await f.checkout.execute(f.actor,single.id,input(single));assert.equal(blocked.state,'FAILED');assert.equal(blocked.fundsCaptured,false);assert.equal(f.db.list(f.actor.accountId,'charge').length,0);
+  assert.throws(()=>f.provider.admissions!.prepare(f.actor.accountId,f.fines[0].id,{orderId:'competing-source-order',expectedRevision:f.fines[0].revision,approvalDigest:'a'.repeat(64),sourceId:'wallet',sourceVersion:1,expiresAt:group.authorization!.expiresAt}),(e:any)=>e.code==='PAYABLE_RESERVED');assert.equal(f.db.list(f.actor.accountId,'charge').length,0);assert.equal(f.gateway.ledger!.summary(f.actor.accountId).heldMinor,p.amountMinor);
   f.gateway.orders!.capture(f.actor,group.id,admitted);assert.equal((await f.checkout.recover(f.actor,group.id)).state,'SETTLED');assert.equal(f.db.list(f.actor.accountId,'charge').length,1);
 });
 for(const scenario of ['deadline','captured'])test(`fine ${scenario} enforces the discount deadline and honors already-captured frozen terms`,async t=>{

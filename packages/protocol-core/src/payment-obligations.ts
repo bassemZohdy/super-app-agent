@@ -1,0 +1,6 @@
+import { paymentObject } from './payments.ts';
+export type ObligationView={orderId:string;provider:string;kind:'OBLIGATION'|'RECHARGE_INTENT'|'RECHARGE_TARGET_VERSION'|'LEGACY';resourceId:string;reference:string;state:'RESERVED'|'COMMITTED'|'BLOCKED'|'RELEASED';legacy:boolean};
+export type CaptureAttemptView={id:string;orderId:string;paymentId:string;state:'PREPARING'|'UNKNOWN'|'CAPTURED'|'SETTLED'|'FAILED'|'CANCELLED';amountMinor:number;currency:'AED';sourceId:string;createdAt:string;inferred:boolean;fundsCaptured:boolean};
+const id={type:'string',minLength:1,maxLength:400};
+export const obligationSchema=paymentObject({orderId:id,provider:{enum:['dewa','etisalat','du','police','rta']},kind:{enum:['OBLIGATION','RECHARGE_INTENT','RECHARGE_TARGET_VERSION','LEGACY']},resourceId:id,reference:id,state:{enum:['RESERVED','COMMITTED','BLOCKED','RELEASED']},legacy:{type:'boolean'}});
+export const captureAttemptSchema=paymentObject({id,orderId:id,paymentId:id,state:{enum:['PREPARING','UNKNOWN','CAPTURED','SETTLED','FAILED','CANCELLED']},amountMinor:{type:'integer',minimum:1,maximum:100000000},currency:{const:'AED'},sourceId:id,createdAt:{type:'string',minLength:20,maxLength:40,pattern:'^\\d{4}-\\d{2}-\\d{2}T'},inferred:{type:'boolean'},fundsCaptured:{type:'boolean'}});

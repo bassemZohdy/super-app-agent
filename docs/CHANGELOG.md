@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 24 October 2026 — gateway business reservations and original attempts
+
+Advance PAY-08 with canonical invoice/fine/recharge reservations before authorization, persisted pre-dispatch capture identities, unknown retention and conservative historical overlap migration. Add an owned expandable lifecycle view, signed panel/manual race/restart/recovery verification and paced recording. PAY-08 remains open for actual automatic caller/budget/occurrence qualification under AUTO-03. [Guide](development/payment-obligations.md) · [Evidence](reports/2026-10-24-payment-obligations.md).
+
 ## 24 October 2026 — current owner and workspace lifecycle
 
 Deliver PAY-21 with versioned owner/membership decisions, separate machine reader/operator lanes, current eligibility checks, approval/grant epochs and atomic gateway capture fencing. Preserve history and captured original IDs; show restricted access and stale in-flight work in React without implicit reassignment. Verify revoke/restore, source changes, authority outages, restart, delegation and actual temporary Keycloak user disablement. Update current contracts/guides; preserve dated evidence. [Guide](development/payment-lifecycle.md) · [Evidence](reports/2026-10-24-payment-lifecycle.md).

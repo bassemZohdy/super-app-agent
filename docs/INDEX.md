@@ -102,3 +102,5 @@ Earlier dated reports, transcripts, videos and archived backlogs are historical 
 [Automation authority/threat model](architecture/payment-automation-security.md) · [Hardening and signed authority evidence](reports/2026-10-24-automation-security.md). AUTO-02 completes the security contract; permits, shared budgets, owner lifecycle and workers remain gated.
 
 [Current owner/workspace lifecycle](development/payment-lifecycle.md) · [Signed lifecycle qualification](reports/2026-10-24-payment-lifecycle.md) · [Paced restricted/restored access recording](recordings/payment-lifecycle/index.html). Owner/membership/source changes retain original IDs and require new authority; scheduled spending remains disabled.
+
+[Gateway business reservations and capture attempts](development/payment-obligations.md) · [Checkpoint evidence](reports/2026-10-24-payment-obligations.md) · [Paced recording](recordings/payment-obligations/index.html). PAY-08 stays open until the actual automatic path shares the same exclusion and budget/occurrence gates.

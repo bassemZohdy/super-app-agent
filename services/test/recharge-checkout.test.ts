@@ -69,10 +69,10 @@ test('a target changing after approval prevents capture without funding fallback
   await assert.rejects(f.checkout.execute(f.actor,o.id,input(o)),(e:any)=>e.code==='PAYABLE_CHANGED');assert.equal(f.db.list(f.actor.accountId,'charge').length,0);assert.equal(f.gateway.issuer!.summary(f.actor.accountId,f.method.id).spentMinor,0);
 });
 test('competing quotes for one target cannot capture twice and legacy credit cannot bypass its admission',async t=>{
-  const f=fixture(t),p=f.quote(),other=f.quote(),first=f.approve(p),second=f.approve(other);f.gateway.orders!.beginCapture(f.actor,first.id,input(first),p);
+  const f=fixture(t),p=f.quote(),other=f.quote(),first=f.approve(p);assert.throws(()=>f.approve(other),(e:any)=>e.code==='PAYABLE_RESERVED');f.gateway.orders!.beginCapture(f.actor,first.id,input(first),p);
   const prep=f.provider.admissions!.prepare(f.actor.accountId,p.id,{orderId:first.id,expectedRevision:p.revision,approvalDigest:first.approvalDigest,sourceId:'wallet',sourceVersion:1,expiresAt:first.authorization!.expiresAt}),attached=f.gateway.orders!.attachAdmission(f.actor,first.id,prep);f.provider.admissions!.admit(f.actor.accountId,prep.id,attached);
   assert.throws(()=>f.source.transaction(()=>f.provider.execute(f.actor,'POST','/salik/recharges',{amount:50,reference:'bypass',paymentId:'forged'})),(e:any)=>e.code==='PAYABLE_RESERVED');
-  assert.throws(()=>f.provider.admissions!.finish(f.actor.accountId,prep.id,attached),(e:any)=>e.code==='RECHARGE_NOT_CONFIRMED');const blocked=await f.checkout.execute(f.actor,second.id,input(second));assert.equal(blocked.state,'FAILED');assert.equal(blocked.fundsCaptured,false);
+  assert.throws(()=>f.provider.admissions!.finish(f.actor.accountId,prep.id,attached),(e:any)=>e.code==='RECHARGE_NOT_CONFIRMED');assert.throws(()=>f.provider.admissions!.prepare(f.actor.accountId,other.id,{orderId:'competing-source-order',expectedRevision:other.revision,approvalDigest:'a'.repeat(64),sourceId:'wallet',sourceVersion:1,expiresAt:first.authorization!.expiresAt}),(e:any)=>e.code==='PAYABLE_RESERVED');
   assert.equal((await f.checkout.recover(f.actor,first.id)).state,'SETTLED');assert.equal(f.db.list(f.actor.accountId,'charge').length,1);
 });
 test('a captured proof cannot be reused against another recharge target or quote',async t=>{

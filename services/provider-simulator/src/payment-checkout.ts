@@ -45,7 +45,7 @@ export class PaymentCheckout{
       if(order.fundsCaptured)return this.orders.unresolved(actor,id,e.code||'PROVIDER_OUTCOME_UNKNOWN');
       if(e.status&&e.status<500){const failed=this.orders.abortCapture(actor,id,e.code||'CAPTURE_REJECTED');await this.release(actor,id);return failed;}
       // Unknown admission is recoverable with the original order. It does not permit another charge.
-      return order;
+      return this.orders.unresolved(actor,id,e.code||'PROVIDER_OUTCOME_UNKNOWN');
     }
   }
 }
