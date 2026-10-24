@@ -21,9 +21,9 @@ The bounded delegation extension is documented in [ADR-0012](adr/ADR-0012-secure
 
 ## Payment accounts and next demo work
 
-[Payment accounts and automation design](architecture/payment-automation-demo.md) defines linked biller accounts, wallet/cards, bounded automatic payments/services and an isolated simulator. [The 50-task backlog (20 slices delivered, 30 open)](../TODO.md#payment-accounts-and-automation-demo--planned-backlog) is the authoritative implementation checklist. PAY-01–PAY-07, PAY-09–PAY-18, AUTO-01, SIM-03 and preview-only SIM-01 are delivered. [Current lifecycle/scenario evidence](reports/2026-10-24-lifecycle-simulator.md) defines their tested boundary. [Current usage](development/payment-accounts.md) and [execution evidence](reports/2026-10-24-payment-checkout.md) describe quote review, explicit authorization and confirmed wallet/card bill payment. [Planning and cleanup record](reports/2026-10-24-payment-planning.md) preserves the initial planning observations and records this backlog review.
+[Payment accounts and automation design](architecture/payment-automation-demo.md) defines linked biller accounts, wallet/cards, bounded automatic payments/services and an isolated simulator. [The 50-task backlog (21 slices delivered, 29 open)](../TODO.md#payment-accounts-and-automation-demo--planned-backlog) is the authoritative implementation checklist. PAY-01–PAY-07, PAY-09–PAY-19, AUTO-01, SIM-03 and preview-only SIM-01 are delivered. [Current lifecycle/scenario evidence](reports/2026-10-24-lifecycle-simulator.md) defines their tested boundary. [Current usage](development/payment-accounts.md) and [execution evidence](reports/2026-10-24-payment-checkout.md) describe quote review, explicit authorization and confirmed wallet/card bill payment. [Planning and cleanup record](reports/2026-10-24-payment-planning.md) preserves the initial planning observations and records this backlog review.
 
-[Balanced journal and migration](development/payment-ledger.md) · [Actual three-wallet migration and regression evidence](reports/2026-10-24-payment-ledger.md). Stored authorization reviews are implemented; bill capture/settlement is implemented; other payable types and automation remain planned.
+[Balanced journal and migration](development/payment-ledger.md) · [Actual three-wallet migration and regression evidence](reports/2026-10-24-payment-ledger.md). Stored authorization reviews are implemented; bill/fine/recharge capture and original-source refunds are implemented; automatic execution remains planned.
 
 [Stored authorization reviews and finite issuer](development/payment-authorization.md) · [Authorization evidence](reports/2026-10-24-payment-authorization.md).
 
@@ -71,7 +71,7 @@ The bounded delegation extension is documented in [ADR-0012](adr/ADR-0012-secure
 
 Earlier dated reports, transcripts, videos and archived backlogs are historical evidence and are not overwritten by the new baseline.
 
-[Settlement claims, provider fences and conservative migration](development/settlement-claims.md) · [Race/identity/upgrade evidence](reports/2026-10-24-settlement-claims.md). Existing provider HTTP payments and stored bill captures use the guard; other payable types remain separate integration work.
+[Settlement claims, provider fences and conservative migration](development/settlement-claims.md) · [Race/identity/upgrade evidence](reports/2026-10-24-settlement-claims.md). Existing provider HTTP payments and stored bill/fine/recharge captures use the guard; automatic callers retain separate integration gates.
 
 [Wallet/card bill capture, provider admission and recovery](development/payment-checkout.md) · [End-to-end evidence](reports/2026-10-24-payment-checkout.md).
 
@@ -85,7 +85,7 @@ Earlier dated reports, transcripts, videos and archived backlogs are historical 
 
 [Original-source refund guide](development/payment-refunds.md) · [Refund evidence](reports/2026-10-24-payment-refunds.md) · [Paced recording](recordings/payment-refunds/index.html).
 
-[Signed financial events and recovery hints](development/payment-events.md) · [Scoped PAY-18 evidence](reports/2026-10-24-payment-events.md) · [Paced callback recovery recording](recordings/payment-events/index.html). PAY-18 remains in progress.
+[Signed financial events and recovery hints](development/payment-events.md) · [Scoped PAY-18 evidence](reports/2026-10-24-payment-events.md) · [Paced callback recovery recording](recordings/payment-events/index.html). The subsequent retained-path report completes PAY-18 for current manual paths.
 
 [Isolated issuer scenario guide](development/issuer-scenarios.md) · [Eight-outcome evidence](reports/2026-10-24-issuer-scenarios.md) · [Paced recording](recordings/issuer-scenarios/index.html).
 
@@ -94,3 +94,5 @@ Earlier dated reports, transcripts, videos and archived backlogs are historical 
 [Conversational payment review parity](development/payment-surfaces.md) · [signed evidence](reports/2026-10-24-payment-surfaces.md) · [paced recording](recordings/payment-surfaces/index.html). PAY-07 now uses explicit source selection and original-order cancellation/recovery in the service workspace.
 
 [Retained payment-event qualification](reports/2026-10-24-legacy-payment-events.md) completes PAY-18 for current manual paths, including legacy/parking and mixed v1/v2 delivery. [Guide](development/payment-events.md) · [Recording](recordings/legacy-payment-events/index.html).
+
+[Owned payment reconciliation](development/payment-reconciliation.md) · [Recovery/restart evidence](reports/2026-10-24-payment-reconciliation.md) · [Paced recording](recordings/payment-reconciliation/index.html). PAY-19 is delivered; statements, automatic admission and general fault controls keep their separate gates.

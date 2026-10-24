@@ -1,6 +1,6 @@
 import type { PaymentEventStatus } from './payment-events.ts';
 /** Payment contract v1. Additive, synthetic-account APIs; previews never authorize execution. */
-export const PAYMENT_CONTRACT_VERSION = '1.10.0';
+export const PAYMENT_CONTRACT_VERSION = '1.11.0';
 export const MAX_PAYMENT_MINOR = 100_000_000;
 export const WALLET_FUNDING_LIMITS = { minMinor: 100, maxMinor: 50000, balanceMaxMinor: 1000000, feeMinor: 0 } as const;
 export const cardPresets = [

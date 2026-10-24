@@ -148,3 +148,5 @@ SQLite permits a single simultaneous writer; the local worker/payment design mus
 ## Exact conversational funding review
 
 [PAY-07](../development/payment-surfaces.md) now binds displayed payable revisions/amounts, explicit source/version and stored order/digest across the service workspace. Wallet/card bills, exact fines, saved-card wallet reload and civic groups require review, authorization/challenge and a separate capture action. Cancellation and unknown recovery retain original identities; source selection and natural-language assent never spend. Automatic callers retain their separate admission/permit gates.
+
+[PAY-19 recovery](../development/payment-reconciliation.md) adds owned evidence decisions, guarded same-operation continuation, separately approved refund reviews and append-only local audit. Missing provider outcomes remain blocked. Automatic budgets, workers and general simulator failpoints retain separate gates.

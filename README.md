@@ -117,7 +117,9 @@ Open **Payment accounts** in React to save synthetic card presets, link provider
 
 Current wallet payments now append balanced journal entries, with one-time legacy balance migration and checked posted/held/available funds. [Journal and recovery guide](docs/development/payment-ledger.md) · [Live migration evidence](docs/reports/2026-10-24-payment-ledger.md).
 
-The [payment backlog](TODO.md#payment-accounts-and-automation-demo--planned-backlog) tracks 50 tasks: 20 slices delivered and 30 open. The remaining work covers automatic-caller reservation qualification, consolidated recovery, bounded autopay/automatic services and deterministic clock/failure simulation. [Full design](docs/architecture/payment-automation-demo.md).
+[Payment recovery](docs/development/payment-reconciliation.md) now inspects original capture/provider evidence, resumes existing operations and creates separately approved refund reviews. Saved outcomes and audit survive reload/restart. [Paced recording](docs/recordings/payment-reconciliation/index.html).
+
+The [payment backlog](TODO.md#payment-accounts-and-automation-demo--planned-backlog) tracks 50 tasks: 21 slices delivered and 29 open. The remaining work covers automatic-caller reservation qualification, statements, bounded autopay/automatic services and deterministic clock/failure simulation. [Full design](docs/architecture/payment-automation-demo.md).
 
 Use `npm run simulator:verify` to try the persisted preview-only business clock across separate processes. It emits descriptive due events and resets its isolated run without touching provider funds. [Commands and limits](docs/development/simulator.md) · [Lifecycle/scenario evidence](docs/reports/2026-10-24-lifecycle-simulator.md). Automatic execution and its scenario controls remain in the backlog.
 
@@ -141,7 +143,7 @@ License: MIT.
 
 [Original-source refunds](docs/development/payment-refunds.md) now support full demo bill/fine cancellation, bounded partial toll/mobile-credit return and card-funded wallet reversal with no overdraft. Provider reversal precedes money return; unknown outcomes retain their original refund identity. [Paced refund demo](docs/recordings/payment-refunds/index.html).
 
-[Signed financial status events](docs/development/payment-events.md) now use transactional outboxes, persisted delivery leases and an authenticated deduplicating gateway inbox. Source notifications prompt owner recovery of the original operation; callbacks do not move funds or assert bill settlement. [Response-loss recovery recording](docs/recordings/payment-events/index.html). PAY-18 remains in progress pending its remaining simulator/path gates.
+[Signed financial status events](docs/development/payment-events.md) now use transactional outboxes, persisted delivery leases and an authenticated deduplicating gateway inbox. Source notifications prompt owner recovery of the original operation; callbacks do not move funds or assert bill settlement. [Response-loss recovery recording](docs/recordings/payment-events/index.html). PAY-18 covers current manual paths; general simulator fault controls and automatic-caller qualification retain separate gates.
 
 [Isolated issuer scenarios](docs/development/issuer-scenarios.md) now provide eight authenticated operator presets, including persisted pending decisions and refund failure. `npm run simulator:issuer` executes the isolated matrix; [the paced recording](docs/recordings/issuer-scenarios/index.html) shows customer outcomes and a pending provider restart. Normal provider controls remain unavailable.
 
