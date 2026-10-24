@@ -61,7 +61,7 @@ export function createProviderServer(provider: ProviderId, path: string, options
       const operation = routes.find(route => route.method === req.method && route.regex.test(operationPath));
       if (!operation || url.search) throw new ApiError(404, 'NOT_FOUND', 'Operation not found.');
       if(claimRoute&&!claimant)throw new ApiError(403,'CLAIM_CLIENT_REQUIRED','Only the exact provider settlement workload can change a claim.');
-      if(provider==='payments'&&(operationPath.startsWith('/payment-orders')||operationPath.startsWith('/wallet-funding-orders'))&&!interactive)throw new ApiError(403,'INTERACTIVE_REVIEW_REQUIRED','Stored authorization reviews require the signed-in owner. Unattended actors cannot approve or answer challenges.');
+      if(provider==='payments'&&(operationPath.startsWith('/payment-orders')||operationPath.startsWith('/wallet-funding-orders')||operationPath.startsWith('/checkout-groups'))&&!interactive)throw new ApiError(403,'INTERACTIVE_REVIEW_REQUIRED','Stored authorization reviews require the signed-in owner. Unattended actors cannot approve or answer challenges.');
       if((operationPath.includes('/admissions')||operationPath==='/fine-selections'||operationPath==='/recharge-quotes')&&!interactive)throw new ApiError(403,'INTERACTIVE_ADMISSION_REQUIRED','Payable admission requires the current signed-in owner.');
       const actor: Actor = { sub: subject, username: subject, name: typeof req.headers['x-user-name'] === 'string' ? Buffer.from(req.headers['x-user-name'], 'base64url').toString('utf8').slice(0, 200) : 'Demo citizen', accountId, requestId: '', authorization: interactive ? req.headers.authorization : undefined };
       let body: any = {};
@@ -86,6 +86,25 @@ export function createProviderServer(provider: ProviderId, path: string, options
       // A delegated write with external payment proof is outside the initial bounded write profile.
       if (delegated && body.paymentId) throw new ApiError(403, 'WRITE_NOT_APPROVED', 'Delegated settlement is not enabled.');
       if(provider==='payments'&&operationPath==='/charges'&&(['dewa','etisalat','du'].includes(body.merchant)&&/^(bill|prepaid|recharge|payable|admission):/.test(body.reference)||body.merchant==='police'&&/^(fines|payable|admission):/.test(body.reference)||body.merchant==='rta'&&/^(salik|payable|admission):/.test(body.reference)))throw new ApiError(409,'STORED_BILL_ORDER_REQUIRED','Bill/fine captures now require an approved stored order; use the payment-order execution API.');
+      const groupAction=/^\/checkout-groups\/([^/]+)\/(approve|execute|cancel)$/.exec(operationPath);
+      if(engine.groups&&checkout&&req.method==='POST'&&(operationPath==='/checkout-groups'||groupAction)){
+        let result:ApiResult;
+        if(operationPath==='/checkout-groups'){
+          const snapshots=await Promise.all(body.items.map((item:{provider:string;payableId:string})=>payments.call(item.provider,actor,'GET',`/payables/${encodeURIComponent(item.payableId)}`).then(data=>data.payable)));
+          result=store.transaction(()=>{
+            const previous=store.db.prepare('SELECT fingerprint,status,body FROM idempotency WHERE account_id=? AND key=?').get(accountId,key as string);
+            if(previous){if(previous.fingerprint!==fingerprint)throw new ApiError(409,'IDEMPOTENCY_CONFLICT','This request key has different terms.');return {status:Number(previous.status),data:JSON.parse(String(previous.body))};}
+            const data={success:true,group:engine.groups!.create(actor,body,snapshots)};
+            store.db.prepare('INSERT INTO idempotency VALUES(?,?,?,?,?)').run(accountId,key as string,fingerprint,200,JSON.stringify(data));return {status:200,data};
+          });
+        }else{
+          const [,id,action]=groupAction!;
+          const group=action==='approve'?engine.groups.approve(actor,id,body):action==='cancel'?await engine.groups.cancel(actor,id,body.expectedVersion,checkout):await engine.groups.execute(actor,id,body,checkout,payments);
+          result={status:200,data:{success:true,group}};
+          store.transaction(()=>{const previous=store.db.prepare('SELECT fingerprint FROM idempotency WHERE account_id=? AND key=?').get(accountId,key as string);if(previous&&previous.fingerprint!==fingerprint)throw new ApiError(409,'IDEMPOTENCY_CONFLICT','This request key has different terms.');store.db.prepare('INSERT INTO idempotency VALUES(?,?,?,?,?) ON CONFLICT(account_id,key) DO NOTHING').run(accountId,key as string,fingerprint,200,JSON.stringify(result.data));});
+        }
+        return send(result);
+      }
       const checkoutAction=/^\/payment-orders\/([^/]+)\/(execute|recover|cancel)$/.exec(operationPath);
       if(checkout&&req.method==='POST'&&checkoutAction){
         const [,id,action]=checkoutAction;const order=action==='execute'?await checkout.execute(actor,id,body):action==='recover'?await checkout.recover(actor,id):await checkout.cancel(actor,id,body.expectedVersion);

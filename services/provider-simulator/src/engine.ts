@@ -1,5 +1,6 @@
 import { PaymentResourceUses } from './payment-resource-uses.ts';
 import { PaymentIssuer } from './payment-issuer.ts';
+import { CheckoutGroups } from './checkout-groups.ts';
 import { PaymentOrders } from './payment-orders.ts';
 import { WalletFunding } from './wallet-funding.ts';
 import { PaymentClaims } from './payment-claims.ts';
@@ -23,8 +24,8 @@ const ok = (data: Record<string, any>): ApiResult => ({ status: 200, data: { suc
 const minor = (amount: number) => Math.round(amount * 100);
 const major = (amount: number) => amount / 100;
 export class ProviderEngine {
-  readonly provider: ProviderId; readonly store: AccountDatabase; readonly ledger?: PaymentLedger; readonly resourceUses?: PaymentResourceUses; readonly payables?: ProviderPayables;readonly issuer?:PaymentIssuer;readonly orders?:PaymentOrders;readonly claims?:PaymentClaims;readonly admissions?:PayableAdmissions;readonly funding?:WalletFunding;readonly recharges?:ProviderRecharges;
-  constructor(provider: ProviderId, store: AccountDatabase, options: {businessClock?:()=>number;authorizationClock?:()=>number} = {}) { this.provider = provider; this.store = store; if (provider === 'payments') { this.ledger = new PaymentLedger(store,options.authorizationClock); this.resourceUses = new PaymentResourceUses(store);this.issuer=new PaymentIssuer(store,options.authorizationClock);this.orders=new PaymentOrders(store,this.issuer,this.ledger,this.resourceUses,options.authorizationClock);this.claims=new PaymentClaims(store);this.funding=new WalletFunding(store,this.issuer,this.ledger,this.resourceUses,options.authorizationClock); } if(['dewa','etisalat','du','police'].includes(provider)) {this.payables=new ProviderPayables(store,provider as PayableProvider,options.businessClock);} if(['rta','etisalat','du'].includes(provider))this.recharges=new ProviderRecharges(store,provider as import('../../../packages/protocol-core/src/payments.ts').RechargeProvider,options.businessClock);if(this.payables||this.recharges)this.admissions=new PayableAdmissions(store,{inspect:(a,id,revision)=>this.obligationBook(id).inspect(a,id,revision),applyAdmitted:(a,p,paymentId,at)=>this.obligationBook(p.id).applyAdmitted(a,p,paymentId,at)},options.businessClock); }
+  readonly provider: ProviderId; readonly store: AccountDatabase; readonly ledger?: PaymentLedger; readonly resourceUses?: PaymentResourceUses; readonly payables?: ProviderPayables;readonly issuer?:PaymentIssuer;readonly orders?:PaymentOrders;readonly claims?:PaymentClaims;readonly admissions?:PayableAdmissions;readonly groups?:CheckoutGroups;readonly funding?:WalletFunding;readonly recharges?:ProviderRecharges;
+  constructor(provider: ProviderId, store: AccountDatabase, options: {businessClock?:()=>number;authorizationClock?:()=>number} = {}) { this.provider = provider; this.store = store; if (provider === 'payments') { this.ledger = new PaymentLedger(store,options.authorizationClock); this.resourceUses = new PaymentResourceUses(store);this.issuer=new PaymentIssuer(store,options.authorizationClock);this.orders=new PaymentOrders(store,this.issuer,this.ledger,this.resourceUses,options.authorizationClock);this.groups=new CheckoutGroups(this.orders);this.claims=new PaymentClaims(store);this.funding=new WalletFunding(store,this.issuer,this.ledger,this.resourceUses,options.authorizationClock); } if(['dewa','etisalat','du','police'].includes(provider)) {this.payables=new ProviderPayables(store,provider as PayableProvider,options.businessClock);} if(['rta','etisalat','du'].includes(provider))this.recharges=new ProviderRecharges(store,provider as import('../../../packages/protocol-core/src/payments.ts').RechargeProvider,options.businessClock);if(this.payables||this.recharges)this.admissions=new PayableAdmissions(store,{inspect:(a,id,revision)=>this.obligationBook(id).inspect(a,id,revision),applyAdmitted:(a,p,paymentId,at)=>this.obligationBook(p.id).applyAdmitted(a,p,paymentId,at)},options.businessClock); }
   private obligationBook(id:string){if(id.startsWith(`${this.provider}:recharge:`)&&this.recharges)return this.recharges;if(this.payables)return this.payables;return fail(404,'PAYABLE_NOT_FOUND','Payment obligation not found.');}
   seed(actor: Actor) {
     const db = this.store, account = actor.accountId;
@@ -111,6 +112,8 @@ export class ProviderEngine {
         if(order.state!=='SETTLED')return {status:402,data:{success:false,code:order.failureCode||'PAYMENT_DECLINED',error:'The finite demo funding source could not fund this top-up. Inspect the wallet funding review.'}};
         return ok({transaction:db.get(a,'transaction',order.id),newBalance:order.receipt!.balanceMinor/100});
       }
+      if(method==='GET'&&path==='/checkout-groups')return ok({groups:this.groups!.list(actor)});
+      if(method==='GET'&&/^\/checkout-groups\/[^/]+$/.test(path))return ok({group:this.groups!.get(actor,path.split('/')[2])});
       if(method==='GET'&&path==='/payment-orders')return ok({orders:this.orders!.list(actor)});
       if(method==='GET'&&/^\/payment-orders\/[^/]+$/.test(path))return ok({order:this.orders!.get(actor,path.split('/')[2])});
       if(method==='POST'&&path==='/payment-orders')return ok({order:this.orders!.create(actor,body,payableSnapshot)});

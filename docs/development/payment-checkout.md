@@ -40,3 +40,5 @@ The order table migrates existing review IDs/snapshots into its capture-state sc
 ## Verification
 
 `demo:verify:payment-authorization` now includes a real challenged-card payment, unchanged wallet balance, finite issuer spend and receipt restoration after reload. `demo:verify:payment-accounts` includes idempotent wallet bill execution and source claim/refund checks. Existing twelve journeys verify the migrated conversational/manual wallet paths. Focused tests cover both sources, lost responses before/after provider commit, exact recovery, source changes, hold expiry, admission substitution/cancellation and old-order migration. [Evidence](../reports/2026-10-24-payment-checkout.md).
+
+[Grouped checkout](checkout-groups.md) freezes one source for sequential child payments, retains separate provider receipts, and stops/resumes the original line on challenge or uncertain settlement. It does not imply cross-provider atomicity.

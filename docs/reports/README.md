@@ -4,7 +4,8 @@ Evidence spans the `283521a` integrated baseline, payment setup `65fec3c`, journ
 
 | Evidence | Verified scope | Interpretation |
 | --- | --- | --- |
-| [Wallet/card provider recharges](2026-10-24-provider-recharges.md) | 231 tests, 18 builds and six real-Keycloak paced recharge journeys | PAY-15 delivered; grouped checkout, refunds and automation remain open |
+| [Grouped checkout](2026-10-24-checkout-groups.md) | 245 tests, 18 builds, three paced real-Keycloak group scenarios | PAY-16 delivered; refunds, events, automation and shell parity retain their separate gates |
+| [Wallet/card provider recharges](2026-10-24-provider-recharges.md) | 231 tests, 18 builds and six real-Keycloak paced recharge journeys | PAY-15 evidence; the later grouped-checkout report adds PAY-16, while refunds and automation remain open |
 | [Exact-set fine payments](2026-10-24-fine-checkout.md) | 214 tests, 18 builds; exact-set capture, lifecycle and recovery coverage | PAY-06/PAY-14 delivered; remaining payment/automation gates retain separate criteria |
 | [Saved-card wallet funding](2026-10-24-wallet-funding.md) | Focused funding/HTTP tests and real-Keycloak paced capture/credit/reload browser | PAY-13 delivered; refunds and automation remain open |
 | [Wallet/card bill checkout](2026-10-24-payment-checkout.md) | 188 tests, 18 builds, twelve journeys, challenged-card receipt and wallet execution browsers | PAY-09–PAY-12 delivered; other payables/refunds/automation remain open |

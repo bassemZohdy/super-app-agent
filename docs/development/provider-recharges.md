@@ -45,7 +45,7 @@ The existing wallet-funded Salik adapter and unified checkout now use recharge i
 
 New raw gateway recharge capture namespaces for RTA (`salik:`, `payable:`, `admission:`) and telecom (`prepaid:`, `recharge:`, `payable:`, `admission:`) require stored orders. Historical captured Salik proofs can still settle through the retained legacy source endpoint, with target-fence/lifecycle/balance guards; that endpoint cannot mint a new capture. Old request/idempotency records and balances are preserved. New quote/fence tables are additive, and existing targets start at version 1 without reseeding balances. Source and payment histories must be restored together.
 
-Recurring reload rules, provider event delivery, original-source refunds, cross-provider grouped checkout, full A2UI funding selection and Angular/Flutter parity retain separate tasks. MCP/voice do not gain unattended recharge authority from these APIs.
+Recurring reload rules, provider event delivery, original-source refunds, full A2UI funding selection and Angular/Flutter parity retain separate tasks. MCP/voice do not gain unattended recharge authority from these APIs.
 
 ## Verify and record
 
@@ -57,3 +57,5 @@ npm run demo:verify:payment-ledger
 ```
 
 The first two use real local Keycloak/Redis with isolated provider/application SQLite, disabled model inference and separate browser ports. Recording holds each review/authorization/challenge for six seconds and each confirmed receipt for eight seconds. All six wallet/card provider journeys must pass before publication. [Recording](../recordings/recharge-checkout/index.html) · [Evidence](../reports/2026-10-24-provider-recharges.md).
+
+A current recharge preview can be included in [grouped checkout](checkout-groups.md). The unified civic adapter now persists a complete group/plan; retry uses the original recharge child even after its provider balance/version changes.
