@@ -69,6 +69,7 @@ route('agent-core', 'POST', '/api/a2ui/action', coreAction);
 route('agent-core', 'POST', '/api/a2ui/cancel', object({ sessionId, accountId: id, surfaceRevision: coreAction.properties.surfaceRevision }, ['sessionId','surfaceRevision']));
 route('agent-core', 'GET', '/api/services', object({ accountId: id }));
 route('agent-core', 'GET', '/api/payments/overview', object({ accountId: id }, ['accountId']));
+for(const path of ['eligibility','lifecycle'])route('agent-core','GET',`/api/payments/${path}`,object({accountId:id},['accountId']));
 route('agent-core','GET','/api/payments/wallet-funding-orders',object({accountId:id},['accountId']));
 route('agent-core','POST','/api/payments/wallet-funding-orders',withPaymentAccount(paymentSchemas.createWalletFunding));
 for(const [action,schema] of Object.entries({approve:paymentSchemas.approveOrder,challenge:paymentSchemas.challengeOrder,cancel:paymentSchemas.cancelOrder,execute:paymentSchemas.executeOrder}))route('agent-core','POST',`/api/payments/wallet-funding-orders/${action}`,withPaymentAccount(withOrderId(schema)));
@@ -208,8 +209,9 @@ export function validateRequest(owner: string, method: string, path: string, que
   if (route.path.includes('{')) {
     const key = route.path.slice(route.path.indexOf('{') + 1, -1);
     const raw = path.slice(route.path.indexOf('{'));
-    try { input = { [key]: decodeURIComponent(raw) }; } catch { return invalidInput(); }
-    if (Object.keys(query).length) return invalidInput('Query parameters are not accepted on this resource route');
+    const sessionRead=owner==='agent-core'&&method==='GET'&&route.path==='/api/sessions/{sessionId}';
+    try { input = {...(sessionRead?query:{}),[key]: decodeURIComponent(raw) }; } catch { return invalidInput(); }
+    if (Object.keys(query).length&&(!sessionRead||Object.keys(query).some(k=>k!=='accountId'))) return invalidInput('Query parameters are not accepted on this resource route');
   }
   if (!validate(route.schema, input) || (method === 'POST' && Object.keys(query).length) ||
       (method === 'GET' && Object.keys(body).length)) return invalidInput();

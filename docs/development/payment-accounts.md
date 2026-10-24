@@ -1,6 +1,6 @@
 # Payment accounts and quote review
 
-Implemented: PAY-01–PAY-06 and PAY-09–PAY-15. React can manage owned synthetic cards/biller links and request a fresh non-executable payment review. Existing bill service payments use the same stored wallet-order flow; other service types retain their separate adapters. [Stored interactive authorization reviews](payment-authorization.md) now support finite wallet/card holds and one-time challenges. Bill capture/settlement is now available through a separate explicit Pay action; automatic rules remain disabled. [Full backlog](../../TODO.md#payment-accounts-and-automation-demo--planned-backlog) · [Design](../architecture/payment-automation-demo.md).
+Implemented: PAY-01–PAY-07 and PAY-09–PAY-21. React can manage owned synthetic cards/biller links and request a fresh non-executable payment review. Existing bill service payments use the same stored wallet-order flow; other service types retain their separate adapters. [Stored interactive authorization reviews](payment-authorization.md) now support finite wallet/card holds and one-time challenges. Bill capture/settlement is now available through a separate explicit Pay action; automatic rules remain disabled. [Full backlog](../../TODO.md#payment-accounts-and-automation-demo--planned-backlog) · [Design](../architecture/payment-automation-demo.md).
 
 The Bills & fines section shows source-owned revisions, due state, discount eligibility and closed cycles for linked accounts. Seeded prior-cycle history is explicitly labelled; withdrawn/expired/restricted obligations cannot be selected for review. [Payable API and lifecycle boundaries](payables.md).
 
@@ -8,7 +8,7 @@ Current wallet funds are journal-backed, with posted/held/available balances sho
 
 ## Try it
 
-Use the integrated demo (`npm run demo:up`, then `npm run dev:react`). Backend source changes need `docker compose -f docker-compose.demo.yml restart provider-payments provider-dewa provider-etisalat provider-du provider-police agent-core`.
+Use the integrated demo (`npm run demo:up`, then `npm run dev:react`). For the reader/operator and environment upgrade, use [the lifecycle migration steps](payment-lifecycle.md#separate-local-operator). Ordinary source-only changes need a restart of the affected service.
 
 1. Sign in and choose a personal or household workspace.
 2. Open **Payment accounts**. Add a named synthetic card preset. The available presets describe future approve/decline/challenge/expired behavior; limits, approval/decline/challenge and expiry are enforced by the local issuer for stored authorization reviews.
@@ -21,7 +21,7 @@ The panel scrolls independently, stacks on small screens and returns focus to it
 
 ## Current APIs
 
-Core paths use the authenticated signed owner. GET requires `accountId` as a query parameter; POST includes it in JSON. Provider paths are under `/v1/accounts/{accountId}` and independently verify that owner. New provider OpenAPI is **2.16.0**, additive to the existing `/v1` financial routes.
+Core paths use the authenticated signed owner. GET requires `accountId` as a query parameter; POST includes it in JSON. Provider paths are under `/v1/accounts/{accountId}` and independently verify that owner. New provider OpenAPI is **2.17.0**, additive to the existing `/v1` financial routes.
 
 | Core route | Provider route / behavior |
 | --- | --- |
@@ -83,3 +83,5 @@ Open **Payment recovery** to page all owned payment/funding/refund/legacy cases,
 ## Statements and receipts
 
 **Statements & funding history** pages all posted journal effects and payment activity, with exact running balances and original masked source/biller details. Captured/unknown/partial records remain distinct from completed receipts, and removed sources retain their original snapshots. [Full history guide](payment-history.md).
+
+[Current owner/workspace lifecycle](payment-lifecycle.md) adds permission metadata, the in-flight work view, separate local operator controls, epoch-bound approvals and no-cache eligibility checks. Restricted accounts retain history but cannot read financial details until access is restored.

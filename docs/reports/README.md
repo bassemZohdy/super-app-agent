@@ -4,6 +4,7 @@ Evidence spans the `283521a` integrated baseline, payment setup `65fec3c`, journ
 
 | Evidence | Verified scope | Interpretation |
 | --- | --- | --- |
+| [Current owner/workspace lifecycle](2026-10-24-payment-lifecycle.md) | 386 tests, 18 builds; signed permission/source/grant/session fences, actual Keycloak disablement, paced UI, twelve retained journeys and normal restart preservation | PAY-21 delivered; shared automatic reservations/permits, worker/simulator and parity/QA gates remain open |
 | [Automation authority review](2026-10-24-automation-security.md) | 371 tests, 18 builds; isolated exact-image signed authority/read/write compatibility and byte-preserved normal broker restart | AUTO-02 contract/hardening delivered; scheduled spending disabled until permit/budget/entitlement gates pass |
 | [Statements and receipt history](2026-10-24-payment-history.md) | 358 tests, 18 builds; real signed 116-entry/117-operation pagination, unknown/decline/challenge, removed-source detail and partial funding return | PAY-20 delivered; source/owner lifecycle, automatic admission and simulator/QA gates remain open |
 | [Owned payment reconciliation](2026-10-24-payment-reconciliation.md) | 345 tests, 18 builds; signed before/after-commit loss, gateway restart, reversal loss, blocked source and saved outcome browser | PAY-19 delivered; statements, automatic admission and general simulator/QA gates remain open |

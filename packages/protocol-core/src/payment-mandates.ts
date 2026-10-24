@@ -17,7 +17,7 @@ export type MandatePolicy = {
   fineTypes?:string[];
 };
 export type PaymentMandate = {
-  id:string;accountId:string;ownerSub:string;version:number;policyVersion:number;
+  eligibilityEpoch?:string;  id:string;accountId:string;ownerSub:string;version:number;policyVersion:number;
   state:'AWAITING_APPROVAL'|'APPROVED'|'REVOKED'|'EXPIRED';executionEnabled:false;
   policy:MandatePolicy;sourceSnapshots:PaymentMethod[];billerSnapshot?:BillingAccount;
   approvalDigest:string;reviewExpiresAt:string;createdAt:string;updatedAt:string;approvedAt?:string;
@@ -45,6 +45,6 @@ export const mandateSchemas={
   approve:paymentObject({expectedVersion:version,approvalDigest:{type:'string',pattern:'^[a-f0-9]{64}$'}}),
   revoke:paymentObject({expectedVersion:version}),
 };
-export const mandateRecordSchema=paymentObject({id,accountId:id,ownerSub:text,version,policyVersion:version,state:{enum:['AWAITING_APPROVAL','APPROVED','REVOKED','EXPIRED']},executionEnabled:{const:false},policy:mandatePolicySchema,
+export const mandateRecordSchema=paymentObject({eligibilityEpoch:{type:'string',pattern:'^[1-9][0-9]{0,6}:[1-9][0-9]{0,6}$'},id,accountId:id,ownerSub:text,version,policyVersion:version,state:{enum:['AWAITING_APPROVAL','APPROVED','REVOKED','EXPIRED']},executionEnabled:{const:false},policy:mandatePolicySchema,
   sourceSnapshots:{type:'array',minItems:1,maxItems:3,items:paymentMethodSchema},billerSnapshot:billingAccountSchema,approvalDigest:{type:'string',pattern:'^[a-f0-9]{64}$'},reviewExpiresAt:date,createdAt:date,updatedAt:date,approvedAt:date},
   ['id','accountId','ownerSub','version','policyVersion','state','executionEnabled','policy','sourceSnapshots','approvalDigest','reviewExpiresAt','createdAt','updatedAt']);

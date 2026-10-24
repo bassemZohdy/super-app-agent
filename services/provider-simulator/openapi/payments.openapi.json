@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Demo Payment Gateway Simulator",
-    "version": "2.16.0",
+    "version": "2.17.0",
     "description": "Local synthetic API. Signed interactive user identity or broker-issued user token with current exact-operation grant required. JWT subject owns the account; caller user headers do not grant authority. A separate read-only settlement machine lane retrieves captured charge proofs. Legacy fixture mode is outside this reference security profile."
   },
   "servers": [
@@ -425,6 +425,524 @@
         }
       }
     },
+    "/internal/account-eligibility/{accountId}": {
+      "get": {
+        "operationId": "readCurrentAccountEligibility",
+        "description": "Private machine lane: exact provider-eligibility client with provider:eligibility:read, or eligibility-operator with provider:eligibility:manage. No caller user header or browser role grants access.",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,160}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current authoritative decision; no financial effect",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "eligibility": {
+                      "type": "object",
+                      "properties": {
+                        "accountId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                        },
+                        "ownerSub": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                        },
+                        "ownerEnabled": {
+                          "type": "boolean"
+                        },
+                        "membershipEnabled": {
+                          "type": "boolean"
+                        },
+                        "ownerVersion": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 1000000
+                        },
+                        "membershipVersion": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 1000000
+                        },
+                        "epoch": {
+                          "type": "string",
+                          "pattern": "^[1-9][0-9]{0,6}:[1-9][0-9]{0,6}$"
+                        },
+                        "active": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "accountId",
+                        "ownerSub",
+                        "ownerEnabled",
+                        "membershipEnabled",
+                        "ownerVersion",
+                        "membershipVersion",
+                        "epoch",
+                        "active"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "eligibility"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "post": {
+        "operationId": "changeCurrentAccountEligibility",
+        "description": "Private eligibility-operator client with provider:eligibility:manage only. Owner is derived from stored account ownership. Compare expected owner/membership version; increment epoch, audit before/after, and retain history. Stable key replay returns the original decision.",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,160}$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,100}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "OWNER",
+                      "MEMBERSHIP"
+                    ]
+                  },
+                  "expectedVersion": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1000000
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 5,
+                    "maxLength": 160,
+                    "pattern": "^[^\\r\\n]+$"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "expectedVersion",
+                  "enabled",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Current authoritative decision; no financial effect",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "eligibility": {
+                      "type": "object",
+                      "properties": {
+                        "accountId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                        },
+                        "ownerSub": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                        },
+                        "ownerEnabled": {
+                          "type": "boolean"
+                        },
+                        "membershipEnabled": {
+                          "type": "boolean"
+                        },
+                        "ownerVersion": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 1000000
+                        },
+                        "membershipVersion": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 1000000
+                        },
+                        "epoch": {
+                          "type": "string",
+                          "pattern": "^[1-9][0-9]{0,6}:[1-9][0-9]{0,6}$"
+                        },
+                        "active": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "accountId",
+                        "ownerSub",
+                        "ownerEnabled",
+                        "membershipEnabled",
+                        "ownerVersion",
+                        "membershipVersion",
+                        "epoch",
+                        "active"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "eligibility"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/internal/account-lifecycle/{accountId}": {
+      "get": {
+        "operationId": "inspectAccountLifecycle",
+        "description": "Private eligibility-operator only. Inspect retained original in-flight IDs even while owner/membership access is restricted. Does not cancel, reassign, capture or refund.",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,160}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current authoritative decision; no financial effect",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "eligibility": {
+                      "type": "object",
+                      "properties": {
+                        "accountId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                        },
+                        "ownerSub": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                        },
+                        "ownerEnabled": {
+                          "type": "boolean"
+                        },
+                        "membershipEnabled": {
+                          "type": "boolean"
+                        },
+                        "ownerVersion": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 1000000
+                        },
+                        "membershipVersion": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 1000000
+                        },
+                        "epoch": {
+                          "type": "string",
+                          "pattern": "^[1-9][0-9]{0,6}:[1-9][0-9]{0,6}$"
+                        },
+                        "active": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "accountId",
+                        "ownerSub",
+                        "ownerEnabled",
+                        "membershipEnabled",
+                        "ownerVersion",
+                        "membershipVersion",
+                        "epoch",
+                        "active"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "orders": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "state": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "fundsCaptured": {
+                            "type": "boolean"
+                          },
+                          "paymentId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "sourceId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "blockedReasons": {
+                            "type": "array",
+                            "maxItems": 12,
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "action": {
+                            "enum": [
+                              "PRESERVE_ORIGINAL_CAPTURE",
+                              "CANCEL_OR_REVIEW_AGAIN"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "state",
+                          "fundsCaptured",
+                          "sourceId",
+                          "blockedReasons",
+                          "action"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "funding": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "state": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "fundsCaptured": {
+                            "type": "boolean"
+                          },
+                          "sourceId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "blockedReasons": {
+                            "type": "array",
+                            "maxItems": 12,
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "state",
+                          "fundsCaptured",
+                          "sourceId",
+                          "blockedReasons"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "mandates": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "policyVersion": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000000
+                          },
+                          "state": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "executionEnabled": {
+                            "const": false
+                          },
+                          "eligibilityCurrent": {
+                            "type": "boolean"
+                          },
+                          "blockedReasons": {
+                            "type": "array",
+                            "maxItems": 12,
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "policyVersion",
+                          "state",
+                          "executionEnabled",
+                          "eligibilityCurrent",
+                          "blockedReasons"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "eligibility",
+                    "orders",
+                    "funding",
+                    "mandates"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
     "/v1/accounts/{accountId}/payment-mandates": {
       "get": {
         "operationId": "payments_listPaymentMandates",
@@ -458,6 +976,10 @@
                       "items": {
                         "type": "object",
                         "properties": {
+                          "eligibilityEpoch": {
+                            "type": "string",
+                            "pattern": "^[1-9][0-9]{0,6}:[1-9][0-9]{0,6}$"
+                          },
                           "id": {
                             "type": "string",
                             "minLength": 1,
@@ -1648,6 +2170,10 @@
                     "mandate": {
                       "type": "object",
                       "properties": {
+                        "eligibilityEpoch": {
+                          "type": "string",
+                          "pattern": "^[1-9][0-9]{0,6}:[1-9][0-9]{0,6}$"
+                        },
                         "id": {
                           "type": "string",
                           "minLength": 1,
@@ -2408,6 +2934,10 @@
                     "mandate": {
                       "type": "object",
                       "properties": {
+                        "eligibilityEpoch": {
+                          "type": "string",
+                          "pattern": "^[1-9][0-9]{0,6}:[1-9][0-9]{0,6}$"
+                        },
                         "id": {
                           "type": "string",
                           "minLength": 1,
@@ -3171,6 +3701,10 @@
                       "items": {
                         "type": "object",
                         "properties": {
+                          "eligibilityEpoch": {
+                            "type": "string",
+                            "pattern": "^[1-9][0-9]{0,6}:[1-9][0-9]{0,6}$"
+                          },
                           "id": {
                             "type": "string",
                             "minLength": 1,
@@ -4375,6 +4909,10 @@
                     "mandate": {
                       "type": "object",
                       "properties": {
+                        "eligibilityEpoch": {
+                          "type": "string",
+                          "pattern": "^[1-9][0-9]{0,6}:[1-9][0-9]{0,6}$"
+                        },
                         "id": {
                           "type": "string",
                           "minLength": 1,
@@ -5171,6 +5709,10 @@
                     "mandate": {
                       "type": "object",
                       "properties": {
+                        "eligibilityEpoch": {
+                          "type": "string",
+                          "pattern": "^[1-9][0-9]{0,6}:[1-9][0-9]{0,6}$"
+                        },
                         "id": {
                           "type": "string",
                           "minLength": 1,
@@ -5962,6 +6504,10 @@
                     "mandate": {
                       "type": "object",
                       "properties": {
+                        "eligibilityEpoch": {
+                          "type": "string",
+                          "pattern": "^[1-9][0-9]{0,6}:[1-9][0-9]{0,6}$"
+                        },
                         "id": {
                           "type": "string",
                           "minLength": 1,
@@ -6652,6 +7198,378 @@
                   "required": [
                     "success",
                     "mandate"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "402": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/accounts/{accountId}/account-eligibility": {
+      "get": {
+        "operationId": "payments_getOwnedAccountEligibility",
+        "description": "Read only current owned permission metadata, including restricted access. No financial data or authority is granted.",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "eligibility": {
+                      "type": "object",
+                      "properties": {
+                        "accountId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                        },
+                        "ownerSub": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                        },
+                        "ownerEnabled": {
+                          "type": "boolean"
+                        },
+                        "membershipEnabled": {
+                          "type": "boolean"
+                        },
+                        "ownerVersion": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 1000000
+                        },
+                        "membershipVersion": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 1000000
+                        },
+                        "epoch": {
+                          "type": "string",
+                          "pattern": "^[1-9][0-9]{0,6}:[1-9][0-9]{0,6}$"
+                        },
+                        "active": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "accountId",
+                        "ownerSub",
+                        "ownerEnabled",
+                        "membershipEnabled",
+                        "ownerVersion",
+                        "membershipVersion",
+                        "epoch",
+                        "active"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "eligibility"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "402": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/accounts/{accountId}/payment-lifecycle": {
+      "get": {
+        "operationId": "payments_getOwnedPaymentLifecycle",
+        "description": "Identify active original orders, funding and mandate references; no source fallback or authority migration.",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "eligibility": {
+                      "type": "object",
+                      "properties": {
+                        "accountId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                        },
+                        "ownerSub": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                        },
+                        "ownerEnabled": {
+                          "type": "boolean"
+                        },
+                        "membershipEnabled": {
+                          "type": "boolean"
+                        },
+                        "ownerVersion": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 1000000
+                        },
+                        "membershipVersion": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 1000000
+                        },
+                        "epoch": {
+                          "type": "string",
+                          "pattern": "^[1-9][0-9]{0,6}:[1-9][0-9]{0,6}$"
+                        },
+                        "active": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "accountId",
+                        "ownerSub",
+                        "ownerEnabled",
+                        "membershipEnabled",
+                        "ownerVersion",
+                        "membershipVersion",
+                        "epoch",
+                        "active"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "orders": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "state": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "fundsCaptured": {
+                            "type": "boolean"
+                          },
+                          "paymentId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "sourceId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "blockedReasons": {
+                            "type": "array",
+                            "maxItems": 12,
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "action": {
+                            "enum": [
+                              "PRESERVE_ORIGINAL_CAPTURE",
+                              "CANCEL_OR_REVIEW_AGAIN"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "state",
+                          "fundsCaptured",
+                          "sourceId",
+                          "blockedReasons",
+                          "action"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "funding": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "state": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "fundsCaptured": {
+                            "type": "boolean"
+                          },
+                          "sourceId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "blockedReasons": {
+                            "type": "array",
+                            "maxItems": 12,
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "state",
+                          "fundsCaptured",
+                          "sourceId",
+                          "blockedReasons"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "mandates": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "policyVersion": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000000
+                          },
+                          "state": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "executionEnabled": {
+                            "const": false
+                          },
+                          "eligibilityCurrent": {
+                            "type": "boolean"
+                          },
+                          "blockedReasons": {
+                            "type": "array",
+                            "maxItems": 12,
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "policyVersion",
+                          "state",
+                          "executionEnabled",
+                          "eligibilityCurrent",
+                          "blockedReasons"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "eligibility",
+                    "orders",
+                    "funding",
+                    "mandates"
                   ],
                   "additionalProperties": false
                 }
@@ -9979,6 +10897,11 @@
                       "items": {
                         "type": "object",
                         "properties": {
+                          "eligibilityEpoch": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
                           "id": {
                             "type": "string",
                             "minLength": 1,
@@ -10717,6 +11640,11 @@
                     "refund": {
                       "type": "object",
                       "properties": {
+                        "eligibilityEpoch": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
                         "id": {
                           "type": "string",
                           "minLength": 1,
@@ -11408,6 +12336,11 @@
                     "refund": {
                       "type": "object",
                       "properties": {
+                        "eligibilityEpoch": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
                         "id": {
                           "type": "string",
                           "minLength": 1,
@@ -12135,6 +13068,11 @@
                     "refund": {
                       "type": "object",
                       "properties": {
+                        "eligibilityEpoch": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
                         "id": {
                           "type": "string",
                           "minLength": 1,
@@ -12849,6 +13787,11 @@
                     "refund": {
                       "type": "object",
                       "properties": {
+                        "eligibilityEpoch": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
                         "id": {
                           "type": "string",
                           "minLength": 1,
@@ -13571,6 +14514,11 @@
                     "refund": {
                       "type": "object",
                       "properties": {
+                        "eligibilityEpoch": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
                         "id": {
                           "type": "string",
                           "minLength": 1,
@@ -14489,6 +15437,11 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "eligibilityEpoch": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
                                 "id": {
                                   "type": "string",
                                   "minLength": 1,
@@ -15665,6 +16618,11 @@
                           "items": {
                             "type": "object",
                             "properties": {
+                              "eligibilityEpoch": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
                               "id": {
                                 "type": "string",
                                 "minLength": 1,
@@ -16777,6 +17735,11 @@
                           "items": {
                             "type": "object",
                             "properties": {
+                              "eligibilityEpoch": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
                               "id": {
                                 "type": "string",
                                 "minLength": 1,
@@ -17925,6 +18888,11 @@
                           "items": {
                             "type": "object",
                             "properties": {
+                              "eligibilityEpoch": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
                               "id": {
                                 "type": "string",
                                 "minLength": 1,
@@ -19073,6 +20041,11 @@
                           "items": {
                             "type": "object",
                             "properties": {
+                              "eligibilityEpoch": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
                               "id": {
                                 "type": "string",
                                 "minLength": 1,
@@ -20216,6 +21189,11 @@
                           "items": {
                             "type": "object",
                             "properties": {
+                              "eligibilityEpoch": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
                               "id": {
                                 "type": "string",
                                 "minLength": 1,
@@ -21086,6 +22064,11 @@
                       "items": {
                         "type": "object",
                         "properties": {
+                          "eligibilityEpoch": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
                           "id": {
                             "type": "string",
                             "minLength": 1,
@@ -21573,6 +22556,11 @@
                     "order": {
                       "type": "object",
                       "properties": {
+                        "eligibilityEpoch": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
                         "id": {
                           "type": "string",
                           "minLength": 1,
@@ -22026,6 +23014,11 @@
                     "order": {
                       "type": "object",
                       "properties": {
+                        "eligibilityEpoch": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
                         "id": {
                           "type": "string",
                           "minLength": 1,
@@ -22515,6 +23508,11 @@
                     "order": {
                       "type": "object",
                       "properties": {
+                        "eligibilityEpoch": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
                         "id": {
                           "type": "string",
                           "minLength": 1,
@@ -23018,6 +24016,11 @@
                     "order": {
                       "type": "object",
                       "properties": {
+                        "eligibilityEpoch": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
                         "id": {
                           "type": "string",
                           "minLength": 1,
@@ -23507,6 +24510,11 @@
                     "order": {
                       "type": "object",
                       "properties": {
+                        "eligibilityEpoch": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
                         "id": {
                           "type": "string",
                           "minLength": 1,
@@ -23991,6 +24999,11 @@
                     "order": {
                       "type": "object",
                       "properties": {
+                        "eligibilityEpoch": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
                         "id": {
                           "type": "string",
                           "minLength": 1,
@@ -24480,6 +25493,11 @@
                     "order": {
                       "type": "object",
                       "properties": {
+                        "eligibilityEpoch": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
                         "id": {
                           "type": "string",
                           "minLength": 1,
@@ -25342,6 +26360,11 @@
                     "order": {
                       "type": "object",
                       "properties": {
+                        "eligibilityEpoch": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
                         "id": {
                           "type": "string",
                           "minLength": 1,
@@ -26781,6 +27804,11 @@
                       "items": {
                         "type": "object",
                         "properties": {
+                          "eligibilityEpoch": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
                           "id": {
                             "type": "string",
                             "minLength": 1,
@@ -27670,6 +28698,11 @@
                     "order": {
                       "type": "object",
                       "properties": {
+                        "eligibilityEpoch": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
                         "id": {
                           "type": "string",
                           "minLength": 1,
@@ -28509,6 +29542,11 @@
                     "order": {
                       "type": "object",
                       "properties": {
+                        "eligibilityEpoch": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
                         "id": {
                           "type": "string",
                           "minLength": 1,
@@ -29384,6 +30422,11 @@
                     "order": {
                       "type": "object",
                       "properties": {
+                        "eligibilityEpoch": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
                         "id": {
                           "type": "string",
                           "minLength": 1,
@@ -30273,6 +31316,11 @@
                     "order": {
                       "type": "object",
                       "properties": {
+                        "eligibilityEpoch": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
                         "id": {
                           "type": "string",
                           "minLength": 1,
@@ -31143,6 +32191,11 @@
                     "order": {
                       "type": "object",
                       "properties": {
+                        "eligibilityEpoch": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
                         "id": {
                           "type": "string",
                           "minLength": 1,

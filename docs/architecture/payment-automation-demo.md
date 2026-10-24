@@ -1,6 +1,6 @@
 # Payment accounts, funding and automation — demo plan
 
-Status: **implementation in progress**. Requested 24 October 2026, after implementation baseline `283521a`. PAY-01–PAY-05 and the initial preview-only SIM-01 are delivered; new saved-card order execution and automation remain planned. Current wallet effects now use a balanced journal; [migration evidence](../reports/2026-10-24-payment-ledger.md). [Execution evidence](../reports/2026-10-24-payment-accounts.md). Progress is tracked in [the payment backlog](../../TODO.md#payment-accounts-and-automation-demo--planned-backlog). This document defines the full intended behavior and boundaries; checked-in OpenAPI describes the running APIs. The current setup panel produces non-executable reviews and does not authorize funds movement.
+**Status: implementation in progress.** Manual payment setup, journal, stored wallet/card review/capture, bills/fines/recharges, wallet funding, grouped checkout, original-source refunds, events, recovery, statements and owner/source lifecycle are implemented. Finite consent records and the authority threat-model contract are implemented; automatic execution, shared automatic reservations, worker/scheduler, most simulator controls and final parity/QA gates remain open. [Current evidence](../reports/README.md) and [the backlog](../../TODO.md#payment-accounts-and-automation-demo--planned-backlog) distinguish delivered behavior from the intended full extension. Quote previews alone do not approve or capture funds.
 
 ## Scope and starting point
 
@@ -154,3 +154,7 @@ SQLite permits a single simultaneous writer; the local worker/payment design mus
 [PAY-20 history](../development/payment-history.md) adds snapshot-paginated journal statements, paginated pending/failed/group activity and exact original-source receipt details. Groups are not posted twice; card effects carry zero wallet movement; partial/unknown operations do not receive completed receipt styling. Source/owner lifecycle coordination and unattended budgets remain separate tasks.
 
 [The AUTO-02 authority/threat model](payment-automation-security.md) fixes human/worker/issuer/provider responsibilities and the future atomic permit/budget admission contract. Current containment keeps scheduled money disabled; a finite mandate is not a legacy read/top-up grant. Broker profile growth, token registration and terminal result invariants are hardened without enabling workers.
+
+## Current owner and workspace authority
+
+[PAY-21 lifecycle](../development/payment-lifecycle.md) supplies central owner/membership versions, current no-cache checks, atomic gateway capture fencing, permission-bound reviews/grants and retained original in-flight IDs. Revoke-and-restore never revives old consent or reassigns a rule. Online Keycloak introspection independently rejects disabled users. Scheduled money remains disabled until shared budget/occurrence/permit and revocation-boundary tasks pass.

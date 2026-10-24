@@ -1,6 +1,6 @@
 # Finite payment and service consent
 
-AUTO-01 delivers durable, owner-approved policy records. Contract `payment-mandates.ts` is **1.0.0**; payment-provider OpenAPI is **2.16.0**. The shared payment contract is 1.12.0. Every returned record has `executionEnabled: false`: consent recording does not start a worker, issue a token, reserve a budget or move money. The editor, scheduler, per-execution grants and automatic effects retain their separate TODO gates.
+AUTO-01 delivers durable, owner-approved policy records. Contract `payment-mandates.ts` is **1.0.0**; payment-provider OpenAPI is **2.17.0**. The shared payment contract is 1.13.0. Every returned record has `executionEnabled: false`: consent recording does not start a worker, issue a token, reserve a budget or move money. The editor, scheduler, per-execution grants and automatic effects retain their separate TODO gates.
 
 ## Bound policy
 

@@ -8,5 +8,6 @@ process.env.KEYCLOAK_ISSUER = 'http://localhost:8085/realms/superapp';
 
 // The default suite is offline and must never inherit the integrated deployment mode.
 process.env.PROVIDER_INTEGRATION = 'false';
+process.env.ELIGIBILITY_ENFORCEMENT = 'false';
 process.env.DOMAIN_TRANSPORT = 'local';
 process.env.SESSION_STORE = 'memory';

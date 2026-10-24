@@ -1,4 +1,5 @@
 import { HttpPolicy, HttpError, readJsonBody } from './http-policy.ts';
+import { EligibilityClient,EligibilityReadError,eligibilityEnforced } from './eligibility-client.ts';
 import http from 'node:http';
 import { join } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
@@ -13,6 +14,7 @@ type Result = { status: number; data: any };
 type Legacy = (method: string, path: string, query?: Record<string, string>, body?: any) => Result;
 const clients = new Map<string, ProviderClient>();
 const stores = new Map<string, AccountDatabase>();
+const eligibilityReader=new EligibilityClient();
 const successful = (data: any): Result => ({ status: 200, data: { success: true, ...data } });
 function clientFor(service: string) {
   let client = clients.get(service);
@@ -26,9 +28,10 @@ function storeFor(service: string) {
 }
 export async function integratedRequest(service: string, actor: Actor, method: string, path: string, query: Record<string, string>, body: any, legacy: Legacy): Promise<Result> {
   const db = storeFor(service), accounts = db.accounts(actor.sub);
-  if (path === '/accounts' && method === 'GET') return successful({ accounts });
+  if (path === '/accounts' && method === 'GET') return eligibilityEnforced()?successful(await clientFor(service).call('payments',actor,'GET','/v1/accounts')):successful({ accounts });
   if (!db.owns(actor.sub, actor.accountId)) return { status: 403, data: { success: false, code: 'ACCOUNT_FORBIDDEN', error: 'This account does not belong to the signed-in user.' } };
   const client = clientFor(service), asset = assetsFor(actor.accountId);
+  if(eligibilityEnforced())try{actor.eligibilityEpoch=(await eligibilityReader.require(actor)).epoch;}catch(e){return {status:e instanceof EligibilityReadError&&e.status===403?403:503,data:{success:false,code:e instanceof EligibilityReadError&&e.status===403?'ACCOUNT_RESTRICTED':'ELIGIBILITY_UNAVAILABLE',error:'Current owner/workspace eligibility does not admit this request. History is retained.'}};}
   const call = (provider: string, verb: string, route: string, data?: any, key?: string) => client.call(provider, actor, verb, route, data, key);
   const stableKey = (value: string) => createHash('sha256').update(`${actor.accountId}:${value}`).digest('hex');
   const charge = async (provider: string, reference: string, amount: number) => call('payments', 'POST', '/charges', { amountMinor: Math.round(amount * 100), merchant: provider, reference, source: 'wallet' }, stableKey(`charge:${provider}:${reference}`));

@@ -74,6 +74,14 @@
       {
         "name": "payment-settlement:police",
         "description": "Narrow police settlement claim/ack/release only; no human impersonation or money capture."
+      },
+      {
+        "name": "provider:eligibility:read",
+        "description": "Local demo current owner/workspace eligibility authority"
+      },
+      {
+        "name": "provider:eligibility:manage",
+        "description": "Local demo current owner/workspace eligibility authority"
       }
     ]
   },
@@ -588,6 +596,78 @@
           }
         }
       ]
+    },
+    {
+      "clientId": "provider-eligibility",
+      "name": "provider-eligibility",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "demo-eligibility-reader-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": true,
+      "protocolMappers": [
+        {
+          "name": "provider-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "provider-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        },
+        {
+          "name": "demo-verifier-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "cityside-verifier",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "eligibility-operator",
+      "name": "eligibility-operator",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "demo-eligibility-operator-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": true,
+      "protocolMappers": [
+        {
+          "name": "provider-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "provider-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        },
+        {
+          "name": "demo-verifier-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "cityside-verifier",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
     }
   ],
   "users": [
@@ -746,6 +826,22 @@
       "serviceAccountClientId": "provider-police-settlement",
       "realmRoles": [
         "payment-settlement:police"
+      ]
+    },
+    {
+      "username": "service-account-provider-eligibility",
+      "enabled": true,
+      "serviceAccountClientId": "provider-eligibility",
+      "realmRoles": [
+        "provider:eligibility:read"
+      ]
+    },
+    {
+      "username": "service-account-eligibility-operator",
+      "enabled": true,
+      "serviceAccountClientId": "eligibility-operator",
+      "realmRoles": [
+        "provider:eligibility:manage"
       ]
     }
   ]

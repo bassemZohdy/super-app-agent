@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash, randomUUID } from 'node:crypto';
-export interface Actor { sub: string; username: string; name: string; accountId: string; authorization?: string; requestId: string; assertLease?: () => Promise<void>; }
+export interface Actor { sub: string; username: string; name: string; accountId: string; authorization?: string; requestId: string; assertLease?: () => Promise<void>; eligibilityEpoch?:string; }
 export const actorContext = new AsyncLocalStorage<Actor>();
 export const accountIdFor = (subject: string, slot = 'personal') => `acc_${createHash('sha256').update(`${subject}:${slot}`).digest('hex').slice(0, 20)}`;
 export function actorFor(user: { sub: string; preferred_username?: string; name?: string }, accountId?: string, authorization?: string): Actor {

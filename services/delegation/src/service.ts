@@ -1,8 +1,16 @@
 import { join } from 'node:path';
 import { verifyJwt, type JwtClaims } from '../../../packages/backend-kit/src/jwt.ts';
-import { brokerClient, runnerClient, DelegationError, deny, digest, tokenHash, type GrantInput } from './policy.ts';
+import { brokerClient, runnerClient, DelegationError, deny, digest, tokenHash,grantInput } from './policy.ts';
 import { GrantStore } from './store.ts';
 import { assertionTimes, keyMaterial, signedJwt } from './keys.ts';
+import { EligibilityClient,EligibilityReadError,eligibilityEnforced } from '../../../packages/backend-kit/src/eligibility-client.ts';
+import { actorFor } from '../../../packages/backend-kit/src/context.ts';
+const eligibilityReader=new EligibilityClient();
+async function currentEligibility(owner:string,accountId:string,epoch?:string,authorization?:string){
+  if(!eligibilityEnforced())return undefined;
+  try{return (await eligibilityReader.require(actorFor({sub:owner},accountId,authorization),epoch)).epoch;}
+  catch(e){throw new DelegationError(e instanceof EligibilityReadError&&[403,409].includes(e.status)?e.status:503,'ELIGIBILITY_DENIED','Current owner/workspace permission does not authorize this grant. Create new consent after access is restored.');}
+}
 
 export const delegationEnabled = () => process.env.DELEGATION_ENABLED === 'true';
 let singleton: GrantStore | undefined;
@@ -21,10 +29,12 @@ export async function delegatedAuthorization(authorization: string | undefined, 
   if (c.azp !== brokerClient || c.act !== undefined || !['delegation.read', 'delegation.write'].some(scope => String(c.scope || '').split(' ').includes(scope))) deny('INVALID_DELEGATED_PRINCIPAL');
   const operation = { provider: input.provider, method: input.method, path: input.path, body: input.body } as Parameters<GrantStore['authorize']>[4];
   if (!String(c.scope).split(' ').includes(input.method === 'GET' ? 'delegation.read' : 'delegation.write')) deny('SCOPE_REQUIRED');
-  grantStore().authorize(tokenHash(authorization!.slice(7)), c.sub, c.azp, input.accountId, operation);
+  const fingerprint=tokenHash(authorization!.slice(7)),grant=grantStore().boundGrant(fingerprint);await currentEligibility(grant.owner,grant.accountId,grant.eligibilityEpoch||'1:1');
+  grantStore().authorize(fingerprint, c.sub, c.azp, input.accountId, operation);
   return c;
 }
 async function exchange(grant: ReturnType<GrantStore['get']>, operationId: string) {
+  await currentEligibility(grant.owner,grant.accountId,grant.eligibilityEpoch||'1:1');
   const issuer = process.env.KEYCLOAK_ISSUER;
   if (!issuer) throw new Error('Keycloak issuer required');
   const time = assertionTimes(grant.expiresAt);
@@ -47,6 +57,7 @@ async function exchange(grant: ReturnType<GrantStore['get']>, operationId: strin
   const authorization = `Bearer ${data.access_token}`, c = await verifyJwt(authorization, 'provider-api');
   const aud = typeof c.aud === 'string' ? [c.aud] : c.aud;
   if (c.sub !== grant.owner || c.azp !== brokerClient || c.exp > time.exp || c.act !== undefined || String(c.scope || '').split(' ').filter(Boolean).some(value => value !== scope) || !String(c.scope || '').split(' ').includes(scope) || !Array.isArray(aud) || aud.some(value => !['provider-api', 'cityside-verifier'].includes(value)) || (c.realm_access?.roles?.length || 0) > 0) deny('ISSUED_TOKEN_MISMATCH');
+  await currentEligibility(grant.owner,grant.accountId,grant.eligibilityEpoch||'1:1');
   grantStore().bind(tokenHash(data.access_token), { grantId: grant.id, version: grant.version, sub: c.sub, actor: c.azp, exp: c.exp, operationId, requestDigest: digest({ provider: grant.provider, method: grant.method, path: grant.path, body: grant.body }) });
   return authorization;
 }
@@ -58,6 +69,7 @@ async function execute(id: string, requestKey: unknown, authorization?: string):
   }
   const store = grantStore(), g = store.active(id);
   if (c.azp !== runnerClient && g.owner !== c.sub) deny('GRANT_NOT_FOUND');
+  await currentEligibility(g.owner,g.accountId,g.eligibilityEpoch||'1:1');
   if (typeof requestKey !== 'string' || !/^[a-zA-Z0-9_-]{8,100}$/.test(requestKey)) throw new DelegationError(400, 'IDEMPOTENCY_REQUIRED', 'Provide a stable execution key of 8–100 letters, digits, underscores or hyphens.');
   const { job, replay } = store.start(id, requestKey);
   if (replay) {
@@ -94,7 +106,7 @@ export async function handleDelegation(method: string, path: string, body: any, 
     if (narrowPath && method === 'POST') return { status: 200, data: { success: true, grant: store.narrow(narrowPath[1], c.sub, body) } };
     if (path === '/api/delegation/grants') {
       if (method === 'GET') return { status: 200, data: { success: true, grants: store.list(c.sub) } };
-      if (method === 'POST') return { status: 201, data: { success: true, grant: store.create(c.sub, body as GrantInput) } };
+      if (method === 'POST') {const input=grantInput(c.sub,body),epoch=await currentEligibility(c.sub,input.accountId,undefined,authorization);return { status: 201, data: { success: true, grant: store.create(c.sub,input,epoch) } };}
     }
     const item = /^\/api\/delegation\/grants\/([a-f0-9-]{36})(\/(?:history|operations))?$/.exec(path);
     if (item) {

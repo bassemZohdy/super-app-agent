@@ -94,6 +94,7 @@ test('provider HTTP endpoints verify signed service roles, ownership, schemas an
   assert.equal((await request('/wallet',mint({realm_access:{roles:[]}}))).status,403);
   assert.equal((await request('/topups',mint(),'POST',{amountMinor:-1,source:'demo_approved'})).status,400);
   assert.equal((await request('/payment-orders',mint(),'POST',{provider:'dewa',payableId:'dewa:bill:owned',expectedPayableRevision:'a'.repeat(64),methodId:'wallet',expectedMethodVersion:1})).status,403);
+  assert.equal((await request('/payment-lifecycle',mint())).status,403);
   const body={amountMinor:50,source:'demo_approved'},key=randomUUID();
   const first=await (await request('/topups',mint(),'POST',body,key)).json();
   const second=await (await request('/topups',mint(),'POST',body,key)).json(); assert.deepEqual(first,second);
@@ -123,6 +124,7 @@ test('Keycloak provider grants and provider client allowlists agree for every se
   for (const user of realm.users.filter((u: any) => u.serviceAccountClientId)) {
     for (const role of user.realmRoles) {
       if (!role.startsWith('provider:')) continue;
+      if(role==='provider:eligibility:read'||role==='provider:eligibility:manage'){assert.equal(user.serviceAccountClientId,role.endsWith(':read')?'provider-eligibility':'eligibility-operator');assert.equal(user.realmRoles.length,1);continue;}
       const provider = role.split(':')[1] as keyof typeof callers;
       assert.ok(callers[provider].includes(user.serviceAccountClientId), `${user.serviceAccountClientId} has ${role} but is absent from the provider allowlist`);
     }

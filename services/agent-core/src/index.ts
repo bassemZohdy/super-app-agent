@@ -1,4 +1,6 @@
 import { handlePaymentAccounts } from './payment-accounts.ts';
+import { EligibilityClient,EligibilityReadError,eligibilityEnforced } from '../../../packages/backend-kit/src/eligibility-client.ts';
+import { ProviderClient } from '../../../packages/backend-kit/src/provider-client.ts';
 import { cancelSurfacePayment } from './payment-surfaces.ts';
 import { manualServices } from './manual-services.ts';
 import { proxyDelegation } from '../../../packages/backend-kit/src/delegation-proxy.ts';
@@ -40,6 +42,7 @@ function ownsSession(sessionId: string, sub: string): boolean {
   return true;
 }
 const activeTransitions = new Set<string>();
+const eligibilityReader=new EligibilityClient(),accountReader=new ProviderClient('service-wallet',process.env.SERVICE_WALLET_CLIENT_SECRET||'demo-wallet-secret');
 type RequestContext = { session?: SuperAppAgentState; release?: () => void | Promise<void>; save?: () => Promise<void>; assertLease?: () => Promise<void> };
 
 function commitSurface(session: SuperAppAgentState) {
@@ -125,6 +128,11 @@ async function handleGatewayRequest(
     return { status: 403, data: { success: false, code: 'ACCOUNT_FORBIDDEN', error: 'This account does not belong to the signed-in user.' } };
   }
   const actor = actorFor(authResult.user!, accountId, authHeader);
+  if(normMethod==='GET'&&pathname==='/api/accounts'&&eligibilityEnforced())return {status:200,data:{...await accountReader.call('payments',actor,'GET','/v1/accounts'),user:authResult.user}};
+  if(eligibilityEnforced()&&pathname!=='/api/payments/eligibility'){
+    try{actor.eligibilityEpoch=(await eligibilityReader.require(actor)).epoch;}
+    catch(e){return {status:e instanceof EligibilityReadError&&[403,409].includes(e.status)?e.status:503,data:{success:false,code:e instanceof EligibilityReadError&&e.status===403?'ACCOUNT_RESTRICTED':'ELIGIBILITY_UNAVAILABLE',error:'Current owner or workspace membership prevents access. History is retained.'}};}
+  }
   const paymentAccounts = await handlePaymentAccounts(actor, normMethod, pathname, normMethod==='GET'?query:body);
   if (paymentAccounts) return paymentAccounts;
   if (normMethod === 'GET' && pathname === '/api/services') return { status: 200, data: { success: true, services: manualServices.map(({ id, name }) => ({ id, name, route: `/services/${id}`, version: '1.0.0', runtime: 'bundled-surface' })) } };
@@ -136,20 +144,24 @@ async function handleGatewayRequest(
   }
   if (normMethod === 'GET' && pathname === '/api/sessions') {
     const persistent = redisSessions();
-    return { status: 200, data: { success: true, sessions: persistent ? await persistent.list(actor.sub) : [...sessions.values()].filter(s => sessionOwners.get(s.sessionId) === actor.sub).map(s => ({ sessionId: s.sessionId, accountId: s.metadata?.accountId, title: s.messages.find(m => m.role === 'user')?.content.slice(0,80) || 'New conversation' })) } };
+    let items=persistent?await persistent.list(actor.sub):[...sessions.values()].filter(s=>sessionOwners.get(s.sessionId)===actor.sub).map(s=>({sessionId:s.sessionId,accountId:s.metadata?.accountId,title:s.messages.find(m=>m.role==='user')?.content.slice(0,80)||'New conversation'}));
+    if(eligibilityEnforced()){const allowed=new Set<string>();for(const id of new Set(items.map(s=>s.accountId).filter(Boolean))){try{await eligibilityReader.require({...actor,accountId:id,eligibilityEpoch:undefined});allowed.add(id);}catch(e){if(!(e instanceof EligibilityReadError)||e.status!==403)throw e;}}items=items.filter(s=>allowed.has(s.accountId));}
+    return {status:200,data:{success:true,sessions:items}};
   }
   const sessionPath = /^\/api\/sessions\/([a-zA-Z0-9_-]{8,128})$/.exec(pathname);
   if (sessionPath && (normMethod === 'GET' || normMethod === 'DELETE')) {
     const sid = sessionPath[1], persistent = redisSessions();
     if (persistent) {
-      if (normMethod === 'DELETE') { const record = await persistent.read(sid, actor.sub); await persistent.remove(sid, actor.sub); await discardRuntime(record.state); return { status: 200, data: { success: true } }; }
+      if (normMethod === 'DELETE') { const record = await persistent.read(sid, actor.sub);if(eligibilityEnforced())await eligibilityReader.require({...actor,accountId:record.accountId,eligibilityEpoch:undefined}); await persistent.remove(sid, actor.sub); await discardRuntime(record.state); return { status: 200, data: { success: true } }; }
       const record = await persistent.read(sid, actor.sub);
+      if(eligibilityEnforced())await eligibilityReader.require({...actor,accountId:record.accountId,eligibilityEpoch:undefined});
       return { status: 200, data: { success: true, sessionId: sid, accountId: record.accountId, messages: record.state.messages, surface: record.state.currentSurface, serviceId:record.state.metadata?.manualService, inference: record.state.metadata?.inference, runtime: record.state.metadata?.runtime, approval: record.state.approval, approvalHistory: record.state.approvalHistory } };
     }
     if (!sessions.has(sid)) return { status: 404, data: { error: 'Session not found' } };
     if (sessionOwners.get(sid) !== actor.sub) return { status: 403, data: { error: 'Session belongs to a different user' } };
-    if (normMethod === 'DELETE') { if (activeTransitions.has(sid)) return { status: 409, data: { error: 'Session busy' } }; await discardRuntime(sessions.get(sid)!); sessions.delete(sid); sessionOwners.delete(sid); return { status: 200, data: { success: true } }; }
     const state = sessions.get(sid)!;
+    if(eligibilityEnforced())await eligibilityReader.require({...actor,accountId:state.metadata?.accountId||accountId,eligibilityEpoch:undefined});
+    if (normMethod === 'DELETE') { if (activeTransitions.has(sid)) return { status: 409, data: { error: 'Session busy' } }; await discardRuntime(state); sessions.delete(sid); sessionOwners.delete(sid); return { status: 200, data: { success: true } }; }
     return { status: 200, data: { success: true, sessionId: sid, accountId: state.metadata?.accountId, messages: state.messages, surface: state.currentSurface, serviceId:state.metadata?.manualService, inference: state.metadata?.inference, runtime: state.metadata?.runtime, approval: state.approval, approvalHistory: state.approvalHistory } };
   }
   // Hold ownership and coordination through persistence and the final event.
@@ -173,7 +185,8 @@ async function handleGatewayRequest(
       session = getOrCreateSession(body.sessionId);
       if (session.metadata?.accountId && session.metadata.accountId !== accountId) return { status: 409, data: { success: false, code: 'SESSION_ACCOUNT_MISMATCH', error: 'Start a new conversation when switching accounts.' } };
     }
-    session.metadata = { ...session.metadata, accountId };
+    if(eligibilityEnforced()&&pathname!=='/api/a2ui/cancel'&&(pathname==='/api/a2ui/action'||session.paymentFlow)&&(session.metadata?.eligibilityEpoch||'1:1')!==actor.eligibilityEpoch)return {status:409,data:{success:false,code:'ELIGIBILITY_CHANGED',error:'Owner or workspace permission changed. Cancel the original review and start a new conversation.'}};
+    session.metadata = { ...session.metadata, accountId,...(actor.eligibilityEpoch?{eligibilityEpoch:actor.eligibilityEpoch}:{}) };
     requestContext.session = session;
     if (session.reconciliation) return { status: 409, data: { success: false, code: 'RECONCILIATION_REQUIRED', error: 'Reconcile the previous journey before submitting more requests in this session.', outcome: session.reconciliation.outcome, steps: session.reconciliation.steps, retry: { allowed: false, next: 'reconcile' }, surface: session.currentSurface } };
     actor.assertLease = requestContext.assertLease;
@@ -307,6 +320,7 @@ export async function executeGatewayRequest(method: string, pathname: string,
     return result.data.success === true ? { ...result, data: { ...result.data, outcome: 'SUCCEEDED', steps } } : result;
   }
   catch (error) {
+    if(error instanceof EligibilityReadError)return {status:[403,409].includes(error.status)?error.status:503,data:{success:false,code:'ELIGIBILITY_DENIED',error:'Current owner or workspace membership prevents access. History is retained.'}};
     if (error instanceof SessionError) return { status: error.status, data: { success: false, code: error.code, error: error.message } };
     const outcome = executionOutcome(steps);
     const domainError = error instanceof DomainOperationError;
@@ -410,6 +424,9 @@ export const server = http.createServer({ maxHeaderSize: 16384 }, async (req, re
     let persistentState: SuperAppAgentState | undefined;
     const streamAccount = url.searchParams.get('accountId') || accountIdFor(authResult.user!.sub);
     if (![accountIdFor(authResult.user!.sub), accountIdFor(authResult.user!.sub, 'household')].includes(streamAccount)) { sendJson(req, res, 403, { error: 'Account is not owned by this user' }); return; }
+    const streamActor=actorFor(authResult.user!,streamAccount,authHeader);
+    if(eligibilityEnforced())try{await eligibilityReader.require(streamActor);}catch(e){sendJson(req,res,e instanceof EligibilityReadError&&e.status===403?403:503,{code:'ELIGIBILITY_DENIED',error:'Current owner or workspace membership prevents this stream.'});return;}
+    if(!persistent&&sessions.get(sid)?.metadata?.accountId&&sessions.get(sid)!.metadata!.accountId!==streamAccount){sendJson(req,res,403,{error:'This conversation belongs to another workspace.'});return;}
     try { if (persistent) persistentState = await persistent.claim(sid, authResult.user!.sub, streamAccount); }
     catch (error) { sendJson(req, res, error instanceof SessionError ? error.status : 503, { error: 'Session unavailable or not owned by this user' }); return; }
     if (!persistent && !ownsSession(sid, authResult.user!.sub)) {
@@ -437,7 +454,8 @@ export const server = http.createServer({ maxHeaderSize: 16384 }, async (req, re
         'Vary': 'Origin',
     });
     const writer = new StreamWriter(res);
-    const listener = (msg: A2UIMessageEnvelope) => writer.send(eventFrame(msg));
+    let delivery=Promise.resolve(),pendingMessages=0;
+    const listener = (msg: A2UIMessageEnvelope) => {if(res.writableEnded)return;if(pendingMessages>=32){res.end();return;}pendingMessages++;delivery=delivery.then(async()=>{if(res.writableEnded)return;if(eligibilityEnforced()){const verified=await verifyKeycloakToken(authHeader);if(!verified.authenticated)throw Error('Identity inactive');await eligibilityReader.require(streamActor);}writer.send(eventFrame(msg));}).catch(()=>{res.end();}).finally(()=>{pendingMessages--;});};
     const unsubscribe = persistent ? await persistent.subscribe(sid, listener) : undefined;
     subscribers.add(listener);
     sseClients.set(sid, subscribers);
@@ -454,9 +472,9 @@ export const server = http.createServer({ maxHeaderSize: 16384 }, async (req, re
     if (cursor) for (const event of replay) listener(event);
     else {
       const surface = (persistentState || sessions.get(sid))?.currentSurface;
-      if (surface) writer.send(`data: ${JSON.stringify(createA2UIMessage('A2UI_RENDER_SURFACE', sid, {
+      if (surface) listener(createA2UIMessage('A2UI_RENDER_SURFACE', sid, {
         mode: 'REPLACE', surface,
-      }))}\n\n`);
+      }));
     }
     res.once('close', () => {
       clearInterval(heartbeat);

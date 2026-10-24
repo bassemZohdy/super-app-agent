@@ -4,7 +4,7 @@ import { dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { brokerClient, deny, digest, grantInput, type GrantInput, type Operation } from './policy.ts';
 
-export type Grant = GrantInput & { id: string; owner: string; issuer: string; actor: string; version: number; createdAt: number; expiresAt: number; revokedAt?: number; used: number };
+export type Grant = GrantInput & { id: string; owner: string; issuer: string; actor: string; version: number; createdAt: number; expiresAt: number; revokedAt?: number; used: number; eligibilityEpoch?:string };
 type Binding = { grantId: string; version: number; sub: string; actor: string; exp: number; operationId: string; requestDigest: string };
 type Job = { id: string; grantId: string; requestKey: string; state: string; result?: unknown };
 export class GrantStore {
@@ -20,9 +20,10 @@ export class GrantStore {
   }
   atomic<T>(fn: () => T): T { this.db.exec('BEGIN IMMEDIATE'); try { const out = fn(); this.db.exec('COMMIT'); return out; } catch (e) { this.db.exec('ROLLBACK'); throw e; } }
   audit(id: string, event: string, body: unknown = {}) { this.db.prepare('INSERT INTO audit(at,grant_id,event,body) VALUES(?,?,?,?)').run(Date.now(), id, event, JSON.stringify(body)); }
-  create(owner: string, input: GrantInput): Grant {
+  create(owner: string, input: GrantInput,eligibilityEpoch?:string): Grant {
     const valid = grantInput(owner, input), now = Date.now();
-    const grant: Grant = { ...valid, id: randomUUID(), owner, issuer: process.env.KEYCLOAK_ISSUER || 'test-issuer', actor: brokerClient, version: 1, createdAt: now, expiresAt: now + valid.expiresInSeconds * 1000, used: 0 };
+    if(eligibilityEpoch!==undefined&&!/^[1-9][0-9]{0,6}:[1-9][0-9]{0,6}$/.test(eligibilityEpoch))deny('INVALID_ELIGIBILITY_EPOCH');
+    const grant: Grant = { ...valid,...(eligibilityEpoch?{eligibilityEpoch}:{}), id: randomUUID(), owner, issuer: process.env.KEYCLOAK_ISSUER || 'test-issuer', actor: brokerClient, version: 1, createdAt: now, expiresAt: now + valid.expiresInSeconds * 1000, used: 0 };
     return this.atomic(() => { this.save(grant, true); this.audit(grant.id, 'consent.created', { owner, actor: brokerClient, operation: digest(valid), purpose: valid.purpose }); return grant; });
   }
   private save(grant: Grant, insert = false) { this.db.prepare(insert ? 'INSERT INTO grants(id,owner,body) VALUES(?,?,?)' : 'UPDATE grants SET body=? WHERE id=? AND owner=?').run(...(insert ? [grant.id, grant.owner, JSON.stringify(grant)] : [JSON.stringify(grant), grant.id, grant.owner])); }
@@ -64,6 +65,7 @@ export class GrantStore {
       if (!/^[a-f0-9]{64}$/.test(fingerprint)||!Number.isSafeInteger(binding.exp)||binding.exp*1000<=Date.now()||binding.exp*1000>g.expiresAt+1000||g.version!==binding.version||g.owner!==binding.sub||g.actor!==binding.actor||job?.state!=='pending'||binding.requestDigest!==digest({provider:g.provider,method:g.method,path:g.path,body:g.body}))deny('BINDING_MISMATCH');
       this.db.prepare('INSERT INTO bindings(fingerprint,body) VALUES(?,?)').run(fingerprint, JSON.stringify(binding)); this.audit(g.id, 'token.bound', { fingerprint, operationId: binding.operationId, exp: binding.exp }); });
   }
+  boundGrant(fingerprint:string):Grant{const row=this.db.prepare('SELECT body FROM bindings WHERE fingerprint=?').get(fingerprint);if(!row)deny('TOKEN_NOT_BOUND');return this.active((JSON.parse(String(row!.body)) as Binding).grantId);}
   authorize(fingerprint: string, sub: string, actor: string, account: string, operation: Operation): Grant {
     return this.atomic(() => {
       const row = this.db.prepare('SELECT body FROM bindings WHERE fingerprint=?').get(fingerprint) as { body: string } | undefined;

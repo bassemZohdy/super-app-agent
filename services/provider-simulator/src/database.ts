@@ -1,3 +1,4 @@
+import type { AccountEligibility } from './account-eligibility.ts';
 import type { IssuerScenarios } from './issuer-scenarios.ts';
 import type { PaymentEvents } from './payment-events.ts';
 import { DatabaseSync } from 'node:sqlite';
@@ -7,6 +8,7 @@ import { accountIdFor } from '../../../packages/backend-kit/src/context.ts';
 export class AccountDatabase {
   readonly db: DatabaseSync;
   readonly path: string;
+  eligibility?:AccountEligibility;
   events?:PaymentEvents;
   issuerScenarios?:IssuerScenarios;
   constructor(path: string) {
