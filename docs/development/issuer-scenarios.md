@@ -33,7 +33,7 @@ In this isolated mode, customer card requests can create only neutral `approved`
 
 ## Operator API and confinement
 
-Payment contract **1.9.0**, payment-provider OpenAPI **2.12.0**. The isolated server's OpenAPI adds the following routes; normal generated/provider OpenAPI omits them.
+Payment contract **1.9.0**, payment-provider OpenAPI **2.13.0**. The isolated server's OpenAPI adds the following routes; normal generated/provider OpenAPI omits them.
 
 | Isolated route | Body / authorization |
 | --- | --- |

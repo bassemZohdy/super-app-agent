@@ -4,6 +4,7 @@ Evidence spans the `283521a` integrated baseline, payment setup `65fec3c`, journ
 
 | Evidence | Verified scope | Interpretation |
 | --- | --- | --- |
+| [Finite mandate consent](2026-10-24-payment-mandates.md) | 306 tests, 18 builds, six signed policy families and actual provider restart | AUTO-01 delivered; no automatic execution, editor, budget reservation or scheduler |
 | [Isolated issuer scenarios](2026-10-24-issuer-scenarios.md) | 292 tests, 18 builds, eight operator-configured signed browser outcomes and pending restart | SIM-03 delivered; general controls/failpoints and remaining PAY-18 paths stay open |
 | [Signed financial status events](2026-10-24-payment-events.md) | 278 tests, 18 builds, actual callback/lost-response recovery and terminal-reversal browser | PAY-18 infrastructure evidence; the later issuer report supplies SIM-03 while retained-path qualification remains open |
 | [Original-source refunds](2026-10-24-payment-refunds.md) | 264 tests, 18 builds; source/issuer/journal reversal and paced UI scenarios | PAY-17 delivered; events, consolidated recovery, statements and automatic services retain their gates |
@@ -19,11 +20,11 @@ Evidence spans the `283521a` integrated baseline, payment setup `65fec3c`, journ
 | [Payment journal](2026-10-24-payment-ledger.md) | 143 tests, 18 builds, twelve existing journeys, setup browser and actual three-wallet migration/backup proof | PAY-02 delivered; executable saved-card orders and automation remain open |
 | [Payment accounts](2026-10-24-payment-accounts.md) | 136 tests, 18 builds and real-Keycloak isolated setup/quote/browser checks | PAY-01 delivered; no new financial execution or automation |
 | [Local AI](2026-10-24-local-ai.md) | 130 Node tests, 18 builds, 12 browser journeys, four speech API tests, actual CPU text/speech/dictation, synthetic browser capture/playback, Flutter analysis/six tests, delegation security | Text/speech baseline; physical/native/Arabic speech limits remain |
-| [Delegation](2026-10-24-delegation-demo.md) | Exact-image RFC 7523, separate broker, current grants, bounded writes/revocation, paced browser evidence | Supported no-preview demo; recurring payment mandates are not implemented |
+| [Delegation](2026-10-24-delegation-demo.md) | Exact-image RFC 7523, separate broker, current grants, bounded writes/revocation, paced browser evidence | Supported no-preview demo; later AUTO-01 supplies consent records; automatic execution remains disabled |
 | [Demo completion](2026-10-24-demo-completion.md) | Provider/Redis/manual/MCP/restart/security and then-current 114 tests/17 builds | Earlier stage; hosted-model observations are historical |
 | [Provider browser recording](../recordings/runs/20261024T010609Z-video/report.md) | Twelve isolated journeys, 34 checks, measured pacing and then-current 120 tests/17 builds | Canonical dated recording, independent of later model changes |
 | [Older reports](../INDEX.md#evidence-and-provenance) | 23 October checks and original fixture scenarios | Preserve original observations; not current feature claims |
 
 Current setup: [local development](../development/local-development.md), [local AI](../development/local-ai.md), [delegation](../development/delegation.md). Proposed work and its acceptance gates live in [TODO](../../TODO.md).
 
-[Payment/automation planning and cleanup](2026-10-24-payment-planning.md) records documentation/media maintenance, the original 50-task plan and the subsequent backlog review (5 delivered foundations, 45 open). It is planning evidence; the subsequent payment-account report records the first delivered setup slice. Recurring mandates and automatic services remain unimplemented.
+[Payment/automation planning and cleanup](2026-10-24-payment-planning.md) records documentation/media maintenance, the original 50-task plan and the subsequent backlog review (5 delivered foundations, 45 open). It is planning evidence; the subsequent payment-account report records the first delivered setup slice. The later AUTO-01 report supplies finite consent records; automatic services remain unimplemented.

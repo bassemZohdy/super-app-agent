@@ -31,7 +31,7 @@ sequenceDiagram
 
 ## Contract and authentication
 
-Payment contract **1.9.0**, payment-provider OpenAPI **2.12.0**; the source REST resource contracts remain unchanged. Event schema version is 1 in `packages/protocol-core/src/payment-events.ts`.
+Payment contract **1.9.0**, payment-provider OpenAPI **2.13.0**; the source REST resource contracts remain unchanged. Event schema version is 1 in `packages/protocol-core/src/payment-events.ts`.
 
 `GET /v1/accounts/{accountId}/payment-events` requires the interactive owner. `GET /api/payments/overview` includes `events`: gateway pending/failed delivery counts, received count and up to twenty current per-subject update views. Source-provider outboxes stay private; the gateway count does not claim to include every source's undelivered queue. Existing records receive no fabricated backfill events.
 

@@ -124,7 +124,7 @@ async function handleGatewayRequest(
     return { status: 403, data: { success: false, code: 'ACCOUNT_FORBIDDEN', error: 'This account does not belong to the signed-in user.' } };
   }
   const actor = actorFor(authResult.user!, accountId, authHeader);
-  const paymentAccounts = await handlePaymentAccounts(actor, normMethod, pathname, body);
+  const paymentAccounts = await handlePaymentAccounts(actor, normMethod, pathname, normMethod==='GET'?query:body);
   if (paymentAccounts) return paymentAccounts;
   if (normMethod === 'GET' && pathname === '/api/services') return { status: 200, data: { success: true, services: manualServices.map(({ id, name }) => ({ id, name, route: `/services/${id}`, version: '1.0.0', runtime: 'bundled-surface' })) } };
   if (normMethod === 'GET' && pathname === '/api/accounts') {
