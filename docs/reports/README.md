@@ -36,3 +36,5 @@ Evidence spans the `283521a` integrated baseline, payment setup `65fec3c`, journ
 Current setup: [local development](../development/local-development.md), [local AI](../development/local-ai.md), [delegation](../development/delegation.md). Proposed work and its acceptance gates live in [TODO](../../TODO.md).
 
 [Payment/automation planning and cleanup](2026-10-24-payment-planning.md) records documentation/media maintenance, the original 50-task plan and the subsequent backlog review (5 delivered foundations, 45 open). It is planning evidence; the subsequent payment-account report records the first delivered setup slice. The later AUTO-01 report supplies finite consent records; automatic services remain unimplemented.
+
+[2026-10-24 operations and recovery](2026-10-24-operations.md): P2-02 local trace/metric/access controls, load/soak, encrypted checkpoint and fenced durable-state/Keycloak/Redis recovery. This evidence does not qualify production HA or inference capacity.

@@ -1,3 +1,4 @@
+import { tracedFetch as fetch } from '../../../packages/backend-kit/src/observability.ts';
 /** Transactional financial outbox and authenticated inspection-only inbox. No bearer credentials or caller-selected destinations. */
 import { createHash,createHmac,randomUUID,timingSafeEqual } from 'node:crypto';
 import { Ajv } from 'ajv';

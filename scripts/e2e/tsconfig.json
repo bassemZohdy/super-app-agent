@@ -28,6 +28,10 @@
     "../verify-payment-inventory.ts",
     "../verify-automation-authority.ts",
     "../verify-delegation-restart.ts",
-    "../payment-access.ts"
+    "../payment-access.ts",
+    "../ops.ts",
+    "../ops/*.ts",
+    "../verify-operations.ts",
+    "../verify-operations-recovery.ts"
   ]
 }

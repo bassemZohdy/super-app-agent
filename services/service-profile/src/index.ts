@@ -1,3 +1,4 @@
+import { shutdownOnSignal } from '../../../packages/backend-kit/src/shutdown.ts';
 import { createApplicationServer } from '../../../packages/backend-kit/src/application.ts';
 import { validateRequest, toolSchema } from '../../../packages/protocol-core/src/request-validation.ts';
 
@@ -236,6 +237,7 @@ export const server = createApplicationServer('service-profile', executeProfileR
 
 const PORT = parseInt(process.env.PORT || '4005', 10);
 if (process.argv[1]?.endsWith('service-profile/src/index.ts')) {
+  shutdownOnSignal(server);
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`👤 User Profile Microservice listening on port ${PORT}`);
   });

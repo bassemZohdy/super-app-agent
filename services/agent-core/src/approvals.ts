@@ -1,3 +1,4 @@
+import { enrichCorrelation } from '../../../packages/backend-kit/src/observability.ts';
 import { createHash, randomUUID } from 'node:crypto';
 import type { AGUISurfacePayload, UIComponentNode } from '../../../packages/protocol-core/src/index.ts';
 import type { SuperAppAgentState } from './langgraph/state.ts';
@@ -65,5 +66,6 @@ export function actionIsApproved(state: SuperAppAgentState, action: string, payl
 
 export function recordApproval(state: SuperAppAgentState, event: 'offered' | 'confirmed' | 'cancelled', action?: string) {
   if (!state.approval) return;
+  enrichCorrelation({workflowId:state.sessionId,approvalId:state.approval.id});
   state.approvalHistory = [...(state.approvalHistory || []), { id: state.approval.id, revision: state.approval.revision, at: Date.now(), event, ...(action ? { action } : {}) }].slice(-50);
 }

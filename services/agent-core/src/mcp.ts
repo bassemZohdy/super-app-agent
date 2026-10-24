@@ -1,3 +1,4 @@
+import { inSpan,routeName } from '../../../packages/backend-kit/src/observability.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { McpServer, createMcpHandler, type StandardSchemaWithJSON } from '@modelcontextprotocol/server';
 import { toNodeHandler, hostHeaderValidation } from '@modelcontextprotocol/node';
@@ -31,7 +32,7 @@ export async function handleMcp(req: IncomingMessage, res: ServerResponse, execu
     res.end(JSON.stringify({ jsonrpc: '2.0', id: null, error: { code: -32001, message: 'User access token required' } })); return;
   }
   const call = async (method: string, path: string, body: Record<string, unknown> = {}) => {
-    const result = await execute(method, path, {}, body, { authorization });
+    const result = await inSpan(`MCP ${routeName(path)}`,'tool',()=>execute(method, path, {}, body, { authorization }),r=>r.status);
     return { isError: result.status >= 400,
       content: [{ type: 'text' as const, text: JSON.stringify(result.data) }], structuredContent: result.data };
   };

@@ -1,3 +1,4 @@
+import { shutdownOnSignal } from '../../../packages/backend-kit/src/shutdown.ts';
 import { createApplicationServer } from '../../../packages/backend-kit/src/application.ts';
 import { validateRequest, toolSchema, invalidInput, toMinor, fromMinor, MAX_MONEY } from '../../../packages/protocol-core/src/request-validation.ts';
 
@@ -395,6 +396,7 @@ export const executeCitizenPayRequest = executeWalletRequest;
 
 const PORT = parseInt(process.env.PORT || '4003', 10);
 if (process.argv[1]?.endsWith('service-wallet/src/index.ts')) {
+  shutdownOnSignal(server);
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`💳 Citizen Pay & Government Wallet Microservice listening on port ${PORT}`);
   });

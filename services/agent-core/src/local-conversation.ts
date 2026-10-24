@@ -1,3 +1,4 @@
+import { tracedFetch as fetch } from '../../../packages/backend-kit/src/observability.ts';
 import { acquireModelBudget, boundedMessages } from './model-budget.ts';
 export class LocalConversationError extends Error {
   readonly code: string;

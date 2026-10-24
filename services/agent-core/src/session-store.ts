@@ -1,10 +1,11 @@
+import { operationalEvent } from '../../../packages/backend-kit/src/observability.ts';
 import { createClient, type RedisClientType } from 'redis';
 import { createHash, randomUUID } from 'node:crypto';
 import type { SuperAppAgentState } from './langgraph/state.ts';
 import type { A2UIMessageEnvelope } from '../../../packages/protocol-core/src/index.ts';
 export class SessionError extends Error {
   status: number; code: string;
-  constructor(status: number, code: string, message: string) { super(message); this.status = status; this.code = code; }
+  constructor(status: number, code: string, message: string) { super(message);const event=code==='SESSION_BUSY'?'session_busy':code==='SESSION_LOCK_LOST'?'session_lock_lost':code==='SESSION_STORE_UNAVAILABLE'?'redis_unavailable':undefined;if(event)operationalEvent(event); this.status = status; this.code = code; }
 }
 type Record = { owner: string; accountId: string; state: SuperAppAgentState; updatedAt: number };
 function decodeRecord(raw: string): Record {

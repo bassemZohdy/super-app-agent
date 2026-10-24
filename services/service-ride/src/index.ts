@@ -1,3 +1,4 @@
+import { shutdownOnSignal } from '../../../packages/backend-kit/src/shutdown.ts';
 import { createApplicationServer } from '../../../packages/backend-kit/src/application.ts';
 import { validateRequest, toolSchema, invalidInput, toMinor, fromMinor, MAX_MONEY, MAX_DURATION_HOURS } from '../../../packages/protocol-core/src/request-validation.ts';
 
@@ -504,6 +505,7 @@ export const executeMobilityRequest = executeRideRequest;
 const PORT = parseInt(process.env.PORT || '4001', 10);
 // Only bind port if not running in pure module import mode
 if (process.argv[1]?.endsWith('service-ride/src/index.ts')) {
+  shutdownOnSignal(server);
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`🚖 Smart Mobility (RTA/Salik/EV) Microservice listening on port ${PORT}`);
   });

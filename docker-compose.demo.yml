@@ -1,11 +1,29 @@
 name: cityside-demo
 x-node: &node
   image: node:24-alpine
+  init: true
+  stop_grace_period: 90s
   working_dir: /app
   volumes:
     - .:/app:ro
   restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: '3'
+  healthcheck:
+    test: [CMD, node, -e, "fetch('http://127.0.0.1:'+process.env.PORT+'/ready',{signal:AbortSignal.timeout(2500)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+    interval: 10s
+    timeout: 3s
+    retries: 3
+    start_period: 15s
 x-identity: &identity
+  OPS_API_KEY: ${OPS_API_KEY:-}
+  OBSERVABILITY_LOGS: ${OBSERVABILITY_LOGS:-true}
+  OPS_STUCK_MS: ${OPS_STUCK_MS:-120000}
+  HTTP_MAX_CONCURRENT: ${HTTP_MAX_CONCURRENT:-64}
+  HTTP_REQUESTS_PER_MINUTE: ${HTTP_REQUESTS_PER_MINUTE:-300}
   ELIGIBILITY_ENFORCEMENT: 'true'
   ELIGIBILITY_READER_SECRET: ${ELIGIBILITY_READER_SECRET:-demo-eligibility-reader-secret}
   KEYCLOAK_ISSUER: http://localhost:8085/realms/superapp

@@ -1,3 +1,4 @@
+import { tracedFetch as fetch } from './observability.ts';
 /** UI/MCP facade only: this process has no issuer keys or grant database. */
 export async function proxyDelegation(method: string, path: string, body: unknown, authorization?: string) {
   if (!path.startsWith('/api/delegation')) return undefined;

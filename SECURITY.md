@@ -40,7 +40,7 @@ HTTP readers enforce byte-based 64 KiB bodies, JSON media type, read deadlines a
 
 ## Remaining release blockers
 
-Production identity/tenant federation; native Flutter OIDC/device parity; complete consent/quotes and audit; payment reconciliation/compensation workflows; dependency upgrades/security scans; per-user/global quotas; durable workflow execution; production identity operations; HTTPS deployment; HA/backups; remote mini-app isolation; official protocol compatibility.
+Production identity/tenant federation; native Flutter OIDC/device parity; complete consent/quotes and audit; payment reconciliation/compensation workflows; dependency upgrades/security scans; per-user/global quotas; durable workflow execution; production identity operations; HTTPS deployment; production HA/off-host backups; remote mini-app isolation; official protocol compatibility.
 
 The legacy `DEMO_AUTH` runner and agentgateway candidate are not production security boundaries. See [backlog](TODO.md), [provider guide](docs/demo/provider-backends.md), and [executed verification](docs/reports/2026-10-24-demo-completion.md).
 
@@ -99,3 +99,9 @@ The payment database derives owner identity from immutable accounts and stores s
 Reference Compose requires eligibility enforcement; offline fixture tests do not claim that profile. Online Keycloak introspection independently rejects disabled users. The application owner switch does not alter Keycloak; it is not an identity-event synchronization service. No distributed Keycloak/provider transaction or automatic-spending permit is implied. [Lifecycle guide and residual limits](docs/development/payment-lifecycle.md) · [Signed execution evidence](docs/reports/2026-10-24-payment-lifecycle.md).
 
 [Gateway business reservations](docs/development/payment-obligations.md) now precede funding authorization for invoices, individual fine constituents and recharge target versions. Unknown attempts keep original identity and exclusion through expiry/restart. Captured history stays committed; unspent closure alone releases a reservation. Legacy overlap is retained and blocked rather than silently reassigned. These controls do not grant automatic execution or replace current permit/budget/occurrence checks.
+
+## Local operator diagnostics and recovery
+
+P2-02 adds separate `OPS_API_KEY` management access to the fifteen Node processes. Diagnostics reject application bearer credentials and browser origins, omit payloads/credentials/owner data, normalize paths, fingerprint arbitrary caller IDs and retain bounded spans. Correlation headers grant no authority. Restrict management traffic to the local operator boundary; nonlocal use needs TLS and reviewed network controls.
+
+Cold backups contain authority databases, issuer keys, private runtime configuration, Redis and Keycloak state. `OPS_BACKUP_KEY` encrypts authenticated bundles and is excluded from their configuration copy; retain it separately. Restore validates contents and refuses existing directories/unsafe paths/links. Promotion requires fencing old writers and reconciling uncertain effects. Existing consent/expiry/replay controls still apply after restore. These tested demo procedures do not establish production HA, off-host replication or a compliance audit archive. See the [operations runbook](docs/development/operations.md) and [evidence](docs/reports/2026-10-24-operations.md).

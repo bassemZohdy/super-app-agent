@@ -1,5 +1,10 @@
 # Documentation changelog
 
+## 24 October 2026 — P2-02 local operations and recovery
+
+Add correlated HTTP/domain/MCP telemetry, private diagnostics/Prometheus metrics, bounded redacted logs, durable-work and backpressure alerts, gateway/broker readiness and graceful Node shutdown. Add signed load/soak/partial-journey qualification and encrypted, integrity-checked cold backup/restore with isolated financial/Redis/issuer and full Keycloak/Redis recovery rehearsal. Complete P2-02 for the selected single-writer demo; retain separate production HA gates. [Runbook](development/operations.md) · [Evidence](reports/2026-10-24-operations.md).
+
+
 ## 24 October 2026 — lifecycle tests, read-only consent review and push to GitHub
 
 Added five SIM-02 lifecycle cases (quote agreement, repeated-delivery idempotency and stale-event rejection) and a refund-consistency case, so the simulator's refunded and withdrawn states are covered end to end (SIM-02, still partial because its invoice-period, discount, prepaid and parking scope is unbuilt). Added a read-only "Automation rules" panel that shows each mandate's trigger, target, funding, caps, expiry and revocation consequences, with no write actions (AUTO-04, still partial). The shared test baseline is now 515 Node tests and 18 workspace builds. The session's 28 commits were pushed to GitHub as a fast-forward from `edad819` to `fb24e17`.

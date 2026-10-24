@@ -1,3 +1,4 @@
+import { tracedFetch as fetch } from '../../../packages/backend-kit/src/observability.ts';
 import { HttpError } from '../../../packages/backend-kit/src/http-policy.ts';
 
 export const localVoices = ['Jasper', 'Bruno', 'Hugo', 'Luna'] as const;

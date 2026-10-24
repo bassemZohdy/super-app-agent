@@ -1,3 +1,4 @@
+import { tracedFetch as fetch,inSpan,routeName } from '../../../packages/backend-kit/src/observability.ts';
 import { actorContext } from '../../../packages/backend-kit/src/context.ts';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { executeRideRequest } from '../../service-ride/src/index.ts';
@@ -85,7 +86,7 @@ export function executionOutcome(steps: Step[]): Outcome {
 
 
 /** HTTP transport is explicit; provider mode never silently falls back to shared fixtures. */
-export async function callDomainAsync(service: keyof typeof domainHandlers | 'telecom', method: string, path: string,
+async function callDomainRequest(service: keyof typeof domainHandlers | 'telecom', method: string, path: string,
   query: Record<string, string> = {}, body: any = {}): Promise<Result> {
   if (process.env.DOMAIN_TRANSPORT !== 'http') {
     if (process.env.PROVIDER_INTEGRATION === 'true') throw new DomainOperationError(503, 'DOMAIN_TRANSPORT_MISCONFIGURED', service);
@@ -119,3 +120,6 @@ export async function callDomainAsync(service: keyof typeof domainHandlers | 'te
   if (step) step.state = rejected ? 'FAILED' : 'UNKNOWN';
   throw new DomainOperationError(rejected ? result.status : 503, rejected ? 'DOMAIN_REJECTED' : mutation ? 'DOMAIN_OUTCOME_UNKNOWN' : 'DOMAIN_UNAVAILABLE', service);
 }
+
+/** One tool span per domain operation; IDs carry provenance, never authority. */
+export async function callDomainAsync(...args:Parameters<typeof callDomainRequest>):Promise<Result>{return inSpan(`DOMAIN ${args[0]} ${routeName(args[2])}`,'tool',()=>callDomainRequest(...args),r=>r.status);}

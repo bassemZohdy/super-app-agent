@@ -1,3 +1,4 @@
+import { operationalEvent } from '../../../packages/backend-kit/src/observability.ts';
 import type { ServerResponse } from 'node:http';
 import type { A2UIMessageEnvelope } from '../../../packages/protocol-core/src/index.ts';
 
@@ -66,6 +67,7 @@ export class StreamWriter {
     if (this.closed) return;
     const bytes = Buffer.byteLength(frame);
     if (bytes + this.queuedBytes + this.res.writableLength > this.maxBytes) {
+      operationalEvent('sse_backpressure');
       this.close();
       this.res.destroy();
       return;

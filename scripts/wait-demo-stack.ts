@@ -19,6 +19,9 @@ for (const [index, provider] of ['rta', 'dewa', 'etisalat', 'du', 'police', 'dld
     accept: data => data.status === 'ok' && data.provider === provider && data.storage === 'sqlite' });
 }
 
+// Preserve metadata checks above and independently verify each Node process's critical local dependency.
+for(const [name,check] of [...checks])if(name!=='Keycloak realm')checks.set(`${name} readiness`,{url:check.url.replace(/\/health$/,'/ready'),accept:data=>data.status==='ready'});
+
 const timeout = Number(process.env.DEMO_READY_TIMEOUT_MS || 180000);
 if (!Number.isFinite(timeout) || timeout < 1000 || timeout > 600000) {
   throw new Error('DEMO_READY_TIMEOUT_MS must be between 1000 and 600000.');

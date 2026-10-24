@@ -1,3 +1,4 @@
+import { operationalEvent } from './observability.ts';
 import type { IncomingMessage } from 'node:http';
 
 export class HttpError extends Error {
@@ -23,7 +24,7 @@ export class HttpPolicy {
   }
   admit(key: string) {
     const now = Date.now();
-    if (this.active >= this.concurrency) throw new HttpError(429, 'Too many active requests');
+    if (this.active >= this.concurrency) {operationalEvent('capacity_rejection');throw new HttpError(429, 'Too many active requests');}
     let bucket = this.buckets.get(key);
     if (!bucket || bucket.until <= now) {
       if (this.buckets.size >= this.maxKeys) {
@@ -32,7 +33,7 @@ export class HttpPolicy {
       }
       bucket = { count: 0, until: now + 60000 }; this.buckets.set(key, bucket);
     }
-    if (bucket.count >= this.rate) throw new HttpError(429, 'Request rate exceeded');
+    if (bucket.count >= this.rate) {operationalEvent('capacity_rejection');throw new HttpError(429, 'Request rate exceeded');}
     bucket.count++; this.active++;
     let released = false;
     return () => { if (!released) { released = true; this.active--; } };

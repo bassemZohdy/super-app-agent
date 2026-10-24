@@ -1,3 +1,4 @@
+import { tracedFetch as fetch } from './observability.ts';
 import { ClientCredentials } from './oauth.ts';
 import type { Actor } from './context.ts';
 export class UpstreamError extends Error {

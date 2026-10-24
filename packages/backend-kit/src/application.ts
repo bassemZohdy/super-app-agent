@@ -1,3 +1,4 @@
+import { Telemetry,correlation } from './observability.ts';
 import { HttpPolicy, HttpError, readJsonBody } from './http-policy.ts';
 import { EligibilityClient,EligibilityReadError,eligibilityEnforced } from './eligibility-client.ts';
 import http from 'node:http';
@@ -5,7 +6,7 @@ import { join } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { AccountDatabase } from '../../../services/provider-simulator/src/database.ts';
 import { ProviderClient, UpstreamError } from './provider-client.ts';
-import { actorFor, assetsFor, type Actor } from './context.ts';
+import { actorFor, assetsFor, actorContext, type Actor } from './context.ts';
 import { verifyJwt } from './jwt.ts';
 import { validateRequest } from '../../protocol-core/src/request-validation.ts';
 import { currentProfile, currentPreferences, generatePromptContext } from '../../../services/service-profile/src/index.ts';
@@ -225,9 +226,10 @@ export async function integratedRequest(service: string, actor: Actor, method: s
 const successfulWithoutDuplicate = (data: unknown): Result => ({ status: 200, data });
 export function createApplicationServer(service: string, legacy: Legacy) {
   const policy = new HttpPolicy();
-  return http.createServer({ maxHeaderSize: 16384, requestTimeout: 15000, headersTimeout: 10000 }, async (req, res) => {
+  const telemetry=new Telemetry(service);
+  const server=http.createServer({ maxHeaderSize: 16384, requestTimeout: 15000, headersTimeout: 10000 }, telemetry.handler(async (req, res) => {
     const suppliedRequestId = req.headers['x-request-id'];
-    const requestId = typeof suppliedRequestId === 'string' && /^[A-Za-z0-9_.-]{1,200}$/.test(suppliedRequestId) ? suppliedRequestId : randomUUID();
+    const requestId = correlation()?.requestId || (typeof suppliedRequestId === 'string' && /^[A-Za-z0-9_.-]{1,200}$/.test(suppliedRequestId) ? suppliedRequestId : randomUUID());
     const send = (status: number, data: unknown) => { res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Request-Id': requestId }); res.end(JSON.stringify(data)); };
     try {
       const release = policy.admit(req.socket.remoteAddress || 'unknown'); res.once('finish', release); res.once('close', release);
@@ -235,9 +237,6 @@ export function createApplicationServer(service: string, legacy: Legacy) {
       const query = Object.fromEntries(url.searchParams);
       const integrated = process.env.PROVIDER_INTEGRATION === 'true';
       if (req.method === 'GET' && url.pathname === '/health') return send(200, { status: 'ok', service, integration: integrated ? 'rest-providers' : 'legacy-fixtures' });
-      if (req.method === 'GET' && url.pathname === '/live') return send(200, { status: 'live', service });
-      // Readiness checks only the in-process handler dependency (the legacy fixture function). Downstream provider reachability is deliberately not probed: provider errors already surface per request as 503 PROVIDER_UNAVAILABLE.
-      if (req.method === 'GET' && url.pathname === '/ready') return typeof legacy === 'function' ? send(200, { status: 'ready', service }) : send(503, { status: 'not_ready', service });
       let actor: Actor | undefined;
       if (integrated) {
         const user = await verifyJwt(req.headers.authorization, process.env.KEYCLOAK_AUDIENCE || 'agent-core').catch(() => undefined);
@@ -251,8 +250,9 @@ export function createApplicationServer(service: string, legacy: Legacy) {
         const invalid = validateRequest(service, req.method || 'GET', url.pathname, query, body);
         if (invalid) return send(invalid.status, invalid.data);
       }
-      const result = integrated ? await integratedRequest(service, actor!, req.method || 'GET', url.pathname, query, body, legacy) : legacy(req.method || 'GET', url.pathname, query, body);
+      const result = integrated ? await actorContext.run(actor!,()=>integratedRequest(service, actor!, req.method || 'GET', url.pathname, query, body, legacy)) : legacy(req.method || 'GET', url.pathname, query, body);
       send(result.status, result.data);
     } catch (error) { res.setHeader('Connection', 'close'); send(error instanceof HttpError ? error.status : error instanceof SyntaxError ? 400 : 503, { success: false, code: 'REQUEST_FAILED', error: error instanceof HttpError ? error.message : error instanceof SyntaxError ? 'Invalid JSON body' : 'Request could not be completed.' }); }
-  });
+  },{ready:()=>{if(typeof legacy!=='function')throw Error('Handler unavailable');if(process.env.PROVIDER_INTEGRATION==='true')storeFor(service).db.prepare('SELECT 1').get();}}));
+  server.once('close',()=>{telemetry.close();stores.get(service)?.close();stores.delete(service);});return server;
 }

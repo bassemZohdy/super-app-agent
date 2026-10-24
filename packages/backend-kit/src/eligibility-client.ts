@@ -1,3 +1,4 @@
+import { tracedFetch as fetch } from './observability.ts';
 /** Narrow server-only current-eligibility reader. No positive permission cache and no caller owner header. */
 import { ProviderClient } from './provider-client.ts';
 import { ClientCredentials } from './oauth.ts';

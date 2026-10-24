@@ -87,7 +87,13 @@
     "demo:verify:payment-lifecycle": "node --experimental-strip-types scripts/e2e/payment-lifecycle.ts",
     "record:payment-lifecycle": "node --experimental-strip-types scripts/e2e/payment-lifecycle.ts --record",
     "demo:verify:payment-obligations": "node --experimental-strip-types scripts/e2e/payment-obligations.ts",
-    "record:payment-obligations": "node --experimental-strip-types scripts/e2e/payment-obligations.ts --record"
+    "record:payment-obligations": "node --experimental-strip-types scripts/e2e/payment-obligations.ts --record",
+    "ops:init": "node --experimental-strip-types scripts/ops.ts init",
+    "ops:inspect": "node --env-file-if-exists=.env --experimental-strip-types scripts/ops.ts inspect",
+    "ops:backup": "node --env-file-if-exists=.env --experimental-strip-types scripts/ops.ts backup",
+    "ops:restore": "node --env-file-if-exists=.env --experimental-strip-types scripts/ops.ts restore",
+    "ops:verify": "node --experimental-strip-types scripts/verify-operations.ts",
+    "ops:verify:recovery": "node --experimental-strip-types scripts/verify-operations-recovery.ts"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^13.1.0",

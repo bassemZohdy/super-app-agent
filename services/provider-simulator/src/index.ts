@@ -1,3 +1,6 @@
+import { shutdownOnSignal } from '../../../packages/backend-kit/src/shutdown.ts';
+import { durableWork } from '../../../packages/backend-kit/src/operations-state.ts';
+import { Telemetry,correlation } from '../../../packages/backend-kit/src/observability.ts';
 import { ObligationError } from './payment-obligations.ts';
 import { EligibilityError } from './account-eligibility.ts';
 import { EligibilityClient } from '../../../packages/backend-kit/src/eligibility-client.ts';
@@ -42,20 +45,15 @@ export function createProviderServer(provider: ProviderId, path: string, options
   const eligibilityReader=new EligibilityClient(),validateEligibility=ajv.compile<EligibilityChange>(eligibilityChangeSchema);
   const checkout=engine.orders?new PaymentCheckout(engine.orders,payments):undefined;
   const policy = new HttpPolicy();
-  const server = http.createServer({ maxHeaderSize: 16384, requestTimeout: 15000, headersTimeout: 10000 }, async (req, res) => {
+  const telemetry=new Telemetry(provider).durable(()=>durableWork(store.db));
+  const server = http.createServer({ maxHeaderSize: 16384, requestTimeout: 15000, headersTimeout: 10000 }, telemetry.handler(async (req, res) => {
     const suppliedRequestId = req.headers['x-request-id'];
-    const requestId = typeof suppliedRequestId === 'string' && /^[A-Za-z0-9_.-]{1,200}$/.test(suppliedRequestId) ? suppliedRequestId : randomUUID();
+    const requestId = correlation()?.requestId || (typeof suppliedRequestId === 'string' && /^[A-Za-z0-9_.-]{1,200}$/.test(suppliedRequestId) ? suppliedRequestId : randomUUID());
     const send = (result: ApiResult) => { res.writeHead(result.status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Request-Id': requestId }); res.end(JSON.stringify(result.data)); };
     try {
       const release = policy.admit(req.socket.remoteAddress || 'unknown'); res.once('finish', release); res.once('close', release);
       const url = new URL(req.url || '/', 'http://provider');
       if (req.method === 'GET' && url.pathname === '/health') return send({ status: 200, data: { status: 'ok', provider, storage: 'sqlite' } });
-      if (req.method === 'GET' && url.pathname === '/live') return send({ status: 200, data: { status: 'live', provider } });
-      if (req.method === 'GET' && url.pathname === '/ready') {
-        // Ready only while the SQLite store is open and answers a trivial query; the error text is never returned.
-        try { store.db.prepare('SELECT 1').get(); return send({ status: 200, data: { status: 'ready', provider, storage: 'sqlite' } }); }
-        catch { return send({ status: 503, data: { status: 'not_ready', provider, storage: 'sqlite' } }); }
-      }
       if (req.method === 'GET' && url.pathname === '/openapi.json') return send({ status: 200, data: openApi(provider,store.issuerScenarios?.context.runId) });
       if(provider==='payments'&&req.method==='POST'&&url.pathname==='/internal/payment-events'&&!url.search){
         const event=await readJsonBody(req) as PaymentEvent;
@@ -224,7 +222,8 @@ export function createProviderServer(provider: ProviderId, path: string, options
       res.setHeader('Connection', 'close');
       send({ status, data: { success: false, code: error instanceof ObligationError||error instanceof EligibilityError||error instanceof MandateError || error instanceof IssuerScenarioError || error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError || error instanceof SettlementError ? error.code : 'PROVIDER_UNAVAILABLE', error: error instanceof HttpError ? error.message : error instanceof ObligationError||error instanceof EligibilityError||error instanceof MandateError || error instanceof IssuerScenarioError || error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError || error instanceof SettlementError ? error.message : 'The simulator could not complete this request. Check operation status before retrying a write.' } });
     }
-  });
+  },{identity:'provider',ready:()=>{store.db.prepare('SELECT 1').get();}}));
+  server.once('close',()=>telemetry.close());
   let eventDelivery:ReturnType<typeof startPaymentEventDelivery>|undefined;
   server.once('listening',()=>{if(store.events)eventDelivery=startPaymentEventDelivery(store.events);});
   server.once('close',()=>eventDelivery?.stop());
@@ -233,7 +232,8 @@ export function createProviderServer(provider: ProviderId, path: string, options
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const provider = process.env.PROVIDER_ID as ProviderId;
   if (!providerIds.includes(provider)) throw new Error('Set PROVIDER_ID to a supported provider.');
-  const { server } = createProviderServer(provider, process.env.PROVIDER_DB_PATH || `./data/${provider}.sqlite`);
+  const { server,store } = createProviderServer(provider, process.env.PROVIDER_DB_PATH || `./data/${provider}.sqlite`);
   const port = Number(process.env.PORT || 4101 + providerIds.indexOf(provider));
+  shutdownOnSignal(server,()=>store.close());
   server.listen(port, '0.0.0.0', () => console.log(`${provider} simulator listening on ${port}`));
 }

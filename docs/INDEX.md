@@ -4,6 +4,8 @@ Updated **24 October 2026**: provider/Redis, supported Keycloak delegation and l
 
 The bounded delegation extension is documented in [ADR-0012](adr/ADR-0012-secure-delegation-demo.md). The latest delivered text/speech checks are in [the local AI report](reports/2026-10-24-local-ai.md).
 
+[Local operations and recovery](development/operations.md) — P2-02 diagnostics, qualification SLOs and tested encrypted backup/fenced restore; [evidence](reports/2026-10-24-operations.md).
+
 ## Reading order
 
 1. [README](../README.md) — purpose, current status and quickstart.

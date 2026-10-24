@@ -1,0 +1,28 @@
+# Optional Prometheus rules; supply the private X-Ops-Key in scrape configuration.
+groups:
+  - name: cityside-local-demo
+    rules:
+      - alert: CitysideStuckWork
+        expr: cityside_stuck_operations > 0 or cityside_durable_oldest_age_seconds > 120
+        for: 30s
+        labels: {severity: warning}
+        annotations: {summary: 'Inspect the private trace and original operation; do not automatically retry.'}
+      - alert: CitysideUnknownCapture
+        expr: cityside_reconciliation_required > 0
+        for: 30s
+        labels: {severity: warning}
+        annotations: {summary: 'Inspect the original capture and source acknowledgement.'}
+      - alert: CitysideBackpressure
+        expr: increase(cityside_operational_events_total{event=~"capacity_rejection|sse_backpressure"}[5m]) > 0
+        labels: {severity: warning}
+        annotations: {summary: 'Admission or slow-consumer bounds triggered; inspect capacity before retrying.'}
+      - alert: CitysideReadLatency
+        expr: histogram_quantile(0.95, sum by (le, service) (rate(cityside_operation_duration_seconds_bucket{kind="server",category="request",method="GET"}[5m]))) > 1
+        for: 2m
+        labels: {severity: warning}
+        annotations: {summary: 'Business HTTP p95 exceeds the local one-second target; examine the journey mix.'}
+      - alert: CitysideErrorBudget
+        expr: sum by (service) (rate(cityside_operation_errors_total{kind="server",category="request"}[5m])) / clamp_min(sum by (service) (rate(cityside_http_operations_total{kind="server",category="request"}[5m])), 0.001) > 0.01
+        for: 2m
+        labels: {severity: warning}
+        annotations: {summary: 'Business HTTP 5xx exceeds one percent over five minutes.'}

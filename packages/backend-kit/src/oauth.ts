@@ -1,3 +1,4 @@
+import { tracedFetch as fetch } from './observability.ts';
 /** Per-process service token cache; never stores an end-user bearer token. */
 export class ClientCredentials {
   private cached?: { value: string; until: number };

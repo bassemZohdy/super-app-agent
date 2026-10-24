@@ -1,3 +1,4 @@
+import { shutdownOnSignal } from '../../../packages/backend-kit/src/shutdown.ts';
 import { createApplicationServer } from '../../../packages/backend-kit/src/application.ts';
 import { validateRequest, toolSchema, invalidInput, toMinor, fromMinor, MAX_MONEY } from '../../../packages/protocol-core/src/request-validation.ts';
 
@@ -408,6 +409,7 @@ export const executeUtilitiesRequest = executeFoodRequest;
 
 const PORT = parseInt(process.env.PORT || '4002', 10);
 if (process.argv[1]?.endsWith('service-food/src/index.ts')) {
+  shutdownOnSignal(server);
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`⚡ Smart Utilities (DEWA/ADDC) Microservice listening on port ${PORT}`);
   });

@@ -12,3 +12,5 @@ process.env.PROVIDER_INTEGRATION = 'false';
 process.env.ELIGIBILITY_ENFORCEMENT = 'false';
 process.env.DOMAIN_TRANSPORT = 'local';
 process.env.SESSION_STORE = 'memory';
+
+process.env.OBSERVABILITY_LOGS = 'false';

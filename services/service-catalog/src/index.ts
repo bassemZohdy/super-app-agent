@@ -1,3 +1,4 @@
+import { shutdownOnSignal } from '../../../packages/backend-kit/src/shutdown.ts';
 import { createApplicationServer } from '../../../packages/backend-kit/src/application.ts';
 import { validateRequest, toolSchema } from '../../../packages/protocol-core/src/request-validation.ts';
 import { capabilities } from './capabilities.ts';
@@ -266,6 +267,7 @@ export const server = createApplicationServer('service-catalog', executeCatalogR
 
 const PORT = parseInt(process.env.PORT || '4004', 10);
 if (process.argv[1]?.endsWith('service-catalog/src/index.ts')) {
+  shutdownOnSignal(server);
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`📦 Mini-App Catalog Service listening on port ${PORT}`);
   });

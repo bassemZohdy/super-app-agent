@@ -1,3 +1,5 @@
+import { shutdownOnSignal } from '../../../packages/backend-kit/src/shutdown.ts';
+import { Telemetry,correlation,enrichCorrelation,operationalEvent } from '../../../packages/backend-kit/src/observability.ts';
 import { handlePaymentAccounts } from './payment-accounts.ts';
 import { EligibilityClient,EligibilityReadError,eligibilityEnforced } from '../../../packages/backend-kit/src/eligibility-client.ts';
 import { ProviderClient } from '../../../packages/backend-kit/src/provider-client.ts';
@@ -128,6 +130,7 @@ async function handleGatewayRequest(
     return { status: 403, data: { success: false, code: 'ACCOUNT_FORBIDDEN', error: 'This account does not belong to the signed-in user.' } };
   }
   const actor = actorFor(authResult.user!, accountId, authHeader);
+  actor.requestId=correlation()?.requestId||actor.requestId;
   if(normMethod==='GET'&&pathname==='/api/accounts'&&eligibilityEnforced())return {status:200,data:{...await accountReader.call('payments',actor,'GET','/v1/accounts'),user:authResult.user}};
   if(eligibilityEnforced()&&pathname!=='/api/payments/eligibility'){
     try{actor.eligibilityEpoch=(await eligibilityReader.require(actor)).epoch;}
@@ -188,6 +191,7 @@ async function handleGatewayRequest(
     if(eligibilityEnforced()&&pathname!=='/api/a2ui/cancel'&&(pathname==='/api/a2ui/action'||session.paymentFlow)&&(session.metadata?.eligibilityEpoch||'1:1')!==actor.eligibilityEpoch)return {status:409,data:{success:false,code:'ELIGIBILITY_CHANGED',error:'Owner or workspace permission changed. Cancel the original review and start a new conversation.'}};
     session.metadata = { ...session.metadata, accountId,...(actor.eligibilityEpoch?{eligibilityEpoch:actor.eligibilityEpoch}:{}) };
     requestContext.session = session;
+    enrichCorrelation({workflowId:session.sessionId,approvalId:session.approval?.id});
     if (session.reconciliation) return { status: 409, data: { success: false, code: 'RECONCILIATION_REQUIRED', error: 'Reconcile the previous journey before submitting more requests in this session.', outcome: session.reconciliation.outcome, steps: session.reconciliation.steps, retry: { allowed: false, next: 'reconcile' }, surface: session.currentSurface } };
     actor.assertLease = requestContext.assertLease;
     if (body.surfaceRevision) actor.requestId = `${body.surfaceRevision}:${body.action}`;
@@ -377,7 +381,8 @@ function sendJson(req: http.IncomingMessage, res: http.ServerResponse, statusCod
 }
 
 const httpPolicy = new HttpPolicy();
-export const server = http.createServer({ maxHeaderSize: 16384 }, async (req, res) => {
+const telemetry=new Telemetry('agent-core');
+export const server = http.createServer({ maxHeaderSize: 16384 }, telemetry.handler(async (req, res) => {
   try {
   const release = httpPolicy.admit(req.socket.remoteAddress || 'unknown');
   res.once('close', release); res.once('finish', release);
@@ -455,7 +460,7 @@ export const server = http.createServer({ maxHeaderSize: 16384 }, async (req, re
     });
     const writer = new StreamWriter(res);
     let delivery=Promise.resolve(),pendingMessages=0;
-    const listener = (msg: A2UIMessageEnvelope) => {if(res.writableEnded)return;if(pendingMessages>=32){res.end();return;}pendingMessages++;delivery=delivery.then(async()=>{if(res.writableEnded)return;if(eligibilityEnforced()){const verified=await verifyKeycloakToken(authHeader);if(!verified.authenticated)throw Error('Identity inactive');await eligibilityReader.require(streamActor);}writer.send(eventFrame(msg));}).catch(()=>{res.end();}).finally(()=>{pendingMessages--;});};
+    const listener = (msg: A2UIMessageEnvelope) => {if(res.writableEnded)return;if(pendingMessages>=32){operationalEvent('sse_backpressure');res.end();return;}pendingMessages++;delivery=delivery.then(async()=>{if(res.writableEnded)return;if(eligibilityEnforced()){const verified=await verifyKeycloakToken(authHeader);if(!verified.authenticated)throw Error('Identity inactive');await eligibilityReader.require(streamActor);}writer.send(eventFrame(msg));}).catch(()=>{res.end();}).finally(()=>{pendingMessages--;});};
     const unsubscribe = persistent ? await persistent.subscribe(sid, listener) : undefined;
     subscribers.add(listener);
     sseClients.set(sid, subscribers);
@@ -505,7 +510,8 @@ export const server = http.createServer({ maxHeaderSize: 16384 }, async (req, re
         { success: false, error: error instanceof HttpError ? error.message : 'Session or request service unavailable.' });
     }
   }
-});
+},{ready:async()=>{const persistent=redisSessions();if(persistent){await persistent.connect();await persistent.client.ping();}}}));
+server.once('close',()=>telemetry.close());
 
 server.headersTimeout = 10000; server.requestTimeout = 15000; server.keepAliveTimeout = 5000;
 
@@ -513,6 +519,7 @@ export const executeCoreRequest = executeGatewayRequest;
 
 const PORT = parseInt(process.env.PORT || '4000', 10);
 if (process.argv[1]?.endsWith('agent-core/src/index.ts')) {
+  shutdownOnSignal(server,()=>redisSessions()?.close());
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 SuperApp Agent Core listening on port ${PORT}`);
   });

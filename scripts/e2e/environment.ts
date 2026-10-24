@@ -18,6 +18,7 @@ export async function startEnvironment(options:{authorizationClock?:()=>number;i
   const dir = await mkdtemp(join(tmpdir(), 'cityside-e2e-'));
   const servers: Server[] = [];
   const databases: Array<{ close(): void }> = [];
+  const providerServers=new Map<string,Server>();
   const providerStores = new Map<string, import('../../services/provider-simulator/src/database.ts').AccountDatabase>();
   const appUrl = `http://localhost:${appPort}`;
   const coreUrl = `http://localhost:${corePort}`;
@@ -30,6 +31,7 @@ export async function startEnvironment(options:{authorizationClock?:()=>number;i
     // Exercise the strict interactive provider lane; never proxy isolated tests to live grants.
     DELEGATION_ENABLED: 'true', DELEGATION_AUTHORITY_URL: 'http://127.0.0.1:1',
     REDIS_URL: redisUrl, SESSION_TTL_SECONDS: '600', DEMO_AUTH: 'false',
+    OBSERVABILITY_LOGS:process.env.OBSERVABILITY_LOGS||'false',
     NODE_ENV: 'development', ENABLE_LIVE_LLM: 'false', ENABLE_LOCAL_LLM: 'false', OPENROUTER_API_KEY: '',
     KEYCLOAK_ISSUER: issuer, KEYCLOAK_PUBLIC_ISSUER: issuer, KEYCLOAK_AUDIENCE: 'agent-core',
     KEYCLOAK_JWKS_URL: `${issuer}/protocol/openid-connect/certs`,
@@ -82,7 +84,7 @@ export async function startEnvironment(options:{authorizationClock?:()=>number;i
       const settlementTransport=name!=='payments'&&name!=='dld'?new SettlementClient(name):undefined;
       if(settlementTransport){const send=settlementTransport.call.bind(settlementTransport);settlementTransport.call=async(...args:Parameters<typeof send>)=>{if(args[2]==='ack'&&heldAcknowledgements.has(name))throw new Error('Isolated test holds original provider acknowledgement.');return send(...args);};}
       const provider = createProviderServer(name, join(dir, `${name}.sqlite`),name==='payments'?{authorizationClock:options.authorizationClock,paymentClient,issuerScenario}:{settlementTransport});
-      providerStores.set(name, provider.store);if(name==='payments')paymentInstance=provider;
+      providerServers.set(name,provider.server);providerStores.set(name, provider.store);if(name==='payments')paymentInstance=provider;
       databases.push(provider.store.db); await listen(provider.server, corePort + 101 + index);
     }
     for (const [index, name] of ['ride', 'food', 'wallet', 'catalog', 'profile', 'telecom'].entries()) {
@@ -122,6 +124,8 @@ export async function startEnvironment(options:{authorizationClock?:()=>number;i
     };
     const assertPaymentSource=(provider:string)=>assert.ok(['dewa','etisalat','du','police','rta'].includes(provider));
     return { appUrl, coreUrl, corePort, cleanup,
+      pauseProvider:async(name:string)=>{const server=providerServers.get(name);assert.ok(server);server.closeAllConnections();await new Promise<void>(done=>server.close(()=>done()));},
+      resumeProvider:async(name:string)=>{const server=providerServers.get(name);assert.ok(server);const port=corePort+101+providerIds.indexOf(name as import('../../services/provider-simulator/src/contracts.ts').ProviderId);await new Promise<void>(done=>server.listen(port,'127.0.0.1',done));},
       failNextPaymentPreparation:(provider:string)=>{assertPaymentSource(provider);failedPreparations.add(provider);},
       loseNextReversalResponse:(provider:string)=>{assertPaymentSource(provider);lostReversals.add(provider);},
       holdSourceReads:(provider:string,hold:boolean)=>{assertPaymentSource(provider);if(hold)blockedSourceReads.add(provider);else blockedSourceReads.delete(provider);},issuerRunId:issuerScenario?.runId,restartPayments,holdLegacyAcknowledgement:(provider:string,hold:boolean)=>{assert.ok(['rta','dewa','etisalat','du','police'].includes(provider));if(hold)heldAcknowledgements.add(provider);else heldAcknowledgements.delete(provider);},receivedPaymentEvents:(account:string)=>providerStores.get('payments')!.db.prepare('SELECT id,disposition FROM payment_event_inbox WHERE account_id=? ORDER BY rowid').all(account).map(r=>({id:String(r.id),disposition:String(r.disposition)})),paymentEventRecords:(provider:string,account:string)=>providerStores.get(provider)!.db.prepare('SELECT body FROM payment_event_outbox WHERE account_id=? ORDER BY rowid').all(account).map(row=>JSON.parse(String(row.body)) as import('../../packages/protocol-core/src/payment-events.ts').PaymentEvent),loseNextSettlementResponse:(provider:string)=>{assert.ok(['dewa','etisalat','du','police','rta'].includes(provider));lostSettlementResponses.add(provider);},providerState: (provider: string, account: string, kind: string) => providerStores.get(provider)?.get(account, kind),

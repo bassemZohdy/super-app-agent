@@ -1,3 +1,4 @@
+import { tracedFetch as fetch } from '../../../packages/backend-kit/src/observability.ts';
 /** Narrow workload lane: never forwards a human identity header or persists a bearer token. */
 import { ClientCredentials } from '../../../packages/backend-kit/src/oauth.ts';
 import { SettlementError,type SettlementProvider,type PaymentClaim } from './payment-claims.ts';

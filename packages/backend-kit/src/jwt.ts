@@ -1,3 +1,4 @@
+import { tracedFetch as fetch } from './observability.ts';
 import { createPublicKey, verify, type JsonWebKey } from 'node:crypto';
 
 export type JwtClaims = Record<string, any> & { sub: string; exp: number; iss: string };

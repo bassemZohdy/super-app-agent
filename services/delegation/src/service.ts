@@ -1,3 +1,4 @@
+import { tracedFetch as fetch } from '../../../packages/backend-kit/src/observability.ts';
 import { join } from 'node:path';
 import { verifyJwt, type JwtClaims } from '../../../packages/backend-kit/src/jwt.ts';
 import { logEvent } from '../../../packages/backend-kit/src/redact.ts';

@@ -1,3 +1,4 @@
+import { tracedFetch as fetch } from './observability.ts';
 /** Online grant check, separate from Keycloak token introspection; never positive-cache. */
 export async function authorizeDelegatedProvider(authorization: string | undefined, provider: string, accountId: string, method: string, path: string, body: Record<string, unknown>) {
   const endpoint = new URL('/api/delegation/authorize', process.env.DELEGATION_AUTHORITY_URL || 'http://localhost:4010');
