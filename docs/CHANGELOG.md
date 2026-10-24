@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 24 October 2026 — backlog slices: typing, contracts, probes, supply chain and guardrails
+
+Removed explicit `any` at trust boundaries in backend-kit, ag-ui, the surface client, the A2UI renderer and the agent graph (P2-05); the request-body type is still an assertion and agent-core `Result.data` is still `any`. Generated an OpenAPI 3.1 contract for the 46 integrated application operations (the 45 table entries plus `GET /accounts`) with an onboarding guide (P2-04). Added `/live` and `/ready` probes to the shared handlers and routed the delegation exchange-rejection log through `redact()` and `logEvent()` (P2-02). Added a local CycloneDX SBOM command, a dependency triage report and an ajv upgrade to 8.20.0, and recorded that the zod advisory has no same-major fix (P2-03). Pinned Node 24 in `engines` and `.nvmrc`, made the catalog MCP endpoint configurable, centralized script endpoints and the Angular gateway URL (P2-06). Added a protocol validator fuzz suite and fixed hostile interpolation in error messages (P1-14), an application auth-boundary matrix (QA-01) and amount-invariant tests (QA-02). Removed the legacy ride module's optimistic Salik balance (P1-11) and kept server-bound action keys authoritative in surface action payloads (P1-12). Every listed item remains partial in TODO.md; no backlog item is complete.
+
 ## 24 October 2026 — gateway business reservations and original attempts
 
 Advance PAY-08 with canonical invoice/fine/recharge reservations before authorization, persisted pre-dispatch capture identities, unknown retention and conservative historical overlap migration. Add an owned expandable lifecycle view, signed panel/manual race/restart/recovery verification and paced recording. PAY-08 remains open for actual automatic caller/budget/occurrence qualification under AUTO-03. [Guide](development/payment-obligations.md) · [Evidence](reports/2026-10-24-payment-obligations.md).
