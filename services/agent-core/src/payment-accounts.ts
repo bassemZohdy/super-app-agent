@@ -43,6 +43,8 @@ export async function handlePaymentAccounts(actor: Actor, method: string, path: 
   if (process.env.PROVIDER_INTEGRATION !== 'true') return { status: 503, data: { success: false, code: 'INTEGRATED_DEMO_REQUIRED', error: 'Payment accounts require the provider-backed demo.' } };
   try {
     if (method === 'GET' && path === '/api/payments/overview') return { status: 200, data: { success: true, ...await paymentOverview(actor) } };
+    if(method==='GET'&&(path==='/api/payments/history'||path==='/api/payments/statement')){const base=path.endsWith('/history')?'/payment-history':'/payment-statement';return {status:200,data:await client.call('payments',actor,'GET',body.cursor?`${base}/pages/${encodeURIComponent(body.cursor)}`:base)};}
+    if(method==='GET'&&path==='/api/payments/history/detail')return {status:200,data:await client.call('payments',actor,'GET',`/payment-history/details/${encodeURIComponent(body.kind)}/${encodeURIComponent(body.operationId)}`)};
     if(method==='GET'&&path==='/api/payments/reconciliation')return {status:200,data:await client.call('payments',actor,'GET',body.cursor?`/payment-reconciliation/pages/${encodeURIComponent(body.cursor)}`:'/payment-reconciliation')};
     if(method==='GET'&&path==='/api/payments/reconciliation/inspection')return {status:200,data:await client.call('payments',actor,'GET',`/payment-reconciliation/inspections/${encodeURIComponent(body.inspectionId)}`)};
     if(method==='GET'&&path==='/api/payments/reconciliation/audit')return {status:200,data:await client.call('payments',actor,'GET',`/payment-reconciliation/audit/${encodeURIComponent(body.kind)}/${encodeURIComponent(body.operationId)}`)};

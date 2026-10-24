@@ -4,6 +4,7 @@ Evidence spans the `283521a` integrated baseline, payment setup `65fec3c`, journ
 
 | Evidence | Verified scope | Interpretation |
 | --- | --- | --- |
+| [Statements and receipt history](2026-10-24-payment-history.md) | 358 tests, 18 builds; real signed 116-entry/117-operation pagination, unknown/decline/challenge, removed-source detail and partial funding return | PAY-20 delivered; source/owner lifecycle, automatic admission and simulator/QA gates remain open |
 | [Owned payment reconciliation](2026-10-24-payment-reconciliation.md) | 345 tests, 18 builds; signed before/after-commit loss, gateway restart, reversal loss, blocked source and saved outcome browser | PAY-19 delivered; statements, automatic admission and general simulator/QA gates remain open |
 | [Retained signed event qualification](2026-10-24-legacy-payment-events.md) | 330 tests, 18 builds; legacy parking/restart/inspection and mixed stored financial callback HTTP | PAY-18 delivered for current manual paths; recovery workbench, operator fault controls and automation/QA gates remain open |
 | [Conversational funding reviews](2026-10-24-payment-surfaces.md) | 317 tests, 18 builds, signed explicit review/challenge/restart/recovery and updated twelve journeys | PAY-07 delivered; automation admission and remaining manual recovery/simulator/QA gates remain open |

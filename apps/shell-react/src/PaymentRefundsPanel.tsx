@@ -1,3 +1,4 @@
+import { PaymentReceiptFacts } from './PaymentReceiptFacts';
 import { useState } from 'react';
 import { formatAED,type PaymentAuthorizationReview,type WalletFundingOrder,type PaymentRefund } from '../../../packages/protocol-core/src/payments.ts';
 type Props={orders:PaymentAuthorizationReview[];funding:WalletFundingOrder[];refunds:PaymentRefund[];busy:boolean;create(input:Record<string,unknown>):void;act(refund:PaymentRefund,action:'execute'|'recover'|'cancel'):void};
@@ -20,7 +21,7 @@ export function PaymentRefundsPanel({orders,funding,refunds,busy,create,act}:Pro
       {r.state==='AWAITING_APPROVAL'&&<><p>Review expires {new Date(r.expiresAt).toLocaleTimeString()}. No reversal or money return yet.</p><button disabled={busy} onClick={()=>act(r,'execute')}>Approve refund of {formatAED(r.quote.amountMinor)}</button><button disabled={busy} onClick={()=>act(r,'cancel')}>Cancel refund review</button></>}
       {['REVERSING','RECONCILIATION_REQUIRED'].includes(r.state)&&<><p>Refund is not confirmed. Inspect the original reversal; do not start another refund.</p><button disabled={busy} onClick={()=>act(r,'recover')}>Inspect or resume refund</button></>}
       {r.state==='FAILED'&&<p>No money returned. The saved reversal decision prevents this request being applied later.</p>}
-      {r.state==='REFUNDED'&&r.receipt&&<section aria-label="Confirmed refund receipt"><strong>Refund confirmed · {formatAED(r.quote.amountMinor)}</strong><p>Returned to {source(r)} · Reference {r.id}</p>{r.receipt.providerBalanceMinor!==undefined&&<p>Provider balance after reversal {formatAED(r.receipt.providerBalanceMinor)}</p>}</section>}
+      {r.state==='REFUNDED'&&r.receipt&&<section aria-label="Confirmed refund receipt"><strong>Refund confirmed · {formatAED(r.quote.amountMinor)}</strong><PaymentReceiptFacts source={r.quote.source} amountMinor={r.quote.amountMinor} feeMinor={0} target={r.quote.payable?.reference||r.accountId} reference={r.id} refundedMinor={r.quote.amountMinor} /><p>Returned to {source(r)} · Reference {r.id}</p>{r.receipt.providerBalanceMinor!==undefined&&<p>Provider balance after reversal {formatAED(r.receipt.providerBalanceMinor)}</p>}</section>}
     </article>)}
   </section>;
 }

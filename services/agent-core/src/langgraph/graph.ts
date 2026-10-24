@@ -1,3 +1,5 @@
+import { formatStatementAED } from '../../../../packages/protocol-core/src/payment-history.ts';
+import { formatAED } from '../../../../packages/protocol-core/src/payments.ts';
 import { handlePaymentSurfaceAction } from '../payment-surfaces.ts';
 import { actorContext } from '../../../../packages/backend-kit/src/context.ts';
 import { manualService } from '../manual-services.ts';
@@ -1043,14 +1045,21 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
                 { key: 'type', title: 'Type' },
                 { key: 'purpose', title: 'Description' },
                 { key: 'amount', title: 'Amount' },
+                { key: 'funding', title: 'Funding' },
+                { key: 'state', title: 'State' },
+                { key: 'walletEffect', title: 'Wallet movement' },
               ],
               rows: txs.slice(0, 4).map((t) => ({
                 type: t.type,
                 purpose: t.purpose,
-                amount: `${t.type === 'PAYMENT' ? '-' : '+'}${t.amount.toFixed(2)} AED`,
+                amount: formatAED(Math.round(t.amount*100)),
+                funding: `${t.sourceLabel||'Retained history'}${t.sourceLast4?` · •••• ${t.sourceLast4}`:''}`,
+                state: `${t.status}${t.settlementState?` · ${t.settlementState}`:''}`,
+                walletEffect: typeof t.walletDeltaMinor==='number'?formatStatementAED(t.walletDeltaMinor):'Retained opening history',
               })),
             },
           },
+          {type:'Text',id:'funding_statement_hint',properties:{text:'Full posted-money statement, all payment activity and original-source receipts are available in Payment accounts → Statements & funding history.'}},
           {
             type: 'Button',
             id: 'btn_topup_50',

@@ -1,3 +1,4 @@
+import { historyKindSchema,historyIdSchema,historyCursorSchema } from './payment-history.ts';
 import { recoverySchemas,recoveryInspectionIdSchema } from './payment-reconciliation.ts';
 import { mandateSchemas } from './payment-mandates.ts';
 import { fineSelectionItemsSchema, paymentSchemas, paymentObject, withPaymentAccount, withOrderId } from './payments.ts';
@@ -80,6 +81,8 @@ route('agent-core','POST','/api/payments/mandates',withPaymentAccount(mandateSch
 for(const [action,schema] of Object.entries({revise:mandateSchemas.revise,approve:mandateSchemas.approve,revoke:mandateSchemas.revoke}))route('agent-core','POST',`/api/payments/mandates/${action}`,withPaymentAccount(paymentObject({...schema.properties,mandateId:id},[...schema.required,'mandateId'])));
 route('agent-core','GET','/api/payments/mandates/history',object({accountId:id,mandateId:id},['accountId','mandateId']));
 route('agent-core','GET','/api/payments/orders',object({accountId:id},['accountId']));
+for(const path of ['history','statement'])route('agent-core','GET',`/api/payments/${path}`,object({accountId:id,cursor:historyCursorSchema},['accountId']));
+route('agent-core','GET','/api/payments/history/detail',object({accountId:id,kind:historyKindSchema,operationId:historyIdSchema},['accountId','kind','operationId']));
 route('agent-core','GET','/api/payments/reconciliation',object({accountId:id,cursor:{type:'string',minLength:1,maxLength:200,pattern:'^(PAYMENT|FUNDING|REFUND|LEGACY):[A-Za-z0-9_.:-]+$'}},['accountId']));
 route('agent-core','GET','/api/payments/reconciliation/inspection',object({accountId:id,inspectionId:recoveryInspectionIdSchema},['accountId','inspectionId']));
 route('agent-core','GET','/api/payments/reconciliation/audit',object({accountId:id,...recoverySchemas.inspect.properties},['accountId','kind','operationId']));

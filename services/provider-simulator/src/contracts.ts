@@ -1,3 +1,4 @@
+import { historyOperationSchema,statementEntrySchema,statementSummarySchema,historyCursorSchema } from '../../../packages/protocol-core/src/payment-history.ts';
 import { recoverySchemas,recoveryCaseSchema,recoveryInspectionSchema,recoveryAuditSchema } from '../../../packages/protocol-core/src/payment-reconciliation.ts';
 import { mandateSchemas,mandateRecordSchema } from '../../../packages/protocol-core/src/payment-mandates.ts';
 import { issuerScenarioSchemas } from '../../../packages/protocol-core/src/issuer-scenarios.ts';
@@ -126,6 +127,11 @@ export const operations: Record<ProviderId, Operation[]> = {
     op('POST','/payment-mandates/{mandateId}/revise','revisePaymentMandate',{mandate:mandateRecordSchema},'Replace the current policy with a new unapproved review. Prior approval never carries over.',mandateSchemas.revise),
     op('POST','/payment-mandates/{mandateId}/approve','approvePaymentMandate',{mandate:mandateRecordSchema},'Record explicit owner consent to the exact current digest and policy version. Execution remains disabled.',mandateSchemas.approve),
     op('POST','/payment-mandates/{mandateId}/revoke','revokePaymentMandate',{mandate:mandateRecordSchema},'Close the mandate and release lifecycle references; no committed effect is reversed.',mandateSchemas.revoke),
+    op('GET','/payment-history','listPaymentHistory',{operations:{type:'array',maxItems:25,items:historyOperationSchema},nextCursor:{type:['string','null'],maxLength:2000}},'Read 25 owned operations including pending/failed/group records. Cursor ceilings exclude new inserts while original status stays current.'),
+    op('GET','/payment-history/pages/{cursor}','listPaymentHistoryPage',{operations:{type:'array',maxItems:25,items:historyOperationSchema},nextCursor:{type:['string','null'],maxLength:2000}},'Continue owned activity beyond 100 records without duplicating grouped money effects.'),
+    op('GET','/payment-history/details/{kind}/{operationId}','getPaymentHistoryDetail',{operation:historyOperationSchema},'Read immutable original source/biller terms and current capture/settlement/refund outcome; no money effect or provider call.'),
+    op('GET','/payment-statement','getPaymentStatement',{entries:{type:'array',maxItems:25,items:statementEntrySchema},summary:statementSummarySchema,nextCursor:{type:['string','null'],maxLength:2000}},'Read sealed balanced financial postings with exact running wallet balance and snapshot totals. Service confirmation is independent of journal posting.'),
+    op('GET','/payment-statement/pages/{cursor}','getPaymentStatementPage',{entries:{type:'array',maxItems:25,items:statementEntrySchema},summary:statementSummarySchema,nextCursor:{type:['string','null'],maxLength:2000}},'Continue an account-bound journal snapshot. Current operation outcomes may advance; immutable money rows and totals retain their snapshot ceiling.'),
     op('GET','/payment-reconciliation','listRecoveryCases',{cases:{type:'array',maxItems:25,items:recoveryCaseSchema},nextCursor:{type:['string','null'],maxLength:200}},'List 25 owned payment/funding/refund/legacy cases in stable cursor order. No recovery effect.'),
     op('GET','/payment-reconciliation/pages/{cursor}','listRecoveryCasesPage',{cases:{type:'array',maxItems:25,items:recoveryCaseSchema},nextCursor:{type:['string','null'],maxLength:200}},'Read the next owned recovery page; no closed-history truncation can hide an older case.'),
     op('POST','/payment-reconciliation/inspect','inspectOriginalPayment',{inspection:recoveryInspectionSchema},'Persist an owned evidence decision from exact local journal/capture and fixed source status reads. No charge, refund or provider effect is created.',recoverySchemas.inspect),
@@ -192,7 +198,7 @@ export function openApi(provider: ProviderId,issuerRunId?:string) {
   for (const operation of operations[provider]) {
     const path = `/v1/accounts/{accountId}${operation.path}`;
     paths[path] ||= {};
-    const params = [...[...path.matchAll(/\{(\w+)\}/g)].map(m => ({ name: m[1], in: 'path', required: true, schema: text }))];
+    const params = [...[...path.matchAll(/\{(\w+)\}/g)].map(m => ({ name: m[1], in: 'path', required: true, schema: m[1]==='cursor'&&/^\/payment-(history|statement)\//.test(operation.path)?historyCursorSchema:text }))];
     if (operation.method === 'POST') params.push({ name: 'Idempotency-Key', in: 'header', required: true, schema: text });
     paths[path][operation.method.toLowerCase()] = {
       operationId: `${provider}_${operation.id}`, description: operation.description, parameters: params,
@@ -201,7 +207,7 @@ export function openApi(provider: ProviderId,issuerRunId?:string) {
         ...Object.fromEntries(['400','401','403','404','409','402','503'].map(status => [status, { $ref: '#/components/responses/Error' }])) },
     };
   }
-  return { openapi: '3.1.0', info: { title: `${providerNames[provider]} Simulator`, version: provider === 'payments' ? '2.15.0' : provider==='rta'?'2.3.0':provider==='police'?'2.6.0':['etisalat','du'].includes(provider)?'2.6.0':provider==='dewa'?'2.5.0' : '2.0.0', description: 'Local synthetic API. Signed interactive user identity or broker-issued user token with current exact-operation grant required. JWT subject owns the account; caller user headers do not grant authority. A separate read-only settlement machine lane retrieves captured charge proofs. Legacy fixture mode is outside this reference security profile.' },
+  return { openapi: '3.1.0', info: { title: `${providerNames[provider]} Simulator`, version: provider === 'payments' ? '2.16.0' : provider==='rta'?'2.3.0':provider==='police'?'2.6.0':['etisalat','du'].includes(provider)?'2.6.0':provider==='dewa'?'2.5.0' : '2.0.0', description: 'Local synthetic API. Signed interactive user identity or broker-issued user token with current exact-operation grant required. JWT subject owns the account; caller user headers do not grant authority. A separate read-only settlement machine lane retrieves captured charge proofs. Legacy fixture mode is outside this reference security profile.' },
     servers: [{ url: `http://localhost:${4101 + providerIds.indexOf(provider)}` }], security: [{ accessToken: [] }],
     paths, components: { securitySchemes: { ...(provider==='payments'?{paymentEventHmac:{type:'apiKey',in:'header',name:'X-Payment-Event-Signature',description:'HMAC-SHA256 over canonical method/path/source/kid/timestamp/nonce/event with a separate configured key per producer. Companion headers are required.'}}:{}),accessToken: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' } },
       responses: { Unauthorized: { description: 'Missing or invalid Keycloak access token' }, Error: { description: 'Validation, ownership, delegation, payment, conflict or availability error', content: { 'application/json': { schema: object({ success: { const: false }, error: { type: 'string' }, code: { type: 'string' } }) } } } } },

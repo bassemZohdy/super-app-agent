@@ -21,7 +21,7 @@ The panel scrolls independently, stacks on small screens and returns focus to it
 
 ## Current APIs
 
-Core paths use the authenticated signed owner. GET requires `accountId` as a query parameter; POST includes it in JSON. Provider paths are under `/v1/accounts/{accountId}` and independently verify that owner. New provider OpenAPI is **2.15.0**, additive to the existing `/v1` financial routes.
+Core paths use the authenticated signed owner. GET requires `accountId` as a query parameter; POST includes it in JSON. Provider paths are under `/v1/accounts/{accountId}` and independently verify that owner. New provider OpenAPI is **2.16.0**, additive to the existing `/v1` financial routes.
 
 | Core route | Provider route / behavior |
 | --- | --- |
@@ -79,3 +79,7 @@ For DEWA/Etisalat/du, the stored review now offers explicit Pay after authorizat
 ## Consolidated recovery
 
 Open **Payment recovery** to page all owned payment/funding/refund/legacy cases, inspect current capture/provider evidence and read saved action outcomes/audit. Only permitted original-operation actions are offered; supported refunds require a separate review and approval. [Workbench guide](payment-reconciliation.md).
+
+## Statements and receipts
+
+**Statements & funding history** pages all posted journal effects and payment activity, with exact running balances and original masked source/biller details. Captured/unknown/partial records remain distinct from completed receipts, and removed sources retain their original snapshots. [Full history guide](payment-history.md).

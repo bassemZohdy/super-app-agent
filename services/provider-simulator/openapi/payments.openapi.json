@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Demo Payment Gateway Simulator",
-    "version": "2.15.0",
+    "version": "2.16.0",
     "description": "Local synthetic API. Signed interactive user identity or broker-issued user token with current exact-operation grant required. JWT subject owns the account; caller user headers do not grant authority. A separate read-only settlement machine lane retrieves captured charge proofs. Legacy fixture mode is outside this reference security profile."
   },
   "servers": [
@@ -6652,6 +6652,1826 @@
                   "required": [
                     "success",
                     "mandate"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "402": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/accounts/{accountId}/payment-history": {
+      "get": {
+        "operationId": "payments_listPaymentHistory",
+        "description": "Read 25 owned operations including pending/failed/group records. Cursor ceilings exclude new inserts while original status stays current.",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "operations": {
+                      "type": "array",
+                      "maxItems": 25,
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "enum": [
+                              "PAYMENT",
+                              "FUNDING",
+                              "REFUND",
+                              "LEGACY",
+                              "GROUP"
+                            ]
+                          },
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160,
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                          },
+                          "accountId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160,
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                          },
+                          "title": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "state": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "currency": {
+                            "const": "AED"
+                          },
+                          "source": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 160,
+                                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                              },
+                              "kind": {
+                                "enum": [
+                                  "wallet",
+                                  "card",
+                                  "legacy-external"
+                                ]
+                              },
+                              "label": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 400
+                              },
+                              "last4": {
+                                "type": "string",
+                                "pattern": "^[0-9]{4}$"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "kind",
+                              "label"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "biller": {
+                            "type": "object",
+                            "properties": {
+                              "label": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 400
+                              },
+                              "provider": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 400
+                              },
+                              "reference": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 400
+                              }
+                            },
+                            "required": [
+                              "label",
+                              "provider",
+                              "reference"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "amountMinor": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "feeMinor": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "totalMinor": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "capturedMinor": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "settledMinor": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "refundedMinor": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "captureState": {
+                            "enum": [
+                              "NOT_CAPTURED",
+                              "CAPTURED",
+                              "INCONSISTENT"
+                            ]
+                          },
+                          "settlementState": {
+                            "enum": [
+                              "CONFIRMED",
+                              "PENDING",
+                              "UNKNOWN",
+                              "NOT_APPLIED",
+                              "PARTIAL"
+                            ]
+                          },
+                          "refundState": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "completeReceipt": {
+                            "type": "boolean"
+                          },
+                          "receiptReference": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "correlationReference": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "related": {
+                            "type": "array",
+                            "maxItems": 20,
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "enum": [
+                                    "PAYMENT",
+                                    "FUNDING",
+                                    "REFUND",
+                                    "LEGACY",
+                                    "GROUP"
+                                  ]
+                                },
+                                "id": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 160,
+                                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "id"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "failureCode": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "id",
+                          "accountId",
+                          "title",
+                          "createdAt",
+                          "state",
+                          "currency",
+                          "source",
+                          "biller",
+                          "amountMinor",
+                          "feeMinor",
+                          "totalMinor",
+                          "capturedMinor",
+                          "settledMinor",
+                          "refundedMinor",
+                          "captureState",
+                          "settlementState",
+                          "refundState",
+                          "completeReceipt",
+                          "correlationReference",
+                          "related"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "maxLength": 2000
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "operations",
+                    "nextCursor"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "402": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/accounts/{accountId}/payment-history/pages/{cursor}": {
+      "get": {
+        "operationId": "payments_listPaymentHistoryPage",
+        "description": "Continue owned activity beyond 100 records without duplicating grouped money effects.",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "operations": {
+                      "type": "array",
+                      "maxItems": 25,
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "enum": [
+                              "PAYMENT",
+                              "FUNDING",
+                              "REFUND",
+                              "LEGACY",
+                              "GROUP"
+                            ]
+                          },
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160,
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                          },
+                          "accountId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160,
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                          },
+                          "title": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "state": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "currency": {
+                            "const": "AED"
+                          },
+                          "source": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 160,
+                                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                              },
+                              "kind": {
+                                "enum": [
+                                  "wallet",
+                                  "card",
+                                  "legacy-external"
+                                ]
+                              },
+                              "label": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 400
+                              },
+                              "last4": {
+                                "type": "string",
+                                "pattern": "^[0-9]{4}$"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "kind",
+                              "label"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "biller": {
+                            "type": "object",
+                            "properties": {
+                              "label": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 400
+                              },
+                              "provider": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 400
+                              },
+                              "reference": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 400
+                              }
+                            },
+                            "required": [
+                              "label",
+                              "provider",
+                              "reference"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "amountMinor": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "feeMinor": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "totalMinor": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "capturedMinor": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "settledMinor": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "refundedMinor": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "captureState": {
+                            "enum": [
+                              "NOT_CAPTURED",
+                              "CAPTURED",
+                              "INCONSISTENT"
+                            ]
+                          },
+                          "settlementState": {
+                            "enum": [
+                              "CONFIRMED",
+                              "PENDING",
+                              "UNKNOWN",
+                              "NOT_APPLIED",
+                              "PARTIAL"
+                            ]
+                          },
+                          "refundState": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "completeReceipt": {
+                            "type": "boolean"
+                          },
+                          "receiptReference": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "correlationReference": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "related": {
+                            "type": "array",
+                            "maxItems": 20,
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "enum": [
+                                    "PAYMENT",
+                                    "FUNDING",
+                                    "REFUND",
+                                    "LEGACY",
+                                    "GROUP"
+                                  ]
+                                },
+                                "id": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 160,
+                                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "id"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "failureCode": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "id",
+                          "accountId",
+                          "title",
+                          "createdAt",
+                          "state",
+                          "currency",
+                          "source",
+                          "biller",
+                          "amountMinor",
+                          "feeMinor",
+                          "totalMinor",
+                          "capturedMinor",
+                          "settledMinor",
+                          "refundedMinor",
+                          "captureState",
+                          "settlementState",
+                          "refundState",
+                          "completeReceipt",
+                          "correlationReference",
+                          "related"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "maxLength": 2000
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "operations",
+                    "nextCursor"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "402": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/accounts/{accountId}/payment-history/details/{kind}/{operationId}": {
+      "get": {
+        "operationId": "payments_getPaymentHistoryDetail",
+        "description": "Read immutable original source/biller terms and current capture/settlement/refund outcome; no money effect or provider call.",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "operationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "operation": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "enum": [
+                            "PAYMENT",
+                            "FUNDING",
+                            "REFUND",
+                            "LEGACY",
+                            "GROUP"
+                          ]
+                        },
+                        "id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                        },
+                        "accountId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                        },
+                        "title": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        },
+                        "state": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        },
+                        "currency": {
+                          "const": "AED"
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 160,
+                              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                            },
+                            "kind": {
+                              "enum": [
+                                "wallet",
+                                "card",
+                                "legacy-external"
+                              ]
+                            },
+                            "label": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 400
+                            },
+                            "last4": {
+                              "type": "string",
+                              "pattern": "^[0-9]{4}$"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "kind",
+                            "label"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "biller": {
+                          "type": "object",
+                          "properties": {
+                            "label": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 400
+                            },
+                            "provider": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 400
+                            },
+                            "reference": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 400
+                            }
+                          },
+                          "required": [
+                            "label",
+                            "provider",
+                            "reference"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "amountMinor": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 100000000
+                        },
+                        "feeMinor": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 100000000
+                        },
+                        "totalMinor": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 100000000
+                        },
+                        "capturedMinor": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 100000000
+                        },
+                        "settledMinor": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 100000000
+                        },
+                        "refundedMinor": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 100000000
+                        },
+                        "captureState": {
+                          "enum": [
+                            "NOT_CAPTURED",
+                            "CAPTURED",
+                            "INCONSISTENT"
+                          ]
+                        },
+                        "settlementState": {
+                          "enum": [
+                            "CONFIRMED",
+                            "PENDING",
+                            "UNKNOWN",
+                            "NOT_APPLIED",
+                            "PARTIAL"
+                          ]
+                        },
+                        "refundState": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        },
+                        "completeReceipt": {
+                          "type": "boolean"
+                        },
+                        "receiptReference": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        },
+                        "correlationReference": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        },
+                        "related": {
+                          "type": "array",
+                          "maxItems": 20,
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "enum": [
+                                  "PAYMENT",
+                                  "FUNDING",
+                                  "REFUND",
+                                  "LEGACY",
+                                  "GROUP"
+                                ]
+                              },
+                              "id": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 160,
+                                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "id"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "failureCode": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "id",
+                        "accountId",
+                        "title",
+                        "createdAt",
+                        "state",
+                        "currency",
+                        "source",
+                        "biller",
+                        "amountMinor",
+                        "feeMinor",
+                        "totalMinor",
+                        "capturedMinor",
+                        "settledMinor",
+                        "refundedMinor",
+                        "captureState",
+                        "settlementState",
+                        "refundState",
+                        "completeReceipt",
+                        "correlationReference",
+                        "related"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "operation"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "402": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/accounts/{accountId}/payment-statement": {
+      "get": {
+        "operationId": "payments_getPaymentStatement",
+        "description": "Read sealed balanced financial postings with exact running wallet balance and snapshot totals. Service confirmation is independent of journal posting.",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "entries": {
+                      "type": "array",
+                      "maxItems": 25,
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160,
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                          },
+                          "sequence": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 9007199254740991
+                          },
+                          "kind": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "reference": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "currency": {
+                            "const": "AED"
+                          },
+                          "amountMinor": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "walletDeltaMinor": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "balanceAfterMinor": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "postings": {
+                            "type": "array",
+                            "minItems": 2,
+                            "maxItems": 2,
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "account": {
+                                  "enum": [
+                                    "wallet",
+                                    "external-clearing",
+                                    "merchant-clearing"
+                                  ]
+                                },
+                                "amountMinor": {
+                                  "type": "integer",
+                                  "minimum": -9007199254740991,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": [
+                                "account",
+                                "amountMinor"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "operation": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "enum": [
+                                  "PAYMENT",
+                                  "FUNDING",
+                                  "REFUND",
+                                  "LEGACY",
+                                  "GROUP"
+                                ]
+                              },
+                              "id": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 160,
+                                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                              },
+                              "accountId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 160,
+                                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                              },
+                              "title": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 400
+                              },
+                              "createdAt": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 400
+                              },
+                              "state": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 400
+                              },
+                              "currency": {
+                                "const": "AED"
+                              },
+                              "source": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 160,
+                                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                                  },
+                                  "kind": {
+                                    "enum": [
+                                      "wallet",
+                                      "card",
+                                      "legacy-external"
+                                    ]
+                                  },
+                                  "label": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 400
+                                  },
+                                  "last4": {
+                                    "type": "string",
+                                    "pattern": "^[0-9]{4}$"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "kind",
+                                  "label"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "biller": {
+                                "type": "object",
+                                "properties": {
+                                  "label": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 400
+                                  },
+                                  "provider": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 400
+                                  },
+                                  "reference": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 400
+                                  }
+                                },
+                                "required": [
+                                  "label",
+                                  "provider",
+                                  "reference"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "amountMinor": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 100000000
+                              },
+                              "feeMinor": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 100000000
+                              },
+                              "totalMinor": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 100000000
+                              },
+                              "capturedMinor": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 100000000
+                              },
+                              "settledMinor": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 100000000
+                              },
+                              "refundedMinor": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 100000000
+                              },
+                              "captureState": {
+                                "enum": [
+                                  "NOT_CAPTURED",
+                                  "CAPTURED",
+                                  "INCONSISTENT"
+                                ]
+                              },
+                              "settlementState": {
+                                "enum": [
+                                  "CONFIRMED",
+                                  "PENDING",
+                                  "UNKNOWN",
+                                  "NOT_APPLIED",
+                                  "PARTIAL"
+                                ]
+                              },
+                              "refundState": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 400
+                              },
+                              "completeReceipt": {
+                                "type": "boolean"
+                              },
+                              "receiptReference": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 400
+                              },
+                              "correlationReference": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 400
+                              },
+                              "related": {
+                                "type": "array",
+                                "maxItems": 20,
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "enum": [
+                                        "PAYMENT",
+                                        "FUNDING",
+                                        "REFUND",
+                                        "LEGACY",
+                                        "GROUP"
+                                      ]
+                                    },
+                                    "id": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 160,
+                                      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                                    }
+                                  },
+                                  "required": [
+                                    "kind",
+                                    "id"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "failureCode": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 400
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "id",
+                              "accountId",
+                              "title",
+                              "createdAt",
+                              "state",
+                              "currency",
+                              "source",
+                              "biller",
+                              "amountMinor",
+                              "feeMinor",
+                              "totalMinor",
+                              "capturedMinor",
+                              "settledMinor",
+                              "refundedMinor",
+                              "captureState",
+                              "settlementState",
+                              "refundState",
+                              "completeReceipt",
+                              "correlationReference",
+                              "related"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "sequence",
+                          "kind",
+                          "reference",
+                          "createdAt",
+                          "currency",
+                          "amountMinor",
+                          "walletDeltaMinor",
+                          "balanceAfterMinor",
+                          "postings"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "summary": {
+                      "type": "object",
+                      "properties": {
+                        "entryCount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "openingMinor": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 100000000
+                        },
+                        "creditsMinor": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "debitsMinor": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "balanceMinor": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 100000000
+                        },
+                        "walletMinor": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "externalClearingMinor": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "merchantClearingMinor": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "balanced": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "entryCount",
+                        "openingMinor",
+                        "creditsMinor",
+                        "debitsMinor",
+                        "balanceMinor",
+                        "walletMinor",
+                        "externalClearingMinor",
+                        "merchantClearingMinor",
+                        "balanced"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "maxLength": 2000
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "entries",
+                    "summary",
+                    "nextCursor"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "402": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/accounts/{accountId}/payment-statement/pages/{cursor}": {
+      "get": {
+        "operationId": "payments_getPaymentStatementPage",
+        "description": "Continue an account-bound journal snapshot. Current operation outcomes may advance; immutable money rows and totals retain their snapshot ceiling.",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "entries": {
+                      "type": "array",
+                      "maxItems": 25,
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160,
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                          },
+                          "sequence": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 9007199254740991
+                          },
+                          "kind": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "reference": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "currency": {
+                            "const": "AED"
+                          },
+                          "amountMinor": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "walletDeltaMinor": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "balanceAfterMinor": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                          },
+                          "postings": {
+                            "type": "array",
+                            "minItems": 2,
+                            "maxItems": 2,
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "account": {
+                                  "enum": [
+                                    "wallet",
+                                    "external-clearing",
+                                    "merchant-clearing"
+                                  ]
+                                },
+                                "amountMinor": {
+                                  "type": "integer",
+                                  "minimum": -9007199254740991,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": [
+                                "account",
+                                "amountMinor"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "operation": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "enum": [
+                                  "PAYMENT",
+                                  "FUNDING",
+                                  "REFUND",
+                                  "LEGACY",
+                                  "GROUP"
+                                ]
+                              },
+                              "id": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 160,
+                                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                              },
+                              "accountId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 160,
+                                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                              },
+                              "title": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 400
+                              },
+                              "createdAt": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 400
+                              },
+                              "state": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 400
+                              },
+                              "currency": {
+                                "const": "AED"
+                              },
+                              "source": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 160,
+                                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                                  },
+                                  "kind": {
+                                    "enum": [
+                                      "wallet",
+                                      "card",
+                                      "legacy-external"
+                                    ]
+                                  },
+                                  "label": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 400
+                                  },
+                                  "last4": {
+                                    "type": "string",
+                                    "pattern": "^[0-9]{4}$"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "kind",
+                                  "label"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "biller": {
+                                "type": "object",
+                                "properties": {
+                                  "label": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 400
+                                  },
+                                  "provider": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 400
+                                  },
+                                  "reference": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 400
+                                  }
+                                },
+                                "required": [
+                                  "label",
+                                  "provider",
+                                  "reference"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "amountMinor": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 100000000
+                              },
+                              "feeMinor": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 100000000
+                              },
+                              "totalMinor": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 100000000
+                              },
+                              "capturedMinor": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 100000000
+                              },
+                              "settledMinor": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 100000000
+                              },
+                              "refundedMinor": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 100000000
+                              },
+                              "captureState": {
+                                "enum": [
+                                  "NOT_CAPTURED",
+                                  "CAPTURED",
+                                  "INCONSISTENT"
+                                ]
+                              },
+                              "settlementState": {
+                                "enum": [
+                                  "CONFIRMED",
+                                  "PENDING",
+                                  "UNKNOWN",
+                                  "NOT_APPLIED",
+                                  "PARTIAL"
+                                ]
+                              },
+                              "refundState": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 400
+                              },
+                              "completeReceipt": {
+                                "type": "boolean"
+                              },
+                              "receiptReference": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 400
+                              },
+                              "correlationReference": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 400
+                              },
+                              "related": {
+                                "type": "array",
+                                "maxItems": 20,
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "enum": [
+                                        "PAYMENT",
+                                        "FUNDING",
+                                        "REFUND",
+                                        "LEGACY",
+                                        "GROUP"
+                                      ]
+                                    },
+                                    "id": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 160,
+                                      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                                    }
+                                  },
+                                  "required": [
+                                    "kind",
+                                    "id"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "failureCode": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 400
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "id",
+                              "accountId",
+                              "title",
+                              "createdAt",
+                              "state",
+                              "currency",
+                              "source",
+                              "biller",
+                              "amountMinor",
+                              "feeMinor",
+                              "totalMinor",
+                              "capturedMinor",
+                              "settledMinor",
+                              "refundedMinor",
+                              "captureState",
+                              "settlementState",
+                              "refundState",
+                              "completeReceipt",
+                              "correlationReference",
+                              "related"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "sequence",
+                          "kind",
+                          "reference",
+                          "createdAt",
+                          "currency",
+                          "amountMinor",
+                          "walletDeltaMinor",
+                          "balanceAfterMinor",
+                          "postings"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "summary": {
+                      "type": "object",
+                      "properties": {
+                        "entryCount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "openingMinor": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 100000000
+                        },
+                        "creditsMinor": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "debitsMinor": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "balanceMinor": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 100000000
+                        },
+                        "walletMinor": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "externalClearingMinor": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "merchantClearingMinor": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "balanced": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "entryCount",
+                        "openingMinor",
+                        "creditsMinor",
+                        "debitsMinor",
+                        "balanceMinor",
+                        "walletMinor",
+                        "externalClearingMinor",
+                        "merchantClearingMinor",
+                        "balanced"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "maxLength": 2000
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "entries",
+                    "summary",
+                    "nextCursor"
                   ],
                   "additionalProperties": false
                 }
