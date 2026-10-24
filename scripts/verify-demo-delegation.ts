@@ -1,11 +1,12 @@
+import { gatewayUrl, keycloakIssuerUrl } from './endpoints.ts';
 /** Real local Keycloak/broker/provider checks; never print tokens or private keys. */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { accountIdFor } from '../packages/backend-kit/src/context.ts';
-const core = process.env.DEMO_GATEWAY_URL || 'http://localhost:4000';
-const issuer = process.env.KEYCLOAK_ISSUER || 'http://localhost:8085/realms/superapp';
+const core = gatewayUrl;
+const issuer = process.env.KEYCLOAK_ISSUER || keycloakIssuerUrl;
 async function login(username: string) {
   const response = await fetch(`${issuer}/protocol/openid-connect/token`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'password', client_id: 'superapp-shell', username, password: 'demo123' }) });
   assert.equal(response.status, 200, 'Seeded demo login'); const { access_token: token } = await response.json() as any;

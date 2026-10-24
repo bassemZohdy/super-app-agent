@@ -1,3 +1,4 @@
+import { providerPaymentsUrl } from './endpoints.ts';
 /** Controlled local migration/restart proof. Hashes business rows, never prints their contents. */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -50,7 +51,7 @@ try {
   await docker(['stop',...financialProviders]);const before=await snapshot();
   await docker(['up','-d','--force-recreate',...financialProviders]);resumed=true;
   let ready=false;
-  for(let i=0;i<40;i++) {try{ready=(await fetch('http://localhost:4107/health',{signal:AbortSignal.timeout(1500)})).ok;}catch{}if(ready)break;await delay(500);}
+  for(let i=0;i<40;i++) {try{ready=(await fetch(`${providerPaymentsUrl}/health`,{signal:AbortSignal.timeout(1500)})).ok;}catch{}if(ready)break;await delay(500);}
   assert.equal(ready,true,'Payment provider failed its migration/startup gate.');
   const after=await snapshot();assert.equal(after.hash,before.hash,'Migration/restart changed business or idempotency records.');
   assert.equal(after.obligationInstalled,true);if(before.obligationInstalled)assert.equal(after.obligationHash,before.obligationHash);console.log(`PASS: business obligation/capture-attempt tables contain ${after.obligationCount}/${after.attemptCount} rows; original financial/order bytes remain unchanged.`);

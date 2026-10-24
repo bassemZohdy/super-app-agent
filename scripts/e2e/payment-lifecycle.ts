@@ -1,3 +1,4 @@
+import { keycloakRootUrl } from '../endpoints.ts';
 /** Signed local eligibility boundaries and paced UI. Only isolated synthetic money is changed. */
 import assert from 'node:assert/strict';
 import { mkdtemp,mkdir,readFile,copyFile,writeFile,rm } from 'node:fs/promises';
@@ -10,7 +11,7 @@ import { startEnvironment } from './environment.ts';
 import { MANDATE_ACTOR,type MandatePolicy } from '../../packages/protocol-core/src/payment-mandates.ts';
 const record=process.argv.includes('--record'),stamp=new Date().toISOString().replace(/[:.]/g,'-'),dir=`.data/payment-lifecycle/${stamp}`;
 let env:Awaited<ReturnType<typeof startEnvironment>>|undefined,browser:Browser|undefined,page:Page|undefined,brokerServer:Server|undefined,root:string|undefined,temporaryUser:string|undefined,adminToken:string|undefined;
-const identity='http://localhost:8085',realmName='superapp';
+const identity=keycloakRootUrl,realmName='superapp';
 const identityCall=async(path:string,method='GET',body?:unknown)=>{const r=await fetch(`${identity}/admin/realms/${realmName}${path}`,{method,headers:{Authorization:`Bearer ${adminToken}`,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(10000)});assert.ok(r.ok,`Temporary identity setup failed (${r.status})`);return r.status===204?undefined:r.json().catch(()=>undefined);};
 try{
   env=await startEnvironment();root=await mkdtemp(join(tmpdir(),'cityside-lifecycle-broker-'));process.env.DELEGATION_DB_PATH=join(root,'grants.sqlite');

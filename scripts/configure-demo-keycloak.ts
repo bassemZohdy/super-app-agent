@@ -1,7 +1,8 @@
+import { keycloakRootUrl } from './endpoints.ts';
 /** Reconcile only the checked-in demo realm configuration; preserve existing user/provider data. */
 import { readFileSync } from 'node:fs';
 import { configureDelegation } from '../services/delegation/src/keycloak-config.ts';
-const root = process.env.DEMO_KEYCLOAK_ROOT || 'http://localhost:8085';
+const root = keycloakRootUrl;
 const realm = JSON.parse(readFileSync(new URL('../services/keycloak/realm-export.json', import.meta.url), 'utf8'));
 const response = await fetch(`${root}/realms/master/protocol/openid-connect/token`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'password', client_id: 'admin-cli', username: process.env.KEYCLOAK_ADMIN || 'admin', password: process.env.KEYCLOAK_ADMIN_PASSWORD || 'admin' }) });
 if (!response.ok) throw new Error('Local demo Keycloak admin authentication failed.');

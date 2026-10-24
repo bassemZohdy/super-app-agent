@@ -1,3 +1,4 @@
+import { keycloakIssuerUrl } from '../endpoints.ts';
 /** Paced signed conversational reviews, original-order cancellation/recovery, exact provider effects. */
 import assert from 'node:assert/strict';
 import { mkdir, copyFile, writeFile } from 'node:fs/promises';
@@ -10,7 +11,7 @@ let env:Awaited<ReturnType<typeof startEnvironment>>|undefined,browser:Browser|u
 const nodes=(n:UIComponentNode):UIComponentNode[]=>[n,...(n.children||[]).flatMap(nodes)];
 try{
   env=await startEnvironment({authorizationClock:()=>Date.now()+offset});await mkdir(dir,{recursive:true});
-  const login=async(username:string)=>{const r=await fetch('http://localhost:8085/realms/superapp/protocol/openid-connect/token',{method:'POST',body:new URLSearchParams({grant_type:'password',client_id:'superapp-shell',username,password:'demo123'}),signal:AbortSignal.timeout(10000)});assert.equal(r.status,200);return(await r.json() as any).access_token as string;};
+  const login=async(username:string)=>{const r=await fetch(`${keycloakIssuerUrl}/protocol/openid-connect/token`,{method:'POST',body:new URLSearchParams({grant_type:'password',client_id:'superapp-shell',username,password:'demo123'}),signal:AbortSignal.timeout(10000)});assert.equal(r.status,200);return(await r.json() as any).access_token as string;};
   let token=await login('demo-commuter'),tokenAt=Date.now();const foreign=await login('bassem');
   browser=await chromium.launch({channel:process.env.E2E_BROWSER_CHANNEL||'chrome',headless:true});const context=await browser.newContext({viewport:{width:1440,height:1050},...(record?{recordVideo:{dir,size:{width:1440,height:1050}}}:{})});page=await context.newPage();page.setDefaultTimeout(30000);
   await page.goto(env.appUrl);await page.getByRole('button',{name:'Sign in with Keycloak',exact:true}).click();await page.locator('#username').fill('demo-commuter');await page.locator('#password').fill('demo123');await page.locator('#kc-login').click();const accounts=page.getByRole('combobox',{name:'Current account',exact:true});await accounts.waitFor();const accountId=await accounts.inputValue();

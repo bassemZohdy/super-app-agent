@@ -1,9 +1,10 @@
+import { delegationAppUrl } from './endpoints.ts';
 /** Paced, asserted real demo UI recording. No traces, network dumps or token output. */
 import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
-const url = process.env.DELEGATION_APP_URL || 'http://localhost:3000';
+const url = delegationAppUrl;
 const stamp = new Date().toISOString().replace(/[:.]/g, '-');
 const dir = join('docs/recordings/delegation/runs', stamp);
 await mkdir(dir, { recursive: true });

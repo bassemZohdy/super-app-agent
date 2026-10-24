@@ -1,8 +1,9 @@
+import { gatewayUrl, keycloakIssuerUrl } from './endpoints.ts';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-const login=await fetch('http://localhost:8085/realms/superapp/protocol/openid-connect/token',{method:'POST',body:new URLSearchParams({grant_type:'password',client_id:'superapp-shell',username:'bassem',password:'demo123',scope:'openid'})});assert.equal(login.status,200);const token=(await login.json() as any).access_token;
+const login=await fetch(`${keycloakIssuerUrl}/protocol/openid-connect/token`,{method:'POST',body:new URLSearchParams({grant_type:'password',client_id:'superapp-shell',username:'bassem',password:'demo123',scope:'openid'})});assert.equal(login.status,200);const token=(await login.json() as any).access_token;
 const auth={Authorization:`Bearer ${token}`,'Content-Type':'application/json'};
-const discovered=await(await fetch('http://localhost:4000/api/accounts',{headers:auth})).json() as any;
+const discovered=await(await fetch(`${gatewayUrl}/api/accounts`,{headers:auth})).json() as any;
 const account=discovered.accounts.find((a:any)=>a.label==='Household account').id;
 async function api(port:number,path:string,method='GET',body?:any,key=randomUUID()):Promise<any>{
  const response=await fetch(`http://localhost:${port}${path}`,{method,headers:{...auth,'X-Account-Id':account,'X-Request-Id':key},...(body?{body:JSON.stringify(body)}:{})});const data=await response.json() as any;

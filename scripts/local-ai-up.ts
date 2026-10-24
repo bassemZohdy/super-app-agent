@@ -1,3 +1,4 @@
+import { gatewayUrl } from './endpoints.ts';
 /** Explicit local setup: reviewed model revisions only; no cloud credentials. */
 import { spawn } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -16,7 +17,7 @@ await run(['up', '-d', '--force-recreate', 'voice', 'conversation', 'agent-core'
 const deadline = Date.now() + 180000;
 while (Date.now() < deadline) {
   try {
-    const response = await fetch('http://localhost:4000/health', { signal: AbortSignal.timeout(5000) });
+    const response = await fetch(`${gatewayUrl}/health`, { signal: AbortSignal.timeout(5000) });
     const data = await response.json() as any;
     if ((data.llm?.ready === true || data.llm?.enabled === false) && data.voice?.ttsReady === true && data.voice?.asrReady === true) { console.log(`Ready: ${data.llm?.enabled ? 'local Qwen conversation' : 'deterministic text'}, KittenTTS voices and Whisper dictation. No cloud API key required.`); process.exit(0); }
   } catch {}

@@ -1,3 +1,4 @@
+import { keycloakIssuerUrl } from '../endpoints.ts';
 /** Actual signed local identity and isolated broker/provider authority. Never logs credentials; only the explicitly approved legacy control moves isolated synthetic money. */
 import assert from 'node:assert/strict';
 import { readFile,mkdtemp,writeFile,rm } from 'node:fs/promises';
@@ -25,7 +26,7 @@ try{
   await docker(['run','--rm','--detach','--name',containerName,'--network',network,'--publish',`127.0.0.1:${env.corePort+110}:4010`,'--workdir','/app','--mount',`type=bind,src=${process.cwd()},dst=/app,readonly`,'--mount',`type=volume,src=${keys.Name},dst=/data/delegation,readonly`,'--env-file',config,image,'node','--experimental-strip-types','services/delegation/src/index.ts']);
   const copiedMounts=JSON.parse(await docker(['inspect','--format','{{json .Mounts}}',containerName]));assert.equal(copiedMounts.find((m:{Destination:string})=>m.Destination==='/data/delegation')?.RW,false,'Issuer keys must be read-only inside this trusted issuer test container.');
   for(let n=0;n<30;n++){try{if((await fetch(`${process.env.DELEGATION_AUTHORITY_URL}/health`,{signal:AbortSignal.timeout(1000)})).ok)break;}catch{}if(n===29)throw Error('Isolated authority failed readiness');await new Promise(done=>setTimeout(done,200));}
-  const endpoint='http://localhost:8085/realms/superapp/protocol/openid-connect/token';
+  const endpoint=`${keycloakIssuerUrl}/protocol/openid-connect/token`;
   const token=async(body:Record<string,string>)=>{const r=await fetch(endpoint,{method:'POST',body:new URLSearchParams(body),signal:AbortSignal.timeout(10000)});assert.equal(r.status,200,'Local identity request failed');return(await r.json() as any).access_token as string;};
   const human=await token({grant_type:'password',client_id:'superapp-shell',username:'bassem',password:'demo123'}),other=await token({grant_type:'password',client_id:'superapp-shell',username:'demo-commuter',password:'demo123'});
   const realm=JSON.parse(await readFile('services/keycloak/realm-export.json','utf8')),machine=await token({grant_type:'client_credentials',client_id:'service-wallet',client_secret:realm.clients.find((c:any)=>c.clientId==='service-wallet').secret});

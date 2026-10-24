@@ -1,3 +1,4 @@
+import { keycloakIssuerUrl } from '../endpoints.ts';
 /** Signed-owner card/wallet authorization, isolated SQLite and a private test clock; no capture or provider settlement. */
 import assert from 'node:assert/strict';
 import { mkdir,readFile } from 'node:fs/promises';
@@ -7,7 +8,7 @@ let environment:Awaited<ReturnType<typeof startEnvironment>>|undefined,browser:B
 let time=Date.now();
 try{
   environment=await startEnvironment({authorizationClock:()=>time});
-  async function login(username:string){const response=await fetch('http://localhost:8085/realms/superapp/protocol/openid-connect/token',{method:'POST',body:new URLSearchParams({grant_type:'password',client_id:'superapp-shell',username,password:'demo123'})});assert.equal(response.status,200);return (await response.json() as any).access_token as string;}
+  async function login(username:string){const response=await fetch(`${keycloakIssuerUrl}/protocol/openid-connect/token`,{method:'POST',body:new URLSearchParams({grant_type:'password',client_id:'superapp-shell',username,password:'demo123'})});assert.equal(response.status,200);return (await response.json() as any).access_token as string;}
   const [token,otherToken]=await Promise.all([login('demo-commuter'),login('bassem')]);
   browser=await chromium.launch({channel:process.env.E2E_BROWSER_CHANNEL||'chrome',headless:true});page=await browser.newPage({viewport:{width:1440,height:1000}});page.setDefaultTimeout(45000);
   await page.goto(environment.appUrl);await page.getByRole('button',{name:'Sign in with Keycloak',exact:true}).click();await page.locator('#username').fill('demo-commuter');await page.locator('#password').fill('demo123');await page.locator('#kc-login').click();
@@ -29,7 +30,7 @@ try{
   assert.equal((await api('orders/approve',{...input,totalMinor:1})).status,400);assert.equal((await api('orders/approve',{...input,approvalDigest:'0'.repeat(64)})).status,409);
   assert.equal((await api('orders/approve',input,otherToken)).status,403);
   const realm=JSON.parse(await readFile('services/keycloak/realm-export.json','utf8')),secret=realm.clients.find((c:any)=>c.clientId==='service-wallet').secret;
-  const machineResponse=await fetch('http://localhost:8085/realms/superapp/protocol/openid-connect/token',{method:'POST',body:new URLSearchParams({grant_type:'client_credentials',client_id:'service-wallet',client_secret:secret})});assert.equal(machineResponse.status,200);const machine=(await machineResponse.json() as any).access_token;
+  const machineResponse=await fetch(`${keycloakIssuerUrl}/protocol/openid-connect/token`,{method:'POST',body:new URLSearchParams({grant_type:'client_credentials',client_id:'service-wallet',client_secret:secret})});assert.equal(machineResponse.status,200);const machine=(await machineResponse.json() as any).access_token;
   const machineApproval=await fetch(`http://localhost:${environment.corePort+107}/v1/accounts/${accountId}/payment-orders/${order.id}/approve`,{method:'POST',headers:{Authorization:`Bearer ${machine}`,'X-User-Subject':order.ownerSub,'Content-Type':'application/json','Idempotency-Key':crypto.randomUUID()},body:JSON.stringify({expectedVersion:1,approvalDigest:order.approvalDigest})});assert.equal(machineApproval.status,403);
   let snapshot=(await api('overview')).data;assert.equal(snapshot.cardBalances.find((b:any)=>b.sourceId===method.id).heldMinor,0);assert.equal(snapshot.wallet.balanceMinor,150000);
   response=responseFor('orders/approve');await article.getByRole('button',{name:'Approve authorization for AED 420.40',exact:true}).click();const pending=(await (await response).json()).order;assert.equal(pending.state,'REQUIRES_ACTION');

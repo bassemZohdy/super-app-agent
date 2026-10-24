@@ -1,3 +1,4 @@
+import { keycloakIssuerUrl, redisUrl } from '../endpoints.ts';
 /** Isolated local APIs/SQLite, with the existing local Keycloak and Redis only. */
 import assert from 'node:assert/strict';
 import http, { type Server } from 'node:http';
@@ -11,7 +12,7 @@ export async function startEnvironment(options:{authorizationClock?:()=>number;i
   const corePort = Number(process.env.E2E_CORE_PORT || 14000);
   assert.ok([3000, 3001, 3002].includes(appPort), 'Use a free seeded Keycloak redirect port: 3000, 3001 or 3002');
   assert.ok(Number.isInteger(corePort) && corePort >= 10000 && corePort <= 65000, 'Invalid E2E_CORE_PORT');
-  const issuer = 'http://localhost:8085/realms/superapp';
+  const issuer = keycloakIssuerUrl;
   const discovery = await fetch(`${issuer}/.well-known/openid-configuration`, { signal: AbortSignal.timeout(5000) });
   assert.equal(discovery.status, 200, 'Start local Keycloak/Redis with npm run demo:up first');
   const dir = await mkdtemp(join(tmpdir(), 'cityside-e2e-'));
@@ -28,7 +29,7 @@ export async function startEnvironment(options:{authorizationClock?:()=>number;i
     PROVIDER_INTEGRATION: 'true', DOMAIN_TRANSPORT: 'http', SESSION_STORE: 'redis',
     // Exercise the strict interactive provider lane; never proxy isolated tests to live grants.
     DELEGATION_ENABLED: 'true', DELEGATION_AUTHORITY_URL: 'http://127.0.0.1:1',
-    REDIS_URL: 'redis://127.0.0.1:6379', SESSION_TTL_SECONDS: '600', DEMO_AUTH: 'false',
+    REDIS_URL: redisUrl, SESSION_TTL_SECONDS: '600', DEMO_AUTH: 'false',
     NODE_ENV: 'development', ENABLE_LIVE_LLM: 'false', ENABLE_LOCAL_LLM: 'false', OPENROUTER_API_KEY: '',
     KEYCLOAK_ISSUER: issuer, KEYCLOAK_PUBLIC_ISSUER: issuer, KEYCLOAK_AUDIENCE: 'agent-core',
     KEYCLOAK_JWKS_URL: `${issuer}/protocol/openid-connect/certs`,

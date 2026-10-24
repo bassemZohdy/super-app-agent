@@ -1,8 +1,9 @@
+import { gatewayUrl, keycloakIssuerUrl } from './endpoints.ts';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
-const issuer = process.env.DEMO_KEYCLOAK_URL || 'http://localhost:8085/realms/superapp';
-const base = process.env.DEMO_GATEWAY_URL || 'http://localhost:4000';
+const issuer = keycloakIssuerUrl;
+const base = gatewayUrl;
 const login = await fetch(`${issuer}/protocol/openid-connect/token`, { method: 'POST', body: new URLSearchParams({ grant_type: 'password', client_id: 'superapp-shell', username: 'demo-commuter', password: 'demo123', scope: 'openid' }) });
 assert.equal(login.status, 200);
 const token = (await login.json() as { access_token: string }).access_token;

@@ -1,3 +1,4 @@
+import { keycloakIssuerUrl, providerPaymentsUrl } from '../endpoints.ts';
 /** Authenticated operator configures an isolated issuer run; ordinary customer requests cannot choose outcomes. */
 import assert from 'node:assert/strict';
 import { mkdir,writeFile,copyFile } from 'node:fs/promises';
@@ -9,7 +10,7 @@ import { issuerScenarioPresets } from '../../services/provider-simulator/src/iss
 const record=process.argv.includes('--record'),stamp=new Date().toISOString().replace(/[:.]/g,'-'),dir=`.data/issuer-scenarios/${stamp}`;
 let env:Awaited<ReturnType<typeof startEnvironment>>|undefined,browser:Browser|undefined,page:Page|undefined;
 try{
-  const issuer='http://localhost:8085/realms/superapp';process.env.KEYCLOAK_ISSUER=issuer;process.env.KEYCLOAK_JWKS_URL=`${issuer}/protocol/openid-connect/certs`;
+  const issuer=keycloakIssuerUrl;process.env.KEYCLOAK_ISSUER=issuer;process.env.KEYCLOAK_JWKS_URL=`${issuer}/protocol/openid-connect/certs`;
   const login=async(username:string)=>{const r=await fetch(`${issuer}/protocol/openid-connect/token`,{method:'POST',body:new URLSearchParams({grant_type:'password',client_id:'superapp-shell',username,password:'demo123'}),signal:AbortSignal.timeout(10000)});assert.equal(r.status,200);return(await r.json() as any).access_token as string;};
   const [operatorToken,token]=await Promise.all([login('bassem'),login('demo-commuter')]),operator=await verifyJwt(`Bearer ${operatorToken}`,'provider-api');
   env=await startEnvironment({issuerOperatorSub:operator.sub});assert.ok(env.issuerRunId);const control=`http://localhost:${env.corePort+107}/internal/issuer-scenarios/${env.issuerRunId}`;await mkdir(dir,{recursive:true});
@@ -17,7 +18,7 @@ try{
   await page.goto(env.appUrl);await page.getByRole('button',{name:'Sign in with Keycloak',exact:true}).click();await page.locator('#username').fill('demo-commuter');await page.locator('#password').fill('demo123');await page.locator('#kc-login').click();const accounts=page.getByRole('combobox',{name:'Current account',exact:true});await accounts.waitFor();const accountId=await accounts.inputValue();
   const api=async(path:string,body?:Record<string,unknown>)=>{const r=await fetch(`${env!.coreUrl}/api/payments/${path}${body?'':`?accountId=${accountId}`}`,{method:body?'POST':'GET',signal:AbortSignal.timeout(30000),headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},...(body?{body:JSON.stringify({accountId,requestKey:crypto.randomUUID(),...body})}:{})});return{status:r.status,data:await r.json() as any};};
   const admin=async(path='',body?:Record<string,unknown>,bearer=operatorToken)=>{const r=await fetch(control+path,{method:body?'POST':'GET',headers:{Authorization:`Bearer ${bearer}`,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(10000)});return{status:r.status,data:await r.json() as any};};
-  assert.equal((await admin('',undefined,token)).status,403);const normal=await fetch(`http://localhost:4107/internal/issuer-scenarios/${env.issuerRunId}`,{headers:{Authorization:`Bearer ${operatorToken}`},signal:AbortSignal.timeout(5000)});assert.equal(normal.status,404,'Normal provider must expose no issuer run controls.');
+  assert.equal((await admin('',undefined,token)).status,403);const normal=await fetch(`${providerPaymentsUrl}/internal/issuer-scenarios/${env.issuerRunId}`,{headers:{Authorization:`Bearer ${operatorToken}`},signal:AbortSignal.timeout(5000)});assert.equal(normal.status,404,'Normal provider must expose no issuer run controls.');
   assert.equal((await api('methods',{preset:'pending',nickname:'Untrusted override'})).status,400);assert.equal((await api('methods',{preset:'declined',nickname:'Customer override'})).status,403);
   await page.getByRole('button',{name:'Payment accounts',exact:true}).click();const panel=page.getByRole('region',{name:'Payment accounts',exact:true});await panel.getByText('AED 1500.00',{exact:true}).waitFor();
   const responseFor=(path:string)=>page!.waitForResponse(r=>new URL(r.url()).pathname===`/api/payments/${path}`&&r.request().method()==='POST');

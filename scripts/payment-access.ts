@@ -1,3 +1,4 @@
+import { keycloakIssuerUrl, providerPaymentsUrl } from './endpoints.ts';
 /** Local synthetic demo operator. Never exposes management credentials to the browser. */
 import { ClientCredentials } from '../packages/backend-kit/src/oauth.ts';
 const [command,accountId,expected,requestKey,...reasonParts]=process.argv.slice(2);
@@ -7,8 +8,8 @@ if(!command||command==='--help'){
   if(process.env.NODE_ENV==='production')throw Error('This operator is for the local synthetic demo only.');
   const operations:Record<string,{kind:'OWNER'|'MEMBERSHIP';enabled:boolean}>={'disable-owner':{kind:'OWNER',enabled:false},'enable-owner':{kind:'OWNER',enabled:true},'revoke-membership':{kind:'MEMBERSHIP',enabled:false},'restore-membership':{kind:'MEMBERSHIP',enabled:true}};
   if(!/^[A-Za-z0-9_-]{1,160}$/.test(accountId||'')||command!=='inspect'&&!operations[command])throw Error('Use --help for the exact operator syntax.');
-  const base=new URL(process.env.PROVIDER_PAYMENTS_URL||'http://localhost:4107');
-  process.env.KEYCLOAK_ISSUER ||= 'http://localhost:8085/realms/superapp';
+  const base=new URL(providerPaymentsUrl);
+  process.env.KEYCLOAK_ISSUER ||= keycloakIssuerUrl;
   const tokenUrl=new URL(process.env.KEYCLOAK_TOKEN_URL||`${process.env.KEYCLOAK_ISSUER}/protocol/openid-connect/token`);
   for(const u of [base,tokenUrl])if(!['localhost','127.0.0.1','[::1]'].includes(u.hostname)||u.username||u.password||!['http:','https:'].includes(u.protocol))throw Error('Use loopback demo payment and identity endpoints only.');
   const credentials=new ClientCredentials('eligibility-operator',process.env.ELIGIBILITY_OPERATOR_SECRET||'demo-eligibility-operator-secret');

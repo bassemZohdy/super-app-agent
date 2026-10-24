@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import { access, mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { chromium } from 'playwright';
-const base = process.env.LOCAL_AI_APP_URL || 'http://localhost:3000';
-assert.ok(['http://localhost:3000', 'http://127.0.0.1:3000'].includes(base), 'Use the local React demo.');
+import { localAiAppUrl } from './endpoints.ts';
+const base = localAiAppUrl;
+// The loopback alias of the same demo port is the only other accepted origin.
+assert.ok([localAiAppUrl, localAiAppUrl.replace('localhost', '127.0.0.1')].includes(base), 'Use the local React demo.');
 const source = resolve('.data/local-ai/dictation-source.wav');
 await access(source); // npm run local-ai:verify generates this original synthetic fixture.
 const browser = await chromium.launch({ channel: process.env.E2E_BROWSER_CHANNEL || 'chrome', headless: true, args: [

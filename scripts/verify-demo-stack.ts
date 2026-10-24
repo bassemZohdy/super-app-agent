@@ -1,8 +1,9 @@
+import { gatewayUrl, keycloakIssuerUrl, providerDewaUrl, providerPaymentsUrl, telecomServiceUrl } from './endpoints.ts';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { accountIdFor } from '../packages/backend-kit/src/context.ts';
-const base = process.env.DEMO_GATEWAY_URL || 'http://localhost:4000';
-const issuer = process.env.DEMO_KEYCLOAK_URL || 'http://localhost:8085/realms/superapp';
+const base = gatewayUrl;
+const issuer = keycloakIssuerUrl;
 const json = async (response: Response) => ({ status: response.status, data: await response.json() as any });
 async function user(username: string) {
   const response = await fetch(`${issuer}/protocol/openid-connect/token`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'password', client_id: 'superapp-shell', username, password: process.env.DEMO_USER_PASSWORD || 'demo123', scope: 'openid' }) });
@@ -30,7 +31,7 @@ const restored = await call(`/api/sessions/${sessionId}`, alice.token); assert.e
 console.log('PASS: Redis session ownership, account isolation and restore');
 const serviceToken = await service('service-wallet', 'demo-wallet-secret');
 const paymentsToken = alice.token;
-const provider = async (path: string, token = paymentsToken, method = 'GET', body?: any, key = randomUUID(), account = accountId) => json(await fetch(`http://localhost:4107/v1/accounts/${account}${path}`, { method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'Idempotency-Key': key }, ...(body ? { body: JSON.stringify(body) } : {}) }));
+const provider = async (path: string, token = paymentsToken, method = 'GET', body?: any, key = randomUUID(), account = accountId) => json(await fetch(`${providerPaymentsUrl}/v1/accounts/${account}${path}`, { method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'Idempotency-Key': key }, ...(body ? { body: JSON.stringify(body) } : {}) }));
 const before = await provider('/wallet'); assert.equal(before.status, 200, JSON.stringify(before.data));
 const key = randomUUID(), chargeBody = { amountMinor: 123, merchant: 'superapp', reference: key, source: 'wallet' };
 const charge = await provider('/charges', paymentsToken, 'POST', chargeBody, key); assert.equal(charge.status, 200);
@@ -43,11 +44,11 @@ assert.equal((await provider('/wallet')).data.balanceMinor, before.data.balanceM
 assert.equal((await provider('/wallet', serviceToken)).status, 403);
 assert.equal((await provider('/wallet', paymentsToken, 'GET', undefined, randomUUID(), bobAccount)).status, 403);
 const rideToken = await service('service-ride', 'demo-ride-secret');
-const denied = await fetch(`http://localhost:4102/v1/accounts/${accountId}/bills`, { headers: { Authorization: `Bearer ${rideToken}`, 'X-User-Subject': alice.sub } }); assert.equal(denied.status, 403);
+const denied = await fetch(`${providerDewaUrl}/v1/accounts/${accountId}/bills`, { headers: { Authorization: `Bearer ${rideToken}`, 'X-User-Subject': alice.sub } }); assert.equal(denied.status, 403);
 console.log('PASS: signed human identity, service impersonation rejection, payment capture/decline/refund and idempotency');
 for (const [port, providerName] of [[4103,'etisalat'],[4104,'du']] as const) {
   const doc = await fetch(`http://localhost:${port}/openapi.json`); assert.equal((await doc.json() as any).openapi, '3.1.0');
-  const response = await fetch(`http://localhost:4006/telecom/${providerName}/bills`, { headers: { Authorization: `Bearer ${alice.token}`, 'X-Account-Id': accountId } }); assert.equal(response.status, 200); assert.ok((await response.json() as any).bills[0].billId);
+  const response = await fetch(`${telecomServiceUrl}/telecom/${providerName}/bills`, { headers: { Authorization: `Bearer ${alice.token}`, 'X-Account-Id': accountId } }); assert.equal(response.status, 200); assert.ok((await response.json() as any).bills[0].billId);
 }
 console.log('PASS: Etisalat and du REST integration and OpenAPI discovery');
 const topup = await call('/api/a2ui/action', alice.token, 'POST', { sessionId, accountId, surfaceRevision: intent.data.surface.revision, action: 'topup_wallet', payload: { amount: 50 } }); assert.equal(topup.status, 200, JSON.stringify(topup.data));

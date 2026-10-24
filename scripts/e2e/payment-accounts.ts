@@ -1,3 +1,4 @@
+import { keycloakIssuerUrl } from '../endpoints.ts';
 /** Real PKCE + provider/SQLite payment setup and revisioned settlement. Isolated synthetic funds only. */
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
@@ -9,7 +10,7 @@ try {
   environment = await startEnvironment();
   const base = environment.coreUrl;
   async function login(username: string) {
-    const result = await fetch('http://localhost:8085/realms/superapp/protocol/openid-connect/token', { method: 'POST', body: new URLSearchParams({ grant_type: 'password',client_id:'superapp-shell',username,password:'demo123' }) });
+    const result = await fetch(`${keycloakIssuerUrl}/protocol/openid-connect/token`, { method: 'POST', body: new URLSearchParams({ grant_type: 'password',client_id:'superapp-shell',username,password:'demo123' }) });
     assert.equal(result.status,200);return (await result.json() as {access_token:string}).access_token;
   }
   const [token, otherToken] = await Promise.all([login('demo-commuter'),login('bassem')]);

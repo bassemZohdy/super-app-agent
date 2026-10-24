@@ -1,3 +1,4 @@
+import { keycloakIssuerUrl } from '../endpoints.ts';
 /** Real Keycloak UI/card/ledger evidence. Recording holds follow asserted UI states; no physical audio or credentials are exported. */
 import assert from 'node:assert/strict';
 import { mkdir,readFile,copyFile,writeFile } from 'node:fs/promises';
@@ -8,7 +9,7 @@ const record=process.argv.includes('--record'),dir=`.data/wallet-funding/${new D
 let environment:Awaited<ReturnType<typeof startEnvironment>>|undefined,browser:Browser|undefined,page:Page|undefined;
 try{
   environment=await startEnvironment();await mkdir(dir,{recursive:true});
-  async function login(username:string){const response=await fetch('http://localhost:8085/realms/superapp/protocol/openid-connect/token',{method:'POST',body:new URLSearchParams({grant_type:'password',client_id:'superapp-shell',username,password:'demo123'}),signal:AbortSignal.timeout(10000)});assert.equal(response.status,200);return (await response.json() as any).access_token as string;}
+  async function login(username:string){const response=await fetch(`${keycloakIssuerUrl}/protocol/openid-connect/token`,{method:'POST',body:new URLSearchParams({grant_type:'password',client_id:'superapp-shell',username,password:'demo123'}),signal:AbortSignal.timeout(10000)});assert.equal(response.status,200);return (await response.json() as any).access_token as string;}
   const [token,otherToken]=await Promise.all([login('demo-commuter'),login('bassem')]);
   browser=await chromium.launch({channel:process.env.E2E_BROWSER_CHANNEL||'chrome',headless:true});const context=await browser.newContext({viewport:{width:1440,height:1050},...(record?{recordVideo:{dir,size:{width:1440,height:1050}}}:{})});page=await context.newPage();page.setDefaultTimeout(30000);
   await page.goto(environment.appUrl);await page.getByRole('button',{name:'Sign in with Keycloak',exact:true}).click();await page.locator('#username').fill('demo-commuter');await page.locator('#password').fill('demo123');await page.locator('#kc-login').click();
@@ -23,7 +24,7 @@ try{
   assert.equal((await api('wallet-funding-orders',{amountMinor:5000,methodId:card.id,expectedMethodVersion:1})).status,409);
   assert.equal((await api('wallet-funding-orders/approve',{orderId:created.id,expectedVersion:1,approvalDigest:'a'.repeat(64)})).status,409);
   assert.equal((await api('wallet-funding-orders/approve',{orderId:created.id,expectedVersion:1,approvalDigest:created.approvalDigest},otherToken)).status,403);
-  const realm=JSON.parse(await readFile('services/keycloak/realm-export.json','utf8'));const machineResponse=await fetch('http://localhost:8085/realms/superapp/protocol/openid-connect/token',{method:'POST',body:new URLSearchParams({grant_type:'client_credentials',client_id:'service-wallet',client_secret:realm.clients.find((c:any)=>c.clientId==='service-wallet').secret})});assert.equal(machineResponse.status,200);const machine=(await machineResponse.json() as any).access_token;
+  const realm=JSON.parse(await readFile('services/keycloak/realm-export.json','utf8'));const machineResponse=await fetch(`${keycloakIssuerUrl}/protocol/openid-connect/token`,{method:'POST',body:new URLSearchParams({grant_type:'client_credentials',client_id:'service-wallet',client_secret:realm.clients.find((c:any)=>c.clientId==='service-wallet').secret})});assert.equal(machineResponse.status,200);const machine=(await machineResponse.json() as any).access_token;
   assert.equal((await fetch(`http://localhost:${environment.corePort+107}/v1/accounts/${accountId}/wallet-funding-orders/${created.id}/approve`,{method:'POST',headers:{Authorization:`Bearer ${machine}`,'X-User-Subject':created.ownerSub,'Content-Type':'application/json','Idempotency-Key':crypto.randomUUID()},body:JSON.stringify({expectedVersion:1,approvalDigest:created.approvalDigest})})).status,403);
   response=responseFor('wallet-funding-orders/approve');await article.getByRole('button',{name:'Authorize wallet top-up of AED 50.00',exact:true}).click();await response;await article.getByText('State: REQUIRES_ACTION',{exact:true}).waitFor();if(record)await hold(6000);assert.equal((await api('overview')).data.wallet.balanceMinor,150000);
   response=responseFor('wallet-funding-orders/challenge');await article.getByRole('button',{name:'Approve wallet top-up challenge',exact:true}).click();await response;await article.getByText('State: AUTHORIZED',{exact:true}).waitFor();if(record)await hold(6000);

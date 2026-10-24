@@ -1,10 +1,11 @@
+import { gatewayUrl, keycloakIssuerUrl } from './endpoints.ts';
 /** Real local inference; generated synthetic audio only, never a physical microphone. */
 import assert from 'node:assert/strict';
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-const base = process.env.DEMO_GATEWAY_URL || 'http://localhost:4000';
-const login = await fetch('http://localhost:8085/realms/superapp/protocol/openid-connect/token', { method: 'POST', body: new URLSearchParams({ grant_type: 'password', client_id: 'superapp-shell', username: 'demo-commuter', password: 'demo123' }) });
+const base = gatewayUrl;
+const login = await fetch(`${keycloakIssuerUrl}/protocol/openid-connect/token`, { method: 'POST', body: new URLSearchParams({ grant_type: 'password', client_id: 'superapp-shell', username: 'demo-commuter', password: 'demo123' }) });
 assert.equal(login.status, 200);
 const token = (await login.json() as any).access_token;
 async function api(path: string, body?: unknown) {

@@ -1,6 +1,7 @@
+import { gatewayUrl, keycloakIssuerUrl } from './endpoints.ts';
 import assert from 'node:assert/strict';
-const issuer = process.env.DEMO_KEYCLOAK_URL || 'http://localhost:8085/realms/superapp';
-const base = process.env.DEMO_GATEWAY_URL || 'http://localhost:4000';
+const issuer = keycloakIssuerUrl;
+const base = gatewayUrl;
 const response = await fetch(`${issuer}/protocol/openid-connect/token`, { method: 'POST',
   body: new URLSearchParams({ grant_type: 'password', client_id: 'superapp-shell', username: 'demo-commuter', password: process.env.DEMO_USER_PASSWORD || 'demo123', scope: 'openid' }),
 });

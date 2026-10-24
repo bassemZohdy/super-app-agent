@@ -1,3 +1,4 @@
+import { delegationAuthorityUrl } from './endpoints.ts';
 /** Controlled normal broker upgrade. Hashes authority records without exposing their content or touching funds. */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -10,7 +11,7 @@ let resumed=false;
 try{
   console.log('Brief broker restart: preserve the existing authority database and issuer keys; avoid concurrent delegation actions.');
   await docker(['stop','delegation-broker']);const before=await snapshot();await docker(['up','-d','--no-deps','delegation-broker']);resumed=true;
-  let ready=false;for(let n=0;n<40;n++){try{ready=(await fetch('http://127.0.0.1:4010/health',{signal:AbortSignal.timeout(1000)})).ok;}catch{}if(ready)break;await new Promise(done=>setTimeout(done,250));}assert.equal(ready,true,'Broker readiness failed');
+  let ready=false;for(let n=0;n<40;n++){try{ready=(await fetch(`${delegationAuthorityUrl}/health`,{signal:AbortSignal.timeout(1000)})).ok;}catch{}if(ready)break;await new Promise(done=>setTimeout(done,250));}assert.equal(ready,true,'Broker readiness failed');
   const after=await snapshot();assert.deepEqual(after,before,'Broker restart changed an existing grant, binding, job or audit record.');
   console.log(`PASS: existing grants (${after.counts.grants}), token bindings (${after.counts.bindings}), jobs (${after.counts.jobs}) and audit records (${after.counts.audit}) are byte-preserved; no consent or money effect was created.`);
 }finally{if(!resumed)await docker(['up','-d','--no-deps','delegation-broker']);}
