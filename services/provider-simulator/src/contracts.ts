@@ -1,3 +1,4 @@
+import { paymentEventSchema } from '../../../packages/protocol-core/src/payment-events.ts';
 import { paymentSchemas, paymentMethodSchema, billingAccountSchema } from '../../../packages/protocol-core/src/payments.ts';
 export const providerIds = ['rta', 'dewa', 'etisalat', 'du', 'police', 'dld', 'payments'] as const;
 export type ProviderId = typeof providerIds[number];
@@ -114,6 +115,7 @@ export const operations: Record<ProviderId, Operation[]> = {
     op('POST', '/move-ins', 'registerMoveIn', { ejariContract: text, unit: text, residentialParking: opaque }, 'Register a move-in proposal. Utility and parking activation are separate operations.', object({ contractNumber: text })),
   ],
   payments: [
+    op('GET','/payment-events','getPaymentEventStatus',{events:object({pending:{type:'integer',minimum:0},failed:{type:'integer',minimum:0},received:{type:'integer',minimum:0},updates:{type:'array',maxItems:20,items:object({id:text,producer:text,subjectKind:text,subjectId:text,type:text,version:{type:'integer',minimum:1},observedState:text,currentState:text,needsInspection:{type:'boolean'},receivedAt:text})}})},'Inspect owned asynchronous event delivery and status-check hints. Events do not authorize money effects or assert provider settlement.'),
     op('GET','/payment-refunds','listPaymentRefunds',{refunds:{type:'array',maxItems:100,items:refundSchema}},'List owned original-source refund reviews, pending reversals and confirmed results.'),
     op('GET','/payment-refunds/{refundId}','getPaymentRefund',{refund:refundSchema},'Read current refund authority/outcome using its original identity.'),
     op('POST','/payment-refunds','createPaymentRefund',{refund:refundSchema},'Freeze original source, capture, current cumulative amount and reason. Full bill/fine cancellation or bounded partial unused-credit/funding reversal.',paymentSchemas.createRefund),
@@ -164,6 +166,7 @@ export function openApi(provider: ProviderId) {
     '/health': { get: { operationId: 'health', security: [], responses: { '200': { description: 'Process health' } } } },
     '/v1/accounts': { get: { operationId: 'listAccounts', description: 'List personal and household accounts belonging to the trusted actor.', responses: { '200': { description: 'Accounts', content: { 'application/json': { schema: object({ success: { const: true }, accounts: list }) } } }, '401': { $ref: '#/components/responses/Unauthorized' } } } },
   };
+  if(provider==='payments')paths['/internal/payment-events']={post:{operationId:'receiveSignedPaymentEvent',description:'Private fixed callback. Per-producer real-time HMAC authentication, event/nonce deduplication and original local binding checks. No money effect or provider-settlement authority.',security:[{paymentEventHmac:[]}],parameters:[{name:'X-Payment-Event-Source',in:'header',required:true,schema:{enum:['payments','rta','dewa','etisalat','du','police']}},{name:'X-Payment-Event-Key',in:'header',required:true,schema:{type:'string',pattern:'^[A-Za-z0-9_-]{1,32}$'}},{name:'X-Payment-Event-Time',in:'header',required:true,schema:{type:'string',pattern:'^\\d{13}$'}},{name:'X-Payment-Event-Nonce',in:'header',required:true,schema:{type:'string',pattern:'^[-a-zA-Z0-9_]{16,80}$'}}],requestBody:{required:true,content:{'application/json':{schema:paymentEventSchema}}},responses:{'200':{description:'Authenticated event accepted, stale or duplicate',content:{'application/json':{schema:object({success:{const:true},eventId:text,disposition:{enum:['APPLIED','STALE','DUPLICATE']}})}}},'401':{description:'Invalid, expired or untrusted signature'},'409':{description:'Event ID/version/nonce/binding conflict'}}}};
   for (const operation of operations[provider]) {
     const path = `/v1/accounts/{accountId}${operation.path}`;
     paths[path] ||= {};
@@ -176,9 +179,9 @@ export function openApi(provider: ProviderId) {
         ...Object.fromEntries(['400','401','403','404','409','402','503'].map(status => [status, { $ref: '#/components/responses/Error' }])) },
     };
   }
-  return { openapi: '3.1.0', info: { title: `${providerNames[provider]} Simulator`, version: provider === 'payments' ? '2.10.0' : provider==='rta'?'2.3.0':provider==='police'?'2.6.0':['etisalat','du'].includes(provider)?'2.6.0':provider==='dewa'?'2.5.0' : '2.0.0', description: 'Local synthetic API. Signed interactive user identity or broker-issued user token with current exact-operation grant required. JWT subject owns the account; caller user headers do not grant authority. A separate read-only settlement machine lane retrieves captured charge proofs. Legacy fixture mode is outside this reference security profile.' },
+  return { openapi: '3.1.0', info: { title: `${providerNames[provider]} Simulator`, version: provider === 'payments' ? '2.11.0' : provider==='rta'?'2.3.0':provider==='police'?'2.6.0':['etisalat','du'].includes(provider)?'2.6.0':provider==='dewa'?'2.5.0' : '2.0.0', description: 'Local synthetic API. Signed interactive user identity or broker-issued user token with current exact-operation grant required. JWT subject owns the account; caller user headers do not grant authority. A separate read-only settlement machine lane retrieves captured charge proofs. Legacy fixture mode is outside this reference security profile.' },
     servers: [{ url: `http://localhost:${4101 + providerIds.indexOf(provider)}` }], security: [{ accessToken: [] }],
-    paths, components: { securitySchemes: { accessToken: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' } },
+    paths, components: { securitySchemes: { ...(provider==='payments'?{paymentEventHmac:{type:'apiKey',in:'header',name:'X-Payment-Event-Signature',description:'HMAC-SHA256 over canonical method/path/source/kid/timestamp/nonce/event with a separate configured key per producer. Companion headers are required.'}}:{}),accessToken: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' } },
       responses: { Unauthorized: { description: 'Missing or invalid Keycloak access token' }, Error: { description: 'Validation, ownership, delegation, payment, conflict or availability error', content: { 'application/json': { schema: object({ success: { const: false }, error: { type: 'string' }, code: { type: 'string' } }) } } } } },
     'x-demo-provider': provider, 'x-idempotency-policy': 'Persisted per account for the lifetime of the demo database. Reusing a key with a different method, path or body returns 409.' };
 }

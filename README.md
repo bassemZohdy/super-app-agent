@@ -140,3 +140,5 @@ License: MIT.
 [Grouped checkout](docs/development/checkout-groups.md) now uses one selected wallet/card across sequential child payments, with explicit review, per-line challenges, partial receipts and original-payment recovery. [Paced success/partial demo](docs/recordings/checkout-groups/index.html).
 
 [Original-source refunds](docs/development/payment-refunds.md) now support full demo bill/fine cancellation, bounded partial toll/mobile-credit return and card-funded wallet reversal with no overdraft. Provider reversal precedes money return; unknown outcomes retain their original refund identity. [Paced refund demo](docs/recordings/payment-refunds/index.html).
+
+[Signed financial status events](docs/development/payment-events.md) now use transactional outboxes, persisted delivery leases and an authenticated deduplicating gateway inbox. Source notifications prompt owner recovery of the original operation; callbacks do not move funds or assert bill settlement. [Response-loss recovery recording](docs/recordings/payment-events/index.html). PAY-18 remains in progress pending its remaining simulator/path gates.

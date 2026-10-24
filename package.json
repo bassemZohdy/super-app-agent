@@ -64,7 +64,9 @@
     "demo:verify:checkout-groups": "node --experimental-strip-types scripts/e2e/checkout-groups.ts",
     "record:checkout-groups": "node --experimental-strip-types scripts/e2e/checkout-groups.ts --record",
     "demo:verify:payment-refunds": "node --experimental-strip-types scripts/e2e/payment-refunds.ts",
-    "record:payment-refunds": "node --experimental-strip-types scripts/e2e/payment-refunds.ts --record"
+    "record:payment-refunds": "node --experimental-strip-types scripts/e2e/payment-refunds.ts --record",
+    "demo:verify:payment-events": "node --experimental-strip-types scripts/e2e/payment-events.ts",
+    "record:payment-events": "node --experimental-strip-types scripts/e2e/payment-events.ts --record"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^13.1.0",

@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 24 October 2026 — transactional signed payment status events
+
+Advance PAY-18 with stored-order/source outboxes, bounded leased delivery, producer-specific callback signatures, deduplicating monotonic inbox and owned inspection hints. Prove actual source-commit response loss followed by a signed notification and explicit original-payment recovery; late events cannot regress a reversed bill. Retain SIM-03 and remaining legacy event/path gates as open. [Guide](development/payment-events.md) · [Evidence](reports/2026-10-24-payment-events.md).
+
 ## 24 October 2026 — original-source refunds after provider reversal
 
 Deliver PAY-17 with exact cumulative refund reviews, source-authoritative full bill/fine cancellation and partial unused recharge reversal, original-card returns and available-wallet funding reversal. Persist APPLIED/REJECTED source outcomes, retain unknown refund identities, and atomically post issuer/journal/history updates. Add paced success/partial/spent-funding-denial evidence. [Guide](development/payment-refunds.md) · [Evidence](reports/2026-10-24-payment-refunds.md).

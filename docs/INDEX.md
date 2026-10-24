@@ -84,3 +84,5 @@ Earlier dated reports, transcripts, videos and archived backlogs are historical 
 [Grouped checkout guide](development/checkout-groups.md) · [Success/partial evidence](reports/2026-10-24-checkout-groups.md) · [Paced recording](recordings/checkout-groups/index.html).
 
 [Original-source refund guide](development/payment-refunds.md) · [Refund evidence](reports/2026-10-24-payment-refunds.md) · [Paced recording](recordings/payment-refunds/index.html).
+
+[Signed financial events and recovery hints](development/payment-events.md) · [Scoped PAY-18 evidence](reports/2026-10-24-payment-events.md) · [Paced callback recovery recording](recordings/payment-events/index.html). PAY-18 remains in progress.

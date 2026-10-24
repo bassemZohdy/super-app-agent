@@ -1,3 +1,4 @@
+import { emitGatewaySnapshot } from './payment-events.ts';
 /** Owner-approved, cumulative refunds. Provider reversal and original-source money return remain distinct stages. */
 import { createHash,randomUUID } from 'node:crypto';
 import type { Actor } from '../../../packages/backend-kit/src/context.ts';
@@ -25,7 +26,7 @@ export class PaymentRefunds {
   private owner(a:Actor){if(!this.orders.store.owns(a.sub,a.accountId))return fail('ACCOUNT_FORBIDDEN','This refund does not belong to the owner.',403);}
   get(a:Actor,id:string):PaymentRefund{this.owner(a);const row=this.orders.store.db.prepare('SELECT body FROM payment_refunds WHERE account_id=? AND id=?').get(a.accountId,id);if(!row)return fail('REFUND_NOT_FOUND','Refund not found in this workspace.',404);const r=JSON.parse(String(row.body));if(r.ownerSub!==a.sub)return fail('REFUND_NOT_FOUND','Refund not found.',404);return r;}
   list(a:Actor){this.owner(a);return this.orders.store.db.prepare('SELECT id FROM payment_refunds WHERE account_id=? ORDER BY rowid DESC LIMIT 100').all(a.accountId).map(row=>this.get(a,String(row.id)));}
-  private save(r:PaymentRefund){r.version++;this.orders.store.db.prepare('UPDATE payment_refunds SET state=?,body=? WHERE id=? AND account_id=?').run(r.state,JSON.stringify(r),r.id,r.accountId);return r;}
+  private save(r:PaymentRefund){r.version++;this.orders.store.db.prepare('UPDATE payment_refunds SET state=?,body=? WHERE id=? AND account_id=?').run(r.state,JSON.stringify(r),r.id,r.accountId);emitGatewaySnapshot(this.orders.store,'REFUND',r);return r;}
   private original(a:Actor,origin:PaymentRefund['quote']['origin'],id:string){return origin==='PAYMENT'?this.orders.get(a,id):this.funding.get(a,id);}
   create(a:Actor,input:{origin:PaymentRefund['quote']['origin'];orderId:string;expectedVersion:number;amountMinor:number;reason:string}):PaymentRefund{return this.atomic(()=>{
     this.owner(a);const o=this.original(a,input.origin,input.orderId);
@@ -44,7 +45,7 @@ export class PaymentRefunds {
     const id=`refund_${randomUUID()}`,createdAt=new Date(this.orders.clock()).toISOString(),expiresAt=new Date(this.orders.clock()+300000).toISOString();
     const quote:PaymentRefund['quote']={origin:input.origin,orderId:o.id,paymentId:p?p.paymentId!:o.id,source:structuredClone(o.quote.source),amountMinor:input.amountMinor,originalAmountMinor:o.quote.totalMinor,expectedRefundedMinor:o.refundedMinor||0,currency:'AED',reason:input.reason.trim(),originalApprovalDigest:o.approvalDigest,...(p?{payable:structuredClone(p.quote.payable),admissionId:p.admissionId}:{})};
     const approvalDigest=createHash('sha256').update(JSON.stringify([a.sub,a.accountId,id,quote,expiresAt])).digest('hex');
-    const r:PaymentRefund={id,accountId:a.accountId,ownerSub:a.sub,version:1,state:'AWAITING_APPROVAL',approvalDigest,quote,createdAt,expiresAt};db.db.prepare('INSERT INTO payment_refunds VALUES(?,?,?,?,?,?)').run(id,a.accountId,input.origin,o.id,r.state,JSON.stringify(r));return r;
+    const r:PaymentRefund={id,accountId:a.accountId,ownerSub:a.sub,version:1,state:'AWAITING_APPROVAL',approvalDigest,quote,createdAt,expiresAt};db.db.prepare('INSERT INTO payment_refunds VALUES(?,?,?,?,?,?)').run(id,a.accountId,input.origin,o.id,r.state,JSON.stringify(r));emitGatewaySnapshot(db,'REFUND',r);return r;
   });}
   cancel(a:Actor,id:string,version:number){return this.atomic(()=>{const r=this.get(a,id);if(r.version!==version||r.state!=='AWAITING_APPROVAL')return fail('REFUND_CLOSED','Only an unstarted current refund can be cancelled.');r.state='CANCELLED';return this.save(r);});}
   private begin(a:Actor,id:string,input:{expectedVersion:number;approvalDigest:string}){return this.atomic(()=>{const r=this.get(a,id);if(r.version!==input.expectedVersion||r.approvalDigest!==input.approvalDigest)return fail('APPROVAL_CHANGED','Approve the exact original source and refund amount.');if(r.state!=='AWAITING_APPROVAL'||Date.parse(r.expiresAt)<=this.orders.clock())return fail('REFUND_CLOSED','This refund review is closed or expired.');r.state='REVERSING';return this.save(r);});}
@@ -59,7 +60,7 @@ export class PaymentRefunds {
     else{this.claims.recordReversal(a.accountId,q.paymentId,q.payable!.provider as SettlementProvider,q.amountMinor,q.expectedRefundedMinor);this.orders.ledger.record(a.accountId,'REFUND',`order-refund:${r.id}`,q.amountMinor,q.source.kind==='wallet'?'wallet':'external');}
     if(q.source.kind==='card')this.orders.issuer.refund(a.accountId,a.sub,q.orderId,q.source.id,q.amountMinor,r.id);
     const total=q.expectedRefundedMinor+q.amountMinor;original.refundedMinor=total;original.refundState=total===q.originalAmountMinor?'REFUNDED':'PARTIALLY_REFUNDED';original.version++;
-    const table=q.origin==='PAYMENT'?'payment_authorization_orders':'wallet_funding_orders';db.db.prepare(`UPDATE ${table} SET body=? WHERE account_id=? AND id=?`).run(JSON.stringify(original),a.accountId,q.orderId);
+    const table=q.origin==='PAYMENT'?'payment_authorization_orders':'wallet_funding_orders';db.db.prepare(`UPDATE ${table} SET body=? WHERE account_id=? AND id=?`).run(JSON.stringify(original),a.accountId,q.orderId);emitGatewaySnapshot(db,q.origin==='PAYMENT'?'PAYMENT':'FUNDING',original);
     if(q.origin==='PAYMENT'){const charge=db.get(a.accountId,'charge',q.paymentId);db.put(a.accountId,'charge',{...charge,refundedMinor:total,refunded:total===q.originalAmountMinor,refundState:original.refundState},q.paymentId);}
     const transaction=db.get(a.accountId,'transaction',q.paymentId);if(transaction)db.put(a.accountId,'transaction',{...transaction,refundedMinor:total,refundState:original.refundState},q.paymentId);
     db.put(a.accountId,'transaction',{id:r.id,type:'REFUND',amount:q.amountMinor/100,currency:'AED',status:'SETTLED',purpose:q.reason,timestamp:this.orders.clock(),orderId:q.orderId,originalPaymentId:q.paymentId,source:q.source,reversal:receipt},r.id);

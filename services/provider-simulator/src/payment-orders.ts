@@ -1,3 +1,4 @@
+import { emitGatewaySnapshot } from './payment-events.ts';
 /** Stored interactive authorization reviews. Capture/settlement remain separately gated. */
 import { createHash, randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
@@ -39,7 +40,7 @@ export class PaymentOrders {
     if(!row)return fail('ORDER_NOT_FOUND','Authorization review not found for this account.',404);
     const order=JSON.parse(String(row.body)) as Review;if(order.ownerSub!==actor.sub)return fail('ORDER_NOT_FOUND','Authorization review not found.',404);return order;
   }
-  private save(order:Review){order.version++;this.store.db.prepare('UPDATE payment_authorization_orders SET state=?,body=? WHERE id=? AND account_id=?').run(order.state,JSON.stringify(order),order.id,order.accountId);return order;}
+  private save(order:Review){order.version++;this.store.db.prepare('UPDATE payment_authorization_orders SET state=?,body=? WHERE id=? AND account_id=?').run(order.state,JSON.stringify(order),order.id,order.accountId);emitGatewaySnapshot(this.store,'PAYMENT',order);return order;}
   private binding(order:Review):IssuerBinding{return {accountId:order.accountId,ownerSub:order.ownerSub,orderId:order.id,sourceId:order.quote.source.id,sourceVersion:order.quote.source.version,amountMinor:order.quote.totalMinor,approvalDigest:order.approvalDigest,expiresAt:Date.parse(order.authorization!.expiresAt)};}
   private close(order:Review,state:'CANCELLED'|'FAILED',code?:string){
     if(order.authorization){
@@ -81,7 +82,7 @@ export class PaymentOrders {
       const order:Review={id,accountId:actor.accountId,ownerSub:actor.sub,quote,approvalDigest,expiresAt,createdAt,state:'AWAITING_APPROVAL',version:1,fundsCaptured:false};
       this.uses.bind(actor.accountId,{resourceType:'METHOD',resourceId:source.id,resourceVersion:source.version,dependentKind:'ORDER',dependentId:id});
       this.uses.bind(actor.accountId,{resourceType:'BILLER',resourceId:link.id,resourceVersion:link.version,dependentKind:'ORDER',dependentId:id});
-      this.store.db.prepare('INSERT INTO payment_authorization_orders VALUES(?,?,?,?,?,?,?)').run(id,actor.accountId,input.provider,input.payableId,order.state,Date.parse(expiresAt),JSON.stringify(order));return order;
+      this.store.db.prepare('INSERT INTO payment_authorization_orders VALUES(?,?,?,?,?,?,?)').run(id,actor.accountId,input.provider,input.payableId,order.state,Date.parse(expiresAt),JSON.stringify(order));emitGatewaySnapshot(this.store,'PAYMENT',order);return order;
     });
   }
   private decision(actor:Actor,id:string,input:{expectedVersion:number;approvalDigest:string},snapshot:Payable|undefined){

@@ -15,7 +15,7 @@ export class ProviderReversals {
     if(!r||r.accountId!==account||r.ownerSub!==owner||q?.origin!=='PAYMENT'||q.payable?.provider!==this.provider||!['REVERSING','RECONCILIATION_REQUIRED'].includes(r.state))return settlementFailure('REFUND_NOT_ADMITTED','The gateway must admit this exact owned refund.');
     const previous=this.store.db.prepare('SELECT body FROM provider_payment_reversals WHERE account_id=? AND id=?').get(account,r.id);
     if(previous){const result=JSON.parse(String(previous.body)) as ProviderReversal;if(result.approvalDigest!==r.approvalDigest)return settlementFailure('REVERSAL_CONFLICT','This reversal has different terms.');return result;}
-    const persist=(result:ProviderReversal)=>{this.store.db.prepare('INSERT INTO provider_payment_reversals VALUES(?,?,?,?,?,?)').run(r.id,account,q.paymentId,q.amountMinor,result.state,JSON.stringify(result));return result;};
+    const persist=(result:ProviderReversal)=>{this.store.db.prepare('INSERT INTO provider_payment_reversals VALUES(?,?,?,?,?,?)').run(r.id,account,q.paymentId,q.amountMinor,result.state,JSON.stringify(result));this.store.events?.emit({accountId:account,subject:{kind:'REFUND',id:r.id,version:1},type:'PROVIDER_REVERSAL',state:result.state,binding:{approvalDigest:r.approvalDigest,amountMinor:q.amountMinor,currency:'AED',paymentId:q.paymentId,admissionId:q.admissionId!,provider:this.provider}});return result;};
     this.store.db.exec('SAVEPOINT provider_reversal_effect');
     try{
       const admission=this.admissions.get(account,q.admissionId!);

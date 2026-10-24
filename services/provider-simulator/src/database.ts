@@ -1,3 +1,4 @@
+import type { PaymentEvents } from './payment-events.ts';
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -5,6 +6,7 @@ import { accountIdFor } from '../../../packages/backend-kit/src/context.ts';
 export class AccountDatabase {
   readonly db: DatabaseSync;
   readonly path: string;
+  events?:PaymentEvents;
   constructor(path: string) {
     this.path = path;
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });

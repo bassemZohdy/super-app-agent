@@ -1,3 +1,5 @@
+import { startPaymentEventDelivery } from './payment-events.ts';
+import type { PaymentEvent } from '../../../packages/protocol-core/src/payment-events.ts';
 import { PaymentResourceError } from './payment-resource-uses.ts';
 import { PayableError } from './payables.ts';
 import { PaymentOrderError } from './payment-orders.ts';
@@ -23,11 +25,11 @@ import { ProviderEngine, ApiError, type ApiResult } from './engine.ts';
 import { operations, openApi, providerIds, type ProviderId } from './contracts.ts';
 export const callers: Record<ProviderId, string[]> = { rta: ['service-ride','service-catalog','service-wallet'], dewa: ['service-food','service-wallet','service-catalog'], etisalat: ['service-telecom'], du: ['service-telecom'], police: ['service-wallet'], dld: ['service-catalog'], payments: ['service-wallet','service-food','service-ride','service-telecom','provider-settlements'] };
 const canonical = (value: any): any => Array.isArray(value) ? value.map(canonical) : value && typeof value === 'object' ? Object.fromEntries(Object.keys(value).sort().map(k => [k, canonical(value[k])])) : value;
-export function createProviderServer(provider: ProviderId, path: string, options:{authorizationClock?:()=>number;settlementTransport?:ClaimTransport}={}) {
+export function createProviderServer(provider: ProviderId, path: string, options:{authorizationClock?:()=>number;settlementTransport?:ClaimTransport;paymentClient?:ProviderClient}={}) {
   const store = new AccountDatabase(path), engine = new ProviderEngine(provider, store,options);
   const ajv = new Ajv({ strict: false, allErrors: true });
   const routes = operations[provider].map(operation => ({ ...operation, regex: new RegExp(`^${operation.path.replace(/\{\w+\}/g, '[^/]+')}$`), validate: operation.body ? ajv.compile(operation.body) : undefined }));
-  const payments = new ProviderClient('provider-settlements', process.env.PROVIDER_SETTLEMENT_SECRET || 'demo-settlements-secret');
+  const payments = options.paymentClient||new ProviderClient('provider-settlements', process.env.PROVIDER_SETTLEMENT_SECRET || 'demo-settlements-secret');
   const settlements=settlementProviders.includes(provider as SettlementProvider)?new ProviderSettlements(store,provider as SettlementProvider,options.settlementTransport||new SettlementClient(provider as SettlementProvider)):undefined;
   const checkout=engine.orders?new PaymentCheckout(engine.orders,payments):undefined;
   const policy = new HttpPolicy();
@@ -38,6 +40,11 @@ export function createProviderServer(provider: ProviderId, path: string, options
       const url = new URL(req.url || '/', 'http://provider');
       if (req.method === 'GET' && url.pathname === '/health') return send({ status: 200, data: { status: 'ok', provider, storage: 'sqlite' } });
       if (req.method === 'GET' && url.pathname === '/openapi.json') return send({ status: 200, data: openApi(provider) });
+      if(provider==='payments'&&req.method==='POST'&&url.pathname==='/internal/payment-events'&&!url.search){
+        const event=await readJsonBody(req) as PaymentEvent;
+        const header=(name:string)=>typeof req.headers[name]==='string'?req.headers[name] as string:'';
+        const result=store.events!.receive(event,{source:header('x-payment-event-source'),kid:header('x-payment-event-key'),timestamp:header('x-payment-event-time'),nonce:header('x-payment-event-nonce'),signature:header('x-payment-event-signature')});return send({status:200,data:{success:true,...result}});
+      }
       const claims = await verifyJwt(req.headers.authorization, 'provider-api').catch(() => { throw new ApiError(401, 'UNAUTHENTICATED', 'A valid service access token is required.'); });
       const roles = claims.realm_access?.roles || [];
       const delegated = claims.azp === 'delegation-broker';
@@ -61,7 +68,7 @@ export function createProviderServer(provider: ProviderId, path: string, options
       const operation = routes.find(route => route.method === req.method && route.regex.test(operationPath));
       if (!operation || url.search) throw new ApiError(404, 'NOT_FOUND', 'Operation not found.');
       if(claimRoute&&!claimant)throw new ApiError(403,'CLAIM_CLIENT_REQUIRED','Only the exact provider settlement workload can change a claim.');
-      if(provider==='payments'&&(operationPath.startsWith('/payment-orders')||operationPath.startsWith('/wallet-funding-orders')||operationPath.startsWith('/checkout-groups')||operationPath.startsWith('/payment-refunds'))&&!interactive)throw new ApiError(403,'INTERACTIVE_REVIEW_REQUIRED','Stored authorization reviews require the signed-in owner. Unattended actors cannot approve or answer challenges.');
+      if(provider==='payments'&&(operationPath.startsWith('/payment-orders')||operationPath.startsWith('/wallet-funding-orders')||operationPath.startsWith('/checkout-groups')||operationPath.startsWith('/payment-refunds')||operationPath==='/payment-events')&&!interactive)throw new ApiError(403,'INTERACTIVE_REVIEW_REQUIRED','Stored authorization reviews require the signed-in owner. Unattended actors cannot approve or answer challenges.');
       if((operationPath.includes('/admissions')||operationPath==='/fine-selections'||operationPath==='/recharge-quotes'||operationPath.startsWith('/payment-reversals/'))&&!interactive)throw new ApiError(403,'INTERACTIVE_ADMISSION_REQUIRED','Payable admission requires the current signed-in owner.');
       const actor: Actor = { sub: subject, username: subject, name: typeof req.headers['x-user-name'] === 'string' ? Buffer.from(req.headers['x-user-name'], 'base64url').toString('utf8').slice(0, 200) : 'Demo citizen', accountId, requestId: '', authorization: interactive ? req.headers.authorization : undefined };
       let body: any = {};
@@ -159,6 +166,9 @@ export function createProviderServer(provider: ProviderId, path: string, options
       send({ status, data: { success: false, code: error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError || error instanceof SettlementError ? error.code : 'PROVIDER_UNAVAILABLE', error: error instanceof HttpError ? error.message : error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError || error instanceof SettlementError ? error.message : 'The simulator could not complete this request. Check operation status before retrying a write.' } });
     }
   });
+  let eventDelivery:ReturnType<typeof startPaymentEventDelivery>|undefined;
+  server.once('listening',()=>{if(store.events)eventDelivery=startPaymentEventDelivery(store.events);});
+  server.once('close',()=>eventDelivery?.stop());
   return { server, store };
 }
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

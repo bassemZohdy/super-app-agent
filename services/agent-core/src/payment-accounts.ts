@@ -6,10 +6,10 @@ const client = new ProviderClient('service-wallet', process.env.SERVICE_WALLET_C
 export const paymentDigest = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 export async function paymentOverview(actor: Actor, source = client): Promise<PaymentOverview> {
   const read = (provider: string, path: string) => source.call(provider, actor, 'GET', path);
-  const [methods, links, wallet, dewa, dewaBills, etisalat, etisalatBills, du, duBills, salik, fines, etisalatPrepaid, duPrepaid, vehicles, orders, funding, rtaTargets, etisalatTargets, duTargets, groups, refunds] = await Promise.all([
+  const [methods, links, wallet, dewa, dewaBills, etisalat, etisalatBills, du, duBills, salik, fines, etisalatPrepaid, duPrepaid, vehicles, orders, funding, rtaTargets, etisalatTargets, duTargets, groups, refunds, events] = await Promise.all([
     read('payments','/payment-methods'), read('payments','/billing-accounts'), read('payments','/wallet'),
     read('dewa','/consumption'), read('dewa','/payables'), read('etisalat','/subscriptions'), read('etisalat','/payables'),
-    read('du','/subscriptions'), read('du','/payables'), read('rta','/salik'), read('police','/payables'), read('etisalat','/prepaid'), read('du','/prepaid'), read('police','/vehicles'), read('payments','/payment-orders'),read('payments','/wallet-funding-orders'),read('rta','/recharge-targets'),read('etisalat','/recharge-targets'),read('du','/recharge-targets'),read('payments','/checkout-groups'),read('payments','/payment-refunds'),
+    read('du','/subscriptions'), read('du','/payables'), read('rta','/salik'), read('police','/payables'), read('etisalat','/prepaid'), read('du','/prepaid'), read('police','/vehicles'), read('payments','/payment-orders'),read('payments','/wallet-funding-orders'),read('rta','/recharge-targets'),read('etisalat','/recharge-targets'),read('du','/recharge-targets'),read('payments','/checkout-groups'),read('payments','/payment-refunds'),read('payments','/payment-events'),
   ]);
   const candidates: BillerCandidate[] = [{ provider: 'dewa', reference: dewa.account.accountNumber, label: `DEWA · ${dewa.account.accountNumber}` }, { provider: 'rta', reference: salik.tagNumber, label: `Salik · ${salik.tagNumber}` }];
   for (const [provider, data] of [['etisalat', etisalat], ['du', du]] as const) for (const subscription of data.subscriptions) {
@@ -19,7 +19,7 @@ export async function paymentOverview(actor: Actor, source = client): Promise<Pa
   for (const vehicle of vehicles.vehicles) if(vehicle.status === 'ACTIVE') candidates.push({provider:'police',reference:vehicle.plateNumber,label:`Traffic fines · ${vehicle.plateNumber}`});
   const payables: Payable[] = [...dewaBills.payables,...etisalatBills.payables,...duBills.payables,...fines.payables];
   return { contractVersion: PAYMENT_CONTRACT_VERSION, accountId: actor.accountId, previewOnly: false, dependencies: [...methods.dependencies,...links.dependencies], methods: methods.methods, defaultMethodId: methods.defaultMethodId, presets: methods.presets,
-    billingAccounts: links.billingAccounts, candidates, payables,rechargeTargets:[...rtaTargets.targets,...etisalatTargets.targets,...duTargets.targets], orders:orders.orders,checkoutGroups:groups.groups,refunds:refunds.refunds,fundingOrders:funding.orders,cardBalances:methods.cardBalances, wallet: { balanceMinor: wallet.balanceMinor, heldMinor: wallet.heldMinor, availableMinor: wallet.availableMinor, currency: 'AED' } };
+    billingAccounts: links.billingAccounts, candidates, payables,rechargeTargets:[...rtaTargets.targets,...etisalatTargets.targets,...duTargets.targets], orders:orders.orders,checkoutGroups:groups.groups,refunds:refunds.refunds,events:events.events,fundingOrders:funding.orders,cardBalances:methods.cardBalances, wallet: { balanceMinor: wallet.balanceMinor, heldMinor: wallet.heldMinor, availableMinor: wallet.availableMinor, currency: 'AED' } };
 }
 export function buildPaymentPreview(overview: PaymentOverview, input: { payableId: string; methodId: string; expectedMethodVersion: number }, now = Date.now()): PaymentPreview {
   const payable = overview.payables.find(p => p.id === input.payableId);

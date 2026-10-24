@@ -15,7 +15,7 @@ PAY-16 adds an owned, durable group of one to ten child payment orders using one
 
 ## APIs and persistence
 
-Payment contract **1.7.0**, payment-provider OpenAPI **2.10.0**. Provider paths are relative to `/v1/accounts/{accountId}` and require the interactive owner token. Machine and delegated tokens cannot use group routes. POST requires `Idempotency-Key`.
+Payment contract **1.8.0**, payment-provider OpenAPI **2.11.0**. Provider paths are relative to `/v1/accounts/{accountId}` and require the interactive owner token. Machine and delegated tokens cannot use group routes. POST requires `Idempotency-Key`.
 
 | Provider route | Request / behavior |
 | --- | --- |
@@ -50,6 +50,8 @@ npm run record:checkout-groups
 
 The browser harness uses real local Keycloak/Redis, temporary provider/application SQLite and disabled model inference. The recording holds reviews/challenges six seconds and outcomes eight seconds; it publishes only after all assertions pass. [Recording](../recordings/checkout-groups/index.html) · [Evidence](../reports/2026-10-24-checkout-groups.md).
 
-Asynchronous events, a consolidated reconciliation workbench, paginated statements, automatic rules and Angular/Flutter group parity retain their separate backlog tasks. No payment provider or identity feature is enabled beyond the existing supported demo profile.
+A consolidated reconciliation workbench, paginated statements, automatic rules and Angular/Flutter group parity retain their separate backlog tasks. No payment provider or identity feature is enabled beyond the existing supported demo profile.
 
 [Original-source refunds](payment-refunds.md) now cancel eligible full bills/fine sets or reverse bounded unused recharge/funding value. Confirmed returns annotate original receipts and group children; uncertain reversals keep their original ID and do not restore funds.
+
+[Signed financial status events](payment-events.md) append with stored order/source transitions and arrive as owned inspection hints. Callbacks never authorize funds or replace authoritative provider lookup. Named issuer scenarios and legacy event-path qualification keep PAY-18 in progress.
