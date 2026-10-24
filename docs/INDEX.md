@@ -104,3 +104,5 @@ Earlier dated reports, transcripts, videos and archived backlogs are historical 
 [Current owner/workspace lifecycle](development/payment-lifecycle.md) · [Signed lifecycle qualification](reports/2026-10-24-payment-lifecycle.md) · [Paced restricted/restored access recording](recordings/payment-lifecycle/index.html). Owner/membership/source changes retain original IDs and require new authority; scheduled spending remains disabled.
 
 [Gateway business reservations and capture attempts](development/payment-obligations.md) · [Checkpoint evidence](reports/2026-10-24-payment-obligations.md) · [Paced recording](recordings/payment-obligations/index.html). PAY-08 stays open until the actual automatic path shares the same exclusion and budget/occurrence gates.
+
+[Stable application handoff](development/handoff.md) — user-requested pause at verified application checkpoint `79cd691`; proposed AUTO-03 design and local WIP archive location.
