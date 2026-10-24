@@ -17,7 +17,7 @@ function endpoint() {
   return new URL('/v1/chat/completions', url);
 }
 export async function invokeLocalConversation(messages: Array<{ role: string; content: string }>): Promise<string> {
-  const release = acquireModelBudget();
+  const release = acquireModelBudget(messages);
   try {
     const response = await fetch(endpoint(), { method: 'POST', redirect: 'error', signal: AbortSignal.timeout(45000), headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ model: 'cityside-local', messages: boundedMessages(messages), max_tokens: 192, temperature: 0.35, stream: false }) });

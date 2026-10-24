@@ -21,3 +21,14 @@ test('model request budgets limit each citizen/account and permit another accoun
   });
   actorContext.run(actorFor({ sub: 'model-budget-other-user' }), () => acquireModelBudget()());
 });
+
+test('model token budgets cap cumulative input per citizen before the call count is reached', () => {
+  // Six 4000-byte turns fill the full 24000-byte context: about 8192 estimated tokens per call.
+  const large = Array.from({ length: 6 }, () => ({ role: 'user', content: 'x'.repeat(4000) }));
+  actorContext.run(actorFor({ sub: 'model-token-user' }), () => {
+    for (let i = 0; i < 4; i++) acquireModelBudget(large)();
+    assert.throws(() => acquireModelBudget(large), /token budget/);
+    acquireModelBudget([{ role: 'user', content: 'short' }])();
+  });
+  actorContext.run(actorFor({ sub: 'model-token-other-user' }), () => acquireModelBudget(large)());
+});

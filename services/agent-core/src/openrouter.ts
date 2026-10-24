@@ -46,7 +46,7 @@ export async function invokeOpenRouterChat(messages: Array<{ role: string; conte
   const base = new URL(config.baseUrl);
   if (base.hostname !== 'openrouter.ai' || base.protocol !== 'https:' || base.username || base.password) throw new Error('Only the official HTTPS OpenRouter endpoint is allowed');
   const url = new URL(config.baseUrl.replace(/\/$/, '') + '/chat/completions');
-  const release = acquireModelBudget();
+  const release = acquireModelBudget(messages);
   try {
     const response = await fetch(url, {
       method: 'POST',

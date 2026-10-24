@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 25 October 2026 — hourly model token budget (P1-05)
+
+Add a cumulative hourly token ceiling (40,000 estimated tokens per citizen, on top of the 30-call limit) to the local and hosted model clients. Estimates use the bounded input size plus the 192-token output reservation, and a test proves the cap binds before the call count does.
+
 ## 25 October 2026 — deterministic routing evaluation (P1-05)
 
 Move domain routing into a pure, whole-word classifier (`services/agent-core/src/domain-router.ts`). Fixed false routes such as `card` to mobility and `weather` to food, then evaluate a fixed civic, ambiguous and multilingual set offline. Arabic has no lexicon yet and is recorded as a known concierge fallback. Model evaluation, budgets and latency remain open under P1-05.
