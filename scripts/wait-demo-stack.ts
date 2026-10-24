@@ -4,6 +4,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 const host = process.env.DEMO_HOST || 'localhost';
 const issuer = process.env.DEMO_KEYCLOAK_URL || `http://${host}:8085/realms/superapp`;
 const checks = new Map<string, { url: string; accept: (data: any) => boolean }>([
+  ['Delegation broker', { url: `http://${host}:4010/health`, accept: data => data.status === 'ok' && data.service === 'delegation-broker' }],
   ['Keycloak realm', { url: `${issuer}/.well-known/openid-configuration`,
     accept: data => data.issuer === issuer && typeof data.token_endpoint === 'string' }],
   ['Concierge', { url: `${process.env.DEMO_GATEWAY_URL || `http://${host}:4000`}/health`,

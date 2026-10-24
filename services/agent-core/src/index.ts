@@ -1,4 +1,5 @@
 import { manualServices } from './manual-services.ts';
+import { proxyDelegation } from '../../../packages/backend-kit/src/delegation-proxy.ts';
 import { HttpPolicy, HttpError, readJsonBody } from '../../../packages/backend-kit/src/http-policy.ts';
 import { handleMcp } from './mcp.ts';
 import { issueApproval, actionIsApproved, recordApproval } from './approvals.ts';
@@ -17,7 +18,8 @@ import {
 import type { SuperAppAgentState } from './langgraph/state.ts';
 import { executeRuntimeIntent, executeRuntimeAction, discardRuntime } from './langgraph/runtime.ts';
 import { verifyKeycloakToken, isDemoAuthEnabled } from './auth.ts';
-import { invokeOpenRouterTTS, getModelStatus } from './openrouter.ts';
+import { localModelStatus } from './local-conversation.ts';
+import { voiceConfig, localSpeech, localTranscription } from './local-voice.ts';
 
 // In-Memory Session and SSE Subscriber Registry
 export const sessions = new Map<string, SuperAppAgentState>();
@@ -70,6 +72,8 @@ async function handleGatewayRequest(
   requestContext: RequestContext = {}
 ): Promise<{ status: number; data: any }> {
   const normMethod = method.toUpperCase();
+  const delegated = await proxyDelegation(normMethod, pathname, body, headers.authorization || headers.Authorization);
+  if (delegated) return delegated;
   const invalid = validateRequest('agent-core', normMethod, pathname, query, body);
   if (invalid) return invalid;
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
@@ -78,12 +82,14 @@ async function handleGatewayRequest(
 
   // 1. Healthcheck (public, no auth required)
   if (normMethod === 'GET' && pathname === '/health') {
+    const [model, speech] = await Promise.all([localModelStatus(), voiceConfig()]);
     return {
       status: 200,
       data: {
         status: 'ok',
         service: 'agent-core',
-        llm: getModelStatus(),
+        llm: model,
+        voice: speech,
         agentCore: 'langgraph-bounded-demo',
         edgeProxy: 'direct-http',
         activeSessions: process.env.SESSION_STORE === 'redis' ? undefined : sessions.size,
@@ -260,49 +266,15 @@ async function handleGatewayRequest(
     };
   }
 
-  // 4. OpenRouter Text-to-Speech (Neural Voice Synthesis)
+  if (normMethod === 'GET' && pathname === '/api/voice/config') return { status: 200, data: { success: true, ...await voiceConfig() } };
+  if (normMethod === 'POST' && pathname === '/api/voice/transcribe') {
+    try { return { status: 200, data: await localTranscription(actor.sub, body) }; }
+    catch (e) { return { status: e instanceof HttpError ? e.status : 503, data: { success: false, error: e instanceof HttpError ? e.message : 'Local dictation unavailable.' } }; }
+  }
+  // Local open-source speech only. This path never calls a hosted audio provider.
   if (normMethod === 'POST' && pathname === '/api/a2ui/tts') {
-    try {
-      const audioResult = await invokeOpenRouterTTS(body.text, {
-        voice: body.voice,
-        language: body.language,
-      });
-      if (audioResult) {
-        return {
-          status: 200,
-          data: {
-            success: true,
-            available: true,
-            provider: 'openrouter',
-            audioBase64: audioResult.audioBase64,
-            format: audioResult.format,
-            model: audioResult.model,
-            voice: audioResult.voice,
-          },
-        };
-      }
-      return {
-        status: 200,
-        data: {
-          success: true,
-          available: false,
-          provider: 'browser_speech_synthesis',
-          fallback: true,
-          message: 'OpenRouter API key not configured or neural TTS unavailable; using browser speech synthesis.',
-        },
-      };
-    } catch (err: any) {
-      return {
-        status: 200,
-        data: {
-          success: true,
-          available: false,
-          provider: 'browser_speech_synthesis',
-          fallback: true,
-          error: err?.message || 'Neural TTS failed',
-        },
-      };
-    }
+    try { return { status: 200, data: await localSpeech(actor.sub, body) }; }
+    catch (e) { return { status: e instanceof HttpError ? e.status : 503, data: { success: false, available: false, error: e instanceof HttpError ? e.message : 'Local speech unavailable.' } }; }
   }
 
   return { status: 404, data: { error: 'Not found', path: pathname } };

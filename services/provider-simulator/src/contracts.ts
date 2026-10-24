@@ -64,7 +64,7 @@ export function openApi(provider: ProviderId) {
   for (const operation of operations[provider]) {
     const path = `/v1/accounts/{accountId}${operation.path}`;
     paths[path] ||= {};
-    const params = [{ name: 'X-User-Subject', in: 'header', required: true, schema: text }, ...[...path.matchAll(/\{(\w+)\}/g)].map(m => ({ name: m[1], in: 'path', required: true, schema: text }))];
+    const params = [...[...path.matchAll(/\{(\w+)\}/g)].map(m => ({ name: m[1], in: 'path', required: true, schema: text }))];
     if (operation.method === 'POST') params.push({ name: 'Idempotency-Key', in: 'header', required: true, schema: text });
     paths[path][operation.method.toLowerCase()] = {
       operationId: `${provider}_${operation.id}`, description: operation.description, parameters: params,
@@ -73,10 +73,9 @@ export function openApi(provider: ProviderId) {
         ...Object.fromEntries(['400','401','403','404','409','402','503'].map(status => [status, { $ref: '#/components/responses/Error' }])) },
     };
   }
-  return { openapi: '3.1.0', info: { title: `${providerNames[provider]} Simulator`, version: '1.0.0', description: 'Local demonstration API. No connection to a real entity. Service credentials authenticate the caller; X-User-Subject identifies the delegated user. Account ownership is checked for every resource.' },
-    servers: [{ url: `http://localhost:${4101 + providerIds.indexOf(provider)}` }], security: [{ serviceCredentials: [] }],
-    paths, components: { securitySchemes: { serviceCredentials: { type: 'oauth2', flows: { clientCredentials: { tokenUrl: 'http://localhost:8085/realms/superapp/protocol/openid-connect/token', scopes: {} } } } },
-      parameters: { actor: { name: 'X-User-Subject', in: 'header', required: true, schema: text, description: 'Trusted application service assertion of a verified user subject; never supplied directly by a browser.' } },
-      responses: { Unauthorized: { description: 'Missing or invalid service bearer token' }, Error: { description: 'Validation, ownership, payment, conflict or availability error', content: { 'application/json': { schema: object({ success: { const: false }, error: { type: 'string' }, code: { type: 'string' } }) } } } } },
+  return { openapi: '3.1.0', info: { title: `${providerNames[provider]} Simulator`, version: '2.0.0', description: 'Local synthetic API. Signed interactive user identity or broker-issued user token with current exact-operation grant required. JWT subject owns the account; caller user headers do not grant authority. A separate read-only settlement machine lane retrieves captured charge proofs. Legacy fixture mode is outside this reference security profile.' },
+    servers: [{ url: `http://localhost:${4101 + providerIds.indexOf(provider)}` }], security: [{ accessToken: [] }],
+    paths, components: { securitySchemes: { accessToken: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' } },
+      responses: { Unauthorized: { description: 'Missing or invalid Keycloak access token' }, Error: { description: 'Validation, ownership, delegation, payment, conflict or availability error', content: { 'application/json': { schema: object({ success: { const: false }, error: { type: 'string' }, code: { type: 'string' } }) } } } } },
     'x-demo-provider': provider, 'x-idempotency-policy': 'Persisted per account for the lifetime of the demo database. Reusing a key with a different method, path or body returns 409.' };
 }

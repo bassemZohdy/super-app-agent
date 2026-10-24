@@ -107,10 +107,11 @@ h1 { font-size: clamp(35px, 3.45vw, 52px); line-height: 1.18; letter-spacing: -2
 .app-footer { display: flex; align-items: center; justify-content: space-between; padding: 11px 28px; border-top: 1px solid #edf1f3; color: #9aa8b1; font-size: 8px; }
 .app-footer > span, .app-footer button { display: flex; align-items: center; gap: 5px; }
 .app-footer button { background: none; border: none; color: #7c909f; font-size: 9px; }
-.settings-panel { position: absolute; top: 64px; right: 22px; z-index: 20; width: 310px; background: white; border: 1px solid #dde6ec; border-radius: 12px; box-shadow: 0 12px 40px #223e561f; padding: 18px; font-size: 12px; }
+.settings-panel { position: absolute; top: 64px; right: 22px; z-index: 20; width: min(310px, calc(100vw - 44px)); max-height: calc(100dvh - 90px); overflow-y: auto; background: white; border: 1px solid #dde6ec; border-radius: 12px; box-shadow: 0 12px 40px #223e561f; padding: 18px; font-size: 12px; }
 .settings-title { display: flex; align-items: center; justify-content: space-between; }.settings-panel p { line-height: 1.7; color: #738695; overflow-wrap: anywhere; }
 .settings-panel label { display: flex; align-items: center; gap: 10px; margin: 17px 0; font-size: 11px; }.settings-panel select { padding: 6px; color: #425f73; border: 1px solid #dce5eb; border-radius: 5px; background: white; }
 .settings-panel small { display: block; color: #8094a1; line-height: 1.7; font-size: 10px; }
+.settings-panel .text-button { margin-right: 12px; }
 .text-button { background: none; border: none; padding: 8px 0; color: #28749a; text-decoration: underline; text-underline-offset: 3px; font-size: 11px; }
 .message-list { max-width: 710px; margin: 30px auto; }.message { display: flex; gap: 13px; margin: 0 0 30px; }.message-avatar { display: grid; place-items: center; width: 29px; height: 29px; flex-shrink: 0; background: #eaf2f6; border-radius: 9px; color: #47748d; font-size: 9px; margin-top: 1px; }.message.user .message-avatar { background: #eceff3; color: #7c8897; border-radius: 50%; }.message-body { min-width: 0; flex: 1; }.message-author { font-weight: 600; color: #335267; font-size: 11px; }.message-body p { margin: 8px 0 0; font-size: 13px; line-height: 1.9; color: #5f7585; white-space: pre-wrap; overflow-wrap: anywhere; }.message-error .message-body p { color: #a05e41; }
 .thinking { display: flex; gap: 9px; align-items: center; font-size: 10px; color: #7d929e; max-width: 710px; margin: 10px auto 18px; line-height: 1.6; }.thinking-dots { display: flex; gap: 3px; }.thinking-dots i { width: 4px; height: 4px; border-radius: 50%; background: #7b9eb3; animation: thinking 1.2s infinite; }.thinking-dots i:nth-child(2) { animation-delay: .2s; }.thinking-dots i:nth-child(3) { animation-delay: .4s; }@keyframes thinking { 50% { opacity: .25; } }
@@ -141,3 +142,13 @@ h1 { font-size: clamp(35px, 3.45vw, 52px); line-height: 1.18; letter-spacing: -2
 .login-card h1 { font-size: 42px; margin-top: 28px; }.login-card p { font-size: 14px; line-height: 1.8; color: #718999; }
 .login-button { display: block; border: none; width: 100%; border-radius: 9px; padding: 14px; color: white; background: #285c76; margin: 25px 0 16px; }.login-card small { color: #8298a7; font-size: 11px; line-height: 1.8; }.login-error { color: #a85e43 !important; }
 .history-panel { max-height: 70dvh; overflow-y: auto; }.history-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; border-bottom: 1px solid #edf2f5; }.history-row .text-button { text-align: left; overflow-wrap: anywhere; }
+/* Consent is independent of conversational approval and always remains inspectable. */
+.delegation-panel { margin: 16px 24px; padding: 24px; border: 1px solid #c9dce5; border-radius: 12px; background: #fff; color: #24495f; max-height: 65vh; overflow: auto; }
+.delegation-panel h2 { font-size: 20px; margin: 0 0 12px; }
+.delegation-panel h3 { font-size: 15px; }
+.delegation-panel p { font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.delegation-panel article { border-top: 1px solid #dce7ec; margin-top: 18px; padding-top: 12px; }
+.delegation-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.delegation-actions button { padding: 9px 12px; border: 1px solid #9db5c3; border-radius: 6px; background: #eff6f8; color: #24495f; cursor: pointer; }
+.delegation-actions button:disabled { opacity: .5; cursor: default; }
+.delegation-panel pre { font-size: 12px; white-space: pre-wrap; }

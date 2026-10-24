@@ -1,0 +1,106 @@
+import { join } from 'node:path';
+import { verifyJwt, type JwtClaims } from '../../../packages/backend-kit/src/jwt.ts';
+import { brokerClient, runnerClient, DelegationError, deny, digest, tokenHash, type GrantInput } from './policy.ts';
+import { GrantStore } from './store.ts';
+import { assertionTimes, keyMaterial, signedJwt } from './keys.ts';
+
+export const delegationEnabled = () => process.env.DELEGATION_ENABLED === 'true';
+let singleton: GrantStore | undefined;
+export const grantStore = () => singleton ||= new GrantStore(process.env.DELEGATION_DB_PATH || join('.data/delegation', 'grants.sqlite'));
+export const issuerName = () => process.env.DELEGATION_ISSUER || 'http://localhost:4000/api/delegation';
+type Reply = { status: number; data: any };
+function checkedEndpoint(raw: string) { const u = new URL(raw); if (u.username || u.password || !['http:', 'https:'].includes(u.protocol) || (process.env.NODE_ENV === 'production' && u.protocol !== 'https:')) throw new Error('Invalid delegation endpoint'); return u; }
+async function user(authorization?: string) {
+  let c: JwtClaims;
+  try { c = await verifyJwt(authorization, 'agent-core'); } catch { throw new DelegationError(401, 'USER_AUTHENTICATION_REQUIRED', 'Sign in to manage consent.'); }
+  if (c.azp !== 'superapp-shell' || !c.realm_access?.roles?.includes('superapp-user') || c.act !== undefined || String(c.preferred_username || '').startsWith('service-account-')) deny('INTERACTIVE_USER_REQUIRED');
+  return c;
+}
+export async function delegatedAuthorization(authorization: string | undefined, input: { provider: string; accountId: string; method: string; path: string; body: Record<string, unknown> }): Promise<JwtClaims> {
+  const c = await verifyJwt(authorization, 'provider-api');
+  if (c.azp !== brokerClient || c.act !== undefined || !['delegation.read', 'delegation.write'].some(scope => String(c.scope || '').split(' ').includes(scope))) deny('INVALID_DELEGATED_PRINCIPAL');
+  const operation = { provider: input.provider, method: input.method, path: input.path, body: input.body } as Parameters<GrantStore['authorize']>[4];
+  if (!String(c.scope).split(' ').includes(input.method === 'GET' ? 'delegation.read' : 'delegation.write')) deny('SCOPE_REQUIRED');
+  grantStore().authorize(tokenHash(authorization!.slice(7)), c.sub, c.azp, input.accountId, operation);
+  return c;
+}
+async function exchange(grant: ReturnType<GrantStore['get']>, operationId: string) {
+  const issuer = process.env.KEYCLOAK_ISSUER;
+  if (!issuer) throw new Error('Keycloak issuer required');
+  const time = assertionTimes(grant.expiresAt);
+  if (time.exp <= time.iat) deny('GRANT_INACTIVE');
+  const scope = grant.method === 'GET' ? 'delegation.read' : 'delegation.write';
+  const assertion = signedJwt('issuer', { ...time, iss: issuerName(), sub: `cityside:${grant.owner}`, aud: issuer, scope, delegation_grant_id: grant.id, intended_client: brokerClient });
+  const clientAssertion = signedJwt('client', { ...assertionTimes(Date.now() + 60000), iss: brokerClient, sub: brokerClient, aud: issuer });
+  const response = await fetch(checkedEndpoint(process.env.KEYCLOAK_TOKEN_URL || `${issuer}/protocol/openid-connect/token`), {
+    method: 'POST', redirect: 'error', signal: AbortSignal.timeout(5000), headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', client_id: brokerClient, assertion, scope, client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer', client_assertion: clientAssertion }),
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({})) as { error?: string; error_description?: string };
+    // OAuth errors are bounded diagnostics only; assertions and tokens are never logged.
+    console.error('Delegation exchange rejected', response.status, String(error.error || '').slice(0, 100), String(error.error_description || '').replace(/[A-Za-z0-9_-]{60,}/g, '[redacted]').slice(0, 250));
+    throw new DelegationError(503, 'DELEGATION_EXCHANGE_FAILED', `Keycloak rejected the delegated exchange (${response.status}).`);
+  }
+  const data = await response.json() as { access_token: string; refresh_token?: string };
+  if (data.refresh_token || typeof data.access_token !== 'string') throw new Error('Unexpected delegated response');
+  const authorization = `Bearer ${data.access_token}`, c = await verifyJwt(authorization, 'provider-api');
+  const aud = typeof c.aud === 'string' ? [c.aud] : c.aud;
+  if (c.sub !== grant.owner || c.azp !== brokerClient || c.exp > time.exp || c.act !== undefined || String(c.scope || '').split(' ').filter(Boolean).some(value => value !== scope) || !String(c.scope || '').split(' ').includes(scope) || !Array.isArray(aud) || aud.some(value => !['provider-api', 'cityside-verifier'].includes(value)) || (c.realm_access?.roles?.length || 0) > 0) deny('ISSUED_TOKEN_MISMATCH');
+  grantStore().bind(tokenHash(data.access_token), { grantId: grant.id, version: grant.version, sub: c.sub, actor: c.azp, exp: c.exp, operationId, requestDigest: digest({ provider: grant.provider, method: grant.method, path: grant.path, body: grant.body }) });
+  return authorization;
+}
+async function execute(id: string, requestKey: unknown, authorization?: string): Promise<Reply> {
+  let c: JwtClaims;
+  try { c = await user(authorization); } catch {
+    c = await verifyJwt(authorization, 'delegation-api');
+    if (c.azp !== runnerClient || !c.realm_access?.roles?.includes('delegation:execute') || !String(c.preferred_username || '').startsWith('service-account-')) deny('RUNNER_REQUIRED');
+  }
+  const store = grantStore(), g = store.active(id);
+  if (c.azp !== runnerClient && g.owner !== c.sub) deny('GRANT_NOT_FOUND');
+  if (typeof requestKey !== 'string' || !/^[a-zA-Z0-9_-]{8,100}$/.test(requestKey)) throw new DelegationError(400, 'IDEMPOTENCY_REQUIRED', 'Provide a stable execution key of 8–100 letters, digits, underscores or hyphens.');
+  const { job, replay } = store.start(id, requestKey);
+  if (replay) {
+    if (job.state === 'completed') return { status: 200, data: { success: true, replay: true, operationId: job.id, result: job.result } };
+    throw new DelegationError(409, 'RECONCILIATION_REQUIRED', 'This execution is pending or uncertain. Inspect operation status before doing anything else.');
+  }
+  store.audit(id, 'execution.initiator', { operationId: job.id, sub: c.sub, client: c.azp });
+  try {
+    const bearer = await exchange(g, job.id);
+    const ports: Record<string, number> = { rta: 4101, dewa: 4102, etisalat: 4103, du: 4104, police: 4105, dld: 4106, payments: 4107 };
+    const target = new URL(`/v1/accounts/${encodeURIComponent(g.accountId)}${g.path}`, checkedEndpoint(process.env[`PROVIDER_${g.provider.toUpperCase()}_URL`] || `http://localhost:${ports[g.provider]}`));
+    const response = await fetch(target, { method: g.method, redirect: 'error', signal: AbortSignal.timeout(8000), headers: { Authorization: bearer, 'Content-Type': 'application/json', 'Idempotency-Key': `delegation-${job.id}` }, ...(g.method === 'POST' ? { body: JSON.stringify(g.body) } : {}) });
+    const result = await response.json() as { success?: boolean };
+    const success = response.ok && result.success === true;
+    store.finish(job, result, success);
+    return { status: success ? 200 : response.status, data: { success, operationId: job.id, result,
+      ...(!success ? { code: 'DELEGATED_PROVIDER_REJECTED', error: 'The provider could not authorize or complete this operation. Inspect its status before retrying.' } : {}) } };
+  } catch (e) {
+    store.finish(job, { code: e instanceof DelegationError ? e.code : 'EXECUTION_OUTCOME_UNKNOWN' }, false);
+    throw e;
+  }
+}
+export async function handleDelegation(method: string, path: string, body: any, authorization?: string): Promise<Reply | undefined> {
+  if (!path.startsWith('/api/delegation')) return undefined;
+  if (!delegationEnabled()) return { status: 404, data: { success: false, code: 'DELEGATION_DISABLED' } };
+  if (process.env.NODE_ENV === 'production') return { status: 503, data: { success: false, code: 'DEMO_PROFILE_ONLY' } };
+  try {
+    if (method === 'GET' && ['/api/delegation/jwks', '/api/delegation/client-jwks'].includes(path)) return { status: 200, data: { keys: [keyMaterial(path.endsWith('/client-jwks') ? 'client' : 'issuer').jwk] } };
+    if (path === '/api/delegation/authorize' && method === 'POST') { const claims = await delegatedAuthorization(authorization, body); return { status: 200, data: { success: true, sub: claims.sub, actor: claims.azp } }; }
+    const executePath = /^\/api\/delegation\/grants\/([a-f0-9-]{36})\/execute$/.exec(path);
+    if (executePath && method === 'POST') return await execute(executePath[1], body.requestKey, authorization);
+    const c = await user(authorization), store = grantStore();
+    const narrowPath = /^\/api\/delegation\/grants\/([a-f0-9-]{36})\/narrow$/.exec(path);
+    if (narrowPath && method === 'POST') return { status: 200, data: { success: true, grant: store.narrow(narrowPath[1], c.sub, body) } };
+    if (path === '/api/delegation/grants') {
+      if (method === 'GET') return { status: 200, data: { success: true, grants: store.list(c.sub) } };
+      if (method === 'POST') return { status: 201, data: { success: true, grant: store.create(c.sub, body as GrantInput) } };
+    }
+    const item = /^\/api\/delegation\/grants\/([a-f0-9-]{36})(\/(?:history|operations))?$/.exec(path);
+    if (item) {
+      if (method === 'DELETE' && !item[2]) return { status: 200, data: { success: true, grant: store.revoke(item[1], c.sub) } };
+      if (method === 'GET') return { status: 200, data: { success: true, ...(item[2] === '/history' ? { history: store.history(item[1], c.sub) } : item[2] === '/operations' ? { operations: store.jobs(item[1], c.sub) } : { grant: store.get(item[1], c.sub) }) } };
+    }
+    return { status: 404, data: { success: false, code: 'NOT_FOUND' } };
+  } catch (e) { return { status: e instanceof DelegationError ? e.status : 503, data: { success: false, code: e instanceof DelegationError ? e.code : 'DELEGATION_UNAVAILABLE', error: e instanceof DelegationError ? e.message : 'Delegation is unavailable; no additional execution is permitted.' } }; }
+}

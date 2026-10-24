@@ -113,7 +113,7 @@ export class ProviderEngine {
       if (method === 'GET' && path === '/rides/options') return ok({ options: drivers });
       if (method === 'POST' && path === '/rides/bookings') {
         const driver = drivers.find(d => d.id === body.driverId); if (!driver) fail(404, 'NOT_FOUND', 'Driver not found.');
-        const booking = { bookingId: randomUUID(), driver, status: 'CONFIRMED', pickup: body.pickup || 'Current location', dropoff: body.dropoff || 'Downtown', estimatedArrival: '3 min', timestamp: Date.now() }; db.put(a, 'ride', booking, booking.bookingId); return ok({ booking });
+        const booking = { bookingId: randomUUID(), driver, status: 'CONFIRMED', pickup: body.pickup || 'Current location', dropoff: body.dropoff || 'Downtown', etaMinutes: driver.etaMinutes, estimatedArrival: `${driver.etaMinutes} min`, timestamp: Date.now() }; db.put(a, 'ride', booking, booking.bookingId); return ok({ booking });
       }
       if (method === 'GET' && path.startsWith('/rides/bookings/')) { const booking = db.get(a, 'ride', path.split('/')[3]); if (!booking) fail(404, 'NOT_FOUND', 'Booking not found.'); return ok({ booking }); }
       if (method === 'POST' && path === '/residential-permits') { if (body.contractNumber !== asset.contractNumber) fail(404, 'NOT_FOUND', 'Tenancy not found.'); const permit = { permitNumber: `PRM-${a.slice(-8)}`, zone: 'Downtown residential', status: 'ISSUED' }; db.put(a, 'permit', permit); return ok({ permit }); }

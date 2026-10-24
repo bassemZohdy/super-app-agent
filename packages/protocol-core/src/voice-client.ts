@@ -1,4 +1,6 @@
-/** Browser Web Speech adapter. No automatic sending, recording storage or paid API. */
+import { LocalRecorder, type CaptureEnvironment, type RecordingPayload } from './local-recorder.ts';
+import { speechText } from './voice-text.ts';
+/** Speech adapter. The app opts into local-only capture/playback; legacy engines require explicit fallback permission. */
 export interface Recognition {
   lang: string; continuous: boolean; interimResults: boolean;
   onresult: ((event: any) => void) | null;
@@ -6,19 +8,21 @@ export interface Recognition {
   onend: (() => void) | null;
   start(): void; stop(): void; abort(): void;
 }
-export interface VoiceEnvironment {
+export interface VoiceEnvironment extends CaptureEnvironment {
   SpeechRecognition?: new () => Recognition;
   webkitSpeechRecognition?: new () => Recognition;
   speechSynthesis?: { speak(utterance: any): void; cancel(): void };
   SpeechSynthesisUtterance?: new (text: string) => any;
   Audio?: new (src?: string) => any;
 }
-export type VoiceState = 'idle' | 'listening' | 'speaking';
+export type VoiceState = 'idle' | 'listening' | 'transcribing' | 'speaking';
 export type VoiceCallbacks = {
   onTranscript(text: string): void;
   onState(state: VoiceState): void;
   onError(message: string): void;
-  fetchAudio?: (text: string, language: string) => Promise<{ audioBase64?: string; format?: string; available?: boolean } | null | undefined>;
+  fetchAudio?: (text: string, language: string, signal?: AbortSignal) => Promise<{ audioBase64?: string; format?: string; available?: boolean } | null | undefined>;
+  transcribeAudio?: (input: RecordingPayload, signal: AbortSignal) => Promise<{ text: string }>;
+  allowBrowserFallback?: boolean;
 };
 export class VoiceClient {
   readonly canListen: boolean;
@@ -31,11 +35,14 @@ export class VoiceClient {
   private state: VoiceState = 'idle';
   private callbacks: VoiceCallbacks;
   private environment: VoiceEnvironment;
+  private localRecorder?: LocalRecorder;
+  private request?: AbortController;
   constructor(callbacks: VoiceCallbacks, environment: VoiceEnvironment = globalThis as unknown as VoiceEnvironment) {
     this.callbacks = callbacks;
     this.environment = environment;
-    this.canListen = !!(environment.SpeechRecognition || environment.webkitSpeechRecognition);
-    this.canSpeak = !!(environment.speechSynthesis && environment.SpeechSynthesisUtterance) || !!callbacks.fetchAudio;
+    if (callbacks.transcribeAudio) this.localRecorder = new LocalRecorder(environment, { transcribe: callbacks.transcribeAudio, onDraft: callbacks.onTranscript, onState: state => this.update(state), onError: callbacks.onError });
+    this.canListen = this.localRecorder ? this.localRecorder.available : callbacks.allowBrowserFallback === true && !!(environment.SpeechRecognition || environment.webkitSpeechRecognition);
+    this.canSpeak = (callbacks.allowBrowserFallback === true && !!(environment.speechSynthesis && environment.SpeechSynthesisUtterance)) || !!callbacks.fetchAudio;
   }
   private update(state: VoiceState) {
     this.state = state;
@@ -45,6 +52,7 @@ export class VoiceClient {
     if (this.disposed) return;
     if (!this.canListen) { this.callbacks.onError('Voice input is unavailable in this browser. You can type your request.'); return; }
     this.cancel();
+    if (this.localRecorder) { void this.localRecorder.start(language); return; }
     const Constructor = (this.environment.SpeechRecognition || this.environment.webkitSpeechRecognition)!;
     let recognition: Recognition;
     try { recognition = new Constructor(); }
@@ -86,6 +94,7 @@ export class VoiceClient {
     catch { this.detachRecognition(recognition); try { recognition.abort(); } catch {} this.update('idle'); this.callbacks.onError('Could not start the microphone. You can type your request.'); }
   }
   stopListening() {
+    if (this.localRecorder) { this.localRecorder.stop(); return; }
     if (!this.recognition || this.disposed) return;
     try { this.recognition.stop(); }
     catch { this.cancel(); }
@@ -101,7 +110,8 @@ export class VoiceClient {
 
     if (this.callbacks.fetchAudio) {
       this.update('speaking');
-      this.callbacks.fetchAudio(text, language)
+      this.request = new AbortController();
+      this.callbacks.fetchAudio(speechText(text), language, this.request.signal)
         .then(result => {
           if (this.disposed || this.speechGeneration !== generation) return;
           if (result && result.audioBase64) {
@@ -110,8 +120,9 @@ export class VoiceClient {
             this.speakBrowser(text, language, generation);
           }
         })
-        .catch(() => {
+        .catch((error: unknown) => {
           if (this.disposed || this.speechGeneration !== generation) return;
+          if (this.callbacks.allowBrowserFallback !== true) { this.update('idle'); this.callbacks.onError(error instanceof Error ? error.message : 'Local speech is unavailable. The reply remains in chat.'); return; }
           this.speakBrowser(text, language, generation);
         });
       return;
@@ -159,6 +170,7 @@ export class VoiceClient {
   private speakBrowser(text: string, language: string, generation?: number) {
     if (this.disposed) return;
     if (generation !== undefined && this.speechGeneration !== generation) return;
+    if (this.callbacks.allowBrowserFallback !== true) { this.update('idle'); this.callbacks.onError('Local speech could not play. The reply remains in chat.'); return; }
     if (!this.environment.speechSynthesis || !this.environment.SpeechSynthesisUtterance) {
       this.update('idle');
       this.callbacks.onError('The spoken reply could not play. You can read it in chat.');
@@ -201,6 +213,7 @@ export class VoiceClient {
   }
   cancel() {
     this.speechGeneration++;
+    this.localRecorder?.cancel(); this.request?.abort(); this.request = undefined;
     const recognition = this.recognition;
     if (recognition) {
       this.detachRecognition(recognition);
@@ -215,7 +228,7 @@ export class VoiceClient {
       this.currentAudio = undefined;
     }
     this.utterance = undefined;
-    if (this.state === 'speaking') {
+    if (this.state === 'speaking' && this.callbacks.allowBrowserFallback === true) {
       try { this.environment.speechSynthesis?.cancel(); } catch { /* Cleanup must keep text input usable. */ }
     }
     this.update('idle');

@@ -1,5 +1,6 @@
 /** Reconcile only the checked-in demo realm configuration; preserve existing user/provider data. */
 import { readFileSync } from 'node:fs';
+import { configureDelegation } from '../services/delegation/src/keycloak-config.ts';
 const root = process.env.DEMO_KEYCLOAK_ROOT || 'http://localhost:8085';
 const realm = JSON.parse(readFileSync(new URL('../services/keycloak/realm-export.json', import.meta.url), 'utf8'));
 const response = await fetch(`${root}/realms/master/protocol/openid-connect/token`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'password', client_id: 'admin-cli', username: process.env.KEYCLOAK_ADMIN || 'admin', password: process.env.KEYCLOAK_ADMIN_PASSWORD || 'admin' }) });
@@ -34,3 +35,4 @@ for (const user of realm.users) {
   if (roles.length) await api(`/users/${id}/role-mappings/realm`, 'POST', roles);
 }
 console.log('Demo Keycloak clients, audiences and service roles reconciled. Existing users and provider data preserved.');
+if (process.env.DELEGATION_ENABLED === 'true') await configureDelegation(api);

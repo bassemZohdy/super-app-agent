@@ -28,8 +28,9 @@ assert.equal((await call('/api/a2ui/intent', bob.token, 'POST', { sessionId, tex
 assert.equal((await call('/api/a2ui/intent', alice.token, 'POST', { sessionId, accountId: bobAccount, text: 'Show my wallet' })).status, 403);
 const restored = await call(`/api/sessions/${sessionId}`, alice.token); assert.equal(restored.status, 200); assert.equal(restored.data.surface.revision, intent.data.surface.revision);
 console.log('PASS: Redis session ownership, account isolation and restore');
-const paymentsToken = await service('service-wallet', 'demo-wallet-secret');
-const provider = async (path: string, token = paymentsToken, method = 'GET', body?: any, key = randomUUID(), account = accountId) => json(await fetch(`http://localhost:4107/v1/accounts/${account}${path}`, { method, headers: { Authorization: `Bearer ${token}`, 'X-User-Subject': alice.sub, 'Content-Type': 'application/json', 'Idempotency-Key': key }, ...(body ? { body: JSON.stringify(body) } : {}) }));
+const serviceToken = await service('service-wallet', 'demo-wallet-secret');
+const paymentsToken = alice.token;
+const provider = async (path: string, token = paymentsToken, method = 'GET', body?: any, key = randomUUID(), account = accountId) => json(await fetch(`http://localhost:4107/v1/accounts/${account}${path}`, { method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'Idempotency-Key': key }, ...(body ? { body: JSON.stringify(body) } : {}) }));
 const before = await provider('/wallet'); assert.equal(before.status, 200, JSON.stringify(before.data));
 const key = randomUUID(), chargeBody = { amountMinor: 123, merchant: 'superapp', reference: key, source: 'wallet' };
 const charge = await provider('/charges', paymentsToken, 'POST', chargeBody, key); assert.equal(charge.status, 200);
@@ -39,11 +40,11 @@ assert.equal((await provider('/charges', paymentsToken, 'POST', { ...chargeBody,
 assert.equal((await provider('/charges', paymentsToken, 'POST', { ...chargeBody, source: 'demo_declined' })).status, 402);
 const refund = await provider(`/charges/${charge.data.charge.id}/refunds`, paymentsToken, 'POST', { reason: 'Integration verification' }); assert.equal(refund.status, 200);
 assert.equal((await provider('/wallet')).data.balanceMinor, before.data.balanceMinor);
-assert.equal((await provider('/wallet', alice.token)).status, 401);
+assert.equal((await provider('/wallet', serviceToken)).status, 403);
 assert.equal((await provider('/wallet', paymentsToken, 'GET', undefined, randomUUID(), bobAccount)).status, 403);
 const rideToken = await service('service-ride', 'demo-ride-secret');
 const denied = await fetch(`http://localhost:4102/v1/accounts/${accountId}/bills`, { headers: { Authorization: `Bearer ${rideToken}`, 'X-User-Subject': alice.sub } }); assert.equal(denied.status, 403);
-console.log('PASS: real client credentials, role restrictions, payment capture/decline/refund and idempotency');
+console.log('PASS: signed human identity, service impersonation rejection, payment capture/decline/refund and idempotency');
 for (const [port, providerName] of [[4103,'etisalat'],[4104,'du']] as const) {
   const doc = await fetch(`http://localhost:${port}/openapi.json`); assert.equal((await doc.json() as any).openapi, '3.1.0');
   const response = await fetch(`http://localhost:4006/telecom/${providerName}/bills`, { headers: { Authorization: `Bearer ${alice.token}`, 'X-Account-Id': accountId } }); assert.equal(response.status, 200); assert.ok((await response.json() as any).bills[0].billId);

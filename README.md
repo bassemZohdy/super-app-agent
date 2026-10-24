@@ -13,7 +13,9 @@ npm run demo:up
 npm run dev:react
 ```
 
-Open [React](http://localhost:3000), sign in with Keycloak, and choose **bassem** or **demo-commuter**, password **demo123**. Each user has separate personal and household accounts. `demo:up` waits for the imported Keycloak realm and all application/provider health endpoints (up to three minutes). An OpenRouter key in the ignored `.env` enables generated replies; the demo works without a key. Set `ENABLE_LIVE_LLM=false` for deterministic replies.
+Open [React](http://localhost:3000), sign in with Keycloak, and choose **bassem** or **demo-commuter**, password **demo123**. Each user has separate personal and household accounts. `demo:up` waits for Keycloak, broker and application/provider health, then safely reconciles the demo identity/delegation configuration. The first setup builds the internal CPU speech service and downloads roughly 1.4 GB of revision-pinned open-source text/voice models. No cloud key is required. Set `ENABLE_LOCAL_LLM=false` for deterministic text replies; speech remains local. [Local AI setup and licences](docs/development/local-ai.md).
+
+Open **Delegated access** to approve bounded wallet reads or one exact AED 1 synthetic credit, run the approved operation, inspect audit history and revoke consent. A separate trusted broker uses supported Keycloak RFC 7523, private-key client authentication and current provider-side grant checks. No preview features or custom actor mapper are used. [Delegation guide](docs/development/delegation.md) · [Decision](docs/adr/ADR-0012-secure-delegation-demo.md) · [Verification](docs/reports/2026-10-24-delegation-demo.md) · [Paced recording](docs/recordings/delegation/index.html).
 
 `npm run dev:angular` serves the Angular shell at http://localhost:3001. Flutter has local-demo sign-in and account/history controls. Use Flutter 3.47+ and Dart 3.13+; web compilation and widget checks are covered in the current report. Native execution remains unverified.
 
@@ -24,8 +26,11 @@ npm run demo:verify     # real local Keycloak + REST + payments + Redis checks
 npm run test:redis      # distributed locks, ownership, JSON persistence and replay
 npm run demo:verify:manual   # bundled routes + cancellation + authenticated MCP
 npm run demo:verify:security # access/ID token separation and logout revocation
+npm run demo:verify:delegation # linked identity, workload, seven providers and bounded write
+npm run demo:verify:delegation:security # real assertion attacks and token/grant revocation
 npm run demo:verify:restart  # resume a saved LangGraph approval after restart
-npm run demo:check:openrouter # HTTPS reachability and configured-key authentication
+npm run local-ai:verify # actual local text → speech → dictation checks
+npm run local-ai:test   # private speech API security and boundary tests
 npm run check          # ESLint, docs/secrets, Node tests and workspace builds
 npm run demo:logs
 npm run demo:down       # stops containers; preserves databases
@@ -41,21 +46,28 @@ flowchart LR
   Shell -->|Sign in| KC[Keycloak]
   Core --> Redis[(Redis sessions / locks / replay)]
   Core -->|REST + user identity + account| Apps[Application microservices]
-  Apps -->|Client credentials| KC
-  Apps -->|Service token + trusted user context| Providers[RTA / DEWA / Etisalat / du / Police / DLD]
+  Apps -->|Signed interactive user token| Providers[RTA / DEWA / Etisalat / du / Police / DLD]
+  Core -->|Explicit consent / execution facade| Broker[Trusted delegation broker]
+  Broker -->|RFC 7523 + private-key client authentication| KC
+  Broker --> Grants[(Grant / binding / operation SQLite)]
+  Broker -->|Bound short-lived user token| Providers
+  Providers -->|Current grant check| Broker
   Apps --> Payments[Payment gateway simulator]
   Providers -->|Check captured payment| Payments
   Providers --> SQLite[(Separate SQLite database per entity)]
   Payments --> Ledger[(Payment SQLite ledger)]
-  Core -->|Grounded conversational replies| OR[OpenRouter]
+  Core -->|Bounded conversation| LLM[Local llama.cpp / Qwen]
+  Core -->|Speech / dictation| Voice[Internal KittenTTS / Whisper]
 ```
 
 | Layer | Components | Persistence / responsibility |
 | --- | --- | --- |
 | Shells | Cityside React, Angular, Flutter | Presentation, sign-in and account selection; browsers use code + PKCE |
 | Concierge | `services/agent-core` | LangGraph prepare/review/execute graph, authenticated MCP, manual routes and bound approvals |
-| Application APIs | ride, food/utilities, wallet, catalog/housing, profile, telecom | Validate user JWTs and selected accounts; call providers using their own client credentials |
-| Provider APIs | `services/provider-simulator`, seven independently configured instances | Versioned REST, OpenAPI 3.1, scoped service authorization, account-owned SQLite state and idempotency |
+| Application APIs | ride, food/utilities, wallet, catalog/housing, profile, telecom | Validate user JWTs and accounts; forward signed interactive identity to providers |
+| Delegation | Separate broker on 4010 | Explicit consent, private-key JWT exchange, exact token/grant bindings and atomic execution limits; keys isolated from agent-core |
+| Provider APIs | `services/provider-simulator`, seven independently configured instances | Versioned REST, OpenAPI 3.1, verified user/grant authorization, account-owned SQLite state and idempotency |
+| Local AI | CPU llama.cpp/Qwen, internal KittenTTS/Whisper | Private Docker services, pinned model volume; no hosted inference |
 | Identity | Seeded Keycloak realm | End-user authentication and distinct confidential service accounts |
 | Session store | Redis with append-only persistence | Owner/account binding, transcript, surfaces, reconciliation state, TTL, leases and shared SSE replay |
 
@@ -77,13 +89,25 @@ Each exposes `/health` and `/openapi.json`. Protected resources use `/v1/account
 
 ## Model behavior and limits
 
-OpenRouter replies use the last 12 conversation messages and current service results. The actual generated text reaches HTTP/SSE clients; provider failures are shown explicitly. Keys remain server-side. The key used in the [latest verification](docs/reports/2026-10-24-demo-completion.md) was rejected with HTTP 401. Set a valid key privately in the environment or ignored `.env`, recreate agent-core, then run `npm run demo:check:openrouter`. Health reports configuration, not successful provider authentication. The default model is `openrouter/free`. Demo requests enforce zero-priced provider routing, a 24 KiB context budget, and per-actor call/concurrency limits. Remote TTS is disabled by default.
+Local Qwen2.5-1.5B-Instruct replies use bounded recent messages and current service results. llama.cpp runs CPU-only behind the authenticated core; model errors stay visible. `/health` probes actual model readiness. Requests enforce a 24 KiB context budget, 192 output tokens, a 45-second timeout and per-actor call/concurrency limits. The retained OpenRouter diagnostic/helper is historical and unused by application inference; an existing private key is neither needed nor forwarded by the demo.
+
+React and Angular offer **Conversation settings → Voice studio** with four local presets, speed, preview and stop controls. Dictation becomes an editable draft; **Send** and service confirmation stay explicit. English spoken replies are opt-in; English/Arabic dictation is available, with Arabic replies as text. No browser speech/cloud fallback or voice cloning is enabled. [Voice behavior](docs/architecture/voice-and-conversation.md) · [Original sample](docs/assets/voice/rashid-preview.wav) · [Executed checks](docs/reports/2026-10-24-local-ai.md).
 
 LangGraph runs prepare → persisted review interrupt → confirmed execution, with Redis checkpoints in integrated mode. Routing remains deterministic; the model supplies conversation text. Official AG-UI/A2UI, scheduled/compensating workflows, production consent, remote mini-app loading and real government integrations remain outside this demo. The legacy AG-UI/A2-UI names describe a project-specific JSON surface and event protocol.
 
 The demo uses known credentials, local HTTP, Redis AOF `everysec`, and embedded databases. It is intended for local development. [Security boundaries](SECURITY.md), [remaining work](TODO.md), [current verification](docs/reports/2026-10-24-demo-completion.md).
 
 React service links also work directly, for example [Wallet](http://localhost:3000/services/wallet), without a prior concierge proposal or model call. The bundled route registry and authenticated MCP transport are described in [the demo target decision](docs/adr/ADR-0011-local-demo-target.md) and [MCP guide](docs/development/mcp.md).
+
+## Record the demo
+
+`npm run test:e2e` checks twelve authenticated browser journeys against isolated temporary provider data. `npm run test:video` records the same journeys with **6-second review and 8-second receipt pauses**, then creates MP4/WebM, captions and measured chapters. Your running demo data is preserved. [Setup, pacing and artifact guide](docs/development/recording.md).
+
+```bash
+npm run recordings:serve
+```
+
+Watch [the latest recording](http://localhost:3300) or open its [checked-in viewer](docs/recordings/index.html).
 
 ## Documentation
 

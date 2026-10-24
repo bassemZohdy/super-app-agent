@@ -1,5 +1,7 @@
 # Target architecture: Option A, Agent-Centric Super App
 
+The bounded [delegation demo](../development/delegation.md) now implements explicit grants, supported RFC 7523, an isolated broker and provider-side current authority checks. General financial budgets, schedules, fine-grained tenant policy, multi-hop authority and production release remain targets. [Decision](../adr/ADR-0012-secure-delegation-demo.md).
+
 > Implemented demo boundary: [ADR-0010](../adr/ADR-0010-provider-simulators-and-redis-demo.md) adds provider REST APIs, service credentials, SQLite and Redis conversations. A bounded LangGraph approval graph, Redis checkpoints and core MCP now complement those boundaries. Schedulers/compensation, production consent and official UI adapters remain targets.
 
 **Status:** **Proposed**—not implemented by the current demonstration. This describes design direction for future ADRs and implementation plans, not current production readiness.

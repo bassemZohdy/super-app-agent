@@ -1,0 +1,44 @@
+{
+  "successful": true,
+  "reviewMs": 6000,
+  "receiptMs": 8000,
+  "chapters": [
+    {
+      "title": "Sign in and open delegated access",
+      "elapsedSeconds": 0.977
+    },
+    {
+      "title": "Review actor, account, operation and five-minute consent",
+      "elapsedSeconds": 7.017
+    },
+    {
+      "title": "Explicitly approve bounded wallet reads",
+      "elapsedSeconds": 13.057
+    },
+    {
+      "title": "Broker exchanges assertion and provider authorizes exact read",
+      "elapsedSeconds": 19.266
+    },
+    {
+      "title": "Inspect consent-to-effect audit",
+      "elapsedSeconds": 27.316
+    },
+    {
+      "title": "Withdraw consent and verify execution is disabled",
+      "elapsedSeconds": 33.413
+    },
+    {
+      "title": "Explicitly approve one exact AED 1 synthetic credit",
+      "elapsedSeconds": 41.509
+    },
+    {
+      "title": "Execute once and verify the grant limit blocks another run",
+      "elapsedSeconds": 47.614
+    },
+    {
+      "title": "Revoke the completed write grant",
+      "elapsedSeconds": 55.709
+    }
+  ],
+  "synthetic": true
+}

@@ -23,7 +23,7 @@ function fixture(options: { startThrows?: boolean; noInput?: boolean; noOutput?:
     environment.SpeechSynthesisUtterance = class { text: string; constructor(text: string) { this.text = text; } };
     environment.speechSynthesis = { speak: utterance => { spoken.push(utterance); }, cancel: () => { cancelled++; } };
   }
-  const client = new VoiceClient({ onTranscript: text => transcripts.push(text), onState: state => states.push(state), onError: error => errors.push(error) }, environment);
+  const client = new VoiceClient({ allowBrowserFallback: true, onTranscript: text => transcripts.push(text), onState: state => states.push(state), onError: error => errors.push(error) }, environment);
   return { client, recordings, spoken, transcripts, states, errors, cancelled: () => cancelled };
 }
 
@@ -49,7 +49,7 @@ test('voice: permission/network/empty input errors release microphone and keep t
     assert.ok(f.errors[0].length); assert.equal(f.transcripts.length, 0);
   }
   const errors: string[] = [];
-  const unavailable = new VoiceClient({ onTranscript: () => {}, onState: () => {}, onError: error => errors.push(error) }, {
+  const unavailable = new VoiceClient({ allowBrowserFallback: true, onTranscript: () => {}, onState: () => {}, onError: error => errors.push(error) }, {
     SpeechRecognition: class { constructor() { throw new Error('unavailable'); } } as any,
     SpeechSynthesisUtterance: class { constructor() { throw new Error('unavailable'); } },
     speechSynthesis: { speak: () => {}, cancel: () => {} },
@@ -108,7 +108,7 @@ test('voice: neural audio playback plays via Audio element, falls back cleanly o
 
   // 1. Success case: neural TTS audio plays and onended transitions state to idle
   let fetchCount = 0;
-  const client = new VoiceClient({
+  const client = new VoiceClient({ allowBrowserFallback: true,
     onTranscript: () => {},
     onState: state => states.push(state),
     onError: err => errors.push(err),
@@ -131,7 +131,7 @@ test('voice: neural audio playback plays via Audio element, falls back cleanly o
   assert.equal(states.at(-1), 'idle');
 
   // 2. Fallback case: fetchAudio returns no audioBase64 -> falls back to browser synthesis
-  const fallbackClient = new VoiceClient({
+  const fallbackClient = new VoiceClient({ allowBrowserFallback: true,
     onTranscript: () => {},
     onState: state => states.push(state),
     onError: err => errors.push(err),

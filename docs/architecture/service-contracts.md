@@ -1,6 +1,6 @@
 # Service contracts
 
-There are two REST boundaries in integrated mode: concierge → application APIs using the user's access token, and application → provider using Keycloak client credentials plus trusted user/account context. HTTP errors never silently select the old shared fixtures.
+Interactive REST boundaries forward the user's signed access token from concierge through application APIs to providers; each boundary verifies identity and ownership. The separate delegation broker issues short-lived user tokens bound to explicit grants, and providers check current exact-operation authority online. Header-only human impersonation is denied in the reference profile. HTTP errors never silently select old shared fixtures. [Delegation contracts](../development/delegation.md).
 
 | Application | Port | API responsibility | Provider |
 | --- | --- | --- | --- |
@@ -24,3 +24,7 @@ The capability catalog and custom UI metadata do not themselves implement consen
 The authenticated core `/mcp` transport exposes account/capability/conversation discovery and the normal guarded intent/action operations. Its schemas reuse the HTTP request contracts. Application `GET /mcp` descriptors remain compatibility metadata; see [the MCP guide](../development/mcp.md).
 
 Manual `/api/manual/prepare` selects one of eleven server-owned bundled service IDs. It bypasses model calls but uses the same session ownership, approval, effect and result path as concierge proposals. Unknown service IDs cannot load remote code. `POST /api/a2ui/cancel` invalidates the current one-time proposal; it does not reverse completed provider effects.
+
+## Local text and speech
+
+The authenticated core exposes `GET /api/voice/config`, `POST /api/a2ui/tts` and `POST /api/voice/transcribe`. Speech accepts text (1–480 chars), one of four installed presets, speed 0.8–1.2 and English; it returns base64 WAV with local provenance. Dictation accepts at most 45 KB of base64 WebM/Ogg/MP4/WAV and English/Arabic language, returning bounded text with `requiresReview: true`. It does not submit an intent or service action. Schemas reject caller model/URL/file parameters. Limits, privacy, licence sources and error behavior are in [the local AI guide](../development/local-ai.md). Private `voice`/`conversation` APIs have no published host ports; normal clients use only core.

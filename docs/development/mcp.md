@@ -11,6 +11,11 @@ Send an end-user **access token** in the Authorization header. Integrated mode v
 | cityside_intent | Prepare a reviewed proposal with the usual core intent path |
 | cityside_confirm_action | Execute only the current approved surface action, revision and exact payload |
 | cityside_conversations | List the user's saved conversations |
+| cityside_delegations | Inspect explicitly consented grants; cannot create or expand consent |
+| cityside_execute_delegation | Execute only an existing grant with a stable request key and current provider-side authority |
+| cityside_revoke_delegation | Withdraw an owned grant; completed effects are not undone |
+
+Delegation tools use the same isolated broker and [grant contract](delegation.md) as the shell. They do not supply an arbitrary user subject, actor chain or consent override. Core verifies the human MCP caller; unattended runner execution uses the broker's distinct service-client lane. Neither path receives issuer keys or delegated access tokens.
 
 Example with the installed reference client:
 

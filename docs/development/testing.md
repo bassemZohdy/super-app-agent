@@ -3,7 +3,7 @@
 ## Commands
 
 ```bash
-npm run check # ESLint, Markdown links, tracked-source secrets, tests, 17 builds
+npm run check # ESLint, Markdown links, tracked-source secrets, tests, 18 builds
 npm run demo:up         # includes readiness polling
 npm run demo:wait       # check endpoints of an already running stack
 npm run test:redis
@@ -12,7 +12,9 @@ npm run demo:verify:journeys
 npm run demo:verify:manual
 npm run demo:verify:security
 npm run demo:verify:restart
-npm run demo:check:openrouter
+npm run local-ai:verify
+npm run local-ai:test
+npm run local-ai:browser
 ```
 
 `npm test` uses explicit fixture/demo identity, disables live model calls, and requires no Docker. Some tests bind local HTTP servers to verify signed JWTs and actual SSE requests. Restricted sandboxes must allow local listening. It includes the provider tests and validates every generated OpenAPI 3.1 document against its runtime source.
@@ -45,8 +47,22 @@ The widget tests use a controlled HTTP client, exercise real widget account swit
 | Payments | integer arithmetic, proof matching, replay, decline and refund | no distributed transaction, automatic compensation or real PSP |
 | Browser | React PKCE login, account/history/restore; Angular build/login checks | no complete automated cross-platform conformance suite |
 | Flutter | strict analysis, phone/desktop account-switch widgets, UTF-8/multiline SSE/cursor/reauthentication regressions and web build | native execution, PKCE/speech and full renderer parity remain open |
-| OpenRouter | real HTTPS request reached the API; configured key rejected with 401; controlled reply/error tests pass | successful generation needs a valid private key; neural TTS remains unverified |
+| Local text and speech | actual CPU Qwen reply, KittenTTS WAV, Whisper draft and browser fake-device capture/preview | physical device quality, Arabic evaluations, native speech and production load remain open |
 
-Current executed results are recorded in [the current validation report](../reports/2026-10-24-demo-completion.md). Earlier release reports and videos describe their dated fixture baselines and must not be used as evidence of current provider, identity or production guarantees. `npm run lint` now executes ESLint correctness rules over TypeScript/JavaScript source. The docs gate checks local Markdown links; the secret gate scans tracked/unignored source for OpenRouter keys and private keys without printing values. These targeted checks are not comprehensive security certification.
+Current text/speech results are recorded in [the local AI report](../reports/2026-10-24-local-ai.md), supplementing [the demo validation report](../reports/2026-10-24-demo-completion.md). Earlier release reports and videos describe their dated fixture baselines and must not be used as evidence of current provider, identity or production guarantees. `npm run lint` now executes ESLint correctness rules over TypeScript/JavaScript source. The docs gate checks local Markdown links; the secret gate scans tracked/unignored source for OpenRouter keys and private keys without printing values. These targeted checks are not comprehensive security certification.
 
 `demo:verify:restart` now orchestrates preparation, core/Redis/payment container restarts, readiness, approval resume and its own temporary-record cleanup. Run it without simultaneous wallet-changing tests. The manual verifier covers all eleven integrated routes, cancellation replay denial and a real-Keycloak MCP call. The security verifier proves ID-token rejection and immediate access-token denial after logout on a new request. Existing streams are bounded by expiry, not continuously introspected.
+
+## Real browser journeys and recording
+
+`npm run test:e2e` executes the same twelve real-browser scenarios as `npm run test:video`, with presentation pauses disabled. Unlike the older fixture transcript generator, these assert actual login, UI controls, HTTP outcomes and persisted domain effects. Missing steps fail rather than being skipped. The video adds readable pauses and publishes only a fully successful run with measured chapters, MP4/WebM, captions and assertions. [Recording guide](recording.md) describes isolation, prerequisites, pacing, diagnostics and cleanup. `npm run check:e2e` strictly type-checks this harness and is included in `npm run check`.
+
+## Delegation verification
+
+[Executed delegation report](../reports/2026-10-24-delegation-demo.md) supplements the earlier baseline. `npm run demo:verify:delegation` checks actual private-key RFC 7523 exchange, authenticated runner, reads across all seven providers, cross-user/revoked-grant denial and one AED 1 synthetic write without duplicate effect. Run wallet-mutating checks serially. `npm run demo:verify:delegation:security` executes the controlled-key attack matrix inside the broker, including a Keycloak-active token rejected after consent revocation. Unit tests cover binding substitution, exact bodies, limits, narrowing, expiry, uncertain outcomes and two-connection/reopen behavior. These do not prove cluster replay persistence, key rotation, native-device UI or production security. [Guide](delegation.md).
+
+The new Flutter consent widget test proves inspection does not create consent, grant approval does not execute, the separate run action works and withdrawal disables execution. The final Flutter suite passes six tests; native-device parity remains open. All twelve retained React browser journeys were also rerun against isolated state with signed-user provider enforcement.
+
+## Local inference checks
+
+`local-ai:test` runs four FastAPI tests covering actual bounded audio decoding with controlled inference, silence and invalid media, strict input/language/preset constraints, model absence, busy responses and origin rejection. `local-ai:verify` generates original speech, compresses it to browser-format audio, runs actual Whisper and Qwen, checks authentication/non-audio failures and writes the public preview. `local-ai:browser` uses that synthetic WAV as Chrome’s fake microphone, asserts a reviewable draft with zero intent submissions, tests an alternate voice and saves a screenshot. It never uses a physical microphone. Run these serially to respect CPU/rate limits. Node tests additionally cover cancellation races, no browser/cloud fallback, bounded text preparation, private endpoint enforcement and local model error/context handling. [Setup](local-ai.md).

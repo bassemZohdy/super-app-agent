@@ -42,7 +42,7 @@ for (const [action, schema] of Object.entries(actionSchemas)) {
 }
 const coreIntent = object({ sessionId, accountId: id, text: text(4000), handshake }, ['sessionId', 'text']);
 const coreAction = object({ sessionId, accountId: id, surfaceRevision: { type: 'string', pattern: '^[0-9a-f-]{36}$' }, action: text(128), payload: { type: 'object' } }, ['sessionId', 'surfaceRevision', 'action', 'payload']);
-const coreTts = object({ text: text(4000), voice: { type: 'string', minLength: 1, maxLength: 64 }, language: { type: 'string', minLength: 1, maxLength: 32 } }, ['text']);
+const coreTts = object({ text: text(480), voice: { enum: ['Jasper','Bruno','Hugo','Luna'] }, speed: { type: 'number', minimum: 0.8, maximum: 1.2 }, language: { enum: ['en-US','ar-AE'] } }, ['text']);
 
 type Route = { owner: string; method: string; path: string; aliases?: string[]; schema: Schema; tool?: string };
 const routes: Route[] = [];
@@ -58,6 +58,8 @@ route('agent-core', 'POST', '/api/a2ui/action', coreAction);
 route('agent-core', 'POST', '/api/a2ui/cancel', object({ sessionId, accountId: id, surfaceRevision: coreAction.properties.surfaceRevision }, ['sessionId','surfaceRevision']));
 route('agent-core', 'GET', '/api/services', object({ accountId: id }));
 route('agent-core', 'POST', '/api/a2ui/tts', coreTts);
+route('agent-core', 'GET', '/api/voice/config', object());
+route('agent-core', 'POST', '/api/voice/transcribe', object({ audioBase64: { type: 'string', minLength: 16, maxLength: 60000 }, format: { enum: ['audio/webm','audio/ogg','audio/mp4','audio/wav'] }, language: { enum: ['en-US','ar-AE'] } }, ['audioBase64','format']));
 for (const path of ['/api/auth/config', '/api/accounts', '/api/sessions']) route('agent-core', 'GET', path, object({ accountId: id }));
 route('agent-core', 'GET', '/api/sessions/{sessionId}', object({ sessionId, accountId: id }, ['sessionId']));
 route('agent-core', 'DELETE', '/api/sessions/{sessionId}', object({ sessionId }, ['sessionId']));

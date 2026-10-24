@@ -1,0 +1,61 @@
+WEBVTT
+
+01
+00:00:00.247 --> 00:00:11.925
+Sign in and choose an account
+Real local Keycloak PKCE · isolated SQLite data · simulated services and money
+
+02
+00:00:11.925 --> 00:00:45.867
+Wallet: review, cancel and top up
+Review first. Cancelled approvals cannot be replayed. A confirmed top-up changes the ledger once.
+
+03
+00:00:45.867 --> 00:01:16.677
+Parking: select, activate and extend
+Review the account-owned vehicle and zone. Confirm two hours, then review the extension receipt.
+
+04
+00:01:16.677 --> 00:01:36.106
+Utilities: review and settle a fresh bill
+Fresh isolated DEWA bill. Review meter data and line items before paying from the simulated wallet.
+
+05
+00:01:36.106 --> 00:01:55.561
+Telecom: review a subscription and pay its bill
+Etisalat is a simulator. Confirm only the offered provider and bill; verify settlement independently.
+
+06
+00:01:55.561 --> 00:02:16.552
+Traffic fines: review and settle
+Natural-language request through the same guarded core. Read violations and discounts before confirmation.
+
+07
+00:02:16.552 --> 00:02:37.497
+Ride: choose and confirm a real demo booking
+Chat prepares a proposal. The receipt carries a real provider booking ID; unknown tracking IDs must fail.
+
+08
+00:02:37.497 --> 00:02:58.616
+Dining: choose a meal and verify the order
+A separate service journey with an account-owned persisted order and a traceable order reference.
+
+09
+00:02:58.616 --> 00:03:18.009
+Move in: activate a reviewed tenancy plan
+Read the proposal before confirmation. DLD, utility connection and residential permit records must agree.
+
+10
+00:03:18.009 --> 00:03:39.034
+Unified checkout: avoid paying settled bills twice
+The earlier utility bill and fines are already settled. Only the remaining Salik recharge may debit the wallet.
+
+11
+00:03:39.034 --> 00:03:57.035
+Switch accounts and restore the conversation
+Household funds stay separate. Return to Personal, then reload the saved dining receipt and transcript.
+
+12
+00:03:57.035 --> 00:04:07.685
+Sign out and return to the login screen
+The private workspace closes. All services, balances and receipts in this recording are simulated.

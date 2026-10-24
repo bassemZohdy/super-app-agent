@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Dubai Land Department Simulator",
-    "version": "1.0.0",
-    "description": "Local demonstration API. No connection to a real entity. Service credentials authenticate the caller; X-User-Subject identifies the delegated user. Account ownership is checked for every resource."
+    "version": "2.0.0",
+    "description": "Local synthetic API. Signed interactive user identity or broker-issued user token with current exact-operation grant required. JWT subject owns the account; caller user headers do not grant authority. A separate read-only settlement machine lane retrieves captured charge proofs. Legacy fixture mode is outside this reference security profile."
   },
   "servers": [
     {
@@ -12,7 +12,7 @@
   ],
   "security": [
     {
-      "serviceCredentials": []
+      "accessToken": []
     }
   ],
   "paths": {
@@ -71,16 +71,6 @@
         "operationId": "dld_getTenancy",
         "description": "Read the account-owned tenancy contract.",
         "parameters": [
-          {
-            "name": "X-User-Subject",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 200
-            }
-          },
           {
             "name": "accountId",
             "in": "path",
@@ -146,16 +136,6 @@
         "operationId": "dld_registerMoveIn",
         "description": "Register a move-in proposal. Utility and parking activation are separate operations.",
         "parameters": [
-          {
-            "name": "X-User-Subject",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 200
-            }
-          },
           {
             "name": "accountId",
             "in": "path",
@@ -262,35 +242,18 @@
   },
   "components": {
     "securitySchemes": {
-      "serviceCredentials": {
-        "type": "oauth2",
-        "flows": {
-          "clientCredentials": {
-            "tokenUrl": "http://localhost:8085/realms/superapp/protocol/openid-connect/token",
-            "scopes": {}
-          }
-        }
-      }
-    },
-    "parameters": {
-      "actor": {
-        "name": "X-User-Subject",
-        "in": "header",
-        "required": true,
-        "schema": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 200
-        },
-        "description": "Trusted application service assertion of a verified user subject; never supplied directly by a browser."
+      "accessToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
       }
     },
     "responses": {
       "Unauthorized": {
-        "description": "Missing or invalid service bearer token"
+        "description": "Missing or invalid Keycloak access token"
       },
       "Error": {
-        "description": "Validation, ownership, payment, conflict or availability error",
+        "description": "Validation, ownership, delegation, payment, conflict or availability error",
         "content": {
           "application/json": {
             "schema": {

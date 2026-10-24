@@ -4,13 +4,9 @@ import { executeCoreRequest as core } from '../agent-core/src/index.ts';
 import { balance } from '../service-wallet/src/index.ts';
 
 function enableLive(t: test.TestContext) {
-  const previous = { OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY, ENABLE_LIVE_LLM: process.env.ENABLE_LIVE_LLM, OPENROUTER_MODEL: process.env.OPENROUTER_MODEL };
-  t.after(() => { for (const [key, value] of Object.entries(previous)) {
-    if (value === undefined) delete process.env[key]; else process.env[key] = value;
-  } });
-  process.env.OPENROUTER_API_KEY = 'test-private-key';
-  process.env.ENABLE_LIVE_LLM = 'true';
-  process.env.OPENROUTER_MODEL = 'openrouter/free';
+  const previous = process.env.ENABLE_LOCAL_LLM;
+  t.after(() => { if (previous === undefined) delete process.env.ENABLE_LOCAL_LLM; else process.env.ENABLE_LOCAL_LLM = previous; });
+  process.env.ENABLE_LOCAL_LLM = 'true';
 }
 const headers = { authorization: 'Bearer demo-local' };
 
@@ -51,12 +47,12 @@ test('live provider failure is visible, retains service results and never masque
   t.mock.method(globalThis, 'fetch', async () => new Response('private provider details', { status: 429 }));
   const result = await core('POST', '/api/a2ui/intent', {}, { sessionId: 'live_failure_session', text: 'Show wallet balance' }, headers);
   assert.equal(result.data.inference.status, 'error');
-  assert.equal(result.data.inference.code, 'OPENROUTER_HTTP_429');
-  assert.match(result.data.surface.assistantMessage.text, /rate limited/);
+  assert.equal(result.data.inference.code, 'LOCAL_MODEL_HTTP_429');
+  assert.match(result.data.surface.assistantMessage.text, /busy or unavailable/);
   assert.ok(result.data.surface.view.children.some((node: any) => node.type === 'MetricWidget'));
   assert.equal(JSON.stringify(result.data).includes('private provider details'), false);
   const restored = await core('GET', '/api/sessions/live_failure_session', {}, {}, headers);
   assert.equal(restored.status, 200);
   assert.equal(restored.data.inference?.status, 'error');
-  assert.equal(restored.data.inference?.code, 'OPENROUTER_HTTP_429');
+  assert.equal(restored.data.inference?.code, 'LOCAL_MODEL_HTTP_429');
 });

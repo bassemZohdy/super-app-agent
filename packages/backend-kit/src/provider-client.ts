@@ -14,15 +14,15 @@ export class ProviderClient {
     if (process.env.NODE_ENV === 'production' && url.protocol !== 'https:') throw new UpstreamError(503, 'HTTPS_REQUIRED', 'Provider HTTPS is required.');
     const send = async () => fetch(url, {
       method, signal: AbortSignal.timeout(8000),
-      headers: { Authorization: `Bearer ${await this.credentials.token()}`, 'Content-Type': 'application/json',
-        'X-User-Subject': actor.sub, 'X-User-Name': Buffer.from(actor.name).toString('base64url'),
+      headers: { Authorization: actor.authorization || `Bearer ${await this.credentials.token()}`, 'Content-Type': 'application/json',
+        ...(!actor.authorization ? { 'X-User-Subject': actor.sub, 'X-User-Name': Buffer.from(actor.name).toString('base64url') } : {}),
         ...(method === 'POST' ? { 'Idempotency-Key': idempotencyKey || `${actor.requestId}:${provider}:${path}` } : {}) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
     let response: Response;
     try {
       response = await send();
-      if (response.status === 401) { this.credentials.invalidate(); response = await send(); }
+      if (response.status === 401 && !actor.authorization) { this.credentials.invalidate(); response = await send(); }
     } catch { throw new UpstreamError(503, method === 'POST' ? 'PROVIDER_OUTCOME_UNKNOWN' : 'PROVIDER_UNAVAILABLE', `The ${provider} simulator is unavailable.`); }
     const data = await response.json() as any;
     if (!response.ok || data.success !== true) throw new UpstreamError(response.status, typeof data.code === 'string' ? data.code : 'PROVIDER_REJECTED', typeof data.error === 'string' ? data.error : `The ${provider} request was rejected.`);

@@ -126,20 +126,13 @@ test('agent-core: action loop handles topup_wallet', async () => {
   assert.strictEqual(actionRes.data.surface.view.id, 'wallet_topup_card');
 });
 
-test('agent-core: /api/a2ui/tts validates input and provides graceful deterministic fallback', async () => {
-  // 1. Invalid input: empty string fails schema validation
-  const invalidRes = await executeCoreRequest('POST', '/api/a2ui/tts', {}, { text: '' });
-  assert.strictEqual(invalidRes.status, 400);
-
-  // 2. Valid input: when no key is set, returns deterministic fallback to browser speech synthesis
-  const validRes = await executeCoreRequest('POST', '/api/a2ui/tts', {}, {
-    text: 'Marhaba! Welcome to Dubai Smart City.',
-    voice: 'alloy',
-    language: 'en-US',
-  });
-  assert.strictEqual(validRes.status, 200);
-  assert.strictEqual(validRes.data.success, true);
-  assert.strictEqual(validRes.data.provider, 'browser_speech_synthesis');
-  assert.strictEqual(validRes.data.fallback, true);
+test('agent-core: speech rejects unapproved voices and never falls back to a hosted provider', async t => {
+  const original = globalThis.fetch;
+  t.after(() => { globalThis.fetch = original; });
+  globalThis.fetch = async () => { throw new Error('Local engine is down'); };
+  assert.equal((await executeCoreRequest('POST', '/api/a2ui/tts', {}, { text: '' })).status, 400);
+  assert.equal((await executeCoreRequest('POST', '/api/a2ui/tts', {}, { text: 'Hello', voice: 'alloy' })).status, 400);
+  const result = await executeCoreRequest('POST', '/api/a2ui/tts', {}, { text: 'Marhaba. Welcome to your city.', voice: 'Jasper', language: 'en-US' });
+  assert.equal(result.status, 503); assert.equal(result.data.available, false);
+  assert.ok(!result.data.fallback); assert.ok(!result.data.audioBase64);
 });
-
