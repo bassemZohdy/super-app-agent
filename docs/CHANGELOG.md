@@ -125,3 +125,5 @@ Added seven account-scoped SQLite provider simulators and generated OpenAPI 3.1 
 
 Documentation work is **docs-only** and does not itself validate a successful build, Keycloak integration, agentgateway syntax, model interoperability or production behavior.
 
+
+- Corrected the local conversation Docker health check to its configured private port 4201; real local text/speech verification passes.
