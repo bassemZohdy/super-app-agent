@@ -536,10 +536,11 @@ test('E2E Life Scenario 13: Citizen Safety - Dubai Police Traffic Fines Clearanc
   assert.strictEqual(executeWalletRequest('POST', '/wallet/topup', {}, { amount: 1000 }).status, 200);
 
   // 2. Citizen clears fines
+  const binding=surface.view.children.find((node:any)=>node.onEvents?.some((event:any)=>event.payload?.action==='pay_police_fines')).onEvents.find((event:any)=>event.payload.action==='pay_police_fines').payload;
   const settleRes = await executeCoreRequest('POST', '/api/a2ui/action', {}, {
     sessionId, surfaceRevision: getOrCreateSession(sessionId).currentSurface?.revision,
     action: 'pay_police_fines',
-    payload: {},
+    payload: {...binding},
   });
   assert.strictEqual(settleRes.status, 200);
   const clearedSurface = settleRes.data.surface;

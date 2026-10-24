@@ -4,6 +4,7 @@ Evidence spans the `283521a` integrated baseline, payment setup `65fec3c`, journ
 
 | Evidence | Verified scope | Interpretation |
 | --- | --- | --- |
+| [Exact-set fine payments](2026-10-24-fine-checkout.md) | 214 tests, 18 builds; exact-set capture, lifecycle and recovery coverage | PAY-06/PAY-14 delivered; remaining payment/automation gates retain separate criteria |
 | [Saved-card wallet funding](2026-10-24-wallet-funding.md) | Focused funding/HTTP tests and real-Keycloak paced capture/credit/reload browser | PAY-13 delivered; refunds and automation remain open |
 | [Wallet/card bill checkout](2026-10-24-payment-checkout.md) | 188 tests, 18 builds, twelve journeys, challenged-card receipt and wallet execution browsers | PAY-09–PAY-12 delivered; other payables/refunds/automation remain open |
 | [Settlement/refund exclusion](2026-10-24-settlement-claims.md) | 180 tests, 18 builds; source/gateway race tests and real-Keycloak paid/refund/non-application checks | Historical claim/refund guard evidence; later bill-checkout report covers order-capture integration |

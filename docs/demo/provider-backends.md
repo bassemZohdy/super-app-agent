@@ -1,6 +1,6 @@
 # Provider backend demonstration
 
-This is a local integration environment, not an integration with the named real entities. Producer: the provider-simulator package. Consumers: the application microservices. Contract version: 2.0.0 for DLD, 2.1.0 for RTA settlement status, 2.4.0 for DEWA/telecom/Police payables/admission, and 2.6.0 for payment setup/authorization/capture/settlement claims; OpenAPI 3.1. This demo security migration changes authentication while retaining `/v1` resource schemas. Sign in again for the provider audience; service-header impersonation clients must migrate. Future breaking resource changes require explicit versioning and migration.
+This is a local integration environment, not an integration with the named real entities. Producer: the provider-simulator package. Consumers: the application microservices. Contract version: 2.0.0 for DLD, 2.1.0 for RTA settlement status, 2.4.0 for DEWA/telecom, 2.5.0 for Police fine selections/admission, and 2.7.0 for payment setup/authorization/capture/settlement claims; OpenAPI 3.1. This demo security migration changes authentication while retaining `/v1` resource schemas. Sign in again for the provider audience; service-header impersonation clients must migrate. Future breaking resource changes require explicit versioning and migration.
 
 ## Service and account boundaries
 
@@ -107,3 +107,5 @@ Telecom inventories now include owned prepaid lines and Police includes register
 Existing provider HTTP effects now acquire narrow authenticated gateway claims and persist local attempt fences, business application and receipts. Refunds reject pending/applied/unknown claims. Source current-status reads retry lost acknowledgements; old captures require conservative reconciliation. [Exact settlement and migration contract](../development/settlement-claims.md).
 
 DEWA/Etisalat/du service payments now use wallet-funded stored orders and the same admitted capture/settlement path as the card-enabled payment panel. Generic /charges billing reference namespaces are rejected; migrate direct consumers to approved order execution. Other legacy non-bill fixtures remain compatible. [Exact API and recovery contract](../development/payment-checkout.md).
+
+[Wallet/card fine selection](../development/fine-checkout.md) uses exact current source revisions and per-fine admission before capture; a raw Police billing namespace cannot bypass stored-order approval.

@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 24 October 2026 — exact-set wallet/card fine payments
+
+Complete PAY-14 and the remaining PAY-06 demo capture criteria. Add authoritative fine-set quotes, shared constituent locks, wallet/card/challenge execution, atomic source application, original-payment recovery and confirmed receipts. Move current manual/conversation fine payments to stored orders with exact offered bindings. [Guide](development/fine-checkout.md) · [Evidence](reports/2026-10-24-fine-checkout.md).
+
 ## 24 October 2026 — saved-card wallet funding
 
 Deliver PAY-13 with source/amount-bound review, explicit authorization/challenge, atomic issuer capture and wallet credit, restart/retry receipts and finite legacy funding aliases. Record an asserted paced real-Keycloak journey; retain remaining payment/automation gates. [Guide](development/wallet-funding.md) · [Evidence](reports/2026-10-24-wallet-funding.md).

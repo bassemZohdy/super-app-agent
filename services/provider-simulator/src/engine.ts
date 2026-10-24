@@ -74,6 +74,7 @@ export class ProviderEngine {
     const db = this.store, a = actor.accountId, asset = assetsFor(a);
     const now = () => new Date().toISOString();
     if(this.payables) {
+      if(this.provider==='police'&&method==='POST'&&path==='/fine-selections')return ok({payable:this.payables.selectFines(a,body.items)});
       const route=/^\/payables\/([^/]+)\/admissions(?:\/([^/]+)(?:\/(admit|cancel|payments))?)?$/.exec(path);
       if(route){
         const payableId=decodeURIComponent(route[1]),id=route[2],action=route[3];
@@ -212,12 +213,12 @@ export class ProviderEngine {
     if (this.provider === 'police') {
       if (method === 'GET' && path === '/vehicles') return ok({ vehicles: db.list(a, 'vehicle') });
       const summaries=new Map(this.payables!.list(a).map(p=>[p.obligationId,p]));
-      const fines = db.list(a, 'fine').filter(f => summaries.get(f.fineId)?.status === 'UNPAID').map(f=>({...f,payableAmount:summaries.get(f.fineId)!.amountMinor/100,discountAmount:summaries.get(f.fineId)!.discountMinor!/100}));
+      const fines = db.list(a, 'fine').filter(f => summaries.get(f.fineId)?.status === 'UNPAID').map(f=>({...f,payableAmount:summaries.get(f.fineId)!.amountMinor/100,discountAmount:summaries.get(f.fineId)!.discountMinor!/100,payableId:summaries.get(f.fineId)!.id,payableRevision:summaries.get(f.fineId)!.revision,paymentRestricted:summaries.get(f.fineId)!.paymentRestricted}));
       if (method === 'GET' && path === '/fines') return ok({ fines, count: fines.length, totalPayable: major(fines.reduce((sum, f) => sum + minor(f.payableAmount), 0)), totalOriginal: fines.reduce((sum, f) => sum + f.originalAmount, 0), totalDiscount: fines.reduce((sum, f) => sum + f.discountAmount, 0) });
       if (method === 'POST' && path === '/fine-payments') {
         const selected = fines.filter(f => body.fineIds.includes(f.fineId));
         if (selected.length !== body.fineIds.length) fail(404, 'NOT_FOUND', 'Unpaid fines not found.');
-        for(const fine of selected) { const payable=this.payables!.inspect(a,`police:fine:${fine.fineId}`,summaries.get(fine.fineId)!.revision); if(payable.version! >= 1_000_000) fail(409,'VERSION_LIMIT','The obligation reached its demo revision limit.'); }
+        for(const fine of selected) { this.payables!.assertUnreserved(a,`police:fine:${fine.fineId}`);const payable=this.payables!.inspect(a,`police:fine:${fine.fineId}`,summaries.get(fine.fineId)!.revision); if(payable.version! >= 1_000_000) fail(409,'VERSION_LIMIT','The obligation reached its demo revision limit.'); }
         const amount = selected.reduce((sum, f) => sum + minor(f.payableAmount), 0);
         this.proof(proof, 'police', `fines:${[...body.fineIds].sort().join(',')}`, amount);
         for (const fine of selected) db.put(a, 'fine', { ...fine, status: 'PAID', payableVersion:(fine.payableVersion||1)+1,paidAmount:fine.payableAmount, receiptNumber: body.paymentId, paidAt: now() }, fine.fineId);
