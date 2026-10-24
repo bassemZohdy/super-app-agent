@@ -99,6 +99,22 @@ test('provider HTTP endpoints verify signed service roles, ownership, schemas an
   const second=await (await request('/topups',mint(),'POST',body,key)).json(); assert.deepEqual(first,second);
   assert.equal((await request('/topups',mint(),'POST',{...body,amountMinor:51},key)).status,409);
   const forbidden=await fetch(`http://127.0.0.1:${(server.address() as any).port}/v1/accounts/${accountIdFor('bob')}/wallet`,{headers:{Authorization:`Bearer ${mint()}`,'X-User-Subject':'alice'}}); assert.equal(forbidden.status,403);
+  const capture=await (await request('/charges',mint(),'POST',{amountMinor:100,merchant:'dewa',reference:'claim-http-test',source:'wallet'})).json() as any;
+  const paymentId=capture.charge.id,claimPath=`/charges/${paymentId}/settlement/claim`,claimBody={attemptId:'http-source-attempt',reference:'claim-http-test',amountMinor:100},claimKey=randomUUID();
+  const claimant=mint({azp:'provider-dewa-settlement',realm_access:{roles:['payment-settlement:dewa']}});
+  assert.equal((await request(claimPath,mint({azp:'superapp-shell',sub:'alice',realm_access:{roles:['superapp-user']}}),'POST',claimBody)).status,403);
+  assert.equal((await request(claimPath,mint({azp:'provider-settlements',realm_access:{roles:['provider:payments:read']}}),'POST',claimBody)).status,403);
+  const admittedResponse=await fetch(root+claimPath,{method:'POST',headers:{Authorization:`Bearer ${claimant}`,'Content-Type':'application/json','Idempotency-Key':claimKey},body:JSON.stringify(claimBody)});assert.equal(admittedResponse.status,200);const admitted=await admittedResponse.json() as any;
+  const otherClaimant=mint({azp:'provider-du-settlement',realm_access:{roles:['payment-settlement:du']}});
+  assert.equal((await request(claimPath,otherClaimant,'POST',claimBody,claimKey)).status,403);
+  assert.equal((await request('/wallet',claimant)).status,403);
+  assert.equal((await request(`/charges/${paymentId}/refunds`,mint(),'POST',{reason:'race refund'})).status,409);
+  assert.equal((await request(claimPath,claimant,'POST',{...claimBody,amountMinor:101},claimKey)).status,409);
+  const ack={claimId:admitted.claim.claimId,attemptId:claimBody.attemptId,receiptDigest:'a'.repeat(64)};
+  assert.equal((await request(`/charges/${paymentId}/settlement/ack`,claimant,'POST',ack)).status,200);
+  const current=await (await request(claimPath,claimant,'POST',claimBody,claimKey)).json() as any;assert.equal(current.claim.state,'APPLIED');
+  assert.equal((await request(`/charges/${paymentId}/settlement/release`,claimant,'POST',{claimId:ack.claimId,attemptId:ack.attemptId,reason:'NOT_APPLIED'})).status,409);
+
 });
 
 

@@ -53,3 +53,5 @@ npm run check
 ```
 
 The first command uses real local Keycloak, a separate React browser and isolated provider/SQLite state; it requires Keycloak/Redis running, Chrome and free ports 3002/14000–14107. It covers card setup/idempotency, ownership/invalid requests, verified linking, quote amount/source, unchanged funds, disable/default semantics, stale versions, account switching/reload, mobile width and keyboard focus. The extended verifier also checks lifecycle changes and revision-bound settlement against a separate isolated owner, asserting one exact journal debit. The payment-setup owner retains its initial funds. No physical microphone, cloud inference or normal demo database is used. [Executed evidence](../reports/2026-10-24-payment-accounts.md).
+
+The separate signed-owner settlement case now also verifies gateway APPLIED/ACK status, paid-refund/human-release denial, non-application release/refund and a separate du workload. It does not enable stored-review capture. [Settlement guards](settlement-claims.md).

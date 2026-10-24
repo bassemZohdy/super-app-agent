@@ -2,6 +2,9 @@ import { PaymentResourceError } from './payment-resource-uses.ts';
 import { PayableError } from './payables.ts';
 import { PaymentOrderError } from './payment-orders.ts';
 import { IssuerError } from './payment-issuer.ts';
+import { claimantFor,settlementProviders,SettlementError,type SettlementProvider } from './payment-claims.ts';
+import { SettlementClient,type ClaimTransport } from './settlement-client.ts';
+import { ProviderSettlements } from './provider-settlements.ts';
 import { PaymentLedgerError } from './payment-ledger.ts';
 import { verifyBillerReference } from './payment-ownership.ts';
 import { PaymentRegistryError } from './payment-registry.ts';
@@ -19,11 +22,12 @@ import { ProviderEngine, ApiError, type ApiResult } from './engine.ts';
 import { operations, openApi, providerIds, type ProviderId } from './contracts.ts';
 export const callers: Record<ProviderId, string[]> = { rta: ['service-ride','service-catalog','service-wallet'], dewa: ['service-food','service-wallet','service-catalog'], etisalat: ['service-telecom'], du: ['service-telecom'], police: ['service-wallet'], dld: ['service-catalog'], payments: ['service-wallet','service-food','service-ride','service-telecom','provider-settlements'] };
 const canonical = (value: any): any => Array.isArray(value) ? value.map(canonical) : value && typeof value === 'object' ? Object.fromEntries(Object.keys(value).sort().map(k => [k, canonical(value[k])])) : value;
-export function createProviderServer(provider: ProviderId, path: string, options:{authorizationClock?:()=>number}={}) {
+export function createProviderServer(provider: ProviderId, path: string, options:{authorizationClock?:()=>number;settlementTransport?:ClaimTransport}={}) {
   const store = new AccountDatabase(path), engine = new ProviderEngine(provider, store,options);
   const ajv = new Ajv({ strict: false, allErrors: true });
   const routes = operations[provider].map(operation => ({ ...operation, regex: new RegExp(`^${operation.path.replace(/\{\w+\}/g, '[^/]+')}$`), validate: operation.body ? ajv.compile(operation.body) : undefined }));
   const payments = new ProviderClient('provider-settlements', process.env.PROVIDER_SETTLEMENT_SECRET || 'demo-settlements-secret');
+  const settlements=settlementProviders.includes(provider as SettlementProvider)?new ProviderSettlements(store,provider as SettlementProvider,options.settlementTransport||new SettlementClient(provider as SettlementProvider)):undefined;
   const policy = new HttpPolicy();
   const server = http.createServer({ maxHeaderSize: 16384, requestTimeout: 15000, headersTimeout: 10000 }, async (req, res) => {
     const send = (result: ApiResult) => { res.writeHead(result.status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(result.data)); };
@@ -36,12 +40,17 @@ export function createProviderServer(provider: ProviderId, path: string, options
       const roles = claims.realm_access?.roles || [];
       const delegated = claims.azp === 'delegation-broker';
       const interactive = claims.azp === 'superapp-shell' && roles.includes('superapp-user') && !String(claims.preferred_username || '').startsWith('service-account-');
+      const claimRoute=provider==='payments'&&req.method==='POST'&&/^\/v1\/accounts\/[A-Za-z0-9_-]+\/charges\/[^/]+\/settlement\/(claim|ack|release)$/.test(url.pathname);
+      const claimant=claimRoute&&!interactive&&!delegated?claimantFor({azp:claims.azp,realm_access:claims.realm_access}):undefined;
       if (claims.act !== undefined) throw new ApiError(403, 'ACTOR_CHAIN_UNSUPPORTED', 'Caller supplied or unsupported actor chains are not accepted.');
-      if (!delegated && !interactive && (!callers[provider].includes(claims.azp) || !(roles.includes(`provider:${provider}`) || (req.method === 'GET' && roles.includes(`provider:${provider}:read`))))) throw new ApiError(403, 'SERVICE_FORBIDDEN', 'This service is not allowed to use this provider.');
-      if (!delegated && !interactive && (process.env.DELEGATION_ENABLED === 'true' || process.env.NODE_ENV === 'production') && !(claims.azp === 'provider-settlements' && provider === 'payments' && req.method === 'GET' && /^\/v1\/accounts\/[a-zA-Z0-9_-]+\/charges\/[a-zA-Z0-9_-]+$/.test(url.pathname))) throw new ApiError(403, 'USER_TOKEN_REQUIRED', 'Service credentials cannot impersonate a human on this endpoint.');
-      const subject = delegated || interactive ? claims.sub : req.headers['x-user-subject'];
+      if (!delegated && !interactive && !claimant && (!callers[provider].includes(claims.azp) || !(roles.includes(`provider:${provider}`) || (req.method === 'GET' && roles.includes(`provider:${provider}:read`))))) throw new ApiError(403, 'SERVICE_FORBIDDEN', 'This service is not allowed to use this provider.');
+      if (!delegated && !interactive && !claimant && (process.env.DELEGATION_ENABLED === 'true' || process.env.NODE_ENV === 'production') && !(claims.azp === 'provider-settlements' && provider === 'payments' && req.method === 'GET' && /^\/v1\/accounts\/[a-zA-Z0-9_-]+\/charges\/[a-zA-Z0-9_-]+$/.test(url.pathname))) throw new ApiError(403, 'USER_TOKEN_REQUIRED', 'Service credentials cannot impersonate a human on this endpoint.');
+      // The narrow settlement lane derives the owner from existing gateway state; it never trusts a human header or creates an account.
+      const claimAccount=claimant?store.db.prepare('SELECT owner FROM accounts WHERE id=?').get(url.pathname.split('/')[3]):undefined;
+      if(claimant&&!claimAccount)throw new ApiError(404,'ACCOUNT_NOT_FOUND','Settlement account not found.');
+      const subject = claimant?String(claimAccount!.owner):delegated || interactive ? claims.sub : req.headers['x-user-subject'];
       if (typeof subject !== 'string' || !subject || subject.length > 200 || /[\r\n\x00-\x1f]/.test(subject)) throw new ApiError(400, 'ACTOR_REQUIRED', 'A trusted user subject is required.');
-      const accounts = store.accounts(subject);
+      const accounts = claimant?[]:store.accounts(subject);
       if (req.method === 'GET' && url.pathname === '/v1/accounts' && !delegated) return send({ status: 200, data: { success: true, accounts } });
       const match = /^\/v1\/accounts\/([a-zA-Z0-9_-]+)(\/.*)$/.exec(url.pathname);
       if (!match) throw new ApiError(404, 'NOT_FOUND', 'Operation not found.');
@@ -49,6 +58,7 @@ export function createProviderServer(provider: ProviderId, path: string, options
       if (!store.owns(subject, accountId)) throw new ApiError(403, 'ACCOUNT_FORBIDDEN', 'This account does not belong to the user.');
       const operation = routes.find(route => route.method === req.method && route.regex.test(operationPath));
       if (!operation || url.search) throw new ApiError(404, 'NOT_FOUND', 'Operation not found.');
+      if(claimRoute&&!claimant)throw new ApiError(403,'CLAIM_CLIENT_REQUIRED','Only the exact provider settlement workload can change a claim.');
       if(provider==='payments'&&operationPath.startsWith('/payment-orders')&&!interactive)throw new ApiError(403,'INTERACTIVE_REVIEW_REQUIRED','Stored authorization reviews require the signed-in owner. Unattended actors cannot approve or answer challenges.');
       const actor: Actor = { sub: subject, username: subject, name: typeof req.headers['x-user-name'] === 'string' ? Buffer.from(req.headers['x-user-name'], 'base64url').toString('utf8').slice(0, 200) : 'Demo citizen', accountId, requestId: '', authorization: interactive ? req.headers.authorization : undefined };
       let body: any = {};
@@ -61,13 +71,14 @@ export function createProviderServer(provider: ProviderId, path: string, options
         try { await authorizeDelegatedProvider(req.headers.authorization, provider, accountId, req.method || 'GET', operationPath, body); }
         catch { throw new ApiError(403, 'DELEGATION_DENIED', 'The current grant does not permit this exact operation.'); }
       }
-      engine.seed(actor);
-      const key = req.headers['idempotency-key'];
-      const fingerprint = createHash('sha256').update(JSON.stringify([req.method, operationPath, canonical(body)])).digest('hex');
+      if(!claimant)engine.seed(actor);
+      const rawKey=req.headers['idempotency-key'];
+      const key=claimant&&typeof rawKey==='string'?`claim:${claimant}:${rawKey}`:rawKey;
+      const fingerprint = createHash('sha256').update(JSON.stringify([req.method, operationPath, canonical(body),...(claimant?[claimant]:[])])).digest('hex');
       if (req.method === 'POST') {
-        if (typeof key !== 'string' || !/^[\x21-\x7e]{1,200}$/.test(key)) throw new ApiError(400, 'IDEMPOTENCY_REQUIRED', 'Provide an Idempotency-Key of 1 to 200 ASCII characters.');
-        const existing = store.db.prepare('SELECT fingerprint,status,body FROM idempotency WHERE account_id=? AND key=?').get(accountId, key) as any;
-        if (existing) { if (existing.fingerprint !== fingerprint) throw new ApiError(409, 'IDEMPOTENCY_CONFLICT', 'This key was used with a different request.'); return send({ status: existing.status, data: JSON.parse(existing.body) }); }
+        if (typeof rawKey !== 'string' || !/^[\x21-\x7e]{1,200}$/.test(rawKey)) throw new ApiError(400, 'IDEMPOTENCY_REQUIRED', 'Provide an Idempotency-Key of 1 to 200 ASCII characters.');
+        const existing = store.db.prepare('SELECT fingerprint,status,body FROM idempotency WHERE account_id=? AND key=?').get(accountId, key as string) as any;
+        if (existing) { if (existing.fingerprint !== fingerprint) throw new ApiError(409, 'IDEMPOTENCY_CONFLICT', 'This key was used with a different request.');if(!claimant){if(body.paymentId&&settlements)await settlements.retryConfirmation(accountId,body.paymentId);return send({ status: existing.status, data: JSON.parse(existing.body) });} }
       }
       // A delegated write with external payment proof is outside the initial bounded write profile.
       if (delegated && body.paymentId) throw new ApiError(403, 'WRITE_NOT_APPROVED', 'Delegated settlement is not enabled.');
@@ -80,25 +91,31 @@ export function createProviderServer(provider: ProviderId, path: string, options
         payableSnapshot=(await payments.call(targetProvider,actor,'GET',`/payables/${encodeURIComponent(targetId)}`)).payable;
       }
       const proof = body.paymentId ? (await payments.call('payments', actor, 'GET', `/charges/${encodeURIComponent(body.paymentId)}`)).charge : undefined;
+      if(settlements&&req.method==='GET'&&/^\/settlement-attempts\/[^/]+$/.test(operationPath)){
+        const paymentId=operationPath.split('/')[2];const historical=store.get(accountId,'used-payment',paymentId)?(await payments.call('payments',actor,'GET',`/charges/${encodeURIComponent(paymentId)}`)).charge:undefined;
+        return send({status:200,data:{success:true,settlement:await settlements.inspect(actor,paymentId,historical)}});
+      }
+      if(settlements&&proof)return send(await settlements.execute(actor,key as string,fingerprint,proof,claimedProof=>engine.execute(actor,req.method||'POST',operationPath,body,claimedProof,payableSnapshot)));
       const result = store.transaction(() => {
         // Re-check after asynchronous proof retrieval; another request may have committed.
         if (req.method === 'POST') {
           const existing = store.db.prepare('SELECT fingerprint,status,body FROM idempotency WHERE account_id=? AND key=?').get(accountId, key as string) as any;
-          if (existing) { if (existing.fingerprint !== fingerprint) throw new ApiError(409, 'IDEMPOTENCY_CONFLICT', 'This key was used with a different request.'); return { status: existing.status, data: JSON.parse(existing.body) }; }
+          if (existing) { if (existing.fingerprint !== fingerprint) throw new ApiError(409, 'IDEMPOTENCY_CONFLICT', 'This key was used with a different request.');if(!claimant)return { status: existing.status, data: JSON.parse(existing.body) }; }
           if (proof && store.get(accountId, 'used-payment', proof.id)) throw new ApiError(409, 'PAYMENT_ALREADY_USED', 'This payment was already applied.');
         }
-        const result = engine.execute(actor, req.method || 'GET', operationPath, body, proof,payableSnapshot);
+        const action=operationPath.split('/')[4],paymentId=operationPath.split('/')[2];
+        const result:ApiResult=claimant?{status:200,data:{success:true,...(action==='claim'?engine.claims!.claim(accountId,paymentId,claimant,body):action==='ack'?engine.claims!.acknowledge(accountId,paymentId,claimant,body):engine.claims!.release(accountId,paymentId,claimant,body))}}:engine.execute(actor, req.method || 'GET', operationPath, body, proof,payableSnapshot);
         if (req.method === 'POST') {
           if (proof && result.data.success) store.put(accountId, 'used-payment', true, proof.id);
-          store.db.prepare('INSERT INTO idempotency(account_id,key,fingerprint,status,body) VALUES(?,?,?,?,?)').run(accountId, key as string, fingerprint, result.status, JSON.stringify(result.data));
+          store.db.prepare('INSERT INTO idempotency(account_id,key,fingerprint,status,body) VALUES(?,?,?,?,?) ON CONFLICT(account_id,key) DO UPDATE SET status=excluded.status,body=excluded.body').run(accountId, key as string, fingerprint, result.status, JSON.stringify(result.data));
         }
         return result;
       });
       send(result);
     } catch (error) {
-      const status = error instanceof HttpError ? error.status : error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError ? error.status : 503;
+      const status = error instanceof HttpError ? error.status : error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError || error instanceof SettlementError ? error.status : 503;
       res.setHeader('Connection', 'close');
-      send({ status, data: { success: false, code: error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError ? error.code : 'PROVIDER_UNAVAILABLE', error: error instanceof HttpError ? error.message : error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError ? error.message : 'The simulator could not complete this request. Check operation status before retrying a write.' } });
+      send({ status, data: { success: false, code: error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError || error instanceof SettlementError ? error.code : 'PROVIDER_UNAVAILABLE', error: error instanceof HttpError ? error.message : error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError || error instanceof SettlementError ? error.message : 'The simulator could not complete this request. Check operation status before retrying a write.' } });
     }
   });
   return { server, store };

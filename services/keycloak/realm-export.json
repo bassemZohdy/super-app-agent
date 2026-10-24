@@ -54,6 +54,26 @@
       {
         "name": "provider:payments:read",
         "description": "Demo provider grant for payments:read"
+      },
+      {
+        "name": "payment-settlement:rta",
+        "description": "Narrow rta settlement claim/ack/release only; no human impersonation or money capture."
+      },
+      {
+        "name": "payment-settlement:dewa",
+        "description": "Narrow dewa settlement claim/ack/release only; no human impersonation or money capture."
+      },
+      {
+        "name": "payment-settlement:etisalat",
+        "description": "Narrow etisalat settlement claim/ack/release only; no human impersonation or money capture."
+      },
+      {
+        "name": "payment-settlement:du",
+        "description": "Narrow du settlement claim/ack/release only; no human impersonation or money capture."
+      },
+      {
+        "name": "payment-settlement:police",
+        "description": "Narrow police settlement claim/ack/release only; no human impersonation or money capture."
       }
     ]
   },
@@ -388,6 +408,186 @@
       "standardFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false
+    },
+    {
+      "clientId": "provider-rta-settlement",
+      "name": "rta demo settlement workload",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "demo-rta-settlement-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": true,
+      "protocolMappers": [
+        {
+          "name": "provider-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "provider-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        },
+        {
+          "name": "demo-verifier-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "cityside-verifier",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "provider-dewa-settlement",
+      "name": "dewa demo settlement workload",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "demo-dewa-settlement-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": true,
+      "protocolMappers": [
+        {
+          "name": "provider-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "provider-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        },
+        {
+          "name": "demo-verifier-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "cityside-verifier",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "provider-etisalat-settlement",
+      "name": "etisalat demo settlement workload",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "demo-etisalat-settlement-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": true,
+      "protocolMappers": [
+        {
+          "name": "provider-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "provider-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        },
+        {
+          "name": "demo-verifier-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "cityside-verifier",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "provider-du-settlement",
+      "name": "du demo settlement workload",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "demo-du-settlement-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": true,
+      "protocolMappers": [
+        {
+          "name": "provider-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "provider-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        },
+        {
+          "name": "demo-verifier-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "cityside-verifier",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "provider-police-settlement",
+      "name": "police demo settlement workload",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "demo-police-settlement-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": true,
+      "protocolMappers": [
+        {
+          "name": "provider-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "provider-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        },
+        {
+          "name": "demo-verifier-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "cityside-verifier",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
     }
   ],
   "users": [
@@ -506,6 +706,46 @@
       "serviceAccountClientId": "provider-settlements",
       "realmRoles": [
         "provider:payments:read"
+      ]
+    },
+    {
+      "username": "service-account-provider-rta-settlement",
+      "enabled": true,
+      "serviceAccountClientId": "provider-rta-settlement",
+      "realmRoles": [
+        "payment-settlement:rta"
+      ]
+    },
+    {
+      "username": "service-account-provider-dewa-settlement",
+      "enabled": true,
+      "serviceAccountClientId": "provider-dewa-settlement",
+      "realmRoles": [
+        "payment-settlement:dewa"
+      ]
+    },
+    {
+      "username": "service-account-provider-etisalat-settlement",
+      "enabled": true,
+      "serviceAccountClientId": "provider-etisalat-settlement",
+      "realmRoles": [
+        "payment-settlement:etisalat"
+      ]
+    },
+    {
+      "username": "service-account-provider-du-settlement",
+      "enabled": true,
+      "serviceAccountClientId": "provider-du-settlement",
+      "realmRoles": [
+        "payment-settlement:du"
+      ]
+    },
+    {
+      "username": "service-account-provider-police-settlement",
+      "enabled": true,
+      "serviceAccountClientId": "provider-police-settlement",
+      "realmRoles": [
+        "payment-settlement:police"
       ]
     }
   ]

@@ -92,6 +92,7 @@ services:
       PORT: '4101'
       PROVIDER_DB_PATH: /data/rta.sqlite
       PROVIDER_SETTLEMENT_SECRET: demo-settlements-secret
+      PROVIDER_RTA_CLAIM_SECRET: ${PROVIDER_RTA_CLAIM_SECRET:-demo-rta-settlement-secret}
     ports: ['127.0.0.1:4101:4101']
     volumes:
       - .:/app:ro
@@ -106,6 +107,7 @@ services:
       PORT: '4102'
       PROVIDER_DB_PATH: /data/dewa.sqlite
       PROVIDER_SETTLEMENT_SECRET: demo-settlements-secret
+      PROVIDER_DEWA_CLAIM_SECRET: ${PROVIDER_DEWA_CLAIM_SECRET:-demo-dewa-settlement-secret}
     ports: ['127.0.0.1:4102:4102']
     volumes:
       - .:/app:ro
@@ -120,6 +122,7 @@ services:
       PORT: '4103'
       PROVIDER_DB_PATH: /data/etisalat.sqlite
       PROVIDER_SETTLEMENT_SECRET: demo-settlements-secret
+      PROVIDER_ETISALAT_CLAIM_SECRET: ${PROVIDER_ETISALAT_CLAIM_SECRET:-demo-etisalat-settlement-secret}
     ports: ['127.0.0.1:4103:4103']
     volumes:
       - .:/app:ro
@@ -134,6 +137,7 @@ services:
       PORT: '4104'
       PROVIDER_DB_PATH: /data/du.sqlite
       PROVIDER_SETTLEMENT_SECRET: demo-settlements-secret
+      PROVIDER_DU_CLAIM_SECRET: ${PROVIDER_DU_CLAIM_SECRET:-demo-du-settlement-secret}
     ports: ['127.0.0.1:4104:4104']
     volumes:
       - .:/app:ro
@@ -148,6 +152,7 @@ services:
       PORT: '4105'
       PROVIDER_DB_PATH: /data/police.sqlite
       PROVIDER_SETTLEMENT_SECRET: demo-settlements-secret
+      PROVIDER_POLICE_CLAIM_SECRET: ${PROVIDER_POLICE_CLAIM_SECRET:-demo-police-settlement-secret}
     ports: ['127.0.0.1:4105:4105']
     volumes:
       - .:/app:ro
