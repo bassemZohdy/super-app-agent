@@ -23,7 +23,7 @@ Counts come from task IDs in [TODO.md](../TODO.md); task groups overlap and have
 | Group | Total | Checked | Open |
 | --- | ---: | ---: | ---: |
 | P0 platform/security | 14 | 3 | 11 |
-| P1 platform/functionality | 16 | 3 | 13 |
+| P1 platform/functionality | 16 | 4 | 12 |
 | P2 engineering/experience/operations | 6 | 1 | 5 |
 | OBO identity-delegation plan | 36 | 11 | 25 |
 | PAY payment extension | 21 | 20 | 1 |

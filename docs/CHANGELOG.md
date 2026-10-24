@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 24 October 2026 — direct manual route approval evidence (P1-11)
+
+Add regression tests proving that direct manual wallet routes run the same approval-gated adapters as the concierge: an unoffered top-up amount is rejected and the confirmed result is returned without a model call. Mark P1-11 complete for the integrated React scope; the legacy ride mini-app is unmounted and other shells remain chat-first by design.
+
 ## 24 October 2026 — Angular gateway build setting
 
 Move the Angular shell's gateway URL from an unwired `NG_APP_GATEWAY_URL` lookup into `apps/shell-angular/src/environments/environment.ts`, a single explicit build-time value. Guarded by `services/test/angular-gateway-config.test.ts`; production build and gate verified. An environment-variable-driven build setting remains open under P2-06.
