@@ -7,8 +7,8 @@ export function PaymentEventUpdates({events,busy,inspect}:Props){
     <p>Gateway notifications pending: {events.pending} · Delivery needs attention: {events.failed} · Received notifications: {events.received}</p>
     {!events.updates.length&&<p>No current payment notifications. Existing history is preserved without invented events.</p>}
     {events.updates.map(u=><article key={u.id} aria-label={`Payment update ${u.id}`}><strong>{u.producer==='payments'?'Payment gateway update':`${u.producer.toUpperCase()} provider update`}</strong>
-      <p>Notification: {u.observedState} · Current {u.subjectKind.toLowerCase()} state: {u.currentState}</p><p>Original reference {u.subjectId}</p>
-      {u.needsInspection?<><p>The provider sent an update. Inspect the original operation before treating its outcome as confirmed.</p><button disabled={busy} onClick={()=>inspect(u.subjectKind,u.subjectId)}>Inspect or resume original {u.subjectKind==='REFUND'?'refund':'payment'}</button></>:<p>Read the original order and receipt below for its current outcome.</p>}
+      <p>Notification: {u.observedState} · Current {u.subjectKind==='LEGACY_PAYMENT'?'legacy capture':u.subjectKind.toLowerCase()} state: {u.currentState}</p><p>Original reference {u.subjectId}</p>
+      {u.needsInspection?<><p>The provider sent an update. Inspect the original operation before treating its outcome as confirmed.</p><button disabled={busy} onClick={()=>inspect(u.subjectKind,u.subjectId)}>{u.subjectKind==='LEGACY_PAYMENT'?'Inspect original capture':`Inspect or resume original ${u.subjectKind==='REFUND'?'refund':'payment'}`}</button></>:u.subjectKind==='LEGACY_PAYMENT'?<p>Read the original capture/provider status; this notification is not a new service receipt.</p>:<p>Read the original order and receipt below for its current outcome.</p>}
     </article>)}
   </section>;
 }

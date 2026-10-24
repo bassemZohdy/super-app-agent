@@ -80,6 +80,7 @@ export class ProviderEngine {
     if (!proof || proof.status !== 'CAPTURED' || proof.refunded || proof.merchant !== merchant || proof.reference !== reference || proof.amountMinor !== amountMinor) fail(409, 'INVALID_PAYMENT_PROOF', 'A matching captured payment is required.');
   }
   execute(actor: Actor, method: string, path: string, body: any, proof?: any, payableSnapshot?:import('../../../packages/protocol-core/src/payments.ts').Payable,gatewayOrder?:import('../../../packages/protocol-core/src/payments.ts').PaymentAuthorizationReview,refundReview?:import('../../../packages/protocol-core/src/payments.ts').PaymentRefund): ApiResult {
+    if(this.provider==='payments'&&method==='POST'&&(path==='/charges'||/^\/charges\/[^/]+\/refunds$/.test(path))&&!this.store.db.isTransaction)return this.store.transaction(()=>this.execute(actor,method,path,body,proof,payableSnapshot,gatewayOrder,refundReview));
     const db = this.store, a = actor.accountId, asset = assetsFor(a);
     const now = () => new Date().toISOString();
     if(this.reversals&&/^\/payment-reversals\/[^/]+$/.test(path)){const id=path.split('/')[2];if(method==='GET')return ok({reversal:this.reversals.get(a,id)});if(method==='POST'){if(refundReview?.id!==id)fail(409,'REVERSAL_MISMATCH','The gateway refund identity must match this route.');return ok({reversal:this.reversals.apply(a,refundReview!)});}}
@@ -151,12 +152,14 @@ export class ProviderEngine {
         const declined = body.source === 'demo_declined' || (body.source === 'wallet' && wallet.availableMinor < body.amountMinor);
         const charge = { id, accountId: a, amountMinor: body.amountMinor, merchant: body.merchant, reference: body.reference, source: body.source, status: declined ? 'DECLINED' : 'CAPTURED', currency: 'AED', createdAt: now(), refunded: false };
         db.put(a, 'charge', charge, id);
+        if(declined)this.store.events!.emitLegacyCapture(charge);
         if (declined) return { status: 402, data: { success: false, code: 'PAYMENT_DECLINED', error: 'The simulated payment was declined. Check the wallet balance or demo funding source.' } };
         const next = wallet.balanceMinor + (body.source === 'wallet' ? -body.amountMinor : 0);
         if (!Number.isSafeInteger(next) || next > 100_000_000) fail(400, 'BALANCE_LIMIT', 'Demo wallet balance limit exceeded.');
         this.ledger!.record(a, 'PAYMENT', `charge:${id}`, body.amountMinor, body.source === 'wallet' ? 'wallet' : 'external');
         const transaction = { id, type: 'PAYMENT', amount: major(body.amountMinor), currency: 'AED', purpose: body.reference, status: 'SETTLED', timestamp: Date.now(), referenceId: body.reference };
         db.put(a, 'transaction', transaction, id);
+        this.store.events!.emitLegacyCapture(charge);
         return ok({ charge, transaction, remainingBalance: major(next) });
       }
       if (method === 'POST' && /^\/charges\/[^/]+\/refunds$/.test(path)) {
@@ -172,6 +175,7 @@ export class ProviderEngine {
         db.put(a, 'charge', charge, charge.id);
         const refund = { id: randomUUID(), chargeId: charge.id, amountMinor: charge.amountMinor, currency: 'AED', status: 'REFUNDED', reason: body.reason };
         db.put(a, 'transaction', { id: refund.id, type: 'REFUND', amount: major(charge.amountMinor), currency: 'AED', purpose: body.reason, status: 'SETTLED', timestamp: Date.now() }, refund.id);
+        this.store.events!.emitLegacyCapture(charge);
         return ok({ refund, remainingBalance: major(next) });
       }
     }

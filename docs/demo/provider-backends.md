@@ -1,6 +1,6 @@
 # Provider backend demonstration
 
-This is a local integration environment, not an integration with the named real entities. Producer: the provider-simulator package. Consumers: the application microservices. Contract version: 2.0.0 for DLD, 2.3.0 for RTA status/recharge, 2.5.0 for DEWA, 2.6.0 for telecom/Police, and 2.13.0 for payment setup/authorization/capture/settlement claims; OpenAPI 3.1. This demo security migration changes authentication while retaining `/v1` resource schemas. Sign in again for the provider audience; service-header impersonation clients must migrate. Future breaking resource changes require explicit versioning and migration.
+This is a local integration environment, not an integration with the named real entities. Producer: the provider-simulator package. Consumers: the application microservices. Contract version: 2.0.0 for DLD, 2.3.0 for RTA status/recharge, 2.5.0 for DEWA, 2.6.0 for telecom/Police, and 2.14.0 for payment setup/authorization/capture/settlement claims; OpenAPI 3.1. This demo security migration changes authentication while retaining `/v1` resource schemas. Sign in again for the provider audience; service-header impersonation clients must migrate. Future breaking resource changes require explicit versioning and migration.
 
 ## Service and account boundaries
 
@@ -119,3 +119,5 @@ DEWA/Etisalat/du service payments now use wallet-funded stored orders and the sa
 [Signed financial status events](../development/payment-events.md) append with stored order/source transitions and arrive as owned inspection hints. Callbacks never authorize funds or replace authoritative provider lookup. SIM-03 now supplies named issuer scenarios; legacy event-path qualification keeps PAY-18 in progress.
 
 [Isolated issuer scenarios](../development/issuer-scenarios.md) add operator-bound named outcomes and `AUTHORIZATION_PENDING`. Pending card capacity cannot capture/credit or dispatch later group lines; the original real-time deadline and separate customer execution remain enforced. Normal providers expose no run controls.
+
+Legacy raw captures/declines/refunds and retained parking activation/extension/non-application now publish transactional signed events alongside v1 stored financial paths. The gateway accepts bounded v1/v2 callbacks as status hints. Owner-only capture inspection may confirm an existing provider acknowledgement; it cannot create a new meter, capture or refund. [Events and rollout](../development/payment-events.md).

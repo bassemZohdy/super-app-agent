@@ -1,4 +1,5 @@
 import { PaymentEventUpdates } from './PaymentEventUpdates';
+import type { LegacyPaymentInspection } from '../../../packages/protocol-core/src/payment-events.ts';
 import { PaymentRefundsPanel } from './PaymentRefundsPanel';
 import { CheckoutGroupsPanel } from './CheckoutGroupsPanel';
 import { RechargePanel } from './RechargePanel';
@@ -13,14 +14,15 @@ export function PaymentAccountsPanel({ gateway, accountId, getToken, onClose }: 
   const [source, setSource] = useState(''), [payable, setPayable] = useState('');
   const [selectedFines,setSelectedFines]=useState<string[]>([]);
   const [preview, setPreview] = useState<PaymentPreview>();
+  const [legacyInspection,setLegacyInspection]=useState<LegacyPaymentInspection>();
   const alive = useRef(true);
   const generation = useRef(0), loaded = useRef(false);
   const controller = useRef<AbortController>();
   const heading = useRef<HTMLHeadingElement>(null);
-  async function api(path: string, input?: Record<string, unknown>, signal = controller.current?.signal) {
+  async function api(path: string, input?: Record<string, unknown>, signal = controller.current?.signal, query:Record<string,string>={}) {
     const token = await getToken();
     if (signal?.aborted) throw new DOMException('Request cancelled', 'AbortError');
-    const response = await fetch(`${gateway}/api/payments/${path}${input ? '' : `?accountId=${encodeURIComponent(accountId)}`}`, {
+    const response = await fetch(`${gateway}/api/payments/${path}${input ? '' : `?${new URLSearchParams({accountId,...query})}`}`, {
       method: input ? 'POST' : 'GET', signal,
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       ...(input ? { body: JSON.stringify({ ...input, accountId }) } : {}),
@@ -104,7 +106,8 @@ export function PaymentAccountsPanel({ gateway, accountId, getToken, onClose }: 
           {!data.billingAccounts.some(b => b.status === 'ACTIVE') && <p>No biller accounts linked yet.</p>}
         </section>
       </div>
-      <PaymentEventUpdates events={data.events} busy={busy} inspect={(kind,id)=>void work(async()=>{await mutate(kind==='REFUND'?'refunds/recover':'orders/recover',{orderId:id});setNotice('Original operation inspected using current payment/provider state. Review its order and receipt below.');})} />
+      <PaymentEventUpdates events={data.events} busy={busy} inspect={(kind,id)=>void work(async()=>{if(kind==='LEGACY_PAYMENT'){const result=await api('legacy-status',undefined,controller.current?.signal,{paymentId:id});if(alive.current)setLegacyInspection(result.inspection);setNotice('Original capture and provider attempt inspected. No new charge, refund or service effect requested.');}else{await mutate(kind==='REFUND'?'refunds/recover':'orders/recover',{orderId:id});setNotice('Original operation inspected using current payment/provider state. Review its order and receipt below.');}})} />
+      {legacyInspection&&<section aria-label="Original capture inspection" className="payment-review"><h3>Original capture inspection</h3><p>{legacyInspection.merchant.toUpperCase()} · {formatAED(legacyInspection.amountMinor)} · Funding {legacyInspection.source}</p><p>Payment {legacyInspection.paymentId} · Reference {legacyInspection.reference}</p><p>Current capture state: {legacyInspection.state}</p><p>Gateway claim: {legacyInspection.gatewayClaim} · Provider attempt: {legacyInspection.sourceState} · Gateway confirmation: {legacyInspection.gatewayConfirmed?'confirmed':'not confirmed'}</p><p>These are current original-operation reads. They do not create a payment or a new service receipt.</p></section>}
       <WalletFundingPanel methods={data.methods} orders={data.fundingOrders||[]} busy={busy}
         create={input=>void work(async()=>{await mutate('wallet-funding-orders',input);setNotice('Wallet top-up review saved. Approve its exact source and amount before adding funds.');})}
         act={(order,action,extra={})=>void work(async()=>{const result=await mutate(`wallet-funding-orders/${action}`,{orderId:order.id,expectedVersion:order.version,...(action==='cancel'?{}:{approvalDigest:order.approvalDigest}),...extra});setNotice(result.order.state==='SETTLED'?'Card captured and wallet credited once.':result.order.state==='FAILED'?`Top-up stopped: ${result.order.failureCode}. No wallet credit.`:result.order.state==='CANCELLED'?'Wallet top-up cancelled. No funds added.':result.order.state==='AUTHORIZATION_PENDING'?'Waiting for the simulated issuer decision; no wallet credit yet.':result.order.state==='REQUIRES_ACTION'?'Approve or reject this exact wallet top-up challenge.':'Card capacity reserved. Use Add to complete the top-up.');})} />

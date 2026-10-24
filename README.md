@@ -117,7 +117,7 @@ Open **Payment accounts** in React to save synthetic card presets, link provider
 
 Current wallet payments now append balanced journal entries, with one-time legacy balance migration and checked posted/held/available funds. [Journal and recovery guide](docs/development/payment-ledger.md) · [Live migration evidence](docs/reports/2026-10-24-payment-ledger.md).
 
-The [payment backlog](TODO.md#payment-accounts-and-automation-demo--planned-backlog) tracks 50 tasks: 19 slices delivered and 31 open. The remaining work covers automatic-caller reservation qualification, asynchronous events and consolidated recovery, bounded autopay/automatic services and deterministic clock/failure simulation. [Full design](docs/architecture/payment-automation-demo.md).
+The [payment backlog](TODO.md#payment-accounts-and-automation-demo--planned-backlog) tracks 50 tasks: 20 slices delivered and 30 open. The remaining work covers automatic-caller reservation qualification, consolidated recovery, bounded autopay/automatic services and deterministic clock/failure simulation. [Full design](docs/architecture/payment-automation-demo.md).
 
 Use `npm run simulator:verify` to try the persisted preview-only business clock across separate processes. It emits descriptive due events and resets its isolated run without touching provider funds. [Commands and limits](docs/development/simulator.md) · [Lifecycle/scenario evidence](docs/reports/2026-10-24-lifecycle-simulator.md). Automatic execution and its scenario controls remain in the backlog.
 
@@ -148,3 +148,5 @@ License: MIT.
 [Finite payment/service consent](docs/development/payment-mandates.md) now records six exact policy families with explicit owner approval, immutable versions and guarded lifecycle references. `npm run demo:verify:mandates` proves signed ownership/restart and zero consent-time money effects. Automatic execution remains disabled pending the worker and per-execution authority tasks.
 
 [Conversational payment reviews](docs/development/payment-surfaces.md) now select wallet/card funding and separate exact authorization, challenge and payment. Header cancellation releases original holds; reload and lost responses retain the original payment. `demo:verify:payment-surfaces` validates the signed flow; [paced recording](docs/recordings/payment-surfaces/index.html).
+
+[Signed payment events](docs/development/payment-events.md) now cover retained raw capture/refund and parking activation/extension alongside stored payment paths. Owner-only **Inspect original capture** re-reads existing provider status; callbacks never settle claims or create funds. [Paced legacy/parking recording](docs/recordings/legacy-payment-events/index.html).

@@ -21,7 +21,7 @@ The panel scrolls independently, stacks on small screens and returns focus to it
 
 ## Current APIs
 
-Core paths use the authenticated signed owner. GET requires `accountId` as a query parameter; POST includes it in JSON. Provider paths are under `/v1/accounts/{accountId}` and independently verify that owner. New provider OpenAPI is **2.13.0**, additive to the existing `/v1` financial routes.
+Core paths use the authenticated signed owner. GET requires `accountId` as a query parameter; POST includes it in JSON. Provider paths are under `/v1/accounts/{accountId}` and independently verify that owner. New provider OpenAPI is **2.14.0**, additive to the existing `/v1` financial routes.
 
 | Core route | Provider route / behavior |
 | --- | --- |

@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { inspectLegacyPayment } from './legacy-payment-status.ts';
 import { ProviderClient, UpstreamError } from '../../../packages/backend-kit/src/provider-client.ts';
 import type { Actor } from '../../../packages/backend-kit/src/context.ts';
 import { PAYMENT_CONTRACT_VERSION, MAX_PAYMENT_MINOR, type BillerCandidate, type Payable, type PaymentPreview, type PaymentOverview } from '../../../packages/protocol-core/src/payments.ts';
@@ -42,6 +43,7 @@ export async function handlePaymentAccounts(actor: Actor, method: string, path: 
   if (process.env.PROVIDER_INTEGRATION !== 'true') return { status: 503, data: { success: false, code: 'INTEGRATED_DEMO_REQUIRED', error: 'Payment accounts require the provider-backed demo.' } };
   try {
     if (method === 'GET' && path === '/api/payments/overview') return { status: 200, data: { success: true, ...await paymentOverview(actor) } };
+    if(method==='GET'&&path==='/api/payments/legacy-status')return {status:200,data:{success:true,inspection:await inspectLegacyPayment(actor,body.paymentId,client)}};
     if(method==='GET'&&path==='/api/payments/mandates')return {status:200,data:await client.call('payments',actor,'GET','/payment-mandates')};
     if(method==='GET'&&path==='/api/payments/mandates/history')return {status:200,data:await client.call('payments',actor,'GET',`/payment-mandates/${encodeURIComponent(body.mandateId)}/history`)};
     if(method==='POST'&&path==='/api/payments/mandates'){const {accountId:_account,requestKey,...input}=body;return {status:200,data:await client.call('payments',actor,'POST','/payment-mandates',input,`mandate:${requestKey}`)};}

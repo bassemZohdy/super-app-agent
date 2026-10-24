@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 24 October 2026 — complete retained payment-event coverage
+
+Deliver PAY-18 for current manual flows: retain v1 stored events, add explicit v2 legacy capture/refund and parking application/release events, and bind callbacks to original captures/claims. Add owned existing-attempt inspection and signed restart/duplicate/forgery/cross-path qualification. Notifications remain non-authoritative for money effects. [Guide](development/payment-events.md) · [Evidence](reports/2026-10-24-legacy-payment-events.md).
+
 ## 24 October 2026 — explicit conversational payment funding
 
 Deliver PAY-07 with source choice, immutable stored review, separate authorization/challenge/pay and original-order cancellation/recovery for manual/conversational bills, fines, wallet reload and civic checkout. Fix service-URL reload replacing restored reviews and challenged-group continuation replaying earlier progress. Update asserted journeys and add a paced signed browser matrix. [Guide](development/payment-surfaces.md) · [Evidence](reports/2026-10-24-payment-surfaces.md).

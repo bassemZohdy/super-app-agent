@@ -4,10 +4,11 @@ Evidence spans the `283521a` integrated baseline, payment setup `65fec3c`, journ
 
 | Evidence | Verified scope | Interpretation |
 | --- | --- | --- |
+| [Retained signed event qualification](2026-10-24-legacy-payment-events.md) | 330 tests, 18 builds; legacy parking/restart/inspection and mixed stored financial callback HTTP | PAY-18 delivered for current manual paths; recovery workbench, operator fault controls and automation/QA gates remain open |
 | [Conversational funding reviews](2026-10-24-payment-surfaces.md) | 317 tests, 18 builds, signed explicit review/challenge/restart/recovery and updated twelve journeys | PAY-07 delivered; automation admission and remaining manual recovery/simulator/QA gates remain open |
 | [Finite mandate consent](2026-10-24-payment-mandates.md) | 306 tests, 18 builds, six signed policy families and actual provider restart | AUTO-01 delivered; no automatic execution, editor, budget reservation or scheduler |
 | [Isolated issuer scenarios](2026-10-24-issuer-scenarios.md) | 292 tests, 18 builds, eight operator-configured signed browser outcomes and pending restart | SIM-03 delivered; general controls/failpoints and remaining PAY-18 paths stay open |
-| [Signed financial status events](2026-10-24-payment-events.md) | 278 tests, 18 builds, actual callback/lost-response recovery and terminal-reversal browser | PAY-18 infrastructure evidence; the later issuer report supplies SIM-03 while retained-path qualification remains open |
+| [Signed financial status events](2026-10-24-payment-events.md) | 278 tests, 18 builds, actual callback/lost-response recovery and terminal-reversal browser | Initial PAY-18 infrastructure evidence; the later retained-path report completes current manual-path coverage |
 | [Original-source refunds](2026-10-24-payment-refunds.md) | 264 tests, 18 builds; source/issuer/journal reversal and paced UI scenarios | PAY-17 delivered; events, consolidated recovery, statements and automatic services retain their gates |
 | [Grouped checkout](2026-10-24-checkout-groups.md) | 245 tests, 18 builds, three paced real-Keycloak group scenarios | PAY-16 evidence; the later refund report adds PAY-17, while events, automation and shell parity retain their separate gates |
 | [Wallet/card provider recharges](2026-10-24-provider-recharges.md) | 231 tests, 18 builds and six real-Keycloak paced recharge journeys | PAY-15 evidence; the later grouped-checkout report adds PAY-16, while refunds and automation remain open |

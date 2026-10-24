@@ -60,7 +60,8 @@ export async function startEnvironment(options:{authorizationClock?:()=>number;i
     await rm(dir, { recursive: true, force: true });
   };
   try {
-    const lostSettlementResponses=new Set<string>();
+    const lostSettlementResponses=new Set<string>(),heldAcknowledgements=new Set<string>();
+    const {SettlementClient}=await import('../../services/provider-simulator/src/settlement-client.ts');
     const { ProviderClient,UpstreamError }=await import('../../packages/backend-kit/src/provider-client.ts');
     const paymentClient=new ProviderClient('provider-settlements',secret('provider-settlements')),normalPaymentCall=paymentClient.call.bind(paymentClient);
     paymentClient.call=async(...args:Parameters<typeof normalPaymentCall>)=>{const result=await normalPaymentCall(...args);if(args[2]==='POST'&&args[3].endsWith('/payments')&&lostSettlementResponses.delete(args[0]))throw new UpstreamError(503,'PROVIDER_OUTCOME_UNKNOWN','Isolated test lost the response after actual source commit.');return result;};
@@ -71,7 +72,9 @@ export async function startEnvironment(options:{authorizationClock?:()=>number;i
     let paymentInstance:ReturnType<typeof createProviderServer>|undefined;
 
     for (const [index, name] of providerIds.entries()) {
-      const provider = createProviderServer(name, join(dir, `${name}.sqlite`),name==='payments'?{authorizationClock:options.authorizationClock,paymentClient,issuerScenario}:{});
+      const settlementTransport=name!=='payments'&&name!=='dld'?new SettlementClient(name):undefined;
+      if(settlementTransport){const send=settlementTransport.call.bind(settlementTransport);settlementTransport.call=async(...args:Parameters<typeof send>)=>{if(args[2]==='ack'&&heldAcknowledgements.has(name))throw new Error('Isolated test holds original provider acknowledgement.');return send(...args);};}
+      const provider = createProviderServer(name, join(dir, `${name}.sqlite`),name==='payments'?{authorizationClock:options.authorizationClock,paymentClient,issuerScenario}:{settlementTransport});
       providerStores.set(name, provider.store);if(name==='payments')paymentInstance=provider;
       databases.push(provider.store.db); await listen(provider.server, corePort + 101 + index);
     }
@@ -110,7 +113,7 @@ export async function startEnvironment(options:{authorizationClock?:()=>number;i
       assert.ok(paymentInstance);const old=paymentInstance;await new Promise<void>(done=>{old.server.closeAllConnections();old.server.close(()=>done());});old.store.close();servers.splice(servers.indexOf(old.server),1);databases.splice(databases.indexOf(old.store.db),1);
       const next=createProviderServer('payments',join(dir,'payments.sqlite'),{authorizationClock:options.authorizationClock,paymentClient,issuerScenario});paymentInstance=next;providerStores.set('payments',next.store);databases.push(next.store.db);await listen(next.server,corePort+107);
     };
-    return { appUrl, coreUrl, corePort, cleanup,issuerRunId:issuerScenario?.runId,restartPayments,paymentEventRecords:(provider:string,account:string)=>providerStores.get(provider)!.db.prepare('SELECT body FROM payment_event_outbox WHERE account_id=? ORDER BY rowid').all(account).map(row=>JSON.parse(String(row.body)) as import('../../packages/protocol-core/src/payment-events.ts').PaymentEvent),loseNextSettlementResponse:(provider:string)=>{assert.ok(['dewa','etisalat','du','police','rta'].includes(provider));lostSettlementResponses.add(provider);},providerState: (provider: string, account: string, kind: string) => providerStores.get(provider)?.get(account, kind),
+    return { appUrl, coreUrl, corePort, cleanup,issuerRunId:issuerScenario?.runId,restartPayments,holdLegacyAcknowledgement:(provider:string,hold:boolean)=>{assert.ok(['rta','dewa','etisalat','du','police'].includes(provider));if(hold)heldAcknowledgements.add(provider);else heldAcknowledgements.delete(provider);},receivedPaymentEvents:(account:string)=>providerStores.get('payments')!.db.prepare('SELECT id,disposition FROM payment_event_inbox WHERE account_id=? ORDER BY rowid').all(account).map(r=>({id:String(r.id),disposition:String(r.disposition)})),paymentEventRecords:(provider:string,account:string)=>providerStores.get(provider)!.db.prepare('SELECT body FROM payment_event_outbox WHERE account_id=? ORDER BY rowid').all(account).map(row=>JSON.parse(String(row.body)) as import('../../packages/protocol-core/src/payment-events.ts').PaymentEvent),loseNextSettlementResponse:(provider:string)=>{assert.ok(['dewa','etisalat','du','police','rta'].includes(provider));lostSettlementResponses.add(provider);},providerState: (provider: string, account: string, kind: string) => providerStores.get(provider)?.get(account, kind),
       // Trusted test fixture only: no HTTP route can create/release lifecycle locks.
       bindPaymentUse: (account: string, binding: Parameters<InstanceType<typeof PaymentResourceUses>['bind']>[1]) => {
         const uses = new PaymentResourceUses(providerStores.get('payments')!); uses.bind(account,binding);
