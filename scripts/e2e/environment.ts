@@ -6,7 +6,7 @@ import { mkdtemp, mkdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, extname } from 'node:path';
 
-export async function startEnvironment() {
+export async function startEnvironment(options:{authorizationClock?:()=>number}={}) {
   const appPort = Number(process.env.E2E_APP_PORT || 3002);
   const corePort = Number(process.env.E2E_CORE_PORT || 14000);
   assert.ok([3000, 3001, 3002].includes(appPort), 'Use a free seeded Keycloak redirect port: 3000, 3001 or 3002');
@@ -62,7 +62,7 @@ export async function startEnvironment() {
     const { createProviderServer } = await import('../../services/provider-simulator/src/index.ts');
     const { providerIds } = await import('../../services/provider-simulator/src/contracts.ts');
     for (const [index, name] of providerIds.entries()) {
-      const provider = createProviderServer(name, join(dir, `${name}.sqlite`));
+      const provider = createProviderServer(name, join(dir, `${name}.sqlite`),name==='payments'?options:{});
       providerStores.set(name, provider.store);
       databases.push(provider.store.db); await listen(provider.server, corePort + 101 + index);
     }

@@ -6,10 +6,10 @@ const client = new ProviderClient('service-wallet', process.env.SERVICE_WALLET_C
 export const paymentDigest = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 export async function paymentOverview(actor: Actor, source = client): Promise<PaymentOverview> {
   const read = (provider: string, path: string) => source.call(provider, actor, 'GET', path);
-  const [methods, links, wallet, dewa, dewaBills, etisalat, etisalatBills, du, duBills, salik, fines, etisalatPrepaid, duPrepaid, vehicles] = await Promise.all([
+  const [methods, links, wallet, dewa, dewaBills, etisalat, etisalatBills, du, duBills, salik, fines, etisalatPrepaid, duPrepaid, vehicles, orders] = await Promise.all([
     read('payments','/payment-methods'), read('payments','/billing-accounts'), read('payments','/wallet'),
     read('dewa','/consumption'), read('dewa','/payables'), read('etisalat','/subscriptions'), read('etisalat','/payables'),
-    read('du','/subscriptions'), read('du','/payables'), read('rta','/salik'), read('police','/payables'), read('etisalat','/prepaid'), read('du','/prepaid'), read('police','/vehicles'),
+    read('du','/subscriptions'), read('du','/payables'), read('rta','/salik'), read('police','/payables'), read('etisalat','/prepaid'), read('du','/prepaid'), read('police','/vehicles'), read('payments','/payment-orders'),
   ]);
   const candidates: BillerCandidate[] = [{ provider: 'dewa', reference: dewa.account.accountNumber, label: `DEWA · ${dewa.account.accountNumber}` }, { provider: 'rta', reference: salik.tagNumber, label: `Salik · ${salik.tagNumber}` }];
   for (const [provider, data] of [['etisalat', etisalat], ['du', du]] as const) for (const subscription of data.subscriptions) {
@@ -19,7 +19,7 @@ export async function paymentOverview(actor: Actor, source = client): Promise<Pa
   for (const vehicle of vehicles.vehicles) if(vehicle.status === 'ACTIVE') candidates.push({provider:'police',reference:vehicle.plateNumber,label:`Traffic fines · ${vehicle.plateNumber}`});
   const payables: Payable[] = [...dewaBills.payables,...etisalatBills.payables,...duBills.payables,...fines.payables];
   return { contractVersion: PAYMENT_CONTRACT_VERSION, accountId: actor.accountId, previewOnly: true, dependencies: [...methods.dependencies,...links.dependencies], methods: methods.methods, defaultMethodId: methods.defaultMethodId, presets: methods.presets,
-    billingAccounts: links.billingAccounts, candidates, payables, wallet: { balanceMinor: wallet.balanceMinor, heldMinor: wallet.heldMinor, availableMinor: wallet.availableMinor, currency: 'AED' } };
+    billingAccounts: links.billingAccounts, candidates, payables, orders:orders.orders,cardBalances:methods.cardBalances, wallet: { balanceMinor: wallet.balanceMinor, heldMinor: wallet.heldMinor, availableMinor: wallet.availableMinor, currency: 'AED' } };
 }
 export function buildPaymentPreview(overview: PaymentOverview, input: { payableId: string; methodId: string; expectedMethodVersion: number }, now = Date.now()): PaymentPreview {
   const payable = overview.payables.find(p => p.id === input.payableId);
@@ -42,7 +42,15 @@ export async function handlePaymentAccounts(actor: Actor, method: string, path: 
   if (process.env.PROVIDER_INTEGRATION !== 'true') return { status: 503, data: { success: false, code: 'INTEGRATED_DEMO_REQUIRED', error: 'Payment accounts require the provider-backed demo.' } };
   try {
     if (method === 'GET' && path === '/api/payments/overview') return { status: 200, data: { success: true, ...await paymentOverview(actor) } };
+    if(method==='GET'&&path==='/api/payments/orders')return {status:200,data:await client.call('payments',actor,'GET','/payment-orders')};
     if (method === 'POST' && path === '/api/payments/preview') return { status: 200, data: { success: true, preview: buildPaymentPreview(await paymentOverview(actor), body as { payableId: string; methodId: string; expectedMethodVersion: number }) } };
+    if(method==='POST'&&path==='/api/payments/orders') {
+      const {accountId:_account,requestKey,...input}=body;return {status:200,data:await client.call('payments',actor,'POST','/payment-orders',input,`payment-orders:${requestKey}`)};
+    }
+    const orderAction=/^\/api\/payments\/orders\/(approve|challenge|cancel)$/.exec(path);
+    if(method==='POST'&&orderAction){
+      const {accountId:_account,requestKey,orderId,...input}=body;return {status:200,data:await client.call('payments',actor,'POST',`/payment-orders/${encodeURIComponent(orderId)}/${orderAction[1]}`,input,`payment-orders:${requestKey}`)};
+    }
     if (method === 'POST' && mutations[path]) {
       const { accountId: _account, requestKey, ...input } = body;
       return { status: 200, data: await client.call('payments', actor, 'POST', mutations[path], input, `payment-accounts:${requestKey}`) };

@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 24 October 2026 — finite issuer and stored owner authorization
+
+Deliver PAY-05 with persistent finite card attempts/limits, bound one-time interactive challenges and decline/expiry states. Add immutable source-owned authorization reviews, explicit approval, local obligation uniqueness, wallet/card holds and cancellation with actual lifecycle locks. New routes reject machine/header actors and caller price overrides. Capture and cross-path settlement/refund claims remain disabled/open. [Guide](development/payment-authorization.md) · [Evidence](reports/2026-10-24-payment-authorization.md).
+
 ## 24 October 2026 — provider-owned payable revisions and history
 
 Advance PAY-06 with source-owned bill/fine summaries, labelled prior cycles, exact-revision review/settlement, trusted lifecycle changes and React history. Keep legacy current-bill ordering, current fine discounts and terminal-state checks. Test persistence, stale revisions, ownership, restricted/withdrawn/expired obligations and signed-owner settlement with journal assertions. Stored-order capture admission and settlement/refund claims remain open. [Guide](development/payables.md) · [Evidence](reports/2026-10-24-payables.md).

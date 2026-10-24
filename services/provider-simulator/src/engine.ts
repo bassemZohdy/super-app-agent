@@ -1,4 +1,6 @@
 import { PaymentResourceUses } from './payment-resource-uses.ts';
+import { PaymentIssuer } from './payment-issuer.ts';
+import { PaymentOrders } from './payment-orders.ts';
 import { ProviderPayables, type PayableProvider } from './payables.ts';
 import { PaymentLedger } from './payment-ledger.ts';
 import { paymentRegistry } from './payment-registry.ts';
@@ -17,8 +19,8 @@ const ok = (data: Record<string, any>): ApiResult => ({ status: 200, data: { suc
 const minor = (amount: number) => Math.round(amount * 100);
 const major = (amount: number) => amount / 100;
 export class ProviderEngine {
-  readonly provider: ProviderId; readonly store: AccountDatabase; readonly ledger?: PaymentLedger; readonly resourceUses?: PaymentResourceUses; readonly payables?: ProviderPayables;
-  constructor(provider: ProviderId, store: AccountDatabase, options: {businessClock?:()=>number} = {}) { this.provider = provider; this.store = store; if (provider === 'payments') { this.ledger = new PaymentLedger(store); this.resourceUses = new PaymentResourceUses(store); } if(['dewa','etisalat','du','police'].includes(provider)) this.payables=new ProviderPayables(store,provider as PayableProvider,options.businessClock); }
+  readonly provider: ProviderId; readonly store: AccountDatabase; readonly ledger?: PaymentLedger; readonly resourceUses?: PaymentResourceUses; readonly payables?: ProviderPayables;readonly issuer?:PaymentIssuer;readonly orders?:PaymentOrders;
+  constructor(provider: ProviderId, store: AccountDatabase, options: {businessClock?:()=>number;authorizationClock?:()=>number} = {}) { this.provider = provider; this.store = store; if (provider === 'payments') { this.ledger = new PaymentLedger(store,options.authorizationClock); this.resourceUses = new PaymentResourceUses(store);this.issuer=new PaymentIssuer(store,options.authorizationClock);this.orders=new PaymentOrders(store,this.issuer,this.ledger,this.resourceUses,options.authorizationClock); } if(['dewa','etisalat','du','police'].includes(provider)) this.payables=new ProviderPayables(store,provider as PayableProvider,options.businessClock); }
   seed(actor: Actor) {
     const db = this.store, account = actor.accountId;
     if (db.get(account, 'seed')) {
@@ -65,7 +67,7 @@ export class ProviderEngine {
   private proof(proof: any, merchant: string, reference: string, amountMinor: number) {
     if (!proof || proof.status !== 'CAPTURED' || proof.refunded || proof.merchant !== merchant || proof.reference !== reference || proof.amountMinor !== amountMinor) fail(409, 'INVALID_PAYMENT_PROOF', 'A matching captured payment is required.');
   }
-  execute(actor: Actor, method: string, path: string, body: any, proof?: any): ApiResult {
+  execute(actor: Actor, method: string, path: string, body: any, proof?: any, payableSnapshot?:import('../../../packages/protocol-core/src/payments.ts').Payable): ApiResult {
     const db = this.store, a = actor.accountId, asset = assetsFor(a);
     const now = () => new Date().toISOString();
     if(this.payables) {
@@ -78,8 +80,16 @@ export class ProviderEngine {
       if(method === 'POST' && /^\/payables\/[^/]+\/payments$/.test(path)) return ok(this.payables.settle(a,decodeURIComponent(path.split('/')[2]),body.expectedRevision,body.paymentId,proof));
     }
     if (this.provider === 'payments') {
+      this.orders!.refresh(actor);
+      if(method==='GET'&&path==='/payment-orders')return ok({orders:this.orders!.list(actor)});
+      if(method==='GET'&&/^\/payment-orders\/[^/]+$/.test(path))return ok({order:this.orders!.get(actor,path.split('/')[2])});
+      if(method==='POST'&&path==='/payment-orders')return ok({order:this.orders!.create(actor,body,payableSnapshot)});
+      if(method==='POST'&&/^\/payment-orders\/[^/]+\/(approve|challenge|cancel)$/.test(path)) {
+        const [, ,id,action]=path.split('/');
+        return ok({order:action==='approve'?this.orders!.approve(actor,id,body,payableSnapshot):action==='challenge'?this.orders!.challenge(actor,id,body,payableSnapshot,!!actor.authorization):this.orders!.cancel(actor,id,body.expectedVersion)});
+      }
       const registry = paymentRegistry(db, a, method, path, body, this.resourceUses!);
-      if (registry) return ok(registry);
+      if (registry) return ok({...registry,...(path==='/payment-methods'&&method==='GET'?{cardBalances:(registry.methods||[]).filter((m:any)=>m.kind==='card').map((m:any)=>this.issuer!.summary(a,m.id))}:{})});
       const wallet = this.ledger!.summary(a);
       if (method === 'GET' && path === '/wallet') return ok({ ...wallet, balance: major(wallet.balanceMinor) });
       if (method === 'GET' && path === '/transactions') { const transactions = db.list(a, 'transaction'); return ok({ transactions, count: transactions.length }); }

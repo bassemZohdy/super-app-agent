@@ -1,5 +1,7 @@
 import { PaymentResourceError } from './payment-resource-uses.ts';
 import { PayableError } from './payables.ts';
+import { PaymentOrderError } from './payment-orders.ts';
+import { IssuerError } from './payment-issuer.ts';
 import { PaymentLedgerError } from './payment-ledger.ts';
 import { verifyBillerReference } from './payment-ownership.ts';
 import { PaymentRegistryError } from './payment-registry.ts';
@@ -9,7 +11,7 @@ import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { Ajv } from 'ajv';
 import { verifyJwt } from '../../../packages/backend-kit/src/jwt.ts';
-import { ProviderClient } from '../../../packages/backend-kit/src/provider-client.ts';
+import { ProviderClient, UpstreamError } from '../../../packages/backend-kit/src/provider-client.ts';
 import { authorizeDelegatedProvider } from '../../../packages/backend-kit/src/delegation.ts';
 import type { Actor } from '../../../packages/backend-kit/src/context.ts';
 import { AccountDatabase } from './database.ts';
@@ -17,8 +19,8 @@ import { ProviderEngine, ApiError, type ApiResult } from './engine.ts';
 import { operations, openApi, providerIds, type ProviderId } from './contracts.ts';
 export const callers: Record<ProviderId, string[]> = { rta: ['service-ride','service-catalog','service-wallet'], dewa: ['service-food','service-wallet','service-catalog'], etisalat: ['service-telecom'], du: ['service-telecom'], police: ['service-wallet'], dld: ['service-catalog'], payments: ['service-wallet','service-food','service-ride','service-telecom','provider-settlements'] };
 const canonical = (value: any): any => Array.isArray(value) ? value.map(canonical) : value && typeof value === 'object' ? Object.fromEntries(Object.keys(value).sort().map(k => [k, canonical(value[k])])) : value;
-export function createProviderServer(provider: ProviderId, path: string) {
-  const store = new AccountDatabase(path), engine = new ProviderEngine(provider, store);
+export function createProviderServer(provider: ProviderId, path: string, options:{authorizationClock?:()=>number}={}) {
+  const store = new AccountDatabase(path), engine = new ProviderEngine(provider, store,options);
   const ajv = new Ajv({ strict: false, allErrors: true });
   const routes = operations[provider].map(operation => ({ ...operation, regex: new RegExp(`^${operation.path.replace(/\{\w+\}/g, '[^/]+')}$`), validate: operation.body ? ajv.compile(operation.body) : undefined }));
   const payments = new ProviderClient('provider-settlements', process.env.PROVIDER_SETTLEMENT_SECRET || 'demo-settlements-secret');
@@ -47,6 +49,7 @@ export function createProviderServer(provider: ProviderId, path: string) {
       if (!store.owns(subject, accountId)) throw new ApiError(403, 'ACCOUNT_FORBIDDEN', 'This account does not belong to the user.');
       const operation = routes.find(route => route.method === req.method && route.regex.test(operationPath));
       if (!operation || url.search) throw new ApiError(404, 'NOT_FOUND', 'Operation not found.');
+      if(provider==='payments'&&operationPath.startsWith('/payment-orders')&&!interactive)throw new ApiError(403,'INTERACTIVE_REVIEW_REQUIRED','Stored authorization reviews require the signed-in owner. Unattended actors cannot approve or answer challenges.');
       const actor: Actor = { sub: subject, username: subject, name: typeof req.headers['x-user-name'] === 'string' ? Buffer.from(req.headers['x-user-name'], 'base64url').toString('utf8').slice(0, 200) : 'Demo citizen', accountId, requestId: '', authorization: interactive ? req.headers.authorization : undefined };
       let body: any = {};
       if (req.method === 'POST') {
@@ -69,6 +72,13 @@ export function createProviderServer(provider: ProviderId, path: string) {
       // A delegated write with external payment proof is outside the initial bounded write profile.
       if (delegated && body.paymentId) throw new ApiError(403, 'WRITE_NOT_APPROVED', 'Delegated settlement is not enabled.');
       if (provider === 'payments' && req.method === 'POST' && operationPath === '/billing-accounts') await verifyBillerReference(payments, actor, body);
+      let payableSnapshot:import('../../../packages/protocol-core/src/payments.ts').Payable|undefined;
+      if(provider==='payments'&&req.method==='POST'&&(operationPath==='/payment-orders'||/^\/payment-orders\/[^/]+\/(approve|challenge)$/.test(operationPath))){
+        const order=operationPath==='/payment-orders'?undefined:engine.orders!.get(actor,operationPath.split('/')[2]);
+        const targetProvider=order?order.quote.payable.provider:body.provider,targetId=order?order.quote.payable.id:body.payableId;
+        if(!['dewa','etisalat','du','police'].includes(targetProvider))throw new ApiError(400,'INVALID_PROVIDER','Choose a supported obligation provider.');
+        payableSnapshot=(await payments.call(targetProvider,actor,'GET',`/payables/${encodeURIComponent(targetId)}`)).payable;
+      }
       const proof = body.paymentId ? (await payments.call('payments', actor, 'GET', `/charges/${encodeURIComponent(body.paymentId)}`)).charge : undefined;
       const result = store.transaction(() => {
         // Re-check after asynchronous proof retrieval; another request may have committed.
@@ -77,7 +87,7 @@ export function createProviderServer(provider: ProviderId, path: string) {
           if (existing) { if (existing.fingerprint !== fingerprint) throw new ApiError(409, 'IDEMPOTENCY_CONFLICT', 'This key was used with a different request.'); return { status: existing.status, data: JSON.parse(existing.body) }; }
           if (proof && store.get(accountId, 'used-payment', proof.id)) throw new ApiError(409, 'PAYMENT_ALREADY_USED', 'This payment was already applied.');
         }
-        const result = engine.execute(actor, req.method || 'GET', operationPath, body, proof);
+        const result = engine.execute(actor, req.method || 'GET', operationPath, body, proof,payableSnapshot);
         if (req.method === 'POST') {
           if (proof && result.data.success) store.put(accountId, 'used-payment', true, proof.id);
           store.db.prepare('INSERT INTO idempotency(account_id,key,fingerprint,status,body) VALUES(?,?,?,?,?)').run(accountId, key as string, fingerprint, result.status, JSON.stringify(result.data));
@@ -86,9 +96,9 @@ export function createProviderServer(provider: ProviderId, path: string) {
       });
       send(result);
     } catch (error) {
-      const status = error instanceof HttpError ? error.status : error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError ? error.status : 503;
+      const status = error instanceof HttpError ? error.status : error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError ? error.status : 503;
       res.setHeader('Connection', 'close');
-      send({ status, data: { success: false, code: error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError ? error.code : 'PROVIDER_UNAVAILABLE', error: error instanceof HttpError ? error.message : error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError ? error.message : 'The simulator could not complete this request. Check operation status before retrying a write.' } });
+      send({ status, data: { success: false, code: error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError ? error.code : 'PROVIDER_UNAVAILABLE', error: error instanceof HttpError ? error.message : error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError ? error.message : 'The simulator could not complete this request. Check operation status before retrying a write.' } });
     }
   });
   return { server, store };
