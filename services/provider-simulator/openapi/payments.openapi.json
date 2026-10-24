@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Demo Payment Gateway Simulator",
-    "version": "2.17.0",
+    "version": "2.18.0",
     "description": "Local synthetic API. Signed interactive user identity or broker-issued user token with current exact-operation grant required. JWT subject owns the account; caller user headers do not grant authority. A separate read-only settlement machine lane retrieves captured charge proofs. Legacy fixture mode is outside this reference security profile."
   },
   "servers": [
@@ -713,6 +713,140 @@
                     "success": {
                       "const": true
                     },
+                    "obligations": {
+                      "type": "array",
+                      "maxItems": 2100,
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "orderId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "provider": {
+                            "enum": [
+                              "dewa",
+                              "etisalat",
+                              "du",
+                              "police",
+                              "rta"
+                            ]
+                          },
+                          "kind": {
+                            "enum": [
+                              "OBLIGATION",
+                              "RECHARGE_INTENT",
+                              "RECHARGE_TARGET_VERSION",
+                              "LEGACY"
+                            ]
+                          },
+                          "resourceId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "reference": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "state": {
+                            "enum": [
+                              "RESERVED",
+                              "COMMITTED",
+                              "BLOCKED",
+                              "RELEASED"
+                            ]
+                          },
+                          "legacy": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "orderId",
+                          "provider",
+                          "kind",
+                          "resourceId",
+                          "reference",
+                          "state",
+                          "legacy"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "attempts": {
+                      "type": "array",
+                      "maxItems": 100,
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "orderId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "paymentId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "state": {
+                            "enum": [
+                              "PREPARING",
+                              "UNKNOWN",
+                              "CAPTURED",
+                              "SETTLED",
+                              "FAILED",
+                              "CANCELLED"
+                            ]
+                          },
+                          "amountMinor": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 100000000
+                          },
+                          "currency": {
+                            "const": "AED"
+                          },
+                          "sourceId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "minLength": 20,
+                            "maxLength": 40,
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}T"
+                          },
+                          "inferred": {
+                            "type": "boolean"
+                          },
+                          "fundsCaptured": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "orderId",
+                          "paymentId",
+                          "state",
+                          "amountMinor",
+                          "currency",
+                          "sourceId",
+                          "createdAt",
+                          "inferred",
+                          "fundsCaptured"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
                     "eligibility": {
                       "type": "object",
                       "properties": {
@@ -912,6 +1046,8 @@
                   },
                   "required": [
                     "success",
+                    "obligations",
+                    "attempts",
                     "eligibility",
                     "orders",
                     "funding",
@@ -7367,6 +7503,140 @@
                     "success": {
                       "const": true
                     },
+                    "obligations": {
+                      "type": "array",
+                      "maxItems": 2100,
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "orderId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "provider": {
+                            "enum": [
+                              "dewa",
+                              "etisalat",
+                              "du",
+                              "police",
+                              "rta"
+                            ]
+                          },
+                          "kind": {
+                            "enum": [
+                              "OBLIGATION",
+                              "RECHARGE_INTENT",
+                              "RECHARGE_TARGET_VERSION",
+                              "LEGACY"
+                            ]
+                          },
+                          "resourceId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "reference": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "state": {
+                            "enum": [
+                              "RESERVED",
+                              "COMMITTED",
+                              "BLOCKED",
+                              "RELEASED"
+                            ]
+                          },
+                          "legacy": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "orderId",
+                          "provider",
+                          "kind",
+                          "resourceId",
+                          "reference",
+                          "state",
+                          "legacy"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "attempts": {
+                      "type": "array",
+                      "maxItems": 100,
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "orderId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "paymentId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "state": {
+                            "enum": [
+                              "PREPARING",
+                              "UNKNOWN",
+                              "CAPTURED",
+                              "SETTLED",
+                              "FAILED",
+                              "CANCELLED"
+                            ]
+                          },
+                          "amountMinor": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 100000000
+                          },
+                          "currency": {
+                            "const": "AED"
+                          },
+                          "sourceId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "minLength": 20,
+                            "maxLength": 40,
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}T"
+                          },
+                          "inferred": {
+                            "type": "boolean"
+                          },
+                          "fundsCaptured": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "orderId",
+                          "paymentId",
+                          "state",
+                          "amountMinor",
+                          "currency",
+                          "sourceId",
+                          "createdAt",
+                          "inferred",
+                          "fundsCaptured"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
                     "eligibility": {
                       "type": "object",
                       "properties": {
@@ -7566,6 +7836,8 @@
                   },
                   "required": [
                     "success",
+                    "obligations",
+                    "attempts",
                     "eligibility",
                     "orders",
                     "funding",

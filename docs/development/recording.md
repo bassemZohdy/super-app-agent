@@ -79,3 +79,5 @@ The post-delegation regression reran all twelve existing journeys successfully w
 Delegation recordings keep their dated run files as the canonical media. The delegation viewer points directly at the latest successful run; a second copy of that WebM is not retained. Earlier successful runs remain dated evidence.
 
 `npm run record:payment-lifecycle` records current access and in-flight payment work using the separate signed operator lane. It shows six-second review and eight-second restriction/restoration outcomes; no management secret or admin control enters the browser. [Viewer](../recordings/payment-lifecycle/index.html) · [Guide](payment-lifecycle.md).
+
+`npm run record:payment-obligations` shows five business reservations before capture, an original UNKNOWN admission attempt after restart, same-payment recovery and explicit unspent cancellation. Six-second reviews and eight-second outcomes follow assertions. Parallel request/manual-path negatives are scripted setup probes, not claimed as visible clicks. [Viewer](../recordings/payment-obligations/index.html).

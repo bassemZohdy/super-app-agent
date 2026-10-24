@@ -31,7 +31,7 @@ sequenceDiagram
 
 ## Contract and authentication
 
-Payment contract **1.13.0**, payment-provider OpenAPI **2.17.0**; source REST resource contracts remain unchanged. Stored-order/funding/refund events retain schema version **1**. The explicit `LEGACY_PAYMENT` variant uses schema version **2**; the receiver accepts both bounded variants. Old queued v1 bodies remain unchanged. Upgrade the receiver before v2 producers; older receivers reject v2 safely and do not acquire financial authority.
+Payment contract **1.14.0**, payment-provider OpenAPI **2.18.0**; source REST resource contracts remain unchanged. Stored-order/funding/refund events retain schema version **1**. The explicit `LEGACY_PAYMENT` variant uses schema version **2**; the receiver accepts both bounded variants. Old queued v1 bodies remain unchanged. Upgrade the receiver before v2 producers; older receivers reject v2 safely and do not acquire financial authority.
 
 `GET /v1/accounts/{accountId}/payment-events` requires the interactive owner. `GET /api/payments/overview` includes `events`: gateway pending/failed delivery counts, received count and up to twenty current per-subject update views. Source-provider outboxes stay private; the gateway count does not claim to include every source's undelivered queue. Existing records receive no fabricated backfill events.
 

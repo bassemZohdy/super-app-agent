@@ -30,7 +30,7 @@ An APPLIED source read is evidence, not a caller-issued authorization. Existing 
 
 ## API
 
-Payment contract **1.13.0**, payment-provider OpenAPI **2.17.0**. Every route requires the interactive signed owner and owned account. Service/broker actors cannot use the workbench. Provider paths below are relative to `/v1/accounts/{accountId}`; POST requires an idempotency key.
+Payment contract **1.14.0**, payment-provider OpenAPI **2.18.0**. Every route requires the interactive signed owner and owned account. Service/broker actors cannot use the workbench. Provider paths below are relative to `/v1/accounts/{accountId}`; POST requires an idempotency key.
 
 | Provider route | Contract |
 | --- | --- |

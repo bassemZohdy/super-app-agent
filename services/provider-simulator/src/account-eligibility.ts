@@ -1,3 +1,4 @@
+import { paymentObligationSnapshot } from './payment-obligations.ts';
 /** Central current entitlement/epoch authority. Defaults preserve pre-existing ownership, never rewrite history. */
 import { randomUUID,createHash } from 'node:crypto';
 import type { Actor } from '../../../packages/backend-kit/src/context.ts';
@@ -54,6 +55,6 @@ export class AccountEligibility {
     });
     const funding=this.store.db.prepare("SELECT body FROM wallet_funding_orders WHERE account_id=? AND state IN ('AWAITING_APPROVAL','AUTHORIZATION_PENDING','REQUIRES_ACTION','AUTHORIZED')").all(accountId).map(r=>{const o=JSON.parse(String(r.body));return {id:o.id,state:o.state,fundsCaptured:o.fundsCaptured,sourceId:o.quote.source.id,blockedReasons:blocked(o.eligibilityEpoch,[o.quote.source])};});
     const mandates=this.store.db.prepare("SELECT v.body FROM payment_mandates m JOIN payment_mandate_versions v ON v.id=m.id AND v.version=m.version WHERE m.account_id=?").all(accountId).map(r=>JSON.parse(String(r.body))).filter(m=>['APPROVED','AWAITING_APPROVAL'].includes(m.state)).map(m=>({id:m.id,policyVersion:m.policyVersion,state:m.state,executionEnabled:false as const,eligibilityCurrent:(m.eligibilityEpoch||'1:1')===eligibility.epoch,blockedReasons:blocked(m.eligibilityEpoch,m.sourceSnapshots,m.billerSnapshot)}));
-    return{eligibility,orders,funding,mandates};
+    return{eligibility,orders,funding,mandates,...paymentObligationSnapshot(this.store,accountId)};
   }
 }

@@ -83,7 +83,9 @@
     "demo:verify:delegation:restart": "node --experimental-strip-types scripts/verify-delegation-restart.ts",
     "demo:payment-access": "node --env-file-if-exists=.env --experimental-strip-types scripts/payment-access.ts",
     "demo:verify:payment-lifecycle": "node --experimental-strip-types scripts/e2e/payment-lifecycle.ts",
-    "record:payment-lifecycle": "node --experimental-strip-types scripts/e2e/payment-lifecycle.ts --record"
+    "record:payment-lifecycle": "node --experimental-strip-types scripts/e2e/payment-lifecycle.ts --record",
+    "demo:verify:payment-obligations": "node --experimental-strip-types scripts/e2e/payment-obligations.ts",
+    "record:payment-obligations": "node --experimental-strip-types scripts/e2e/payment-obligations.ts --record"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^13.1.0",

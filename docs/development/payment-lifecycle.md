@@ -1,6 +1,6 @@
 # Owner, workspace and funding lifecycle
 
-PAY-21 adds current access checks to the local synthetic demo. Payment contract **1.13.0** and payments OpenAPI **2.17.0** retain the existing `/v1` paths. Automatic mandate execution remains disabled.
+PAY-21 adds current access checks to the local synthetic demo. Payment contract **1.14.0** and payments OpenAPI **2.18.0** retain the existing `/v1` paths. Automatic mandate execution remains disabled.
 
 ## What changes
 
@@ -72,3 +72,5 @@ npm run demo:verify:delegation:restart
 ```
 
 The lifecycle script uses real signed local Keycloak identities and isolated temporary SQLite state. Its management changes are scripted through the separate machine-authenticated lane, not browser controls. A temporary Keycloak user is created, disabled and deleted to test online invalidation; persistent demo users are never disabled. Recording holds are six seconds for review and eight seconds for restricted/restored outcomes. [Recording](../recordings/payment-lifecycle/index.html) · [Execution evidence](../reports/2026-10-24-payment-lifecycle.md).
+
+[Business reservation evidence](payment-obligations.md) now appears in an expandable lifecycle view. It separates planned amounts and recorded capture from attempt uncertainty, and identifies overlapping legacy work without rewriting historical orders.
