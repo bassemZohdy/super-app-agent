@@ -116,5 +116,8 @@
   ],
   "author": "Bassem Reda Zohdy <bassem.zohdy@gmail.com>",
   "license": "MIT",
-  "packageManager": "npm@11.9.0"
+  "packageManager": "npm@11.9.0",
+  "engines": {
+    "node": ">=24"
+  }
 }
