@@ -396,7 +396,7 @@ export function executeFoodRequest(method: string, pathname: string, query: Reco
   if (invalid) return invalid;
   const result = handleFoodRequest(method, pathname, query, body);
   if (pathname === '/mcp' && result.data.tools) {
-    result.data.tools = result.data.tools.map((tool: any) => ({ ...tool,
+    result.data.tools = result.data.tools.map((tool: { name: string; parameters?: unknown }) => ({ ...tool,
       parameters: toolSchema('service-food', tool.name) || tool.parameters }));
   }
   return result;
