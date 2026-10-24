@@ -22,7 +22,7 @@ Pending results show **Inspect or resume refund**. Continue this original refund
 
 ## API contracts
 
-Payment contract **1.7.0**. Payment-provider OpenAPI **2.10.0**; RTA **2.3.0**, DEWA **2.5.0**, Etisalat/du/Police **2.6.0**. Provider routes are under `/v1/accounts/{accountId}` and require an interactive owner JWT; machine and delegated tokens cannot request or apply these reversals. POST requires `Idempotency-Key`.
+Payment contract **1.8.0**. Payment-provider OpenAPI **2.11.0**; RTA **2.3.0**, DEWA **2.5.0**, Etisalat/du/Police **2.6.0**. Provider routes are under `/v1/accounts/{accountId}` and require an interactive owner JWT; machine and delegated tokens cannot request or apply these reversals. POST requires `Idempotency-Key`.
 
 | Payment-provider route | Request / outcome |
 | --- | --- |
@@ -61,4 +61,6 @@ npm run record:payment-refunds
 
 The browser uses real local Keycloak/Redis with temporary provider/application SQLite and model calls disabled. Refund reviews pause six seconds; confirmed and declined results pause eight seconds. The viewer is published only after every assertion passes. [Evidence](../reports/2026-10-24-payment-refunds.md) · [Recording](../recordings/payment-refunds/index.html).
 
-Asynchronous events, a reconciliation workbench, statements, automatic policies and Angular/Flutter refund parity retain separate backlog gates. No external payment network or preview identity feature is enabled.
+A reconciliation workbench, statements, automatic policies and Angular/Flutter refund parity retain separate backlog gates. No external payment network or preview identity feature is enabled.
+
+[Signed financial status events](payment-events.md) append with stored order/source transitions and arrive as owned inspection hints. Callbacks never authorize funds or replace authoritative provider lookup. Named issuer scenarios and legacy event-path qualification keep PAY-18 in progress.

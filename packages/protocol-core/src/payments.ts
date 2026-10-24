@@ -1,5 +1,6 @@
+import type { PaymentEventStatus } from './payment-events.ts';
 /** Payment contract v1. Additive, synthetic-account APIs; previews never authorize execution. */
-export const PAYMENT_CONTRACT_VERSION = '1.7.0';
+export const PAYMENT_CONTRACT_VERSION = '1.8.0';
 export const MAX_PAYMENT_MINOR = 100_000_000;
 export const WALLET_FUNDING_LIMITS = { minMinor: 100, maxMinor: 50000, balanceMaxMinor: 1000000, feeMinor: 0 } as const;
 export const cardPresets = [
@@ -52,7 +53,7 @@ export type WalletFundingOrder = RefundedPayment & {
   authorization?:CardAuthorization;
   receipt?:{receiptNumber:string;amountMinor:number;feeMinor:number;currency:'AED';balanceMinor:number;capturedAt:string};
 };
-export type PaymentOverview = { contractVersion: string; accountId: string; previewOnly: boolean; dependencies: PaymentDependency[]; methods: PaymentMethod[]; defaultMethodId: string; presets: unknown[]; billingAccounts: BillingAccount[]; candidates: BillerCandidate[]; payables: Payable[];rechargeTargets?:RechargeTarget[];orders?:PaymentAuthorizationReview[];checkoutGroups?:CheckoutGroupView[];refunds?:PaymentRefund[];fundingOrders?:WalletFundingOrder[];cardBalances?:CardBalance[];wallet: { balanceMinor: number; heldMinor: number; availableMinor: number; currency: 'AED' } };
+export type PaymentOverview = { contractVersion: string; accountId: string; previewOnly: boolean; dependencies: PaymentDependency[]; methods: PaymentMethod[]; defaultMethodId: string; presets: unknown[]; billingAccounts: BillingAccount[]; candidates: BillerCandidate[]; payables: Payable[];rechargeTargets?:RechargeTarget[];orders?:PaymentAuthorizationReview[];checkoutGroups?:CheckoutGroupView[];refunds?:PaymentRefund[];events?:PaymentEventStatus;fundingOrders?:WalletFundingOrder[];cardBalances?:CardBalance[];wallet: { balanceMinor: number; heldMinor: number; availableMinor: number; currency: 'AED' } };
 export const orderStates = ['DRAFT','AWAITING_APPROVAL','READY','REQUIRES_ACTION','AUTHORIZED','CAPTURED','SETTLING','SETTLED','FAILED','CANCELLED','RECONCILIATION_REQUIRED','REFUNDING','PARTIALLY_REFUNDED','REFUNDED'] as const;
 export const settlementStates = ['UNCLAIMED','CLAIMED','APPLIED','RELEASED','UNKNOWN'] as const;
 export const attemptStates = ['PENDING','REQUIRES_ACTION','AUTHORIZED','CAPTURED','DECLINED','VOIDED','UNKNOWN'] as const;

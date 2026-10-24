@@ -1,3 +1,4 @@
+import { PaymentEventUpdates } from './PaymentEventUpdates';
 import { PaymentRefundsPanel } from './PaymentRefundsPanel';
 import { CheckoutGroupsPanel } from './CheckoutGroupsPanel';
 import { RechargePanel } from './RechargePanel';
@@ -103,6 +104,7 @@ export function PaymentAccountsPanel({ gateway, accountId, getToken, onClose }: 
           {!data.billingAccounts.some(b => b.status === 'ACTIVE') && <p>No biller accounts linked yet.</p>}
         </section>
       </div>
+      <PaymentEventUpdates events={data.events} busy={busy} inspect={(kind,id)=>void work(async()=>{await mutate(kind==='REFUND'?'refunds/recover':'orders/recover',{orderId:id});setNotice('Original operation inspected using current payment/provider state. Review its order and receipt below.');})} />
       <WalletFundingPanel methods={data.methods} orders={data.fundingOrders||[]} busy={busy}
         create={input=>void work(async()=>{await mutate('wallet-funding-orders',input);setNotice('Wallet top-up review saved. Approve its exact source and amount before adding funds.');})}
         act={(order,action,extra={})=>void work(async()=>{const result=await mutate(`wallet-funding-orders/${action}`,{orderId:order.id,expectedVersion:order.version,...(action==='cancel'?{}:{approvalDigest:order.approvalDigest}),...extra});setNotice(result.order.state==='SETTLED'?'Card captured and wallet credited once.':result.order.state==='FAILED'?`Top-up stopped: ${result.order.failureCode}. No wallet credit.`:result.order.state==='CANCELLED'?'Wallet top-up cancelled. No funds added.':result.order.state==='REQUIRES_ACTION'?'Approve or reject this exact wallet top-up challenge.':'Card capacity reserved. Use Add to complete the top-up.');})} />

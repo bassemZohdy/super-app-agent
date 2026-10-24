@@ -60,10 +60,14 @@ export async function startEnvironment(options:{authorizationClock?:()=>number}=
     await rm(dir, { recursive: true, force: true });
   };
   try {
+    const lostSettlementResponses=new Set<string>();
+    const { ProviderClient,UpstreamError }=await import('../../packages/backend-kit/src/provider-client.ts');
+    const paymentClient=new ProviderClient('provider-settlements',secret('provider-settlements')),normalPaymentCall=paymentClient.call.bind(paymentClient);
+    paymentClient.call=async(...args:Parameters<typeof normalPaymentCall>)=>{const result=await normalPaymentCall(...args);if(args[2]==='POST'&&args[3].endsWith('/payments')&&lostSettlementResponses.delete(args[0]))throw new UpstreamError(503,'PROVIDER_OUTCOME_UNKNOWN','Isolated test lost the response after actual source commit.');return result;};
     const { createProviderServer } = await import('../../services/provider-simulator/src/index.ts');
     const { providerIds } = await import('../../services/provider-simulator/src/contracts.ts');
     for (const [index, name] of providerIds.entries()) {
-      const provider = createProviderServer(name, join(dir, `${name}.sqlite`),name==='payments'?options:{});
+      const provider = createProviderServer(name, join(dir, `${name}.sqlite`),name==='payments'?{...options,paymentClient}:{});
       providerStores.set(name, provider.store);
       databases.push(provider.store.db); await listen(provider.server, corePort + 101 + index);
     }
@@ -98,7 +102,7 @@ export async function startEnvironment(options:{authorizationClock?:()=>number}=
     }), appPort);
     const { PaymentResourceUses } = await import('../../services/provider-simulator/src/payment-resource-uses.ts');
     const { ProviderPayables } = await import('../../services/provider-simulator/src/payables.ts');
-    return { appUrl, coreUrl, corePort, cleanup, providerState: (provider: string, account: string, kind: string) => providerStores.get(provider)?.get(account, kind),
+    return { appUrl, coreUrl, corePort, cleanup,paymentEventRecords:(provider:string,account:string)=>providerStores.get(provider)!.db.prepare('SELECT body FROM payment_event_outbox WHERE account_id=? ORDER BY rowid').all(account).map(row=>JSON.parse(String(row.body)) as import('../../packages/protocol-core/src/payment-events.ts').PaymentEvent),loseNextSettlementResponse:(provider:string)=>{assert.ok(['dewa','etisalat','du','police','rta'].includes(provider));lostSettlementResponses.add(provider);},providerState: (provider: string, account: string, kind: string) => providerStores.get(provider)?.get(account, kind),
       // Trusted test fixture only: no HTTP route can create/release lifecycle locks.
       bindPaymentUse: (account: string, binding: Parameters<InstanceType<typeof PaymentResourceUses>['bind']>[1]) => {
         const uses = new PaymentResourceUses(providerStores.get('payments')!); uses.bind(account,binding);

@@ -84,6 +84,7 @@ test('provider-backed overview preserves signed identity and reads current rathe
   const actor=actorFor({sub:'overview-alice'},undefined,'Bearer signed');
   const client={call:async(provider:string,forwarded:typeof actor,method:string,path:string)=>{
     assert.equal(forwarded.authorization,'Bearer signed');assert.equal(method,'GET');
+    if(path==='/payment-events')return{events:{pending:0,failed:0,received:0,updates:[]}};
     if(path==='/payment-refunds')return{refunds:[]};
     if(path==='/checkout-groups')return{groups:[]};
     if(path==='/recharge-targets')return{targets:[]};
