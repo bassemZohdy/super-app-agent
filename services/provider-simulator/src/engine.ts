@@ -1,6 +1,7 @@
 import { PaymentResourceUses } from './payment-resource-uses.ts';
 import { PaymentIssuer } from './payment-issuer.ts';
 import { PaymentOrders } from './payment-orders.ts';
+import { WalletFunding } from './wallet-funding.ts';
 import { PaymentClaims } from './payment-claims.ts';
 import { PayableAdmissions } from './payable-admissions.ts';
 import { ProviderPayables, type PayableProvider } from './payables.ts';
@@ -21,8 +22,8 @@ const ok = (data: Record<string, any>): ApiResult => ({ status: 200, data: { suc
 const minor = (amount: number) => Math.round(amount * 100);
 const major = (amount: number) => amount / 100;
 export class ProviderEngine {
-  readonly provider: ProviderId; readonly store: AccountDatabase; readonly ledger?: PaymentLedger; readonly resourceUses?: PaymentResourceUses; readonly payables?: ProviderPayables;readonly issuer?:PaymentIssuer;readonly orders?:PaymentOrders;readonly claims?:PaymentClaims;readonly admissions?:PayableAdmissions;
-  constructor(provider: ProviderId, store: AccountDatabase, options: {businessClock?:()=>number;authorizationClock?:()=>number} = {}) { this.provider = provider; this.store = store; if (provider === 'payments') { this.ledger = new PaymentLedger(store,options.authorizationClock); this.resourceUses = new PaymentResourceUses(store);this.issuer=new PaymentIssuer(store,options.authorizationClock);this.orders=new PaymentOrders(store,this.issuer,this.ledger,this.resourceUses,options.authorizationClock);this.claims=new PaymentClaims(store); } if(['dewa','etisalat','du','police'].includes(provider)) {this.payables=new ProviderPayables(store,provider as PayableProvider,options.businessClock);this.admissions=new PayableAdmissions(store,this.payables,options.businessClock);} }
+  readonly provider: ProviderId; readonly store: AccountDatabase; readonly ledger?: PaymentLedger; readonly resourceUses?: PaymentResourceUses; readonly payables?: ProviderPayables;readonly issuer?:PaymentIssuer;readonly orders?:PaymentOrders;readonly claims?:PaymentClaims;readonly admissions?:PayableAdmissions;readonly funding?:WalletFunding;
+  constructor(provider: ProviderId, store: AccountDatabase, options: {businessClock?:()=>number;authorizationClock?:()=>number} = {}) { this.provider = provider; this.store = store; if (provider === 'payments') { this.ledger = new PaymentLedger(store,options.authorizationClock); this.resourceUses = new PaymentResourceUses(store);this.issuer=new PaymentIssuer(store,options.authorizationClock);this.orders=new PaymentOrders(store,this.issuer,this.ledger,this.resourceUses,options.authorizationClock);this.claims=new PaymentClaims(store);this.funding=new WalletFunding(store,this.issuer,this.ledger,this.resourceUses,options.authorizationClock); } if(['dewa','etisalat','du','police'].includes(provider)) {this.payables=new ProviderPayables(store,provider as PayableProvider,options.businessClock);this.admissions=new PayableAdmissions(store,this.payables,options.businessClock);} }
   seed(actor: Actor) {
     const db = this.store, account = actor.accountId;
     if (db.get(account, 'seed')) {
@@ -92,7 +93,19 @@ export class ProviderEngine {
       if(method === 'POST' && /^\/payables\/[^/]+\/payments$/.test(path)) return ok(this.payables.settle(a,decodeURIComponent(path.split('/')[2]),body.expectedRevision,body.paymentId,proof));
     }
     if (this.provider === 'payments') {
-      this.orders!.refresh(actor);
+      this.orders!.refresh(actor);this.funding!.refresh(actor);
+      if(method==='GET'&&path==='/wallet-funding-orders')return ok({orders:this.funding!.list(actor)});
+      if(method==='GET'&&/^\/wallet-funding-orders\/[^/]+$/.test(path))return ok({order:this.funding!.get(actor,path.split('/')[2])});
+      if(method==='POST'&&path==='/wallet-funding-orders')return ok({order:this.funding!.create(actor,body)});
+      if(method==='POST'&&/^\/wallet-funding-orders\/[^/]+\/(approve|challenge|cancel|execute)$/.test(path)){
+        const [,,id,action]=path.split('/'),f=this.funding!;
+        return ok({order:action==='approve'?f.approve(actor,id,body):action==='challenge'?f.challenge(actor,id,body,!!actor.authorization):action==='cancel'?f.cancel(actor,id,body.expectedVersion):f.execute(actor,id,body)});
+      }
+      if(method==='POST'&&path==='/topups'){
+        const order=this.funding!.compatibility(actor,body.amountMinor,body.source);
+        if(order.state!=='SETTLED')return {status:402,data:{success:false,code:order.failureCode||'PAYMENT_DECLINED',error:'The finite demo funding source could not fund this top-up. Inspect the wallet funding review.'}};
+        return ok({transaction:db.get(a,'transaction',order.id),newBalance:order.receipt!.balanceMinor/100});
+      }
       if(method==='GET'&&path==='/payment-orders')return ok({orders:this.orders!.list(actor)});
       if(method==='GET'&&/^\/payment-orders\/[^/]+$/.test(path))return ok({order:this.orders!.get(actor,path.split('/')[2])});
       if(method==='POST'&&path==='/payment-orders')return ok({order:this.orders!.create(actor,body,payableSnapshot)});
@@ -106,18 +119,18 @@ export class ProviderEngine {
       if (method === 'GET' && path === '/wallet') return ok({ ...wallet, balance: major(wallet.balanceMinor) });
       if (method === 'GET' && path === '/transactions') { const transactions = db.list(a, 'transaction'); return ok({ transactions, count: transactions.length }); }
       if (method === 'GET' && path.startsWith('/charges/')) { const charge = db.get(a, 'charge', path.split('/')[2]); if (!charge) fail(404, 'NOT_FOUND', 'Payment not found.'); return ok({ charge:{...charge,...(this.claims!.get(a,charge.id)?{settlement:this.claims!.get(a,charge.id)}:{})} }); }
-      if (method === 'POST' && (path === '/charges' || path === '/topups')) {
-        const id = randomUUID(), topup = path === '/topups';
-        const declined = body.source === 'demo_declined' || (!topup && body.source === 'wallet' && wallet.availableMinor < body.amountMinor);
+      if (method === 'POST' && path === '/charges') {
+        const id = randomUUID();
+        const declined = body.source === 'demo_declined' || (body.source === 'wallet' && wallet.availableMinor < body.amountMinor);
         const charge = { id, accountId: a, amountMinor: body.amountMinor, merchant: body.merchant, reference: body.reference, source: body.source, status: declined ? 'DECLINED' : 'CAPTURED', currency: 'AED', createdAt: now(), refunded: false };
-        if (!topup) db.put(a, 'charge', charge, id);
+        db.put(a, 'charge', charge, id);
         if (declined) return { status: 402, data: { success: false, code: 'PAYMENT_DECLINED', error: 'The simulated payment was declined. Check the wallet balance or demo funding source.' } };
-        const next = wallet.balanceMinor + (topup ? body.amountMinor : body.source === 'wallet' ? -body.amountMinor : 0);
+        const next = wallet.balanceMinor + (body.source === 'wallet' ? -body.amountMinor : 0);
         if (!Number.isSafeInteger(next) || next > 100_000_000) fail(400, 'BALANCE_LIMIT', 'Demo wallet balance limit exceeded.');
-        this.ledger!.record(a, topup ? 'TOPUP' : 'PAYMENT', `${topup ? 'topup' : 'charge'}:${id}`, body.amountMinor, body.source === 'wallet' ? 'wallet' : 'external');
-        const transaction = { id, type: topup ? 'TOPUP' : 'PAYMENT', amount: major(body.amountMinor), currency: 'AED', purpose: body.reference || 'Demo wallet reload', status: 'SETTLED', timestamp: Date.now(), referenceId: body.reference };
+        this.ledger!.record(a, 'PAYMENT', `charge:${id}`, body.amountMinor, body.source === 'wallet' ? 'wallet' : 'external');
+        const transaction = { id, type: 'PAYMENT', amount: major(body.amountMinor), currency: 'AED', purpose: body.reference, status: 'SETTLED', timestamp: Date.now(), referenceId: body.reference };
         db.put(a, 'transaction', transaction, id);
-        return topup ? ok({ transaction, newBalance: major(next) }) : ok({ charge, transaction, remainingBalance: major(next) });
+        return ok({ charge, transaction, remainingBalance: major(next) });
       }
       if (method === 'POST' && /^\/charges\/[^/]+\/refunds$/.test(path)) {
         const charge = db.get(a, 'charge', path.split('/')[2]);

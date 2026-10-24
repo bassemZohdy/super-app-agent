@@ -117,7 +117,7 @@ Open **Payment accounts** in React to save synthetic card presets, link provider
 
 Current wallet payments now append balanced journal entries, with one-time legacy balance migration and checked posted/held/available funds. [Journal and recovery guide](docs/development/payment-ledger.md) · [Live migration evidence](docs/reports/2026-10-24-payment-ledger.md).
 
-The [payment backlog](TODO.md#payment-accounts-and-automation-demo--planned-backlog) tracks 50 tasks: 10 slices delivered and 40 open. The remaining work covers broader payable/review integration, wallet/mobile/toll top-ups, fines, refunds, bounded autopay/automatic services and deterministic clock/failure simulation. [Full design](docs/architecture/payment-automation-demo.md).
+The [payment backlog](TODO.md#payment-accounts-and-automation-demo--planned-backlog) tracks 50 tasks: 11 slices delivered and 39 open. The remaining work covers broader payable/review integration, mobile/toll top-ups, fines, refunds, bounded autopay/automatic services and deterministic clock/failure simulation. [Full design](docs/architecture/payment-automation-demo.md).
 
 Use `npm run simulator:verify` to try the persisted preview-only business clock across separate processes. It emits descriptive due events and resets its isolated run without touching provider funds. [Commands and limits](docs/development/simulator.md) · [Lifecycle/scenario evidence](docs/reports/2026-10-24-lifecycle-simulator.md). Other payable types, refunds/reversals and automatic execution remain in the backlog.
 
@@ -130,3 +130,5 @@ License: MIT.
 [Settlement claims and refund guards](docs/development/settlement-claims.md) now protect existing provider payments from stale-proof/refund races. Old unrefunded captures are conservatively marked unknown until source reconciliation; the migration preserves balances and history. Bill capture is now enabled through approved orders; autopay remains open.
 
 [End-to-end wallet/card bill payments](docs/development/payment-checkout.md): authorize, explicitly Pay, inspect a provider-confirmed receipt, or recover the original pending payment. Existing conversational bill payments share the same wallet-order path.
+
+[Saved-card wallet funding](docs/development/wallet-funding.md) now provides review, bound authorization/challenge, explicit card capture and one balanced wallet credit. [Watch its paced recording](docs/recordings/wallet-funding/index.html) or run `npm run record:wallet-funding`.

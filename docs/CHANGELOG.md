@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 24 October 2026 — saved-card wallet funding
+
+Deliver PAY-13 with source/amount-bound review, explicit authorization/challenge, atomic issuer capture and wallet credit, restart/retry receipts and finite legacy funding aliases. Record an asserted paced real-Keycloak journey; retain remaining payment/automation gates. [Guide](development/wallet-funding.md) · [Evidence](reports/2026-10-24-wallet-funding.md).
+
 ## 24 October 2026 — actual wallet/card bill checkout
 
 Enable explicit approved bill execution, source payable admission, finite hold capture, source-confirmed receipts and same-order recovery. Migrate existing bill application/conversation paths to the shared wallet flow and bind offered bill ID/revision/amount. Preserve prior reviews through the capture-state migration and reject raw billing capture bypasses. Verify challenged card payment with unchanged wallet funds, wallet execution and lost-response recovery. PAY-09–PAY-12 are delivered; broader payables, refunds and automation remain open. [Guide](development/payment-checkout.md) · [Evidence](reports/2026-10-24-payment-checkout.md).

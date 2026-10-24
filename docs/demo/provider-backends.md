@@ -1,6 +1,6 @@
 # Provider backend demonstration
 
-This is a local integration environment, not an integration with the named real entities. Producer: the provider-simulator package. Consumers: the application microservices. Contract version: 2.0.0 for DLD, 2.1.0 for RTA settlement status, 2.4.0 for DEWA/telecom/Police payables/admission, and 2.5.0 for payment setup/authorization/capture/settlement claims; OpenAPI 3.1. This demo security migration changes authentication while retaining `/v1` resource schemas. Sign in again for the provider audience; service-header impersonation clients must migrate. Future breaking resource changes require explicit versioning and migration.
+This is a local integration environment, not an integration with the named real entities. Producer: the provider-simulator package. Consumers: the application microservices. Contract version: 2.0.0 for DLD, 2.1.0 for RTA settlement status, 2.4.0 for DEWA/telecom/Police payables/admission, and 2.6.0 for payment setup/authorization/capture/settlement claims; OpenAPI 3.1. This demo security migration changes authentication while retaining `/v1` resource schemas. Sign in again for the provider audience; service-header impersonation clients must migrate. Future breaking resource changes require explicit versioning and migration.
 
 ## Service and account boundaries
 
@@ -48,7 +48,7 @@ A default wallet starts with 1500 AED in **simulated funds**. Personal and house
 
 ## Payment flow
 
-The gateway accepts integer `amountMinor` in AED fils, and a simulated funding source: `wallet`, `demo_approved`, or `demo_declined`. Top-ups accept the latter two sources. Captures, declines, refunds and idempotency responses are persisted atomically. A declined wallet payment does not debit funds. An eligible unclaimed or verified-unapplied captured payment can be refunded once; wallet-funded captures return funds to the wallet. A card-simulated capture/refund does not change the wallet.
+The gateway accepts integer `amountMinor` in AED fils, and a simulated funding source: `wallet`, `demo_approved`, or `demo_declined`. Legacy top-ups accept the latter two sources, mapped to persistent finite issuer cards. New saved-card funding uses dedicated review/approval/challenge/execute routes with exact amount/source binding and atomic wallet credit. Captures, declines, refunds and idempotency responses are persisted atomically. A declined wallet payment does not debit funds. An eligible unclaimed or verified-unapplied captured payment can be refunded once; wallet-funded captures return funds to the wallet. A card-simulated capture/refund does not change the wallet.
 
 For bills, fines, parking and Salik, the application service obtains the authoritative amount, captures payment, then submits its ID to the entity. The entity retrieves that payment with its read-only settlement client and checks account, captured status, merchant, resource reference, amount and refund status. A payment proof cannot be applied twice. The provider does not trust a browser-supplied amount as a quote.
 

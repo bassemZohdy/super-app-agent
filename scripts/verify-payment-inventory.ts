@@ -10,7 +10,7 @@ const before=await read(path+'/wallet'),transactions=await read(path+'/transacti
 const overview=await read(`http://localhost:4000/api/payments/overview?accountId=${encodeURIComponent(account.id)}`);
 for(const provider of ['etisalat','du'])assert.ok(overview.candidates.some((c:{provider:string;reference:string;balanceMinor?:number})=>c.provider===provider&&c.reference.startsWith(`PRE-${provider}-`)&&Number.isSafeInteger(c.balanceMinor)));
 assert.ok(overview.candidates.some((c:{provider:string})=>c.provider==='police'));
-assert.ok(Array.isArray(overview.dependencies));assert.ok(Array.isArray(overview.orders));assert.ok(Array.isArray(overview.cardBalances));assert.equal(overview.contractVersion,'1.2.0');
+assert.ok(Array.isArray(overview.dependencies));assert.ok(Array.isArray(overview.orders));assert.ok(Array.isArray(overview.cardBalances));assert.equal(overview.contractVersion,'1.3.0');
 for(const balance of overview.cardBalances)assert.equal(balance.limitMinor-balance.heldMinor-balance.spentMinor,balance.availableMinor);
 for(const order of overview.orders){assert.equal(order.accountId,account.id);assert.equal(typeof order.fundsCaptured,'boolean');if(order.state==='SETTLED'){assert.equal(order.fundsCaptured,true);assert.equal(order.receipt.amountMinor,order.quote.totalMinor);}}
 const reviews=await read(`http://localhost:4000/api/payments/orders?accountId=${encodeURIComponent(account.id)}`);assert.ok(Array.isArray(reviews.orders));

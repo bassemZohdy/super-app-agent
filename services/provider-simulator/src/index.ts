@@ -61,7 +61,7 @@ export function createProviderServer(provider: ProviderId, path: string, options
       const operation = routes.find(route => route.method === req.method && route.regex.test(operationPath));
       if (!operation || url.search) throw new ApiError(404, 'NOT_FOUND', 'Operation not found.');
       if(claimRoute&&!claimant)throw new ApiError(403,'CLAIM_CLIENT_REQUIRED','Only the exact provider settlement workload can change a claim.');
-      if(provider==='payments'&&operationPath.startsWith('/payment-orders')&&!interactive)throw new ApiError(403,'INTERACTIVE_REVIEW_REQUIRED','Stored authorization reviews require the signed-in owner. Unattended actors cannot approve or answer challenges.');
+      if(provider==='payments'&&(operationPath.startsWith('/payment-orders')||operationPath.startsWith('/wallet-funding-orders'))&&!interactive)throw new ApiError(403,'INTERACTIVE_REVIEW_REQUIRED','Stored authorization reviews require the signed-in owner. Unattended actors cannot approve or answer challenges.');
       if(operationPath.includes('/admissions')&&!interactive)throw new ApiError(403,'INTERACTIVE_ADMISSION_REQUIRED','Payable admission requires the current signed-in owner.');
       const actor: Actor = { sub: subject, username: subject, name: typeof req.headers['x-user-name'] === 'string' ? Buffer.from(req.headers['x-user-name'], 'base64url').toString('utf8').slice(0, 200) : 'Demo citizen', accountId, requestId: '', authorization: interactive ? req.headers.authorization : undefined };
       let body: any = {};

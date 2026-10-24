@@ -1,3 +1,4 @@
+import { WalletFundingPanel } from './WalletFundingPanel';
 import { useEffect, useRef, useState } from 'react';
 import { formatAED, cardPresets, type PaymentMethod, type PaymentPreview, type BillingAccount, type PaymentOverview, type PaymentAuthorizationReview } from '../../../packages/protocol-core/src/payments.ts';
 type Props = { gateway: string; accountId: string; getToken(): Promise<string>; onClose(): void };
@@ -93,6 +94,9 @@ export function PaymentAccountsPanel({ gateway, accountId, getToken, onClose }: 
           {!data.billingAccounts.some(b => b.status === 'ACTIVE') && <p>No biller accounts linked yet.</p>}
         </section>
       </div>
+      <WalletFundingPanel methods={data.methods} orders={data.fundingOrders||[]} busy={busy}
+        create={input=>void work(async()=>{await mutate('wallet-funding-orders',input);setNotice('Wallet top-up review saved. Approve its exact source and amount before adding funds.');})}
+        act={(order,action,extra={})=>void work(async()=>{const result=await mutate(`wallet-funding-orders/${action}`,{orderId:order.id,expectedVersion:order.version,...(action==='cancel'?{}:{approvalDigest:order.approvalDigest}),...extra});setNotice(result.order.state==='SETTLED'?'Card captured and wallet credited once.':result.order.state==='FAILED'?`Top-up stopped: ${result.order.failureCode}. No wallet credit.`:result.order.state==='CANCELLED'?'Wallet top-up cancelled. No funds added.':result.order.state==='REQUIRES_ACTION'?'Approve or reject this exact wallet top-up challenge.':'Card capacity reserved. Use Add to complete the top-up.');})} />
       <section className="payment-obligations" aria-label="Bills and fines"><h3>Bills &amp; fines</h3><p>Current provider amounts and earlier cycles for your linked accounts. Settled opening fixtures are labelled and do not represent a new payment.</p>
         <ul>{data.payables.filter(p=>linked(p.provider,p.reference)).map(p=><li key={p.id}>
           <strong>{p.label}</strong><p>{formatAED(p.amountMinor)} · {p.status} · {p.dueState || 'CURRENT'}{p.version ? ` · revision ${p.version}` : ''}</p>
