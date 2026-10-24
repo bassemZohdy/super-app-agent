@@ -28,11 +28,18 @@ const handshake = object({
   supportedComponents: list(text(64), 100), locale: text(64),
 }, ['platform', 'viewport', 'supportedComponents']);
 const sessionId: Schema = { type: 'string', pattern: '^[a-zA-Z0-9_-]{8,128}$' };
+const paymentSurfaceTerms={flowId:id,orderId:id,expectedVersion:{type:'integer',minimum:1,maximum:1000000},approvalDigest:{type:'string',pattern:'^[a-f0-9]{64}$'}};
 const actionSchemas: Record<string, Schema> = {
+  payment_surface_choose:object({flowId:id,selectedChoice:id},['flowId','selectedChoice']),
+  payment_surface_refresh:object({flowId:id,selectedChoice:id},['flowId']),
+  payment_surface_cancel:object({flowId:id,selectedChoice:id},['flowId']),
+  payment_surface_authorize:paymentObject(paymentSurfaceTerms),
+  payment_surface_execute:paymentObject(paymentSurfaceTerms),
+  payment_surface_challenge:paymentObject({...paymentSurfaceTerms,challengeId:id,decision:{enum:['APPROVE','REJECT']}}),
   activate_parking: object({ selectedChoice: id, zoneId: id, durationHours: hours, plateNumber: text(128) }),
   extend_parking: object({ ticketId: id, additionalHours: hours }, ['ticketId']),
   pay_utilities_bill: object({ billId: id,expectedPayableRevision:{type:'string',pattern:'^[a-f0-9]{64}$'},expectedAmountMinor:{type:'integer',minimum:1,maximum:100000000} }), pay_police_fines: object({ fineIds: {...list(id,20),minItems:1,uniqueItems:true},expectedPayables:fineSelectionItemsSchema,expectedAmountMinor:{type:'integer',minimum:1,maximum:100000000} }, ['fineIds']),
-  confirm_smartcity_checkout: object(), confirm_movein: object({ contractNumber: id, unit: text() }),
+  confirm_smartcity_checkout: object({expectedPayables:{type:'array',minItems:0,maxItems:30,items:paymentObject({provider:{enum:['dewa','police']},payableId:id,expectedRevision:{type:'string',pattern:'^[a-f0-9]{64}$'}})},expectedAmountMinor:{type:'integer',minimum:1,maximum:100000000},targetReference:text(160),expectedTargetVersion:{type:'integer',minimum:1,maximum:1000000}}), confirm_movein: object({ contractNumber: id, unit: text() }),
   book_ride: object({ selectedChoice: id, driverId: id }), order_food: object({ selectedChoice: id }),
   confirm_composite_checkout: object(), topup_wallet: object({ amount: moneySchema }, ['amount']),
   pay_telecom_bill: object({ provider: { enum: ['etisalat', 'du'] }, billId: id,expectedPayableRevision:{type:'string',pattern:'^[a-f0-9]{64}$'},expectedAmountMinor:{type:'integer',minimum:1,maximum:100000000} }, ['provider','billId']),

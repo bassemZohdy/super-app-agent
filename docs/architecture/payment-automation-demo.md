@@ -144,3 +144,7 @@ SQLite permits a single simultaneous writer; the local worker/payment design mus
 ## Versioned consent foundation
 
 [AUTO-01](../development/payment-mandates.md) stores one finite actor/audience/operation/target policy with exact sources, explicit fallback, purpose, trigger, window, caps, counts and cooldown. Exact digest approval is owner-only; any revision withdraws previous consent. Immutable masked history and lifecycle locks commit together. Source providers independently confirm current ownership/eligibility. Every record returns `executionEnabled: false`: AUTO-03 must derive and admit exact operations with current consent and budget reservations, and AUTO-05 must provide durable jobs before automatic writes exist.
+
+## Exact conversational funding review
+
+[PAY-07](../development/payment-surfaces.md) now binds displayed payable revisions/amounts, explicit source/version and stored order/digest across the service workspace. Wallet/card bills, exact fines, saved-card wallet reload and civic groups require review, authorization/challenge and a separate capture action. Cancellation and unknown recovery retain original identities; source selection and natural-language assent never spend. Automatic callers retain their separate admission/permit gates.

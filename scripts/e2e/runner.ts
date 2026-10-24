@@ -90,8 +90,15 @@ export async function runJourneys({ video }: { video: boolean }) {
     await button.scrollIntoViewIfNeeded(); await hold(pace.action);
     const previous = current!.surface.revision;
     const data = await post('/api/a2ui/action', () => button.click(), expectedId);
-    assert.notEqual(data.surface.revision, previous); check(`${action} returned its asserted receipt and a new revision`);
+    assert.notEqual(data.surface.revision, previous); check(`${action} returned its asserted surface and a new revision`);
     await hold(pace.receipt); return data;
+  };
+  const payFromSurface=async(action:string,source='Cityside wallet')=>{
+    await confirm(action,'payment_source_card');
+    await page!.getByRole('radio').filter({hasText:source}).click();await hold(pace.review);
+    await confirm('payment_surface_choose','payment_review_card');
+    await confirm('payment_surface_authorize','payment_review_card');
+    await confirm('payment_surface_execute','payment_receipt_card');
   };
   const account = () => page!.getByRole('combobox', { name: 'Current account', exact: true }).inputValue();
   const api = async (offset: number, path: string, status = 200) => {
@@ -144,7 +151,8 @@ export async function runJourneys({ video }: { video: boolean }) {
     const replay = await fetch(`${environment.coreUrl}/api/a2ui/action`, { method: 'POST', headers: { Authorization: authorization, 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: offered.surface.sessionId, accountId: personal, surfaceRevision: offered.surface.revision, action: 'topup_wallet', payload: { amount: 50 } }) });
     assert.equal(replay.status, 409); assert.equal(await balance(), initial); check('Cancelled approval replay rejected with HTTP 409; balance unchanged');
     await caption('02 · Approval cancelled', 'The confirmation button is gone. Server replay rejected. Balance unchanged.'); await hold(pace.receipt); await shot('02-cancelled');
-    const topupOffer = await service('Payments', 'wallet_card'); await confirm('topup_wallet', 'wallet_topup_card');
+    const cardResponse=await fetch(`${environment.coreUrl}/api/payments/methods`,{method:'POST',headers:{Authorization:authorization,'Content-Type':'application/json'},body:JSON.stringify({accountId:personal,requestKey:crypto.randomUUID(),preset:'approved',nickname:'Journey saved card'})});assert.equal(cardResponse.status,200);
+    const topupOffer = await service('Payments', 'wallet_card'); await payFromSurface('topup_wallet','Journey saved card');
     const duplicate = await fetch(`${environment.coreUrl}/api/a2ui/action`, { method: 'POST', headers: { Authorization: authorization, 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: topupOffer.surface.sessionId, accountId: personal, surfaceRevision: topupOffer.surface.revision, action: 'topup_wallet', payload: { amount: 50 } }) });
     assert.equal(duplicate.status, 409); check('Replaying the consumed top-up approval is rejected with HTTP 409');
     assert.equal(await balance(), initial + 5000); assert.equal((await api(3, '/wallet/transactions')).transactions.length, 1); check('Exactly one 50 AED top-up appears in the independently read ledger');
@@ -162,15 +170,15 @@ export async function runJourneys({ video }: { video: boolean }) {
 
     await begin('04', 'Utilities: review and settle a fresh bill', 'Fresh isolated DEWA bill. Review meter data and line items before paying from the simulated wallet.');
     await service('Utilities', 'utilities_overview_card'); const bill = (await api(2, '/utilities/bill')).bill; assert.equal(bill.status, 'UNPAID'); const beforeBill = await balance();
-    await confirm('pay_utilities_bill', 'utilities_paid_card'); assert.equal((await api(2, '/utilities/bill')).bill.status, 'PAID'); assert.ok((await page.getByRole('complementary', { name: 'Service details', exact: true }).innerText()).includes(bill.premiseId)); assert.equal(await balance(), beforeBill - Math.round(bill.totalAmount * 100)); check('Bill is PAID in the provider and wallet matches the authoritative bill amount'); await shot('04-utility-receipt');
+    await payFromSurface('pay_utilities_bill'); assert.equal((await api(2, '/utilities/bill')).bill.status, 'PAID'); assert.ok((await page.getByRole('complementary', { name: 'Service details', exact: true }).innerText()).includes(bill.premiseId)); assert.equal(await balance(), beforeBill - Math.round(bill.totalAmount * 100)); check('Bill is PAID in the provider and wallet matches the authoritative bill amount'); await shot('04-utility-receipt');
 
     await begin('05', 'Telecom: review a subscription and pay its bill', 'Etisalat is a simulator. Confirm only the offered provider and bill; verify settlement independently.');
     await service('Telecom', 'telecom_overview'); const telecom = (await api(6, '/telecom/etisalat/bills')).bills[0]; const beforeTelecom = await balance();
-    await confirm('pay_telecom_bill', 'telecom_receipt'); assert.equal((await api(6, '/telecom/etisalat/bills')).bills[0].status, 'PAID'); assert.equal(await balance(), beforeTelecom - telecom.amountMinor); check('Selected Etisalat bill is paid once for its exact amount'); await shot('05-telecom-receipt');
+    await payFromSurface('pay_telecom_bill'); assert.equal((await api(6, '/telecom/etisalat/bills')).bills[0].status, 'PAID'); assert.equal(await balance(), beforeTelecom - telecom.amountMinor); check('Selected Etisalat bill is paid once for its exact amount'); await shot('05-telecom-receipt');
 
     await begin('06', 'Traffic fines: review and settle', 'Natural-language request through the same guarded core. Read violations and discounts before confirmation.');
     await chat('Check my police traffic fines', 'police_fines_card'); const fines = await api(3, '/fines/check'); const beforeFines = await balance(); assert.ok(fines.count > 0);
-    await confirm('pay_police_fines', 'police_fines_settled_card'); assert.equal((await api(3, '/fines/check')).count, 0); assert.equal(await balance(), beforeFines - Math.round(fines.totalPayable * 100)); check('No unpaid fines remain and the exact payable amount was debited'); await shot('06-fines-receipt');
+    await payFromSurface('pay_police_fines'); assert.equal((await api(3, '/fines/check')).count, 0); assert.equal(await balance(), beforeFines - Math.round(fines.totalPayable * 100)); check('No unpaid fines remain and the exact payable amount was debited'); await shot('06-fines-receipt');
     const paymentSetup = await fetch(`${environment.coreUrl}/api/payments/overview?accountId=${personal}`, { headers: { Authorization: authorization } }); assert.equal(paymentSetup.status,200);
     assert.ok((await paymentSetup.json()).candidates.some((candidate: {provider:string;reference:string})=>candidate.provider==='police'&&candidate.reference===fines.fines[0].plateNumber)); check('Owned vehicle remains linkable after every fine is paid');
 
@@ -200,7 +208,7 @@ export async function runJourneys({ video }: { video: boolean }) {
     assert.equal(nodes(current!.surface.view).find(node => node.id === 'metric_comp_total')!.properties!.value, '100.00 AED');
     check('Review quote excludes already-paid bills and matches the remaining 100 AED effect');
     const beforeUnified = await balance(); const salik = (await api(1, '/mobility/salik/balance')).balance;
-    await confirm('confirm_smartcity_checkout', 'composite_success_card');
+    await payFromSurface('confirm_smartcity_checkout');
     assert.equal(await balance(), beforeUnified - 10000); assert.equal((await api(1, '/mobility/salik/balance')).balance, salik + 100);
     assert.equal((await api(2, '/utilities/bill')).bill.status, 'PAID'); assert.equal((await api(3, '/fines/check')).count, 0);
     check('Already-settled DEWA/fines were not charged again; only 100 AED recharged Salik'); await shot('10-unified-receipt');

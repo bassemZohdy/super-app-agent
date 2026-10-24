@@ -4,6 +4,7 @@ Evidence spans the `283521a` integrated baseline, payment setup `65fec3c`, journ
 
 | Evidence | Verified scope | Interpretation |
 | --- | --- | --- |
+| [Conversational funding reviews](2026-10-24-payment-surfaces.md) | 317 tests, 18 builds, signed explicit review/challenge/restart/recovery and updated twelve journeys | PAY-07 delivered; automation admission and remaining manual recovery/simulator/QA gates remain open |
 | [Finite mandate consent](2026-10-24-payment-mandates.md) | 306 tests, 18 builds, six signed policy families and actual provider restart | AUTO-01 delivered; no automatic execution, editor, budget reservation or scheduler |
 | [Isolated issuer scenarios](2026-10-24-issuer-scenarios.md) | 292 tests, 18 builds, eight operator-configured signed browser outcomes and pending restart | SIM-03 delivered; general controls/failpoints and remaining PAY-18 paths stay open |
 | [Signed financial status events](2026-10-24-payment-events.md) | 278 tests, 18 builds, actual callback/lost-response recovery and terminal-reversal browser | PAY-18 infrastructure evidence; the later issuer report supplies SIM-03 while retained-path qualification remains open |

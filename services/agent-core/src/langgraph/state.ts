@@ -14,6 +14,7 @@ export interface SuperAppAgentState {
   messages: AgentMessage[];
   activeDomain: DomainCategory;
   currentSurface?: AGUISurfacePayload;
+  paymentFlow?: import('../payment-surfaces.ts').SurfacePaymentFlow;
   approval?: import('../approvals.ts').SurfaceApproval;
   approvalHistory?: Array<{ id: string; revision: string; at: number; event: 'offered' | 'confirmed' | 'cancelled'; action?: string }>;
   conversationTopic?: string;

@@ -1,6 +1,6 @@
 # Wallet/card bill checkout
 
-DEWA, Etisalat and du bills now use the same stored-order capture and settlement path from React's payment panel and the existing wallet-funded service/conversation routes. Explicit approval authorizes a finite hold; the separate **Pay AED …** action captures it and settles the provider-admitted bill. A receipt is shown only after the provider confirms application. Exact-set fines now use this same flow; prepaid/toll recharges now extend it through explicit intents and target fences. Sequential grouped checkout and source-backed refund/reversal are implemented; automatic rules retain their separate backlog tasks.
+DEWA, Etisalat and du bills now use the same stored-order capture and settlement path from React's payment panel and the explicit-funding service/conversation workspace. Explicit approval authorizes a finite hold; the separate **Pay AED …** action captures it and settles the provider-admitted bill. A receipt is shown only after the provider confirms application. Exact-set fines now use this same flow; prepaid/toll recharges now extend it through explicit intents and target fences. Sequential grouped checkout and source-backed refund/reversal are implemented; automatic rules retain their separate backlog tasks.
 
 ## Use the demo
 
@@ -31,7 +31,7 @@ Current order GETs and overview expose CAPTURING, CAPTURED, RECONCILIATION_REQUI
 
 Source routes `/payables/{payableId}/admissions` prepare a reservation; `/{admissionId}` reads it, and `/admit`, `/cancel`, `/payments` control its guarded lifecycle. They require the current interactive owner. The source obtains gateway state itself; caller-supplied order snapshots or arbitrary URLs are never accepted. Worker execution remains disabled pending the mandate/grant contract.
 
-Existing bill application APIs now create/authorize/execute wallet orders. Their explicit human payment request remains the decision; A2UI bill bindings echo bill ID, provider revision and amount, and stale/missing fields fail. Unlinked owned billers can receive a verified setup link as part of that one-time payment. General funding defaults do not change.
+Existing bill application APIs now create/authorize/execute wallet orders. Their explicit human payment request remains the decision; Raw compatibility bill requests bind bill ID, provider revision and amount. The service workspace now offers a separate source chooser, stored review, authorization/challenge and explicit pay action; stale/missing fields fail. Unlinked owned billers can receive a verified setup link as part of that one-time payment. General funding defaults do not change.
 
 **Migration for raw capture consumers:** `/charges` rejects bill/payable/admission reference namespaces for DEWA/Etisalat/du with `STORED_BILL_ORDER_REQUIRED`. Use the new stored-order APIs; raw billing flags cannot bypass the reservation/approval contract. Non-bill compatibility fixtures remain unchanged. New card IDs are not accepted as generic free-standing `/charges` sources.
 
@@ -44,3 +44,5 @@ The order table migrates existing review IDs/snapshots into its capture-state sc
 [Grouped checkout](checkout-groups.md) freezes one source for sequential child payments, retains separate provider receipts, and stops/resumes the original line on challenge or uncertain settlement. It does not imply cross-provider atomicity.
 
 [Original-source refunds](payment-refunds.md) now cancel eligible full bills/fine sets or reverse bounded unused recharge/funding value. Confirmed returns annotate original receipts and group children; uncertain reversals keep their original ID and do not restore funds.
+
+[Conversational review parity](payment-surfaces.md) adds explicit wallet/card funding to manual/conversational bills, fines, wallet reload and grouped checkout. Header/chat cancellation resolves the original payment first; service-URL reload preserves the saved review. Unknown responses inspect the original stored operation.

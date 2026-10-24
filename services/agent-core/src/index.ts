@@ -1,4 +1,5 @@
 import { handlePaymentAccounts } from './payment-accounts.ts';
+import { cancelSurfacePayment } from './payment-surfaces.ts';
 import { manualServices } from './manual-services.ts';
 import { proxyDelegation } from '../../../packages/backend-kit/src/delegation-proxy.ts';
 import { HttpPolicy, HttpError, readJsonBody } from '../../../packages/backend-kit/src/http-policy.ts';
@@ -143,13 +144,13 @@ async function handleGatewayRequest(
     if (persistent) {
       if (normMethod === 'DELETE') { const record = await persistent.read(sid, actor.sub); await persistent.remove(sid, actor.sub); await discardRuntime(record.state); return { status: 200, data: { success: true } }; }
       const record = await persistent.read(sid, actor.sub);
-      return { status: 200, data: { success: true, sessionId: sid, accountId: record.accountId, messages: record.state.messages, surface: record.state.currentSurface, inference: record.state.metadata?.inference, runtime: record.state.metadata?.runtime, approval: record.state.approval, approvalHistory: record.state.approvalHistory } };
+      return { status: 200, data: { success: true, sessionId: sid, accountId: record.accountId, messages: record.state.messages, surface: record.state.currentSurface, serviceId:record.state.metadata?.manualService, inference: record.state.metadata?.inference, runtime: record.state.metadata?.runtime, approval: record.state.approval, approvalHistory: record.state.approvalHistory } };
     }
     if (!sessions.has(sid)) return { status: 404, data: { error: 'Session not found' } };
     if (sessionOwners.get(sid) !== actor.sub) return { status: 403, data: { error: 'Session belongs to a different user' } };
     if (normMethod === 'DELETE') { if (activeTransitions.has(sid)) return { status: 409, data: { error: 'Session busy' } }; await discardRuntime(sessions.get(sid)!); sessions.delete(sid); sessionOwners.delete(sid); return { status: 200, data: { success: true } }; }
     const state = sessions.get(sid)!;
-    return { status: 200, data: { success: true, sessionId: sid, accountId: state.metadata?.accountId, messages: state.messages, surface: state.currentSurface, inference: state.metadata?.inference, runtime: state.metadata?.runtime, approval: state.approval, approvalHistory: state.approvalHistory } };
+    return { status: 200, data: { success: true, sessionId: sid, accountId: state.metadata?.accountId, messages: state.messages, surface: state.currentSurface, serviceId:state.metadata?.manualService, inference: state.metadata?.inference, runtime: state.metadata?.runtime, approval: state.approval, approvalHistory: state.approvalHistory } };
   }
   // Hold ownership and coordination through persistence and the final event.
   if (normMethod === 'POST' && ['/api/a2ui/intent', '/api/a2ui/action', '/api/a2ui/cancel', '/api/manual/prepare'].includes(pathname)) {
@@ -182,6 +183,15 @@ async function handleGatewayRequest(
   // 2. User Intent Ingestion
   if (normMethod === 'POST' && ['/api/a2ui/intent','/api/manual/prepare'].includes(pathname)) {
     const session = requestContext.session!;
+    if(session.paymentFlow){
+      const cancel=/^(cancel|cancel that|never mind|nevermind|stop|إلغاء)[.!?]*$/i.test(String(body.text||'').trim());
+      if(cancel){
+        await discardRuntime(session);await cancelSurfacePayment(session,actor);commitSurface(session);
+        await broadcast(session.sessionId,createA2UIMessage('A2UI_RENDER_SURFACE',session.sessionId,{mode:'REPLACE',surface:session.currentSurface}));
+        return {status:session.paymentFlow?409:200,data:{success:!session.paymentFlow,...(session.paymentFlow?{error:'Cancellation was not confirmed. Inspect the original payment.'}:{}),surface:session.currentSurface}};
+      }
+      if(pathname==='/api/manual/prepare'||!/^(hi|hello|hey|marhaba|thanks|thank you|yes|yes please|ok|okay|confirm|confirm it|go ahead|do it|pay it|نعم|explain(?: this| that| it)?|tell me more|what happens next|what am i confirming|how much is (?:it|that)|what is (?:this|that|the status))[.!?]*$/i.test(String(body.text||'').trim()))return {status:409,data:{success:false,code:'PAYMENT_REVIEW_OPEN',error:'Finish, inspect or cancel the original payment review before opening another service.',surface:session.currentSurface}};
+    }
     if (authResult.user) {
       (session as any).user = authResult.user;
     }
@@ -213,6 +223,11 @@ async function handleGatewayRequest(
   if (normMethod === 'POST' && pathname === '/api/a2ui/cancel') {
     const state = requestContext.session!;
     if (!state.approval || state.currentSurface?.revision !== body.surfaceRevision) return { status: 409, data: { error: 'Approval is no longer pending', code: 'STALE_SURFACE' } };
+    if(state.paymentFlow){
+      await discardRuntime(state);await cancelSurfacePayment(state,actor);if(!state.paymentFlow)recordApproval(state,'cancelled');commitSurface(state);
+      await broadcast(state.sessionId,createA2UIMessage('A2UI_RENDER_SURFACE',state.sessionId,{mode:'REPLACE',surface:state.currentSurface}));
+      return {status:state.paymentFlow?409:200,data:{success:!state.paymentFlow,...(state.paymentFlow?{error:'Cancellation was not confirmed. Inspect the original payment.'}:{}),surface:state.currentSurface}};
+    }
     recordApproval(state, 'cancelled');
     await discardRuntime(state);
     state.metadata = { ...state.metadata, runtime: { version: 1, status: 'cancelled' } };

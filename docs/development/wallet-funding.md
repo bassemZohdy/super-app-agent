@@ -46,3 +46,5 @@ npm run demo:verify:payment-ledger
 The first two use real local Keycloak/Redis, a separate browser and isolated SQLite/ports; they preserve normal demo funds. Recording waits six seconds after asserted review/challenge/authorization and eight seconds after confirmed receipts. Publication occurs only after all assertions pass. [Recording](../recordings/wallet-funding/index.html) · [Evidence](../reports/2026-10-24-wallet-funding.md).
 
 In an explicitly [isolated issuer run](issuer-scenarios.md), `AUTHORIZATION_PENDING` reserves card capacity without capture or wallet credit. Refresh after the operator resolves the issuer decision; a separate Add action remains required. Pending cancellation and expiry release capacity.
+
+The provider-backed [conversational wallet action](payment-surfaces.md) now chooses an existing saved card and uses the same review/challenge/capture-before-credit API. It does not call the legacy funding-flag path. No active saved card means no offered reload source.

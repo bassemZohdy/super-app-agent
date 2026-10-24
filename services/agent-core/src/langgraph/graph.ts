@@ -1,3 +1,5 @@
+import { handlePaymentSurfaceAction } from '../payment-surfaces.ts';
+import { actorContext } from '../../../../packages/backend-kit/src/context.ts';
 import { manualService } from '../manual-services.ts';
 import { handleConversation, contextualPrompt } from '../conversation.ts';
 import type { AGUISurfacePayload, UIComponentNode } from '../../../../packages/protocol-core/src/index.ts';
@@ -18,7 +20,7 @@ export class SuperAppAgentGraph {
     const service = manualService(serviceId);
     if (!service) throw new Error('Unsupported service route');
     await this.prepareIntent(state, service.prompt, onProgress);
-    state.metadata = { ...state.metadata, inference: { status: 'disabled', provider: 'manual-service' } };
+    state.metadata = { ...state.metadata, manualService:serviceId, inference: { status: 'disabled', provider: 'manual-service' } };
     return state;
   }
 
@@ -152,7 +154,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
             properties: { label: subscription.name, value: `${subscription.monthlyAmount} AED / month`, subtext: subscription.status } })),
           ...bills.flatMap((bill: any): UIComponentNode[] => [
             { type: 'MetricWidget', id: bill.billId, properties: { label: 'Current bill', value: `${bill.totalAmount} AED`, subtext: bill.status } },
-            ...(bill.status === 'UNPAID' ? [{ type: 'Button' as const, id: `pay_${bill.billId}`, properties: { label: `Pay ${bill.totalAmount} AED`, variant: 'primary' },
+            ...(bill.status === 'UNPAID' ? [{ type: 'Button' as const, id: `pay_${bill.billId}`, properties: { label: `${process.env.PROVIDER_INTEGRATION==='true'?'Review funding for':'Pay'} ${bill.totalAmount} AED`, variant: 'primary' },
               onEvents: [{ event: 'onPress' as const, actionType: 'AGENT_ACTION_DISPATCH' as const, payload: { action: 'pay_telecom_bill', provider, billId: bill.billId,...(bill.payableRevision?{expectedPayableRevision:bill.payableRevision,expectedAmountMinor:Math.round(bill.totalAmount*100)}:{}) } }] }] : []),
           ]),
         ] } };
@@ -321,6 +323,9 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
     onProgress?: (delta: string) => void
   ): Promise<SuperAppAgentState> {
     onProgress?.(`⚡ Processing Smart City action: ${action}...`);
+
+    const actor=actorContext.getStore();
+    if(actor&&await handlePaymentSurfaceAction(state,actor,action,payload))return state;
 
     if (action === 'pay_telecom_bill') {
       const result = await executeTelecomRequest('POST', `/telecom/${payload.provider}/bills/${encodeURIComponent(payload.billId)}/payments`, { ...(payload.expectedPayableRevision?{expectedPayableRevision:payload.expectedPayableRevision,expectedAmountMinor:payload.expectedAmountMinor}:{}) });
@@ -1335,13 +1340,13 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
           {
             type: 'Text',
             id: 'dewa_payment_channel',
-            properties: { text: 'Payment uses the selected account’s simulated wallet funds.' },
+            properties: { text: process.env.PROVIDER_INTEGRATION==='true'?'Choose wallet or a saved synthetic card in the next review. No payment is made by opening the review.':'Payment uses the selected account’s simulated wallet funds.' },
           },
           {
             type: 'Button',
             id: 'btn_pay_dewa',
             properties: {
-              label: `💳 Settle DEWA Bill via DubaiPay (${bill.totalAmount.toFixed(2)} AED)`,
+              label: `${process.env.PROVIDER_INTEGRATION==='true'?'Review DEWA funding':'💳 Settle DEWA Bill via DubaiPay'} (${bill.totalAmount.toFixed(2)} AED)`,
               variant: 'primary',
               fullWidth: true,
             },
@@ -1418,7 +1423,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
             type: 'Button',
             id: 'btn_settle_fines',
             properties: {
-              label: `🛡️ Settle Fines via DubaiPay (${finesData.totalPayable.toFixed(2)} AED)`,
+              label: `${process.env.PROVIDER_INTEGRATION==='true'?'Review selected fine funding':'🛡️ Settle Fines via DubaiPay'} (${finesData.totalPayable.toFixed(2)} AED)`,
               disabled:!finesData.fines.length||finesData.fines.some((f:any)=>f.paymentRestricted||f.blackPoints>0),
               variant: 'primary',
               fullWidth: true,
@@ -1517,7 +1522,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
             type: 'Button',
             id: 'btn_confirm_smartcity_checkout',
             properties: {
-              label: `🏛️ Authorize Unified DubaiPay Settlement (${grandTotal.toFixed(2)} AED)`,
+              label: `${process.env.PROVIDER_INTEGRATION==='true'?'Review checkout funding':'🏛️ Authorize Unified DubaiPay Settlement'} (${grandTotal.toFixed(2)} AED)`,
               variant: 'primary',
               fullWidth: true,
             },
@@ -1525,7 +1530,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
               {
                 event: 'onPress',
                 actionType: 'AGENT_ACTION_DISPATCH',
-                payload: { action: 'confirm_smartcity_checkout' },
+                payload: { action: 'confirm_smartcity_checkout',...(process.env.PROVIDER_INTEGRATION==='true'?{expectedPayables:[...(bill.status==='UNPAID'?[{provider:'dewa',payableId:bill.payableId,expectedRevision:bill.payableRevision}]:[]),...finesData.fines.map((f:any)=>({provider:'police',payableId:f.payableId,expectedRevision:f.payableRevision}))],expectedAmountMinor:Math.round(grandTotal*100),targetReference:salikData.tagNumber,expectedTargetVersion:salikData.version||1}:{}) },
               },
             ],
           },
