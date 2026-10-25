@@ -146,6 +146,13 @@ export class PaymentOrders {
       order.state='AUTHORIZED';return this.save(order);
     });
   }
+  /** Closes an automatic order that provably never reached funds, so its reservations can be released. Captured work is never touched. */
+  cancelAutomatic(actor:Actor,id:string,automation:NonNullable<Review['automation']>):Review{return this.atomic(()=>{
+    const order=this.sync(this.owned(actor,id));
+    if(!order.automation||order.automation.executionId!==automation.executionId)return fail('ORDER_AUTOMATIC','This order does not belong to the presented execution.',403);
+    if(order.fundsCaptured||!['AWAITING_APPROVAL'].includes(order.state))return order;
+    return this.close(order,'CANCELLED','AUTOMATION_RELEASED');
+  });}
   cancel(actor:Actor,id:string,expectedVersion:number){return this.atomic(()=>{const order=this.sync(this.owned(actor,id));if(order.automation)return fail('ORDER_AUTOMATIC','Revoke or pause the mandate instead; an automatic order is not cancelled directly.',403);if(order.version!==expectedVersion)return fail('ORDER_CHANGED','Refresh this review before cancelling.');if(!active(order)||order.fundsCaptured)return fail('ORDER_CLOSED','Captured or closed orders cannot be cancelled.');return this.close(order,'CANCELLED');});}
   beginCapture(actor:Actor,id:string,input:{expectedVersion:number;approvalDigest:string},snapshot:Payable,automatic=false){return this.atomic(()=>{
     const order=this.decision(actor,id,input,snapshot,automatic);if(order.state!=='AUTHORIZED'||!order.authorization)return fail('ORDER_NOT_AUTHORIZED','Authorize this exact order before payment.');

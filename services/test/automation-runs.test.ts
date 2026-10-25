@@ -12,6 +12,8 @@ import { createHash } from 'node:crypto';
 import { PaymentCheckout } from '../provider-simulator/src/payment-checkout.ts';
 import { ProviderSettlements } from '../provider-simulator/src/provider-settlements.ts';
 import { executeAutomaticOrder } from '../provider-simulator/src/automation-execution.ts';
+import { armFailpoint,clearFailpoints } from '../provider-simulator/src/failpoints.ts';
+import { UpstreamError } from '../../packages/backend-kit/src/provider-client.ts';
 import { permitOperation } from '../delegation/src/permits.ts';
 import type { ProviderClient } from '../../packages/backend-kit/src/provider-client.ts';
 
@@ -287,7 +289,7 @@ test('AUTO-03 step 3: wrong owner, missing permit and stale authority execute no
   assert.equal(f.payments.orders!.get(f.actor,first.orderId!).state,'AWAITING_APPROVAL');
   f.payments.mandates!.pause(f.actor,m.id,m.version);
   await assert.rejects(executeAutomaticOrder(x.deps,owner,first.id),(e:any)=>e.code==='AUTOMATION_ADMISSION_REJECTED');
-  assert.equal(f.payments.orders!.get(f.actor,first.orderId!).state,'AWAITING_APPROVAL','a paused mandate captures nothing');
+  assert.equal(f.payments.orders!.get(f.actor,first.orderId!).state,'CANCELLED','a paused mandate captures nothing and its order is closed');
   assert.equal(f.payments.ledger!.summary(f.actor.accountId).balanceMinor,before);
   assert.equal(x.effects(),0);
   await assert.rejects(executeAutomaticOrder(x.deps,owner,first.id),(e:any)=>e.code==='AUTOMATION_ALREADY_DISPATCHED','the rejection is recorded and final for this execution');
@@ -334,4 +336,87 @@ test('AUTO-03 step 4: a spent permit with no recorded admission continues once; 
   assert.equal(g.db.automationRuns!.dispatchState(second.id),undefined);
   assert.equal(g.payments.orders!.get(g.actor,second.orderId!).state,'AWAITING_APPROVAL');
   assert.equal(y.effects(),0);
+});
+
+const claimCount=(f:ReturnType<typeof fixture>)=>Number(f.dewaDb.db.prepare("SELECT count(*) n FROM automation_payable_claims").get()!.n);
+
+test('AUTO-03 step 5: a definitive pre-funds failure releases the claim and budget but never reuses the occurrence',async t=>{
+  const f=fixture(t),m=f.mandate();f.bill('auto-bill-1',150,1);
+  const first=prepared(f.prepare(m.id,'occ_release')),x=execution(f);
+  assert.equal(claimCount(f),1);
+  assert.equal(f.db.automationRuns!.status('automation-operator').reservedMinor,15000);
+  f.payments.mandates!.pause(f.actor,m.id,m.version);
+  await assert.rejects(executeAutomaticOrder(x.deps,owner,first.id),(e:any)=>e.code==='AUTOMATION_ADMISSION_REJECTED');
+  assert.equal(f.db.automationRuns!.released(first.id),true);
+  assert.equal(f.payments.orders!.get(f.actor,first.orderId!).state,'CANCELLED');
+  assert.equal(claimCount(f),0,'the source provider claim is gone');
+  assert.equal(f.db.automationRuns!.status('automation-operator').reservedMinor,0,'the budget reservation is freed');
+  assert.equal(f.dewa.payables!.get(f.actor.accountId,first.payableId).status,'UNPAID');
+  // No credential or admission remains for the released execution.
+  assert.throws(()=>f.db.automationRuns!.readExecution('auto-worker',first.id),(e:any)=>e.code==='AUTOMATION_EXECUTION_RELEASED');
+  assert.equal(f.db.automationRuns!.reconcile(first.id),'RELEASED','reconciling again is idempotent');
+  assert.equal(x.effects(),0);
+});
+
+test('AUTO-03 step 5: an unknown outcome after funds moved is held, never released or retried',async t=>{
+  const f=fixture(t),m=f.mandate();f.bill('auto-bill-1',150,1);
+  const first=prepared(f.prepare(m.id,'occ_unknown')),x=execution(f),real=x.deps.client.call.bind(x.deps.client);
+  x.deps.client.call=async(...args:Parameters<typeof real>)=>{if(args[3].endsWith('/payments'))throw new UpstreamError(503,'PROVIDER_OUTCOME_UNKNOWN','Lost before source commit');return real(...args);};
+  const held=await executeAutomaticOrder(x.deps,owner,first.id);
+  assert.equal(held.state,'RECONCILIATION_REQUIRED');
+  assert.equal(held.fundsCaptured,true);
+  assert.equal(f.db.automationRuns!.released(first.id),false);
+  assert.equal(f.db.automationRuns!.reconcile(first.id),'HELD');
+  assert.equal(claimCount(f),1,'the claim and reservation stay while the outcome is unknown');
+  assert.equal(f.db.automationRuns!.status('automation-operator').reservedMinor,15000);
+  // Recovery with the original order finishes it; the same reconciliation still never releases captured work.
+  x.deps.client.call=real;
+  const recovered=await x.deps.checkout.recover({...f.actor,sub:'auto-owner'},first.orderId!);
+  assert.equal(recovered.state,'SETTLED');
+  assert.equal(x.effects(),1);
+  assert.equal(f.db.automationRuns!.reconcile(first.id),'HELD');
+});
+
+test('AUTO-03 step 5: an admission rejected before funds moves releases; an expired window is swept on the next preparation',async t=>{
+  const f=fixture(t),m=f.mandate();f.bill('auto-bill-1',150,1);f.bill('auto-bill-2',160,1);
+  const first=prepared(f.prepare(m.id,'occ_a')),x=execution(f),real=x.deps.client.call.bind(x.deps.client);
+  x.deps.client.call=async(...args:Parameters<typeof real>)=>{if(args[3].endsWith('/admit'))throw new UpstreamError(409,'ADMISSION_CLOSED','The source closed the reservation');return real(...args);};
+  const failed=await executeAutomaticOrder(x.deps,owner,first.id);
+  assert.equal(failed.state,'FAILED');
+  assert.equal(failed.fundsCaptured,false);
+  assert.equal(f.db.automationRuns!.released(first.id),true);
+  assert.equal(claimCount(f),0);
+  assert.throws(()=>f.prepare(m.id,'occ_a'),(e:any)=>e.code==='AUTOMATION_OCCURRENCE_RELEASED','the failed occurrence is final and never retried with a fresh identity');
+  // Backdate the first preparation so the mandate cooldown does not mask the sweep under test.
+  const firstBody=JSON.parse(String(f.db.db.prepare('SELECT body FROM automation_executions WHERE id=?').get(first.id)!.body));
+  f.db.db.prepare('UPDATE automation_executions SET body=? WHERE id=?').run(JSON.stringify({...firstBody,preparedAt:new Date(Date.now()-3600000).toISOString()}),first.id);
+  // An execution nobody admitted before its window closed is released by the next preparation's sweep.
+  const stale=prepared(f.db.automationRuns!.prepare('auto-worker',{mandateId:m.id,occurrenceKey:'occ_b',requestKey:`req_${randomUUID()}`}).valueOf());
+  assert.equal(claimCount(f),1);
+  const body=JSON.parse(String(f.db.db.prepare('SELECT body FROM automation_executions WHERE id=?').get(stale.id)!.body));
+  f.db.db.prepare('UPDATE automation_executions SET body=? WHERE id=?').run(JSON.stringify({...body,admissionExpiresAt:new Date(Date.now()-1000).toISOString()}),stale.id);
+  f.db.automationRuns!.sweepExpired();
+  assert.equal(f.db.automationRuns!.released(stale.id),true);
+  assert.equal(f.payments.orders!.get(f.actor,stale.orderId!).state,'CANCELLED');
+  assert.equal(claimCount(f),0);
+  assert.equal(f.db.automationRuns!.status('automation-operator').reservedMinor,0);
+});
+
+for(const point of ['checkout.after-admission','checkout.after-capture-commit','checkout.after-settlement-request'] as const)
+test(`AUTO-03 step 5: a crash at ${point} holds the automatic order and recovery settles it once`,async t=>{
+  const f=fixture(t),m=f.mandate();f.bill('auto-bill-1',150,1);
+  const first=prepared(f.prepare(m.id,`occ_${point}`)),x=execution(f),before=f.payments.ledger!.summary(f.actor.accountId).balanceMinor;
+  t.after(()=>clearFailpoints());armFailpoint(point,1);
+  const interrupted=await executeAutomaticOrder(x.deps,owner,first.id);
+  assert.notEqual(interrupted.state,'FAILED','a lost response is never a definitive failure');
+  assert.equal(f.db.automationRuns!.released(first.id),false,'nothing is released while the outcome is unknown');
+  assert.equal(claimCount(f),1);
+  assert.equal(x.consumed.length,1);
+  // Resume with the same spent permit session: the original order and identities finish, with one debit.
+  const settled=await executeAutomaticOrder(x.deps,owner,first.id);
+  assert.equal(settled.state,'SETTLED');
+  assert.equal(settled.id,first.orderId);
+  assert.equal(x.consumed.length,1,'no second permit was spent');
+  assert.equal(x.effects(),1);
+  assert.equal(f.payments.ledger!.summary(f.actor.accountId).balanceMinor,before-15000);
 });

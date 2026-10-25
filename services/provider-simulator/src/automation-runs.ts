@@ -83,6 +83,7 @@ export class AutomationRuns{
         CREATE TABLE IF NOT EXISTS automation_occurrences(mandate_id TEXT NOT NULL,occurrence_key TEXT NOT NULL,execution_id TEXT NOT NULL REFERENCES automation_executions(id),PRIMARY KEY(mandate_id,occurrence_key));
         CREATE TABLE IF NOT EXISTS automation_payable_claims(account_id TEXT NOT NULL,payable_key TEXT NOT NULL,execution_id TEXT NOT NULL REFERENCES automation_executions(id),PRIMARY KEY(account_id,payable_key));
         CREATE TABLE IF NOT EXISTS automation_dispatch(execution_id TEXT PRIMARY KEY REFERENCES automation_executions(id),state TEXT NOT NULL CHECK(state IN ('ADMITTED','REJECTED')),permit_owner TEXT NOT NULL,at TEXT NOT NULL,reason TEXT);
+        CREATE TABLE IF NOT EXISTS automation_released(execution_id TEXT PRIMARY KEY REFERENCES automation_executions(id),reason TEXT NOT NULL,at TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS automation_audit(id INTEGER PRIMARY KEY,body TEXT NOT NULL);
         CREATE TRIGGER IF NOT EXISTS automation_audit_no_update BEFORE UPDATE ON automation_audit BEGIN SELECT RAISE(ABORT,'Automation audit is immutable');END;
         CREATE TRIGGER IF NOT EXISTS automation_audit_no_delete BEFORE DELETE ON automation_audit BEGIN SELECT RAISE(ABORT,'Automation audit is immutable');END;
@@ -120,6 +121,7 @@ export class AutomationRuns{
   /** Resolve the exact server-owned due invoice and reserve shared authority in one transaction. */
   prepare(subject:string,input:{mandateId:string;occurrenceKey:string;requestKey:string}):AutomationPreparation|AutomationSkip{
     this.worker(subject);
+    this.sweepExpired();
     if(!/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,100}$/.test(input.occurrenceKey))return deny('AUTOMATION_INPUT_INVALID','Use a bounded explicit occurrence key.',400);
     const fingerprint=createHash('sha256').update(JSON.stringify(['preparation',input])).digest('hex');
     return this.store.transaction(()=>{
@@ -150,6 +152,7 @@ export class AutomationRuns{
         if(current.expiresYear<date.getUTCFullYear()||current.expiresYear===date.getUTCFullYear()&&current.expiresMonth<date.getUTCMonth()+1)return skip('SOURCE_EXPIRED');
       }
       const existing=this.store.db.prepare('SELECT execution_id FROM automation_occurrences WHERE mandate_id=? AND occurrence_key=?').get(m.id,input.occurrenceKey);
+      if(existing&&this.released(String(existing!.execution_id)))return deny('AUTOMATION_OCCURRENCE_RELEASED','This occurrence already failed definitively and released its reservation; it is not retried with a fresh identity.');
       if(existing){const stored=this.store.db.prepare('SELECT body FROM automation_executions WHERE id=?').get(String(existing!.execution_id));
         if(!stored)return deny('AUTOMATION_OCCURRENCE_CONFLICT','The recorded occurrence has no execution.');return record(JSON.parse(String(stored!.body)) as AutomationPreparation);}
       const payable=this.dueInvoice(m,accountId);
@@ -160,7 +163,7 @@ export class AutomationRuns{
       const last=this.store.db.prepare('SELECT body FROM automation_executions WHERE mandate_id=? ORDER BY rowid DESC LIMIT 1').get(m.id);
       if(last&&now-Date.parse((JSON.parse(String(last!.body)) as AutomationPreparation).preparedAt)<policy.limits.cooldownSeconds*1000)
         return deny('AUTOMATION_COOLDOWN','The mandate cooldown between preparations has not elapsed.');
-      const key=this.periodKey(m,now),rows=this.store.db.prepare('SELECT body FROM automation_executions WHERE mandate_id=?').all(m.id).map(r=>JSON.parse(String(r.body)) as AutomationPreparation);
+      const key=this.periodKey(m,now),rows=this.store.db.prepare('SELECT body FROM automation_executions WHERE mandate_id=? AND id NOT IN (SELECT execution_id FROM automation_released)').all(m.id).map(r=>JSON.parse(String(r.body)) as AutomationPreparation);
       const inPeriod=rows.filter(r=>r.periodKey===key),reservedPeriodMinor=inPeriod.reduce((n,r)=>n+r.amountMinor,0),reservedPeriodCount=inPeriod.length;
       const reservedLifetimeMinor=rows.reduce((n,r)=>n+r.amountMinor,0),reservedLifetimeCount=rows.length;
       if(reservedPeriodMinor+payable.amountMinor>policy.limits.periodMinor||reservedPeriodCount+1>policy.limits.perPeriodCount)return skip('OVER_PERIOD_BUDGET');
@@ -199,6 +202,7 @@ export class AutomationRuns{
     return this.view(executionId);
   }
   private view(executionId:string){
+    if(this.released(executionId))return deny('AUTOMATION_EXECUTION_RELEASED','This execution failed definitively and released its reservation; no credential or admission remains.');
     const row=this.store.db.prepare('SELECT body,account_id,mandate_id FROM automation_executions WHERE id=?').get(executionId);
     if(!row)return deny('AUTOMATION_EXECUTION_NOT_FOUND','No such prepared execution exists in this run.',404);
     const preparation=JSON.parse(String(row!.body)) as AutomationPreparation;
@@ -232,6 +236,34 @@ export class AutomationRuns{
     return {preparation:p,ownerSub:String(owner!.owner),orderId:p.orderId,
       operation:automationOperation({executionId:p.id,runId:p.runId,accountId:p.accountId,boundDigest:p.boundDigest,payableId:p.payableId,payableRevision:p.payableRevision,amountMinor:p.amountMinor,sourceId:p.sourceId,sourceVersion:p.sourceVersion})};
   }
+  released(executionId:string):boolean{return !!this.store.db.prepare('SELECT 1 FROM automation_released WHERE execution_id=?').get(executionId);}
+  /** Releases the payable claim, occurrence budget and order reservation only when the order provably never reached funds.
+   *  An order with captured or unknown funds, or one still awaiting a human challenge, is held untouched. */
+  reconcile(executionId:string):'RELEASED'|'HELD'{
+    if(this.released(executionId))return 'RELEASED';
+    const orders=this.orders;if(!orders)return 'HELD';
+    const {preparation,ownerSub,orderId}=this.target(executionId),dispatch=this.dispatchState(executionId);
+    const actor:Actor={sub:ownerSub,username:ownerSub,name:'Automation owner',accountId:preparation.accountId,requestId:`automation-release:${executionId}`};
+    const automation={executionId,mandateId:preparation.mandateId,boundDigest:preparation.boundDigest};
+    let order=orders.get(actor,orderId);
+    if(order.fundsCaptured)return 'HELD';
+    const pastWindow=Date.now()>Date.parse(preparation.admissionExpiresAt);
+    if(order.state==='AWAITING_APPROVAL'&&(dispatch==='REJECTED'||!dispatch&&pastWindow))order=orders.cancelAutomatic(actor,orderId,automation);
+    if(!['FAILED','CANCELLED'].includes(order.state))return 'HELD';
+    const at=new Date().toISOString();
+    this.store.transaction(()=>{
+      this.store.db.prepare('INSERT OR IGNORE INTO automation_released VALUES(?,?,?)').run(executionId,order.failureCode||order.state,at);
+      this.store.db.prepare('DELETE FROM automation_payable_claims WHERE execution_id=?').run(executionId);
+      releaseAutomationPayable(this.io.providerStore(preparation.provider),executionId);
+      this.store.db.prepare('INSERT INTO automation_audit(body) VALUES(?)').run(JSON.stringify({at,runId:this.context.runId,mandateId:preparation.mandateId,event:'RELEASED',executionId,reason:order.failureCode||order.state}));
+    });
+    return 'RELEASED';
+  }
+  /** Releases executions whose admission window passed without any admission. */
+  sweepExpired(){
+    const rows=this.store.db.prepare('SELECT id,body FROM automation_executions WHERE id NOT IN (SELECT execution_id FROM automation_released) AND id NOT IN (SELECT execution_id FROM automation_dispatch)').all();
+    for(const row of rows)if(Date.now()>Date.parse((JSON.parse(String(row.body)) as AutomationPreparation).admissionExpiresAt)){try{this.reconcile(String(row.id));}catch{/* held until a later sweep */}}
+  }
   /** 'ADMITTED' or 'REJECTED' once the permit has been spent for this execution; undefined before. */
   dispatchState(executionId:string):'ADMITTED'|'REJECTED'|undefined{
     const row=this.store.db.prepare('SELECT state FROM automation_dispatch WHERE execution_id=?').get(executionId);
@@ -240,6 +272,7 @@ export class AutomationRuns{
   /** After the broker consumed the permit: re-read current authority and record the one admission. A stale fact closes it for good. */
   admit(executionId:string,ownerSub:string):AutomationPreparation{
     const outcome=this.store.transaction(()=>{
+      if(this.released(executionId))return deny('AUTOMATION_EXECUTION_RELEASED','This execution already released its reservation.');
       const {preparation}=this.target(executionId),prior=this.store.db.prepare('SELECT state FROM automation_dispatch WHERE execution_id=?').get(executionId);
       if(prior)return deny('AUTOMATION_ALREADY_DISPATCHED','This execution was already admitted or closed; recover its original order instead.');
       const v=this.view(executionId);
@@ -262,7 +295,7 @@ export class AutomationRuns{
       .map(p=>({id:p.id,accountId:p.accountId,mandateId:p.mandateId,policyVersion:p.policyVersion,occurrenceKey:p.occurrenceKey,state:p.state,provider:p.provider,payableId:p.payableId,amountMinor:p.amountMinor,sourceId:p.sourceId,preparedAt:p.preparedAt,admissionExpiresAt:p.admissionExpiresAt,boundDigest:p.boundDigest}));
   }
   status(subject:string){this.operator(subject);
-    const rows=this.store.db.prepare('SELECT body FROM automation_executions ORDER BY rowid DESC LIMIT 100').all().map(r=>JSON.parse(String(r.body)) as AutomationPreparation);
+    const rows=this.store.db.prepare('SELECT body FROM automation_executions WHERE id NOT IN (SELECT execution_id FROM automation_released) ORDER BY rowid DESC LIMIT 100').all().map(r=>JSON.parse(String(r.body)) as AutomationPreparation);
     return {runId:this.context.runId,workerSub:this.context.workerSub,
       executions:rows.map(p=>({id:p.id,mandateId:p.mandateId,occurrenceKey:p.occurrenceKey,amountMinor:p.amountMinor,state:p.state,preparedAt:p.preparedAt})),
       reservedMinor:rows.reduce((n,p)=>n+p.amountMinor,0),executionCount:rows.length};}
