@@ -12,6 +12,7 @@ export class AccountDatabase {
   events?:PaymentEvents;
   issuerScenarios?:IssuerScenarios;
   automationRuns?:import('./automation-runs.ts').AutomationRuns;
+  scenarioControls?:import('./scenario-controls.ts').ScenarioControls;
   constructor(path: string) {
     this.path = path;
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });

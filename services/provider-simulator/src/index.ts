@@ -10,6 +10,7 @@ import { verifyMandateTarget } from './mandate-targets.ts';
 import { issuerScenarioSchemas } from '../../../packages/protocol-core/src/issuer-scenarios.ts';
 import { IssuerScenarioError,type IssuerScenarioContext } from './issuer-scenarios.ts';
 import { AutomationRunError,automationRunSchemas } from './automation-runs.ts';
+import { ScenarioControlError } from './scenario-controls.ts';
 import { startPaymentEventDelivery } from './payment-events.ts';
 import type { PaymentEvent } from '../../../packages/protocol-core/src/payment-events.ts';
 import { PaymentResourceError } from './payment-resource-uses.ts';
@@ -74,6 +75,20 @@ export function createProviderServer(provider: ProviderId, path: string, options
         if(req.method==='GET'&&kind==='account-lifecycle'&&operator)return send({status:200,data:{success:true,...store.eligibility!.impact(account)}});
         if(req.method==='POST'&&kind==='account-eligibility'&&operator){const input=await readJsonBody(req);if(!validateEligibility(input))throw new ApiError(400,'VALIDATION_ERROR','Use the exact versioned eligibility decision.');const key=req.headers['idempotency-key'];if(typeof key!=='string')throw new ApiError(400,'IDEMPOTENCY_REQUIRED','An operator request key is required.');return send({status:200,data:{success:true,eligibility:store.eligibility!.change(account,input,claims.sub,key)}});}
         throw new ApiError(403,'ELIGIBILITY_OPERATION_DENIED','This workload cannot change or inspect this eligibility operation.');
+      }
+      const controlRoute=/^\/internal\/scenario-controls\/(simrun_[a-f0-9-]{36})(?:\/(arm|clear))?$/.exec(url.pathname);
+      if(url.pathname.startsWith('/internal/scenario-controls/')){
+        const controls=store.scenarioControls;
+        if(!controls||!controlRoute||url.search||controlRoute[1]!==controls.run.context.runId)throw new ApiError(404,'SCENARIO_CONTROLS_NOT_FOUND','No scenario controls are installed for this run.');
+        if(!interactive||claims.act!==undefined)throw new ApiError(403,'SCENARIO_OPERATOR_REQUIRED','A signed interactive run operator is required.');
+        if(req.method==='GET'&&!controlRoute[2])return send({status:200,data:{success:true,...controls.status(claims.sub)}});
+        if(req.method==='POST'&&controlRoute[2]==='arm'){
+          const input=await readJsonBody(req);
+          if(!ajv.validate({type:'object',properties:{name:{type:'string',enum:['checkout.after-admission','checkout.after-capture-commit','checkout.after-settlement-request']},times:{type:'integer',minimum:1,maximum:100},requestKey:{type:'string',pattern:'^[A-Za-z0-9_-]{8,100}$',minLength:8,maxLength:100}},required:['name','requestKey'],additionalProperties:false},input))throw new ApiError(400,'VALIDATION_ERROR','Arm a named failpoint with a bounded count and operator key.');
+          return send({status:200,data:{success:true,...controls.arm(claims.sub,input as {name:string;times?:number;requestKey:string})}});
+        }
+        if(req.method==='POST'&&controlRoute[2]==='clear')return send({status:200,data:{success:true,...controls.clear(claims.sub)}});
+        throw new ApiError(404,'SCENARIO_CONTROLS_NOT_FOUND','Unknown scenario control operation.');
       }
       const automationRoute=/^\/internal\/automation-runs\/(autorn_[a-f0-9-]{36})(?:\/(prepare))?$/.exec(url.pathname);
       if(url.pathname.startsWith('/internal/automation-runs/')){
@@ -233,9 +248,9 @@ export function createProviderServer(provider: ProviderId, path: string, options
       });
       send(result);
     } catch (error) {
-      const status = error instanceof HttpError ? error.status : error instanceof ObligationError||error instanceof EligibilityError||error instanceof MandateError || error instanceof IssuerScenarioError || error instanceof AutomationRunError || error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError || error instanceof SettlementError ? error.status : 503;
+      const status = error instanceof HttpError ? error.status : error instanceof ObligationError||error instanceof EligibilityError||error instanceof MandateError || error instanceof IssuerScenarioError || error instanceof AutomationRunError || error instanceof ScenarioControlError || error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError || error instanceof SettlementError ? error.status : 503;
       res.setHeader('Connection', 'close');
-      send({ status, data: { success: false, code: error instanceof ObligationError||error instanceof EligibilityError||error instanceof MandateError || error instanceof IssuerScenarioError || error instanceof AutomationRunError || error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError || error instanceof SettlementError ? error.code : 'PROVIDER_UNAVAILABLE', error: error instanceof HttpError ? error.message : error instanceof ObligationError||error instanceof EligibilityError||error instanceof MandateError || error instanceof IssuerScenarioError || error instanceof AutomationRunError || error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError || error instanceof SettlementError ? error.message : 'The simulator could not complete this request. Check operation status before retrying a write.' } });
+      send({ status, data: { success: false, code: error instanceof ObligationError||error instanceof EligibilityError||error instanceof MandateError || error instanceof IssuerScenarioError || error instanceof AutomationRunError || error instanceof ScenarioControlError || error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError || error instanceof SettlementError ? error.code : 'PROVIDER_UNAVAILABLE', error: error instanceof HttpError ? error.message : error instanceof ObligationError||error instanceof EligibilityError||error instanceof MandateError || error instanceof IssuerScenarioError || error instanceof AutomationRunError || error instanceof ScenarioControlError || error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError || error instanceof SettlementError ? error.message : 'The simulator could not complete this request. Check operation status before retrying a write.' } });
     }
   },{identity:'provider',ready:()=>{store.db.prepare('SELECT 1').get();}}));
   server.once('close',()=>telemetry.close());

@@ -1,5 +1,10 @@
 # Documentation changelog
 
+## 25 October 2026 — guarded scenario failpoint controls (SIM-04/SIM-05)
+
+Failpoint arming moved from test-only calls to guarded, run-scoped controls on the isolated simulator run: the run's exact operator can arm a named failpoint for a bounded count, clear and inspect redacted counters through an authenticated internal route, with immutable audit and idempotent request keys. Ordinary users are denied, the failpoint registry is a fixed list so nothing arbitrary can be injected, and the controls exist only inside an isolated run. An armed boundary loses the checkout response exactly once and recovery keeps the original single debit.
+
+
 ## 25 October 2026 — telecom route contracts and generalized path matching (P1-14)
 
 The telecom `subscriptions`, `plans` and `bills` reads and the path-parameterized bill payment are registered in the request-validation registry and enforced by the shared per-route gate; the registry template matcher now supports mid-path parameters uniformly (previously only trailing parameters matched, so such routes silently skipped validation), and POST routes with path parameters validate the request body alongside the captured parameters.
