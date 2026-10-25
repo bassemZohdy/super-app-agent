@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 26 October 2026 — narrow a rule's cap without a model call (AUTO-04, step 2)
+
+The React rules panel can lower an approved rule's per-payment cap. The change goes through the existing revise route, is refused if it would raise or keep the cap, and leaves the rule waiting for the owner to approve its reviewed terms before it runs again. Evidence: `services/test/mandate-narrow.test.ts`; the React shell type-checks; the stack mandate check passes. The browser journey for this control is not yet recorded. AUTO-04 stays open for the create, expand and source-change consent flows.
+
 ## 26 October 2026 — draft text cannot activate a rule (AUTO-04, step 1)
 
 A guard test scans the agent core: the approve action is reachable only from the authenticated mandate route, never from conversational code, so a draft in chat or voice cannot activate a rule. Approval also needs the reviewed digest and version, which the request validator enforces. Evidence: `services/test/auto04-consent-guard.test.ts`. AUTO-04 stays open for the consent flows (create, expand, source change) and the rule editor with narrowing in the React panel.
