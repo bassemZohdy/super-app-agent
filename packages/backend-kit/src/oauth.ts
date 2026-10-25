@@ -5,7 +5,8 @@ export class ClientCredentials {
   private pending?: Promise<string>;
   private clientId: string;
   private secret: string;
-  constructor(clientId: string, secret: string) { this.clientId = clientId; this.secret = secret; }
+  private scope?: string;
+  constructor(clientId: string, secret: string, scope?: string) { this.clientId = clientId; this.secret = secret; this.scope = scope; }
   invalidate() { this.cached = undefined; }
   async token(): Promise<string> {
     if (this.cached && Date.now() < this.cached.until) return this.cached.value;
@@ -20,7 +21,7 @@ export class ClientCredentials {
     const response = await fetch(url, {
       method: 'POST', signal: AbortSignal.timeout(5000),
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ grant_type: 'client_credentials', client_id: this.clientId, client_secret: this.secret }),
+      body: new URLSearchParams({ grant_type: 'client_credentials', client_id: this.clientId, client_secret: this.secret, ...(this.scope ? { scope: this.scope } : {}) }),
     });
     if (!response.ok) throw new Error(`Service authentication failed (${response.status})`);
     const data = await response.json() as any;

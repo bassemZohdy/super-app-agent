@@ -5,7 +5,7 @@ Cityside is a local, synthetic city-services demo (ADR-0011). Nothing here touch
 ## The loop
 
 1. Read [TODO.md](TODO.md) only. It is the single tracker of open work and is short on purpose. Do not load the changelog, reports or ADRs unless the task needs them.
-2. Take the first unfinished step on the **critical path** (`AUTO-05` → `AUTO-06` → …). Work off the path only when it is blocked, and say why in the commit message.
+2. Take the first unfinished step on the **critical path** (`AUTO-06` → `AUTO-07` → …). Work off the path only when it is blocked, and say why in the commit message.
 3. Make the smallest change that completes one sub-step. Write the test first for security and money behavior.
 4. Run the narrowest test while iterating, then the checks below before you stop.
 5. In the **same commit**: tick the sub-step in `TODO.md` (or delete the task when its `Done when` holds), add one entry to `docs/CHANGELOG.md`, and update the guide you changed.
@@ -29,7 +29,7 @@ Node 24 is the supported floor (`.nvmrc`). Integration and browser suites need t
 
 ## Safety rules that must keep holding
 
-- Mandates keep returning `executionEnabled:false` and no worker, credential or scheduled write is enabled until the AUTO-05 worker gates pass (the AUTO-03 credential and admission gates already do).
+- Mandates keep returning `executionEnabled:false` and no worker, credential or scheduled write is enabled until a schedule enqueues jobs and AUTO-15's pause and kill-switch gates pass (the AUTO-03 credential and AUTO-05 worker gates already do).
 - Money is integer fils. Every effect is idempotent, persisted before dispatch and retried only with its original identity. An unknown outcome blocks replacement until reconciled.
 - Tokens, assertions, keys and client secrets never appear in logs, errors, audit rows, tests output or documents. Use `packages/backend-kit/src/redact.ts`.
 - Do not widen a grant, scope, audience or role to make a test pass. Do not add a fallback that silently reaches shared fixtures or a default resource.
