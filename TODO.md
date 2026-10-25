@@ -35,7 +35,7 @@ Independent of that chain, so these can run in parallel at any time: the AUTO-04
   - [x] 3. Authenticated polling endpoint for the inbox, with request IDs and account-switch isolation; React panel
   - [x] 4. The inbox answers a held card challenge through the order challenge action; the worker never answers
   - [x] 5. Real-stack check: settled, paused and declined runs appear once each with reason, rule version and effect; re-reads add nothing; another owner sees none (`scripts/e2e/automation-execution.ts`)
-  - [ ] 6. Real-stack check of the challenged and unknown outcomes in the owner inbox
+  - [ ] 6. Real-stack check of the unknown outcome (challenged is covered in step 5 of the stack check). A first try armed `checkout.after-admission`, but the provider answered the automatic execute with the order still CAPTURING and the failpoint never fired, so the held run was `ORDER_CAPTURING`, not an injected loss. Find out why recovery reports CAPTURING without reaching that failpoint before writing the check. outcomes in the owner inbox
 - [ ] **AUTO-15 — Pause/revoke automation with a defined in-flight boundary.** Owner pause-all plus an authenticated demo-admin kill switch; worker admission and mandate fencing. **Done when:** revoke, limit reduction and card-disable races pass; authority outage fails closed; restart preserves pause; sign-out versus pause/revoke is explained; no claim that revocation reverses a committed payment. **Depends:** AUTO-14.
   - [x] 1. Operator kill switch: persisted, stops new claims and every new step, holds an issued credential without presenting it (`scripts/automation-kill-switch.ts`)
   - [x] 2. Owner pause-all of approved rules with per-rule results and same-key retry (`/api/payments/mandates/pause-all`)

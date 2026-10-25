@@ -29,3 +29,17 @@ test('AUTO-14: a held unknown outcome says money may have moved, a challenge say
   assert.ok(unknown.id && challenge.id);
   store.close();
 });
+
+test('AUTO-14: every hold that may have moved money says so; only a kill-switch stop before presentation says None', () => {
+  const store = new JobStore(':memory:');
+  store.enqueue(rule('occ-capturing'), 100);
+  store.enqueue(rule('occ-stopped'), 200);
+  const capturing = store.claim('w', 30_000, 1_000)!;
+  store.transition(capturing, 'HELD', { reason: 'ORDER_CAPTURING' }, { kind: 'HELD', body: { reason: 'ORDER_CAPTURING' } }, 1_000);
+  const stopped = store.claim('w', 30_000, 2_000)!;
+  store.transition(stopped, 'HELD', { reason: 'KILL_SWITCH_ENGAGED' }, { kind: 'HELD', body: { reason: 'KILL_SWITCH_ENGAGED' } }, 2_000);
+  const history = Object.fromEntries(runHistory(store, 'mandate_1', owned).map(r => [r.occurrenceKey, r.effect]));
+  assert.match(history['occ-capturing'], /may have moved/, 'a capture still in progress is not described as no effect');
+  assert.equal(history['occ-stopped'], 'None', 'a stop before the credential was presented moved nothing');
+  store.close();
+});

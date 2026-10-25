@@ -19,7 +19,10 @@ export const effectOf = (job: Pick<Job, 'state' | 'reason'>) => {
   if (job.state === 'SETTLED') return 'Money moved once, as approved';
   if (job.state === 'PREPARED') return 'Reserved, nothing moved yet';
   if (job.state === 'HELD' && job.reason === 'REQUIRES_ACTION') return 'Nothing moved yet; waiting for your answer';
-  if (job.state === 'HELD' && ((job.reason ?? '').startsWith('CREDENTIAL') || job.reason === 'OUTCOME_UNKNOWN')) return 'Outcome not confirmed: money may have moved. Reconciled on the original order; never retried under a new identity';
+  // Any other hold may already have moved money: an order still capturing, an unknown outcome, or a credential that was issued and not used.
+  // The one hold that moved nothing is a kill switch that stopped the run before its credential was presented.
+  if (job.state === 'HELD' && job.reason === 'KILL_SWITCH_ENGAGED') return 'None';
+  if (job.state === 'HELD') return 'Outcome not confirmed: money may have moved. Reconciled on the original order; never retried under a new identity';
   return 'None';
 };
 const headline: Record<InboxKind, string> = {

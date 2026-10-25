@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 25 October 2026 — every held run that may have moved money says so (AUTO-14, correction)
+
+The owner inbox described a held run as "Effect: None" unless its reason was one of two named ones, so a run the provider left capturing (`ORDER_CAPTURING`) was also described as no effect. Now every hold except a kill switch that stopped a run before its credential was presented says money may have moved, and the owner is pointed to reconciliation on the original order. Evidence: `services/test/auto14-effects.test.ts`. Still open in AUTO-14 step 6: the unknown outcome on the Compose stack. A first attempt found the provider returns a capturing order without reaching the simulator failpoint, which needs investigating before the stack check is written.
+
 ## 25 October 2026 — broker-scoped kill-switch admin client and desired state (AUTO-15, step 3b-ii)
 
 A new `automation-admin` Keycloak client, whose only scope is `automation.admin`, writes the desired kill-switch state at `POST /api/delegation/automation/kill-switch`. The automation worker reads it with its own execute scope. The worker applies it only when it is newer than the worker's last change, so a local engage or release is never undone by an older authority state. Verified on the Compose stack with real tokens (`npm run demo:verify:automation-kill-switch`): the admin sets the state, the worker reads it through its gateway, and the worker and the admin are each refused the other's direction. Still open in AUTO-15: 3b-iii, the panel control.
