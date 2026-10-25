@@ -145,7 +145,10 @@ export class PaymentOrders {
   }
   challenge(actor:Actor,id:string,input:{expectedVersion:number;approvalDigest:string;challengeId:string;decision:'APPROVE'|'REJECT'},snapshot:Payable|undefined,interactive:boolean){
     return this.atomic(()=>{
-      const order=this.decision(actor,id,input,snapshot);this.source(actor.accountId,order.quote.source.id,order.quote.source.version);if(order.state!=='REQUIRES_ACTION'||!order.authorization)return fail('CHALLENGE_CLOSED','This order has no pending challenge.');
+      // An automatic order's challenge is answered only by the signed-in owner: the rule raised it, the human decides it.
+      const automatic=!!this.owned(actor,id).automation;
+      if(automatic&&!interactive)return fail('ORDER_AUTOMATIC','Only the signed-in owner can answer a challenge on an automation order.',403);
+      const order=this.decision(actor,id,input,snapshot,automatic);this.source(actor.accountId,order.quote.source.id,order.quote.source.version);if(order.state!=='REQUIRES_ACTION'||!order.authorization)return fail('CHALLENGE_CLOSED','This order has no pending challenge.');
       const auth=this.issuer.challenge(this.binding(order),input.challengeId,input.decision,interactive);
       order.authorization=auth;if(auth.state==='DECLINED')return this.close(order,'FAILED',auth.failureCode);
       order.state='AUTHORIZED';return this.save(order);

@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 25 October 2026 — owner answers a held automation challenge (AUTO-14, step 2a)
+
+A card challenge raised by an automation order can now be answered only by the signed-in owner, through the existing challenge route. Approve authorizes the same order; reject closes it with nothing paid and its reservation released. The worker and any other unattended caller are refused. The worker does not yet resume an approved job or record the answer as an event (step 2b). Evidence: `services/test/auto14-challenge.test.ts`.
+
 ## 25 October 2026 — owner inbox and run history from the worker's records (AUTO-14, step 1)
 
 `services/automation-worker/src/inbox.ts` turns the worker's outbox events and pre-run reminders into owner-facing entries. Each entry names its source, so re-reading the inbox never duplicates a notification; it carries the reason, the rule version and what the run changed. Only the caller's owned rules are returned, and run history is refused for another owner's rule. Evidence: `services/test/automation-inbox.test.ts`. Still open in AUTO-14: answering or abandoning a held card challenge, the authenticated feed, and the React panel.

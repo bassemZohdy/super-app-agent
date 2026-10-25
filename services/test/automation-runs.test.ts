@@ -237,7 +237,7 @@ test('AUTO-03 step 3: preparation creates the real gateway order, which ordinary
   const refused=(e:any)=>e.code==='ORDER_AUTOMATIC';
   assert.throws(()=>f.payments.orders!.approve(f.actor,order.id,decide,undefined),refused);
   assert.throws(()=>f.payments.orders!.beginCapture(f.actor,order.id,decide,undefined as never),refused);
-  assert.throws(()=>f.payments.orders!.challenge(f.actor,order.id,{...decide,challengeId:'c1',decision:'APPROVE'},undefined,true),refused);
+  assert.throws(()=>f.payments.orders!.challenge(f.actor,order.id,{...decide,challengeId:'c1',decision:'APPROVE'},undefined,false),refused);
   assert.throws(()=>f.payments.orders!.cancel(f.actor,order.id,order.version),refused);
   assert.equal(f.payments.orders!.get(f.actor,order.id).state,'AWAITING_APPROVAL','refusals change nothing');
 });
