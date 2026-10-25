@@ -22,16 +22,16 @@ Counts come from task IDs in [TODO.md](../TODO.md); task groups overlap and have
 
 | Group | Total | Checked | Open |
 | --- | ---: | ---: | ---: |
-| P0 platform/security | 14 | 3 | 11 |
-| P1 platform/functionality | 16 | 4 | 12 |
-| P2 engineering/experience/operations | 6 | 1 | 5 |
-| OBO identity-delegation plan | 36 | 11 | 25 |
-| PAY payment extension | 21 | 20 | 1 |
-| AUTO consent/automatic services | 15 | 2 | 13 |
-| SIM simulation | 6 | 2 | 4 |
+| P0 platform/security | 11 | 0 | 11 |
+| P1 platform/functionality | 12 | 0 | 12 |
+| P2 engineering/experience/operations | 5 | 0 | 5 |
+| OBO identity-delegation plan | 25 | 0 | 25 |
+| PAY payment extension | 1 | 0 | 1 |
+| AUTO consent/automatic services | 13 | 0 | 13 |
+| SIM simulation | 4 | 0 | 4 |
 | QA payment-extension acceptance | 8 | 0 | 8 |
 
-The selected payment extension has **50 tasks: 24 checked, 26 open**. PAY-08 is partial pending actual automatic/manual caller qualification; SIM-01 is checked only for its preview foundation. SIM-02, AUTO-04, QA-01 and QA-02 have partial work but stay open. P2-02 is checked for the selected local demo boundary. No additional task is closed by this documentation cleanup.
+The selected payment extension has **50 tasks: 24 delivered and 26 open**; the delivered ledger moved to the [changelog](CHANGELOG.md). PAY-08 is partial pending actual automatic/manual caller qualification; SIM-01 was checked only for its preview foundation; SIM-02, AUTO-04, QA-01 and QA-02 have partial work but stay open. P2-02 was delivered for the selected local demo boundary and its entry lives in the changelog ledger.
 
 AUTO-03 is a proposed implementation contract with an archived unfinished prototype, not active application code. Later platform work did not enable recurring payments. Do not resume that prototype or treat mandate approval as execution authority without its existing acceptance gates.
 
@@ -47,4 +47,4 @@ The last operations inspection identified **six existing pending broker jobs** a
 
 ## Reading current and historical material
 
-Use this page for the implemented boundary, [TODO.md](../TODO.md) for remaining acceptance criteria, [guides](INDEX.md) for commands and contracts, and the [handoff](development/handoff.md) for continuation. Dated reports/recordings state what was verified at their own checkpoints. Their old test counts, earlier hosted-model observations and then-open features are historical facts. ADR amendments and target documents state which decisions were superseded or remain proposed. GitHub Actions remain disabled until explicitly authorized.
+Use this page for the implemented boundary, [TODO.md](../TODO.md) for remaining acceptance criteria, [guides](INDEX.md) for commands and contracts, and the [changelog](CHANGELOG.md) for the delivered record. Dated reports/recordings state what was verified at their own checkpoints. Their old test counts, earlier hosted-model observations and then-open features are historical facts. ADR amendments and target documents state which decisions were superseded or remain proposed. GitHub Actions remain disabled until explicitly authorized.

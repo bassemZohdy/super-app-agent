@@ -45,6 +45,6 @@ Each row below states what its dated report verified and what remained open **th
 
 ## Setup and planning records
 
-[Local development](../development/local-development.md) · [Local AI](../development/local-ai.md) · [Delegation](../development/delegation.md) · [Operations](../development/operations.md) · [Current handoff](../development/handoff.md).
+[Local development](../development/local-development.md) · [Local AI](../development/local-ai.md) · [Delegation](../development/delegation.md) · [Operations](../development/operations.md) · [Status](../STATUS.md).
 
-[Payment/automation planning and cleanup](2026-10-24-payment-planning.md) preserves the original 50-task plan and its earlier 5-checked/45-open review. The current extension is 24 checked/26 open; finite consent records are delivered and recurring execution remains disabled. [TODO](../../TODO.md) retains the remaining acceptance criteria. [The earlier handoff](../history/handoff-2026-10-24-e9135ff.md) preserves its own checkpoint rather than describing the current checkout.
+[Payment/automation planning and cleanup](2026-10-24-payment-planning.md) preserves the original 50-task plan and its earlier 5-checked/45-open review. The delivered ledger moved to the changelog; 26 items remain open, finite consent records are delivered and recurring execution remains disabled. [TODO](../../TODO.md) retains the remaining acceptance criteria; the superseded checkpoint handoffs were removed with their delivered record kept in the [changelog](../CHANGELOG.md).

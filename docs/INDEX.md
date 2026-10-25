@@ -6,7 +6,7 @@ Reviewed **25 October 2026**, after application checkpoint `cd3c7d5` and the lat
 
 1. [README](../README.md) — purpose and quickstart.
 2. [Current status](STATUS.md) — delivered scope, open boundaries and latest executed checks.
-3. [Local development](development/local-development.md), [testing](development/testing.md) and [current handoff](development/handoff.md).
+3. [Local development](development/local-development.md), [testing](development/testing.md) and [current status](STATUS.md).
 4. [System overview](architecture/system-overview.md), [service contracts](architecture/service-contracts.md), [agent runtime](architecture/agent-runtime.md) and [frontend shells](architecture/frontend-and-miniapps.md).
 5. [Custom protocol inventory](architecture/protocol-ag-ui-a2-ui.md) and [authenticated event stream](architecture/event-stream.md).
 6. [Operations/recovery](development/operations.md), [security](../SECURITY.md) and [evidence register](reports/README.md).
@@ -27,7 +27,7 @@ Reviewed **25 October 2026**, after application checkpoint `cd3c7d5` and the lat
 
 ## Payments and simulation
 
-The selected extension has **50 tasks: 24 checked, 26 open**. PAY-01–PAY-07, PAY-09–PAY-21, AUTO-01–AUTO-02, SIM-03 and preview-only SIM-01 are checked for their stated boundaries. Automatic execution remains disabled. [Authoritative backlog](../TODO.md#payment-accounts-and-automation-demo--planned-backlog).
+The selected extension has **50 tasks: 24 delivered and 26 open**; the delivered ledger (PAY-01–PAY-07, PAY-09–PAY-21, AUTO-01–AUTO-02, SIM-03 and preview-only SIM-01) moved to the [changelog](CHANGELOG.md). Automatic execution remains disabled. [Authoritative backlog](../TODO.md#payment-accounts-and-automation-demo--planned-backlog).
 
 | Guide | Delivered behavior or remaining boundary |
 | --- | --- |
@@ -79,7 +79,7 @@ The selected extension has **50 tasks: 24 checked, 26 open**. PAY-01–PAY-07, P
 - [Dependency triage](reports/2026-10-24-dependency-triage.md): dated audit/dispositions; no fresh dependency scan is implied by a documentation update.
 - [Provider contracts](../services/provider-simulator/openapi) and [application contract](../packages/backend-kit/openapi/application-apis.openapi.json): generated from runtime tables, with request/response coverage limits documented in the guides.
 - [Provider recording viewer](recordings/index.html), [delegation viewer](recordings/delegation/index.html), and the payment viewers linked by each guide preserve successful dated runs. A recording does not certify later source changes.
-- [Historical transcript](reports/E2E_LIFE_SCENARIOS_RECORDING.md), [archived demo backlog](history/demo-backlog-pre-production.md), [earlier handoff](history/handoff-2026-10-24-e9135ff.md) and [changelog](CHANGELOG.md) retain prior observations.
+- [Historical transcript](reports/E2E_LIFE_SCENARIOS_RECORDING.md), [archived demo backlog](history/demo-backlog-pre-production.md) and [changelog](CHANGELOG.md) retain prior observations.
 - Repository source, contracts and tests define current behavior; target designs and unimplemented checkboxes do not.
 
 External standards: [AG-UI](https://github.com/ag-ui-protocol/ag-ui), [A2UI](https://a2ui.org/), [MCP](https://modelcontextprotocol.io/) and [A2A](https://a2a-protocol.org/). Existing custom UI/event names do not establish conformance.
