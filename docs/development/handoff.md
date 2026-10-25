@@ -1,6 +1,6 @@
 # Current demo handoff — 24 October 2026
 
-Application checkpoint **`4bde222`** is on GitHub `main`. It includes P2-02 operations/recovery and the previously delivered manual payment/identity/local-AI work. This page is the current continuation guide; the [earlier `79cd691` handoff](../history/handoff-2026-10-24-79cd691.md) is retained as history. [Current status](../STATUS.md) · [Backlog](../../TODO.md).
+Application checkpoint **`cd3c7d5`** is on GitHub `main`. It includes P2-02 operations/recovery and the previously delivered manual payment/identity/local-AI work. This page is the current continuation guide; the [earlier `e9135ff` handoff](../history/handoff-2026-10-24-e9135ff.md) is retained as history. [Current status](../STATUS.md) · [Backlog](../../TODO.md).
 
 ## Run and inspect
 
@@ -8,7 +8,7 @@ Application checkpoint **`4bde222`** is on GitHub `main`. It includes P2-02 oper
 - Synthetic users: `bassem` or `demo-commuter`, password `demo123`.
 - `npm run demo:wait` checks existing health metadata and critical-dependency readiness. Use `npm run dev:react` when port 3000 is free. [Full setup](local-development.md).
 - `npm run ops:inspect` collects private diagnostics after `ops:init` and loading its key into the Node containers. Six existing pending broker jobs were flagged at the last inspection; retain their original identities for reconciliation. [Operations](operations.md).
-- Existing volumes, issuer keys, model caches, successful recordings and personal `.gitignore`/`.claude/`/`CLAUDE.md` work remain preserved. No data reset is part of documentation cleanup.
+- Existing volumes, issuer keys, model caches, successful recordings and personal local configuration remain preserved. No data reset is part of documentation cleanup.
 
 ## Verified application checkpoint
 

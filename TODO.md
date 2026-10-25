@@ -2,7 +2,7 @@
 
 > **Delivery target:** the local synthetic demo in [ADR-0011](docs/adr/ADR-0011-local-demo-target.md). Production criteria remain open where unfulfilled. No real money, agency credentials or hosted deployment is implied.
 
-**Reviewed 24 October 2026 against application checkpoint `4bde222`.** [Current status](docs/STATUS.md) consolidates delivered capabilities and verification; [evidence](docs/reports/README.md) retains dated command results. Latest application qualification: **533 offline Node tests and 18 workspace builds**, plus signed operating/payment recovery checks. This documentation cleanup adds no runtime feature.
+**Reviewed 24 October 2026 against application checkpoint `cd3c7d5`.** [Current status](docs/STATUS.md) consolidates delivered capabilities and verification; [evidence](docs/reports/README.md) retains dated command results. Latest application qualification: **533 offline Node tests and 18 workspace builds**, plus signed operating/payment recovery checks. This documentation cleanup adds no runtime feature.
 
 The reference stack uses six authenticated application APIs, seven independently persisted providers, Keycloak, Redis, a bounded RFC 7523 broker and internal open-source text/voice. React is primary; Angular/Flutter parity, production authority/storage and autonomous execution retain their explicit gates. VoiceStudio integration and cloud inference are unnecessary for the selected local modules. [AI setup/licences](docs/development/local-ai.md).
 
@@ -39,7 +39,7 @@ The original probes used isolated synthetic fixtures. Later regressions and loca
 | Flutter desktop account selector was absent; moved to the shared layout with phone/desktop switching regressions | `apps/shell-flutter/lib/main.dart` | P1-12 (partial) |
 | First-start verifier reached Keycloak before realm import; `demo:up` now waits through `demo:wait` | `scripts/wait-demo-stack.ts` | P0-07/P2-06 (partial) |
 
-[Current application handoff](docs/development/handoff.md) records `4bde222`, retained diagnostic alerts and the unimplemented AUTO-03 continuation. The earlier `79cd691` handoff is archived.
+[Current application handoff](docs/development/handoff.md) records `cd3c7d5`, retained diagnostic alerts and the unimplemented AUTO-03 continuation. The earlier `e9135ff` handoff is archived.
 
 ## Execution order
 

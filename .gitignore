@@ -35,6 +35,3 @@ Thumbs.db
 *.sqlite-shm
 *.sqlite-wal
 .playwright-mcp/
-
-# Claude Code local settings
-.claude/settings.local.json

@@ -1,6 +1,6 @@
 # Current implementation and verification status
 
-Reviewed **24 October 2026**, against application checkpoint **`4bde222`**. Documentation maintenance after this checkpoint does not add runtime capabilities. [Run the app](development/local-development.md) · [Full backlog](../TODO.md) · [Evidence register](reports/README.md).
+Reviewed **24 October 2026**, against application checkpoint **`cd3c7d5`**. Documentation maintenance after this checkpoint does not add runtime capabilities. [Run the app](development/local-development.md) · [Full backlog](../TODO.md) · [Evidence register](reports/README.md).
 
 ## Delivered demo
 
@@ -37,7 +37,7 @@ AUTO-03 is a proposed implementation contract with an archived unfinished protot
 
 ## Latest executed application checks
 
-At `4bde222`, `npm run check` passed **533 offline Node tests**, **18 workspace builds**, ESLint, E2E TypeScript, Markdown links and source-secret checks. The actual Node 24.21.0 Compose image passed 17 targeted operations tests. The [operations report](reports/2026-10-24-operations.md) records signed partial-journey checks, 10-second load, 60-second soak, encrypted restore and copied Keycloak/Redis boot/login. Signed payment-obligation browser/HTTP recovery also passed. Earlier full browser, Flutter and local-AI checks retain their separately dated evidence; they are not relabeled as rerun by documentation maintenance.
+At `cd3c7d5`, `npm run check` passed **533 offline Node tests**, **18 workspace builds**, ESLint, E2E TypeScript, Markdown links and source-secret checks. The actual Node 24.21.0 Compose image passed 17 targeted operations tests. The [operations report](reports/2026-10-24-operations.md) records signed partial-journey checks, 10-second load, 60-second soak, encrypted restore and copied Keycloak/Redis boot/login. Signed payment-obligation browser/HTTP recovery also passed. Earlier full browser, Flutter and local-AI checks retain their separately dated evidence; they are not relabeled as rerun by documentation maintenance.
 
 Recorded read load: 273.7 requests/s, p95 28.2 ms, zero errors. Recorded paced soak: p95 12.9 ms, zero errors, 1.2 MiB RSS growth after warm-up. These exclude inference capacity. Isolated durable-state recovery took 554 ms; copied Keycloak/Redis checks took 24.1 seconds, excluding operator investigation and full application promotion.
 

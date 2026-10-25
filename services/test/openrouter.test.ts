@@ -24,7 +24,7 @@ test('OpenRouter defaults to free router and never charges without explicit opt-
   assert.match(mock, /demo_fallback/);
 
   process.env.OPENROUTER_API_KEY = 'fake-test-key';
-  process.env.OPENROUTER_MODEL = 'anthropic/claude-sonnet-4';
+  process.env.OPENROUTER_MODEL = 'qwen/qwen-2.5-72b-instruct';
   await assert.rejects(() => invokeOpenRouterChat([{ role: 'user', content: 'hello' }]), /Paid model blocked/);
 
   process.env.OPENROUTER_MODEL = 'openrouter/free';

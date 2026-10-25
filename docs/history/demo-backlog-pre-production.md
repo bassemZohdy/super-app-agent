@@ -100,7 +100,7 @@
   - [x] Contextual AG-UI surface reducer translating multi-tool results into rich UI trees
 - [x] **3.3 Model Inference Gateway (OpenRouter Client)**
   - [x] OpenRouter fetch wrapper with fallback simulator mode
-  - [x] Dynamic model switching configuration (`claude-3.5-sonnet`, `gemini-2.0-flash`, `gpt-4o`)
+  - [x] Dynamic model switching configuration for hosted providers
   - [x] Robust JSON schema verification for AG-UI surfaces
 - [x] **3.4 Edge Proxy Integration (`services/agentgateway`)**
   - [x] Declarative config file (`config.yaml`) for LLM proxy, budget, and MCP tools

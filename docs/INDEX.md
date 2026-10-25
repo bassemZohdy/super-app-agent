@@ -1,6 +1,6 @@
 # Documentation index
 
-Reviewed **24 October 2026**, after application checkpoint `4bde222`. [Current status](STATUS.md) is the implementation/verification summary; [TODO.md](../TODO.md) owns remaining acceptance criteria. Dated reports and recordings preserve their own checkpoint facts.
+Reviewed **24 October 2026**, after application checkpoint `cd3c7d5`. [Current status](STATUS.md) is the implementation/verification summary; [TODO.md](../TODO.md) owns remaining acceptance criteria. Dated reports and recordings preserve their own checkpoint facts.
 
 ## Reading order
 
@@ -79,7 +79,7 @@ The selected extension has **50 tasks: 24 checked, 26 open**. PAY-01–PAY-07, P
 - [Dependency triage](reports/2026-10-24-dependency-triage.md): dated audit/dispositions; no fresh dependency scan is implied by a documentation update.
 - [Provider contracts](../services/provider-simulator/openapi) and [application contract](../packages/backend-kit/openapi/application-apis.openapi.json): generated from runtime tables, with request/response coverage limits documented in the guides.
 - [Provider recording viewer](recordings/index.html), [delegation viewer](recordings/delegation/index.html), and the payment viewers linked by each guide preserve successful dated runs. A recording does not certify later source changes.
-- [Historical transcript](reports/E2E_LIFE_SCENARIOS_RECORDING.md), [archived demo backlog](history/demo-backlog-pre-production.md), [earlier handoff](history/handoff-2026-10-24-79cd691.md) and [changelog](CHANGELOG.md) retain prior observations.
+- [Historical transcript](reports/E2E_LIFE_SCENARIOS_RECORDING.md), [archived demo backlog](history/demo-backlog-pre-production.md), [earlier handoff](history/handoff-2026-10-24-e9135ff.md) and [changelog](CHANGELOG.md) retain prior observations.
 - Repository source, contracts and tests define current behavior; target designs and unimplemented checkboxes do not.
 
 External standards: [AG-UI](https://github.com/ag-ui-protocol/ag-ui), [A2UI](https://a2ui.org/), [MCP](https://modelcontextprotocol.io/) and [A2A](https://a2a-protocol.org/). Existing custom UI/event names do not establish conformance.

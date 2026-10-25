@@ -31,6 +31,6 @@ A real provider contract, public hosting request, remote-agent requirement, remo
 
 - **Local open-source AI:** the user selected internal text and voice. Private Qwen/llama.cpp plus KittenTTS/Whisper replace active hosted inference. VoiceStudio integration is unnecessary. The earlier OpenRouter routing and HTTP 401 observation remain initial-decision history; its helper is retained for explicit diagnostics/tests only. [Setup and licences](../development/local-ai.md).
 - **Bounded delegated identity:** [ADR-0012](ADR-0012-secure-delegation-demo.md) accepts the supported RFC 7523 broker, current exact grants and limited synthetic writes. It does not authorize general recurring spending or preview features.
-- **Local operating quality:** P2-02 at `4bde222` adds private telemetry, dependency readiness, graceful shutdown, load/soak and encrypted cold recovery with explicit RPO/RTO procedures. It does not add a replicated production deployment or automated off-host backups. [Runbook](../development/operations.md).
+- **Local operating quality:** P2-02 at `cd3c7d5` adds private telemetry, dependency readiness, graceful shutdown, load/soak and encrypted cold recovery with explicit RPO/RTO procedures. It does not add a replicated production deployment or automated off-host backups. [Runbook](../development/operations.md).
 
 [Current implementation/status](../STATUS.md) and [remaining tasks](../../TODO.md) supersede earlier checkpoint summaries without changing the local-only delivery target.

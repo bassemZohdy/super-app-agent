@@ -1,6 +1,6 @@
 # Execution evidence register
 
-[Current implementation status](../STATUS.md) separates delivered behavior from open acceptance gates. Application checkpoint **`4bde222`**, 24 October 2026, is the latest executed full qualification: **533 Node tests and 18 workspace builds**. Documentation maintenance does not rerun or extend that application evidence.
+[Current implementation status](../STATUS.md) separates delivered behavior from open acceptance gates. Application checkpoint **`cd3c7d5`**, 24 October 2026, is the latest executed full qualification: **533 Node tests and 18 workspace builds**. Documentation maintenance does not rerun or extend that application evidence.
 
 ## Latest operating qualification
 
@@ -47,4 +47,4 @@ Each row below states what its dated report verified and what remained open **th
 
 [Local development](../development/local-development.md) · [Local AI](../development/local-ai.md) · [Delegation](../development/delegation.md) · [Operations](../development/operations.md) · [Current handoff](../development/handoff.md).
 
-[Payment/automation planning and cleanup](2026-10-24-payment-planning.md) preserves the original 50-task plan and its earlier 5-checked/45-open review. The current extension is 24 checked/26 open; finite consent records are delivered and recurring execution remains disabled. [TODO](../../TODO.md) retains the remaining acceptance criteria. [The earlier handoff](../history/handoff-2026-10-24-79cd691.md) preserves its own checkpoint rather than describing the current checkout.
+[Payment/automation planning and cleanup](2026-10-24-payment-planning.md) preserves the original 50-task plan and its earlier 5-checked/45-open review. The current extension is 24 checked/26 open; finite consent records are delivered and recurring execution remains disabled. [TODO](../../TODO.md) retains the remaining acceptance criteria. [The earlier handoff](../history/handoff-2026-10-24-e9135ff.md) preserves its own checkpoint rather than describing the current checkout.
