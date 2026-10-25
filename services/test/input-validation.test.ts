@@ -7,7 +7,7 @@ import { executeProfileRequest as profile, currentPreferences, server as profile
 import { executeCatalogRequest as catalog, server as catalogServer } from '../service-catalog/src/index.ts';
 import { getOrCreateSession, executeCoreRequest as core, sessions, server as coreServer } from '../agent-core/src/index.ts';
 import { MAX_MONEY, toMinor, fromMinor } from '../../packages/protocol-core/src/request-validation.ts';
-import { validateRequest } from '../../packages/protocol-core/src/request-validation.ts';
+import { validateRequest, matchTemplate } from '../../packages/protocol-core/src/request-validation.ts';
 import { isPlainJsonObject } from '../../packages/backend-kit/src/http-policy.ts';
 
 const snapshot = () => JSON.stringify({ balance, transactions, policeFines, meters: [...activeParkingMeters],
@@ -176,4 +176,29 @@ test('P2-05: telecom application routes validate their registered schemas like e
 test('P2-05: request bodies must be plain JSON objects in every mode', () => {
   for (const value of [{}, { accountId: 'a' }, { nested: { ok: true } }]) assert.equal(isPlainJsonObject(value), true);
   for (const value of [null, [], ['array'], 'text', 5, true]) assert.equal(isPlainJsonObject(value), false, JSON.stringify(value));
+});
+
+test('P1-14: telecom bill/payment routes are registered, validated and reject malformed bodies', () => {
+  for (const provider of ['etisalat', 'du']) {
+    for (const resource of ['subscriptions', 'plans', 'bills']) {
+      assert.equal(validateRequest('service-telecom', 'GET', `/telecom/${provider}/${resource}`, {}, {}), undefined);
+      assert.ok(validateRequest('service-telecom', 'GET', `/telecom/${provider}/${resource}`, {}, { junk: 1 }), resource);
+    }
+    const pay = (body: unknown) => validateRequest('service-telecom', 'POST', `/telecom/${provider}/bills/bill_1/payments`, {}, body);
+    assert.equal(pay({}), undefined);
+    assert.equal(pay({ expectedPayableRevision: 'a'.repeat(64), expectedAmountMinor: 5000 }), undefined);
+    for (const body of [{ expectedPayableRevision: 'short' }, { expectedAmountMinor: -1 }, { extra: true }]) {
+      assert.ok(pay(body), JSON.stringify(body));
+    }
+  }
+  assert.equal(validateRequest('service-telecom', 'GET', '/telecom/wrong/bills', {}, {}), undefined, 'unknown provider stays unregistered for the 404 handler');
+});
+
+test('P1-14: route templates match mid-path and trailing parameters uniformly', () => {
+  assert.deepEqual(matchTemplate('/telecom/du/bills/{billId}/payments', '/telecom/du/bills/bill_1/payments'), { billId: 'bill_1' });
+  assert.equal(matchTemplate('/telecom/du/bills/{billId}/payments', '/telecom/du/bills/bill_1/extra/payments'), undefined);
+  assert.deepEqual(matchTemplate('/capabilities/{id}', '/capabilities/cap.x'), { id: 'cap.x' });
+  assert.equal(matchTemplate('/capabilities/{id}', '/capabilities/a/b'), undefined);
+  assert.deepEqual(matchTemplate('/health', '/health'), {}, 'exact templates match with no captures');
+  assert.equal(matchTemplate('/health', '/healthz'), undefined);
 });

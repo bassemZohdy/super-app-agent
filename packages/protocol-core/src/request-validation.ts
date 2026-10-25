@@ -138,6 +138,8 @@ route('service-wallet', 'POST', '/pay/unified', { ...object({ items: list(object
 for(const provider of ['etisalat','du']){
   route('service-telecom','GET',`/telecom/${provider}/prepaid`,object());
   route('service-telecom','POST',`/telecom/${provider}/prepaid/recharges`,object({lineId:id,amountMinor:{type:'integer',minimum:1,maximum:100000000},expectedTargetVersion:{type:'integer',minimum:1,maximum:1000000}},['lineId','amountMinor','expectedTargetVersion']));
+  for(const resource of ['subscriptions','plans','bills'])route('service-telecom','GET',`/telecom/${provider}/${resource}`,object());
+  route('service-telecom','POST',`/telecom/${provider}/bills/{billId}/payments`,object({billId:id,expectedPayableRevision:{type:'string',pattern:'^[a-f0-9]{64}$'},expectedAmountMinor:{type:'integer',minimum:1,maximum:100000000}}));
 }
 route('service-profile', 'GET', '/profile', object(), [], 'profile_getProfile');
 route('service-profile', 'GET', '/profile/preferences', object(), [], 'profile_getPreferences');
@@ -186,11 +188,24 @@ function validate(schema: Schema, value: unknown): boolean {
   if (!compiled) { compiled = ajv.compile(schema); validators.set(schema, compiled); }
   return compiled(value) && monetaryPrecision(schema, value);
 }
+/** Match a route template with one or more `{param}` segments; returns raw (undecoded) captures. */
+export function matchTemplate(template: string, path: string): Record<string, string> | undefined {
+  const keys: string[] = [];
+  const parts = template.split(/\{([^}]+)\}/);
+  let source = '';
+  parts.forEach((part, index) => {
+    if (index % 2 === 0) source += part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    else { keys.push(part); source += '([^/]+)'; }
+  });
+  const match = new RegExp(`${source}$`).exec(path);
+  if (!match) return undefined;
+  const params: Record<string, string> = {};
+  keys.forEach((key, index) => { params[key] = match[index + 1]; });
+  return params;
+}
 function find(owner: string, method: string, path: string): Route | undefined {
   return routes.find(route => route.owner === owner && route.method === method &&
-    [route.path, ...(route.aliases || [])].some(template => template.includes('{')
-      ? path.startsWith(template.slice(0, template.indexOf('{'))) && !path.slice(template.indexOf('{')).includes('/')
-      : path === template));
+    [route.path, ...(route.aliases || [])].some(template => matchTemplate(template, path) !== undefined));
 }
 export function requestSchema(owner: string, method: string, path: string): Schema {
   const found = find(owner, method, path);
@@ -207,10 +222,13 @@ export function validateRequest(owner: string, method: string, path: string, que
   if (!route) return undefined; // Unknown routes retain the handler's 404 behavior.
   let input = method === 'POST' ? body : query;
   if (route.path.includes('{')) {
-    const key = route.path.slice(route.path.indexOf('{') + 1, -1);
-    const raw = path.slice(route.path.indexOf('{'));
+    const raw = matchTemplate(route.path, path) ?? (route.aliases||[]).map(a=>matchTemplate(a,path)).find(Boolean)!;
     const sessionRead=owner==='agent-core'&&method==='GET'&&route.path==='/api/sessions/{sessionId}';
-    try { input = {...(sessionRead?query:{}),[key]: decodeURIComponent(raw) }; } catch { return invalidInput(); }
+    try {
+      const params: Record<string,string> = {};
+      for (const [key, value] of Object.entries(raw)) params[key] = decodeURIComponent(value);
+      input = {...(method === 'POST' ? body as Record<string, unknown> : (sessionRead?query:{})),...params};
+    } catch { return invalidInput(); }
     if (Object.keys(query).length&&(!sessionRead||Object.keys(query).some(k=>k!=='accountId'))) return invalidInput('Query parameters are not accepted on this resource route');
   }
   if (!validate(route.schema, input) || (method === 'POST' && Object.keys(query).length) ||

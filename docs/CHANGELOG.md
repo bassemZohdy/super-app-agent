@@ -1,5 +1,10 @@
 # Documentation changelog
 
+## 25 October 2026 — telecom route contracts and generalized path matching (P1-14)
+
+The telecom `subscriptions`, `plans` and `bills` reads and the path-parameterized bill payment are registered in the request-validation registry and enforced by the shared per-route gate; the registry template matcher now supports mid-path parameters uniformly (previously only trailing parameters matched, so such routes silently skipped validation), and POST routes with path parameters validate the request body alongside the captured parameters.
+
+
 ## 25 October 2026 — request-body validation across application services (P2-05)
 
 Every application-server request body must now be a plain JSON object in integrated and legacy modes, rejected with the established `VALIDATION_ERROR` contract before routing. The telecom service and the `/accounts` route run the same per-route validation gate as every other service; the telecom prepaid/recharge schemas were registered but never enforced. Schema-level tests cover the telecom gate and the plain-object rule offline.

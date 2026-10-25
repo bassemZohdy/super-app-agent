@@ -211,6 +211,8 @@ export async function integratedRequest(service: string, actor: Actor, method: s
 
       const match = /^\/telecom\/(etisalat|du)\/(subscriptions|plans|bills)(\/[^/]+\/(?:payments|plan))?$/.exec(path);
       if (match) {
+        const invalid = validateRequest('service-telecom', method, path, query, body);
+        if (invalid) return invalid;
         const provider = match[1], route = `/${match[2]}${match[3] || ''}`;
         if (method === 'POST' && match[3]?.endsWith('/payments')) return successfulWithoutDuplicate(await settleBill(provider, match[3].split('/')[1]));
         if(method==='GET'&&route==='/bills'){const result=await call(provider,'GET','/bills'),payables=(await call(provider,'GET','/payables')).payables;return successful({bills:result.bills.map((bill:Bill)=>({...bill,payableRevision:payables.find((p:Payable)=>p.obligationId===bill.billId)?.revision}))});}
