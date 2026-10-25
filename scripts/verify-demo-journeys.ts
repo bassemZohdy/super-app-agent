@@ -22,7 +22,7 @@ for(const provider of ['etisalat','du']){
 }
 console.log('PASS: Etisalat and du bill settlement through the payment simulator');
 const fines=await api(4003,'/fines/check');if(fines.fines.length){before=await wallet();await api(4003,'/fines/pay','POST',{fineIds:fines.fines.map((f:any)=>f.fineId)});assert.equal(await wallet(),before-Math.round(fines.totalPayable*100));}assert.equal((await api(4003,'/fines/check')).count,0);
-await api(4003,'/wallet/topup','POST',{amount:1000});before=await wallet();
+await api(4003,'/wallet/topup','POST',{amount:500});before=await wallet();
 const checkout=await api(4003,'/pay/unified','POST',{items:[{agency:'ignored client quote',purpose:'server authoritative totals',amount:0.01}]});assert.equal(checkout.grandTotal,100);assert.equal(await wallet(),before-10000);
 console.log('PASS: fine settlement and unified checkout avoid double payment of previously settled bills/fines');
 const contract=(await api(4004,'/housing/ejari')).contract;
