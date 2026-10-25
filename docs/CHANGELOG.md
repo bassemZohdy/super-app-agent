@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 25 October 2026 — owner inbox and run history from the worker's records (AUTO-14, step 1)
+
+`services/automation-worker/src/inbox.ts` turns the worker's outbox events and pre-run reminders into owner-facing entries. Each entry names its source, so re-reading the inbox never duplicates a notification; it carries the reason, the rule version and what the run changed. Only the caller's owned rules are returned, and run history is refused for another owner's rule. Evidence: `services/test/automation-inbox.test.ts`. Still open in AUTO-14: answering or abandoning a held card challenge, the authenticated feed, and the React panel.
+
 ## 25 October 2026 — one-period subscription renewal and the default-deny capability map (AUTO-13)
 
 A `SUBSCRIPTION_RENEWAL` rule now renews one billing period at a time, from that period's own unpaid invoice, for an active subscription, at exactly the current plan price and inside the cap, with the paid order's receipt. A plan upgrade or repricing, a lapsed subscription, an uninvoiced or ambiguous period and a restricted invoice are skipped with a reason and recorded as requiring action; a paid period is never paid twice. `automationEligibility` maps catalog capabilities to mandate operations by default deny, and a test walks all 32 catalog capabilities: only the six named operations are automatic, and rides, dining, tenancy and utility activation, plan changes and parking activation stay review-required with no delegation. The preview forecasts renewals. Evidence: `services/test/automation-eligibility.test.ts`, `services/test/auto13-renewal.test.ts`. Not yet run on the real Compose stack: the renewal rule needs a start date in the past, which the mandate API rejects.
