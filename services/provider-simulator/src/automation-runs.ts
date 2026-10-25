@@ -178,6 +178,30 @@ export class AutomationRuns{
       }catch(error){releaseAutomationPayable(providerStore,preparation.id);throw error;}
     });
   }
+  /** The immutable preparation plus current authority freshness, for the credential broker. */
+  readExecution(worker:string,executionId:string){
+    if(worker!==this.context.workerSub)return deny('AUTOMATION_WORKER_REQUIRED',"Only this run's exact workload identity reads a prepared execution.",403);
+    const row=this.store.db.prepare('SELECT body,account_id,mandate_id FROM automation_executions WHERE id=?').get(executionId);
+    if(!row)return deny('AUTOMATION_EXECUTION_NOT_FOUND','No such prepared execution exists in this run.',404);
+    const preparation=JSON.parse(String(row!.body)) as AutomationPreparation;
+    if(preparation.runId!==this.context.runId)return deny('AUTOMATION_EXECUTION_NOT_FOUND','No such prepared execution exists in this run.',404);
+    const mandate=this.mandate(preparation.mandateId).m;
+    const source=mandate.policy.sources[0],current=source.methodId==='wallet'
+      ?{status:'ACTIVE' as const,version:1}
+      :this.store.get<{status:string;version:number}>(preparation.accountId,'payment-method',source.methodId);
+    const biller=mandate.policy.target.kind==='BILLER'
+      ?this.store.get<{status:string;version:number}>(preparation.accountId,'billing-account',mandate.policy.target.billingAccountId)
+      :undefined;
+    const payableCurrent=this.io.readPayables(preparation.accountId,preparation.provider)
+      .some(payable=>payable.id===preparation.payableId&&payable.revision===preparation.payableRevision&&payable.status==='UNPAID');
+    return {executionId:preparation.id,runId:this.context.runId,accountId:preparation.accountId,
+      mandate:{id:mandate.id,state:mandate.state,policyVersion:mandate.policyVersion,skipNext:mandate.skipNext===true},
+      source:{id:preparation.sourceId,version:preparation.sourceVersion,current:current?.status==='ACTIVE'&&current?.version===source.expectedVersion},
+      biller:mandate.policy.target.kind==='BILLER'?{id:mandate.policy.target.billingAccountId,current:biller?.status==='ACTIVE'&&biller?.version===mandate.policy.target.expectedVersion}:undefined,
+      payable:{id:preparation.payableId,revision:preparation.payableRevision,amountMinor:preparation.amountMinor,current:payableCurrent},
+      boundDigest:preparation.boundDigest,preparedAt:preparation.preparedAt,admissionExpiresAt:preparation.admissionExpiresAt,
+      expired:Date.now()>Date.parse(preparation.admissionExpiresAt)};
+  }
   /** Owned inspection: the interactive owner sees this workspace's reserved executions. */
   inspect(subject:string,accountId:string,mandateId?:string):AutomationExecutionView[]{
     const account=this.store.db.prepare('SELECT owner FROM accounts WHERE id=?').get(accountId);

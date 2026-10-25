@@ -96,12 +96,13 @@ export function createProviderServer(provider: ProviderId, path: string, options
         if(req.method==='POST'&&controlRoute[2]==='clear')return send({status:200,data:{success:true,...controls.clear(claims.sub)}});
         throw new ApiError(404,'SCENARIO_CONTROLS_NOT_FOUND','Unknown scenario control operation.');
       }
-      const automationRoute=/^\/internal\/automation-runs\/(autorn_[a-f0-9-]{36})(?:\/(prepare))?$/.exec(url.pathname);
+      const automationRoute=/^\/internal\/automation-runs\/(autorn_[a-f0-9-]{36})(?:\/(prepare|execution\/([A-Za-z0-9_-]+)))?$/.exec(url.pathname);
       if(url.pathname.startsWith('/internal/automation-runs/')){
         const runs=store.automationRuns;
         if(!runs||!automationRoute||url.search||automationRoute[1]!==runs.context.runId)throw new ApiError(404,'AUTOMATION_RUN_NOT_FOUND','No automatic execution run is installed here.');
         if(!interactive||claims.act!==undefined)throw new ApiError(403,'AUTOMATION_ROLE_REQUIRED','A signed interactive run identity is required.');
         if(req.method==='GET'&&!automationRoute[2]){return send({status:200,data:{success:true,...runs.status(claims.sub)}});}
+        if(req.method==='GET'&&automationRoute[2]==='execution')return send({status:200,data:{success:true,execution:runs.readExecution(claims.sub,automationRoute[3] as string)}});
         if(req.method==='POST'&&automationRoute[2]==='prepare'){
           const input=await readJsonBody(req);
           if(!ajv.validate(automationRunSchemas.prepare,input))throw new ApiError(400,'VALIDATION_ERROR','The preparation request has invalid or unsupported fields.');

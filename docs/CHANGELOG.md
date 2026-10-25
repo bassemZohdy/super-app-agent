@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 25 October 2026 — worker-scoped execution read for the broker lane (AUTO-03 checkpoint 2)
+
+The automation run exposes the immutable preparation to the credential broker through a worker-scoped read: only the run's exact workload identity may call it, and it re-reads the current mandate state, source version, biller link and payable revision at credential time instead of trusting the preparation. The user-confirmed path for the remaining checkpoints (broker permit-bound grant, real gateway order at preparation, worker admit route, compose worker service) is recorded in the backlog.
+
 ## 25 October 2026 — consent management actions (AUTO-04)
 
 Automation rules can now be paused, resumed, skipped for one occurrence and revoked from the React panel through new authenticated mandate routes. Pause keeps the consent and its binds while the execution authority refuses to prepare anything not approved; resume revalidates the current sources and target exactly like a fresh approval; skip-next is a versioned one-shot that the preparation consumes once with a recorded reason. The generate provider contracts now include the new actions. Create/expand/source-change consent flows and the rule editor remain open.

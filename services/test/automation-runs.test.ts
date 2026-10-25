@@ -188,3 +188,22 @@ test('AUTO-04: preparation refuses paused rules and honors the one-shot owner sk
   const current=f.payments.mandates!.get(f.actor,m.id);
   assert.equal(current.skipNext,false);
 });
+
+test('AUTO-03 checkpoint 2: the exact worker reads the immutable preparation with current authority freshness',t=>{
+  const f=fixture(t),m=f.mandate();f.bill('auto-bill-1',150,1);
+  const first=prepared(f.prepare(m.id,'occ_read'));
+  const view=f.db.automationRuns!.readExecution('auto-worker',first.id);
+  assert.equal(view.executionId,first.id);
+  assert.equal(view.mandate.state,'APPROVED');
+  assert.equal(view.payable.current,true);
+  assert.equal(view.source.current,true);
+  assert.equal(view.biller!.current,true);
+  assert.equal(view.boundDigest,first.boundDigest);
+  assert.equal(view.expired,false);
+  assert.throws(()=>f.db.automationRuns!.readExecution('automation-operator',first.id),(e:any)=>e.code==='AUTOMATION_WORKER_REQUIRED');
+  assert.throws(()=>f.db.automationRuns!.readExecution('auto-worker','autoexec_missing'),(e:any)=>e.code==='AUTOMATION_EXECUTION_NOT_FOUND');
+  f.payments.mandates!.pause(f.actor,m.id,m.version);
+  const paused=f.db.automationRuns!.readExecution('auto-worker',first.id);
+  assert.equal(paused.mandate.state,'PAUSED','freshness is read at credential time, not trusted from the preparation');
+  assert.equal(paused.expired,false);
+});
