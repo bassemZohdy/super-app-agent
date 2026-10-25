@@ -14,27 +14,38 @@ export function choiceDefaults(view: UIComponentNode): Record<string, string> {
   return choices;
 }
 
-/** Current dispatch contract supports one choice group per card; reject ambiguity. */
+interface ChoiceScope { id: string; options: string[] }
+
+/** Every choice group on the surface is in scope of every dispatch. */
+function choiceScope(view: UIComponentNode): ChoiceScope[] {
+  const scope: ChoiceScope[] = [];
+  const walk = (node: UIComponentNode) => {
+    if (node.type === 'ChoiceGroup') {
+      const options = (node.properties?.options || []).map(option => option.id);
+      if (options.length) scope.push({ id: node.id, options });
+    }
+    node.children?.forEach(walk);
+  };
+  walk(view);
+  return scope;
+}
+
+/** One group emits selectedChoice; several emit a selectedChoices map keyed by group id. */
 export function surfaceActionPayload(view: UIComponentNode, binding: ActionBinding,
   choices: Record<string, string>, formValues: Record<string, unknown> = {}): Record<string, unknown> {
   if (binding.actionType !== 'AGENT_ACTION_DISPATCH') throw new Error('This navigation action is not supported in this shell.');
-  const groups = Object.keys(choiceDefaults(view));
-  if (groups.length > 1) throw new Error('This surface has multiple choice groups and requires an explicit action binding.');
   // Server-bound keys are authoritative: client form values may not overwrite them.
   const payload = { ...formValues, ...binding.payload };
   delete payload.selectedChoice;
-  if (groups.length === 1) {
-    const groupId = groups[0];
-    const selectedChoice = choices[groupId];
-    let valid = false;
-    const walk = (node: UIComponentNode) => {
-      if (node.id === groupId) valid = node.properties?.options?.some((option) => option.id === selectedChoice) === true;
-      node.children?.forEach(walk);
-    };
-    walk(view);
-    if (!valid) throw new Error('Choose an available option before continuing.');
-    payload.selectedChoice = selectedChoice;
+  delete payload.selectedChoices;
+  const selectedChoices: Record<string, string> = {};
+  for (const group of choiceScope(view)) {
+    if (!group.options.includes(choices[group.id])) throw new Error('Choose an available option before continuing.');
+    selectedChoices[group.id] = choices[group.id];
   }
+  const groupIds = Object.keys(selectedChoices);
+  if (groupIds.length === 1) payload.selectedChoice = selectedChoices[groupIds[0]];
+  else if (groupIds.length > 1) payload.selectedChoices = selectedChoices;
   return payload;
 }
 

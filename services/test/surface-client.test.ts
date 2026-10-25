@@ -15,7 +15,8 @@ test('P1-12: absent selections are omitted, bound values preserved and stale sel
   assert.deepEqual(choices, { new_group: 'new_option' });
   assert.equal(surfaceActionPayload(view, binding, choices).selectedChoice, 'new_option');
   assert.throws(() => surfaceActionPayload(view, binding, { new_group: 'old_option' }), /Choose an available option/);
-  assert.throws(() => surfaceActionPayload(card([group('a', 'one'), group('b', 'two')]), binding, { a: 'one', b: 'two' }), /multiple choice groups/);
+  assert.deepEqual(surfaceActionPayload(card([group('a', 'one'), group('b', 'two')]), binding, { a: 'one', b: 'two' }),
+    { ...binding.payload, selectedChoices: { a: 'one', b: 'two' } });
   assert.throws(() => surfaceActionPayload(view, { ...binding, actionType: 'HOST_NAVIGATE' }, choices), /not supported/);
 });
 

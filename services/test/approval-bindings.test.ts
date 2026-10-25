@@ -36,3 +36,37 @@ test('approval expires and detects mutation of the offered surface', async t => 
   assert.equal(actionIsApproved(state, 'topup_wallet', { amount: 50 }, approval.subject, approval.accountId), true);
   assert.equal(actionIsApproved(state, 'topup_wallet', { amount: 60 }, approval.subject, approval.accountId), false);
 });
+
+test('multi-group surfaces approve an exact per-group selection map and reject substituted or malformed choices', () => {
+  const sessionId = 'approval_multigroup_session';
+  const state = getOrCreateSession(sessionId);
+  const group = (id: string, options: string[]) => ({ type: 'ChoiceGroup', id, properties: { options: options.map(option => ({ id: option, title: option })) } });
+  const dispatch = { event: 'onPress', actionType: 'AGENT_ACTION_DISPATCH', payload: { action: 'pay_bill', provider: 'dewa' } };
+  (state as { user?: { sub: string } }).user = { sub: 'owner' };
+  state.metadata = { accountId: 'household' } as typeof state.metadata;
+  state.currentSurface = { revision: 'rev_multigroup', sessionId, view: { type: 'SurfaceCard', id: 'pay', children: [
+    group('funding', ['wallet_main', 'card_1']),
+    group('challenge', ['approve', 'otp']),
+    { type: 'Button', id: 'confirm', onEvents: [dispatch] },
+  ] } } as typeof state.currentSurface;
+  issueApproval(state);
+  const approve = (payload: Record<string, unknown>) => actionIsApproved(state, 'pay_bill', payload, 'owner', 'household');
+  assert.equal(approve({ provider: 'dewa', selectedChoices: { funding: 'wallet_main', challenge: 'otp' } }), true);
+  for (const payload of [
+    { provider: 'dewa', selectedChoices: { funding: 'luxury', challenge: 'otp' } },
+    { provider: 'dewa', selectedChoices: { funding: 'wallet_main' } },
+    { provider: 'dewa', selectedChoices: { funding: 'wallet_main', challenge: 'otp', extra: 'x' } },
+    { provider: 'dewa', selectedChoice: 'wallet_main' },
+    { provider: 'dewa', selectedChoices: 'wallet_main' },
+    { provider: 'dewa', selectedChoices: { funding: 'wallet_main', challenge: 'otp' }, selectedChoice: 'wallet_main' },
+  ]) {
+    assert.equal(approve(payload), false);
+  }
+  state.currentSurface!.view = { type: 'SurfaceCard', id: 'pay2', children: [
+    group('funding', ['wallet_main']), { type: 'Button', id: 'c2', onEvents: [dispatch] },
+  ] };
+  issueApproval(state);
+  assert.equal(approve({ provider: 'dewa', selectedChoice: 'wallet_main', selectedChoices: { funding: 'wallet_main' } }), false);
+  assert.equal(approve({ provider: 'dewa', selectedChoice: 'wallet_main' }), true);
+  assert.equal(approve({ provider: 'dewa' }), false);
+});

@@ -27,12 +27,38 @@ test('scoping 2: a view with zero choice groups returns the payload without sele
   assert.equal(Object.hasOwn(payload, 'selectedChoice'), false);
 });
 
-test('scoping 3: two choice groups throw the multiple-groups error, even when both are valid', () => {
+test('scoping 3: two valid groups emit a selectedChoices map and an invalid option in any group is rejected', () => {
   const view = card([choiceGroup('a', ['one']), choiceGroup('b', ['two'])]);
-  assert.throws(
-    () => surfaceActionPayload(view, dispatch({ action: 'pay' }), { a: 'one', b: 'two' }),
-    { message: 'This surface has multiple choice groups and requires an explicit action binding.' },
-  );
+  const payload = surfaceActionPayload(view, dispatch({ action: 'pay' }), { a: 'one', b: 'two' });
+  assert.deepEqual(payload, { action: 'pay', selectedChoices: { a: 'one', b: 'two' } });
+  assert.equal(Object.hasOwn(payload, 'selectedChoice'), false);
+  for (const choices of [{ a: 'luxury', b: 'two' }, { a: 'one', b: '' }, { a: 'one' }]) {
+    assert.throws(
+      () => surfaceActionPayload(view, dispatch({ action: 'pay' }), choices),
+      { message: 'Choose an available option before continuing.' },
+    );
+  }
+});
+
+test('scoping 3b: every surface group scopes each dispatch, wherever the pressed button sits', () => {
+  const button: UIComponentNode = { type: 'Button', id: 'go', onEvents: [dispatch({ action: 'pay' })] };
+  const view = card([choiceGroup('funding', ['card', 'wallet']), choiceGroup('challenge', ['approve', 'otp']), button]);
+  const payload = surfaceActionPayload(view, button.onEvents![0], { funding: 'wallet', challenge: 'otp', other: 'x' });
+  assert.deepEqual(payload, { action: 'pay', selectedChoices: { funding: 'wallet', challenge: 'otp' } });
+  assert.equal(Object.hasOwn(payload, 'selectedChoice'), false);
+
+  const singleView = card([choiceGroup('funding', ['card', 'wallet']), { type: 'Button', id: 'go2', onEvents: [dispatch({ action: 'pay' })] }]);
+  const singlePayload = surfaceActionPayload(singleView, singleView.children![1].onEvents![0], { funding: 'wallet' });
+  assert.deepEqual(singlePayload, { action: 'pay', selectedChoice: 'wallet' });
+  assert.equal(Object.hasOwn(singlePayload, 'selectedChoices'), false);
+});
+
+test('scoping 3c: client formValues cannot inject selectedChoices', () => {
+  const view = card([choiceGroup('ride', ['economy'])]);
+  const injected = surfaceActionPayload(view, dispatch({ action: 'book' }), { ride: 'economy' },
+    { selectedChoices: { ride: 'luxury', extra: 'value' } });
+  assert.equal(injected.selectedChoice, 'economy');
+  assert.equal(Object.hasOwn(injected, 'selectedChoices'), false);
 });
 
 test('scoping 4: one group rejects options outside that group and copies a valid selection', () => {

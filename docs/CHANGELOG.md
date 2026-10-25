@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 25 October 2026 — multi-group surface dispatch (P1-12)
+
+Surfaces with several choice groups now dispatch a `selectedChoices` map keyed by group id; single-group surfaces keep `selectedChoice`. Every surface group scopes each dispatch, each selection must be an advertised option of its own group, and approval validates the exact per-group map while rejecting substituted options, missing or extra groups and wrong payload shapes. Client form values cannot inject either key. Group scoping moved from "rejected as ambiguous" to supported with adversarial coverage in the surface-action-scoping and approval-bindings tests.
+
 ## 25 October 2026 — read-only order inspector (SIM-06)
 
 Add `inspectOrder`, a read-only explanation of one payment order that reports the order state, ledger and card balances, settlement claim and concrete mismatch reasons. Tests show the reasons appear after a lost response and clear after recovery. The HTTP route and its operator role remain open with SIM-05.

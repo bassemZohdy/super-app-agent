@@ -37,30 +37,38 @@ export function actionIsApproved(state: SuperAppAgentState, action: string, payl
   const approval = state.approval, surface = state.currentSurface;
   if (!approval || !surface || approval.subject !== subject || approval.accountId !== accountId ||
       approval.revision !== surface.revision || approval.expiresAt <= Date.now() || digest(surface) !== approval.digest) return false;
-  const bindings: Array<{ payload: Record<string, unknown>; choices: string[] }> = [];
-  const groups = (node: UIComponentNode): string[][] => [
-    ...(node.type === 'ChoiceGroup' ? [(node.properties?.options || []).map((item: { id: string }) => item.id)] : []),
-    ...(node.children || []).flatMap(groups),
+  const bindings: Array<{ payload: Record<string, unknown>; groups: Array<{ id: string; options: string[] }> }> = [];
+  const collect = (node: UIComponentNode): Array<{ id: string; options: string[] }> => [
+    ...(node.type === 'ChoiceGroup' ? [{ id: node.id, options: (node.properties?.options || []).map((item: { id: string }) => item.id) }] : []),
+    ...(node.children || []).flatMap(collect),
   ];
-  const walk = (node: UIComponentNode, inherited: string[][]) => {
+  const walk = (node: UIComponentNode, inherited: Array<{ id: string; options: string[] }>) => {
     if (node.type === 'Button' && node.properties?.disabled === true) return;
-    const local = groups(node);
-    const choices = local.length ? local : inherited;
+    const local = collect(node);
+    const scope = local.length ? local : inherited;
     for (const event of node.onEvents || []) {
       if (event.actionType === 'AGENT_ACTION_DISPATCH' && event.payload.action === action) {
-        if (choices.length > 1) continue; // Ambiguous group binding must be fixed by the surface producer.
-        bindings.push({ payload: event.payload, choices: choices[0] || [] });
+        bindings.push({ payload: event.payload, groups: scope });
       }
     }
-    for (const child of node.children || []) walk(child, choices);
+    for (const child of node.children || []) walk(child, scope);
   };
   walk(surface.view, []);
   return bindings.some(binding => {
     const bound = Object.fromEntries(Object.entries(binding.payload).filter(([key]) => key !== 'action'));
-    const supplied = Object.fromEntries(Object.entries(payload).filter(([key]) => !['action', 'selectedChoice'].includes(key)));
+    const supplied = Object.fromEntries(Object.entries(payload).filter(([key]) => !['action', 'selectedChoice', 'selectedChoices'].includes(key)));
     if (canonical(bound) !== canonical(supplied) || (payload.action !== undefined && payload.action !== action)) return false;
-    return binding.choices.length ? typeof payload.selectedChoice === 'string' && binding.choices.includes(payload.selectedChoice)
-      : payload.selectedChoice === undefined;
+    const groups = binding.groups.filter(group => group.options.length > 0);
+    if (groups.length === 0) return payload.selectedChoice === undefined && payload.selectedChoices === undefined;
+    if (groups.length === 1) {
+      return payload.selectedChoices === undefined && typeof payload.selectedChoice === 'string' && groups[0].options.includes(payload.selectedChoice);
+    }
+    const selected = payload.selectedChoices;
+    if (payload.selectedChoice !== undefined || !selected || typeof selected !== 'object' || Array.isArray(selected)) return false;
+    const expected = groups.map(group => group.id).sort();
+    const keys = Object.keys(selected).sort();
+    return keys.length === expected.length && keys.every((key, index) => key === expected[index]
+      && typeof selected[key] === 'string' && groups.find(group => group.id === key)!.options.includes(selected[key]));
   });
 }
 
