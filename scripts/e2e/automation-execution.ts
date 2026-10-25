@@ -196,8 +196,8 @@ try {
   assert.equal(paid(revoked.billId), false);
   const retry = await call(executeUrl(revoked.id), revokedToken, {});
   assert.ok(retry.status >= 400 && await wallet() === beforePause, 'a rejected execution cannot be revived');
-  assert.equal((await call(`${paymentsUrl}/payment-orders/${revoked.orderId}`, owner)).data.order.state, 'AWAITING_APPROVAL');
-  console.log('PASS: pausing the rule before admission denies the held credential; the reservation stays held and no money moves.');
+  assert.equal((await call(`${paymentsUrl}/payment-orders/${revoked.orderId}`, owner)).data.order.state, 'CANCELLED');
+  console.log('PASS: pausing the rule before admission denies the held credential; the order is closed, its reservation released and no money moves.');
 } finally {
   if (restoreBroker) execFileSync('docker', ['compose', '-f', 'docker-compose.demo.yml', 'up', '-d', '--force-recreate', '--wait', 'delegation-broker'], { stdio: 'ignore' });
   try { await env?.cleanup(); } catch { /* Windows may briefly hold SQLite files */ }
