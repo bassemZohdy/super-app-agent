@@ -21,6 +21,7 @@
     "test:record": "node --experimental-strip-types scripts/record-e2e-scenarios.ts",
     "test:video": "node --experimental-strip-types scripts/record-video-scenarios.ts",
     "lint": "eslint apps packages services mini-apps scripts test --max-warnings 0",
+    "progress": "node --experimental-strip-types scripts/progress.ts",
     "check:docs": "node --experimental-strip-types scripts/check-docs.ts",
     "check:secrets": "node --experimental-strip-types scripts/check-secrets.ts",
     "check": "npm run lint && npm run check:e2e && npm run check:docs && npm run check:secrets && npm test && npm run build -- --concurrency=2",

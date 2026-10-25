@@ -61,6 +61,8 @@ for (const line of todo.split('\n')) {
   if (match[1] === 'x') errors.push(`TODO.md: ${match[2]} is checked; delete delivered tasks and record them in docs/CHANGELOG.md`);
   if (line.length > maxTaskBullet) errors.push(`TODO.md: ${match[2]} is ${line.length} characters; keep task bullets under ${maxTaskBullet} and move detail to a guide or the changelog`);
 }
+const { withProgress } = await import('./progress.ts');
+if (withProgress(todo) !== todo) errors.push('TODO.md: the progress block is stale; run npm run progress');
 if (existsSync('docs/STATUS.md')) errors.push('docs/STATUS.md: task status lives only in TODO.md; remove this file');
 const trackedElsewhere = /\b\d+ (?:tasks|slices|items)\b[^.\n]{0,60}\b(?:delivered|open)\b|\b\d+ (?:delivered|open)\b|\bdelivered and \d+ open\b/i;
 for (const file of files) {
