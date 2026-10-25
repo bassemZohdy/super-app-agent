@@ -110,8 +110,10 @@ export async function startEnvironment(options:{authorizationClock?:()=>number;i
     const web = join(dir, 'web'); await mkdir(web);
     console.log('Building an isolated React demo (live model calls disabled)…');
     await new Promise<void>((done, fail) => {
-      const child = spawn('npm', ['run', 'build', '--workspace', 'apps/shell-react', '--', '--outDir', web], {
-        env: { ...process.env, VITE_GATEWAY_URL: coreUrl }, stdio: ['ignore', 'pipe', 'pipe'],
+      // Windows runs npm through its command shim, which spawn only reaches through a shell.
+      const windows = process.platform === 'win32';
+      const child = spawn(windows ? 'npm.cmd' : 'npm', ['run', 'build', '--workspace', 'apps/shell-react', '--', '--outDir', web], {
+        env: { ...process.env, VITE_GATEWAY_URL: coreUrl }, stdio: ['ignore', 'pipe', 'pipe'], shell: windows,
       });
       let output = ''; child.stdout.on('data', data => { output = (output + data).slice(-6000); }); child.stderr.on('data', data => { output = (output + data).slice(-6000); });
       child.once('error', fail); child.once('exit', code => code === 0 ? done() : fail(new Error(`React build failed (${code}): ${output}`)));
