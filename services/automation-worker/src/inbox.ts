@@ -13,7 +13,15 @@ export type InboxEntry = {
 };
 export type RunRecord = { mandateId: string; policyVersion: number; occurrenceKey: string; state: Job['state']; reason?: string; effect: string; updatedAt: number };
 
-const effectOf = (state: Job['state']) => state === 'SETTLED' ? 'Money moved once, as approved' : state === 'PREPARED' ? 'Reserved, nothing moved yet' : 'None';
+/** What the run did to money, stated from the job's state and reason. A held outcome of unknown status is never described as "None":
+ *  its money may already have moved, and it is reconciled on the original order rather than retried under a new identity. */
+export const effectOf = (job: Pick<Job, 'state' | 'reason'>) => {
+  if (job.state === 'SETTLED') return 'Money moved once, as approved';
+  if (job.state === 'PREPARED') return 'Reserved, nothing moved yet';
+  if (job.state === 'HELD' && job.reason === 'REQUIRES_ACTION') return 'Nothing moved yet; waiting for your answer';
+  if (job.state === 'HELD' && ((job.reason ?? '').startsWith('CREDENTIAL') || job.reason === 'OUTCOME_UNKNOWN')) return 'Outcome not confirmed: money may have moved. Reconciled on the original order; never retried under a new identity';
+  return 'None';
+};
 const headline: Record<InboxKind, string> = {
   UPCOMING_RUN: 'Upcoming run', PREPARED: 'Payment prepared', SETTLED: 'Payment completed', SKIPPED: 'Run skipped',
   FAILED: 'Run did not complete', HELD: 'Run is on hold', REQUIRES_ACTION: 'Your decision is needed',
@@ -31,7 +39,7 @@ export function inboxFor(store: JobStore, ownedMandateIds: ReadonlySet<string>):
     seen.add(id);
     out.push({ id, kind: event.kind as InboxKind, mandateId: job.mandateId, policyVersion: job.policyVersion, occurrenceKey: job.occurrenceKey,
       reason: typeof event.body.reason === 'string' ? event.body.reason : job.reason,
-      orderId: typeof event.body.orderId === 'string' ? event.body.orderId : undefined, effect: effectOf(job.state), at: event.at });
+      orderId: typeof event.body.orderId === 'string' ? event.body.orderId : undefined, effect: effectOf(job), at: event.at });
   }
   for (const notice of store.notices().filter(n => ownedMandateIds.has(n.mandateId))) {
     const id = `notice:${notice.mandateId}:${notice.occurrenceKey}:${notice.kind}`;
@@ -46,5 +54,5 @@ export function inboxFor(store: JobStore, ownedMandateIds: ReadonlySet<string>):
 /** The history of one owned rule: every occurrence once, with its final state, reason and effect. */
 export function runHistory(store: JobStore, mandateId: string, owned: ReadonlySet<string>): RunRecord[] {
   if (!owned.has(mandateId)) return [];
-  return store.list().filter(j => j.mandateId === mandateId).map(j => ({ mandateId: j.mandateId, policyVersion: j.policyVersion, occurrenceKey: j.occurrenceKey, state: j.state, reason: j.reason, effect: effectOf(j.state), updatedAt: j.updatedAt }));
+  return store.list().filter(j => j.mandateId === mandateId).map(j => ({ mandateId: j.mandateId, policyVersion: j.policyVersion, occurrenceKey: j.occurrenceKey, state: j.state, reason: j.reason, effect: effectOf(j), updatedAt: j.updatedAt }));
 }

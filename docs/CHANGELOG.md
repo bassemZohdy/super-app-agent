@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 25 October 2026 — held runs state their money effect honestly (AUTO-14, correction)
+
+The owner inbox and run history described every held run as "Effect: None", including a run whose outcome is unknown and whose money may already have moved. A held unknown outcome now says that money may have moved and is reconciled on the original order, never retried under a new identity. A run waiting for a card challenge says nothing has moved yet. Skipped, failed and kill-switched runs keep "None". Evidence: `services/test/auto14-effects.test.ts`. Still open in AUTO-14: the unknown outcome on the Compose stack (the provider's retries replay the same order, so the stack check needs a persistent provider failure).
+
 ## 25 October 2026 — test suite cleanup on Windows (no feature change)
 
 The offline suite went from 45 failing tests to none on Windows (734 pass, 3 skip for platform reasons, 0 fail). Temporary-directory removal goes through one helper that tolerates Windows file locks. The catalog endpoint test imports a file URL; the SBOM generator and the isolated React build run `npm` through the Windows shim; the shutdown tests skip where `SIGTERM` cannot be delivered; the symlink check probes and skips when symlinks are not permitted; and the POSIX file-mode assertion runs only where modes are enforced. The owner inbox real-stack check now also covers card challenges (approve pays once, reject pays nothing). Rules and reasons are in [the testing guide](development/testing.md#windows-test-notes).
