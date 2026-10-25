@@ -2,7 +2,7 @@
 
 A runnable city-services demo with a conversational concierge, independently persisted provider APIs, Keycloak authentication, Redis sessions, and a checkpointed LangGraph approval flow. RTA, DEWA, Etisalat, du, Dubai Police and Dubai Land Department are **simulated entities**. Payments use simulated funds; no real government or financial system is connected.
 
-[Current implementation and verification](docs/STATUS.md) · [Documentation index](docs/INDEX.md) · [Remaining tasks](TODO.md). Latest executed application checkpoint: `cd3c7d5`, 533 Node tests and 18 workspace builds. Since then, multi-group surface dispatch (P1-12), explicit-selection and disabled-action parity (P1-12/P1-13), choice-group contract semantics (P1-14) and the AUTO-03 isolated-run preparation checkpoint landed with focused tests (562 offline tests; [evidence](docs/reports/2026-10-25-p1-parity-automation-preparation.md)).
+[Current implementation and verification](docs/STATUS.md) · [Documentation index](docs/INDEX.md) · [Remaining tasks](TODO.md). Latest executed application checkpoint: `cd3c7d5`, 533 Node tests and 18 workspace builds. Since then, multi-group surface dispatch (P1-12), explicit-selection and disabled-action parity (P1-12/P1-13), choice-group and telecom route contract semantics (P1-14), application request-body validation (P2-05) and the AUTO-03 isolated-run preparation checkpoint landed with focused tests (566 offline tests; [evidence](docs/reports/2026-10-25-p1-parity-automation-preparation.md)).
 
 ## Run the integrated demo
 
