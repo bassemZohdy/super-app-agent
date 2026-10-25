@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 25 October 2026 — owner inbox verified on the real stack (AUTO-14, step 5)
+
+`scripts/e2e/automation-execution.ts` now reads the owner inbox through the core route after the worker has run. A settled run, a paused run (`MANDATE_NOT_ACTIVE`) and a declined card (`CARD_DECLINED`) each appear once with their reason, rule version and effect; re-reading adds no entries; another owner sees none of them. The check passes on the Compose stack. Still open in AUTO-14: challenged and unknown outcomes on the stack. Also fixed: the issuer-scenario harness retries a GET once after a stale keep-alive reset, and the journey top-up is within the funding limit.
+
 ## 25 October 2026 — answer a held challenge from the inbox; restart keeps a pause (AUTO-14 step 4, AUTO-15 step 4 in part)
 
 A held card challenge entry in the owner inbox now names its order and offers approve or reject, using the same order challenge action as the payments list; the worker never answers. A pause on a rule survives a provider restart and still refuses preparation (`services/test/automation-runs.test.ts`). Still open: AUTO-14's `Done when` checks for notifications and the paused outcome on the stack, and AUTO-15 steps 3 and 4 (the admin route, and the revoke, limit and card-disable races against an in-flight execution plus the authority outage). Evidence: `services/test/auto14-inbox-feed.test.ts`, `services/test/automation-runs.test.ts`; the React shell type-checks.

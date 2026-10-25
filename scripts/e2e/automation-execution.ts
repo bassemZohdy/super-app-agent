@@ -239,6 +239,33 @@ try {
   assert.equal(paid(stoppedBill), false);
   storeA.close(); storeB.close();
   console.log('PASS: the persistent worker settles a leased job once under a two-worker race, never reruns it, and skips a paused rule without moving money.');
+  // ---- AUTO-14: the owner's inbox shows the settled and paused outcomes once each, with reason, rule version and effect; another user sees none of them. ----
+  // The core reads the worker's store per request, so pointing it at this run's file is enough.
+  process.env.AUTOMATION_JOBS_DB = jobsPath;
+  const inboxFor = async (bearer: string) => {
+    const r = await fetch(`${env!.coreUrl}/api/payments/automation-inbox?accountId=${accountId}`, { headers: { Authorization: `Bearer ${bearer}` }, signal: AbortSignal.timeout(20000) });
+    return { status: r.status, data: await r.json() as { entries?: Array<Record<string, any>>; requestId?: string } };
+  };
+  const feed = await inboxFor(owner);
+  assert.equal(feed.status, 200, JSON.stringify(feed.data));
+  assert.ok(feed.data.requestId, 'the feed names the request');
+  const settledEntries = feed.data.entries!.filter(e => e.mandateId === workerMandate.id && e.kind === 'SETTLED');
+  assert.equal(settledEntries.length, 1, 'the settled run appears exactly once');
+  assert.equal(settledEntries[0].effect, 'Money moved once, as approved');
+  assert.equal(settledEntries[0].policyVersion, workerMandate.policyVersion);
+  const pausedEntries = feed.data.entries!.filter(e => e.mandateId === stoppedRule.id);
+  assert.equal(pausedEntries.length, 1, 'the paused run appears exactly once');
+  assert.equal(pausedEntries[0].kind, 'SKIPPED');
+  assert.equal(pausedEntries[0].reason, 'MANDATE_NOT_ACTIVE', 'a paused rule says why it did not run');
+  assert.equal(pausedEntries[0].effect, 'None');
+  const reread = await inboxFor(owner);
+  assert.equal(reread.data.entries!.length, feed.data.entries!.length, 're-reading the feed never duplicates an entry');
+  const others = await inboxFor(other);
+  const leaked = others.status === 200 ? (others.data.entries ?? []).filter(e => e.mandateId === workerMandate.id || e.mandateId === stoppedRule.id) : [];
+  assert.equal(leaked.length, 0, 'another owner never sees these rules');
+  assert.ok(others.status === 200 || others.status === 403 || others.status === 404, `another owner is refused or sees nothing (${others.status})`);
+  delete process.env.AUTOMATION_JOBS_DB;
+  console.log('PASS: the owner inbox shows the settled and paused outcomes once each with reason, rule version and effect, re-reads without duplicates, and hides them from another owner.');
   // ---- The scheduler reads the run over HTTP, enqueues the due invoice once, and the worker settles it. ----
   const schedulerStore = new JobStore(join(scratch, 'scheduled.sqlite'));
   const scheduled = await newMandate();
@@ -305,6 +332,15 @@ try {
   const declined = await runJob(declinedRule, 'occ-decline-1');
   assert.equal(declined.job.state, 'FAILED', JSON.stringify(declined.job));
   assert.equal(declined.job.reason, 'CARD_DECLINED');
+  // AUTO-14: the declined card reaches the owner's inbox as a decision with its reason, and nothing else.
+  process.env.AUTOMATION_JOBS_DB = join(scratch, 'cards.sqlite');
+  // The run is listed once per source event: the preparation, then the decline that needs the owner.
+  const declinedFeed = (await inboxFor(owner)).data.entries!.filter(e => e.mandateId === declinedRule.id);
+  assert.deepEqual(declinedFeed.map(e => e.kind).sort(), ['PREPARED', 'REQUIRES_ACTION'], JSON.stringify(declinedFeed));
+  const decision = declinedFeed.find(e => e.kind === 'REQUIRES_ACTION')!;
+  assert.equal(decision.reason, 'CARD_DECLINED');
+  assert.equal(decision.effect, 'None');
+  delete process.env.AUTOMATION_JOBS_DB;
   assert.deepEqual(declined.events, ['PREPARED', 'REQUIRES_ACTION'], 'the owner is told that action is needed');
   assert.equal(await wallet(), beforeDecline, 'a declined card never falls back to the wallet');
   assert.equal(cardStore.get(declined.job.id)!.state, 'FAILED');
