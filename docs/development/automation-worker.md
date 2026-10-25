@@ -38,6 +38,14 @@ The state and an append-only attempt row are written before the step they descri
 
 The loop runs the scheduler only when `AUTOMATION_SCHEDULE_ENABLED=true` in addition to `AUTOMATION_WORKER_ENABLED`; both are off by default. The business clock stays separate from security time: the scheduler takes `now` as a parameter, so a simulator clock can drive it without touching token expiry.
 
+## What the owner is told
+
+- **Before a run:** when a rule's next run is inside the lead time (24 hours by default), the scheduler records one `UPCOMING_RUN` notice per rule and occurrence in `job_notices` (a reminder, not a job; it moves nothing and a paused or expired rule announces nothing).
+- **Needs the owner:** a declined card, a card over its limit, short wallet funds and similar failures end the job as `FAILED` and record a `REQUIRES_ACTION` outbox event; a card challenge holds the job (`HELD`) and records the same event. The worker never tries another source, a lower amount or a different invoice for that occurrence, and the failed occurrence is not retried.
+- **Everything else:** a skip, a settlement, a held unknown outcome or an ordinary failure records `SKIPPED`, `SETTLED`, `HELD` or `FAILED`.
+
+An invoice is chosen at preparation: the earliest-due unpaid, unreserved invoice that is within the rule's per-payment cap. An invoice above the cap is skipped, never lowered, and does not hold up a smaller one behind it. Paid and withdrawn invoices are never offered. Wallet, card, DEWA, Etisalat and du invoices follow the same path.
+
 ## Outbox
 
 `job_outbox` has at most one row per job and kind (`PREPARED`, `SKIPPED`, `SETTLED`, `FAILED`, `HELD`, `REQUIRES_ACTION`), written in the same transaction as the state change. It is what AUTO-14 will turn into notifications.

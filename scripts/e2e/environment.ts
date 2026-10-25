@@ -83,7 +83,7 @@ export async function startEnvironment(options:{authorizationClock?:()=>number;i
     const { ProviderEngine } = await import('../../services/provider-simulator/src/engine.ts');
     // Trusted run fixture: the isolated gateway reads source obligations and holds the shared exclusion claim in the source's own store.
     const automationIo={
-      readPayables:(accountId:string,provider:string)=>provider==='dewa'?new ProviderEngine('dewa',providerStores.get('dewa')!).payables!.list(accountId):[],
+      readPayables:(accountId:string,provider:string)=>['dewa','etisalat','du'].includes(provider)?new ProviderEngine(provider as 'dewa'|'etisalat'|'du',providerStores.get(provider)!).payables!.list(accountId):[],
       providerStore:(provider:string)=>{const store=providerStores.get(provider);if(!store)throw new Error('No isolated store for this provider.');return store;},
     };
     let paymentInstance:ReturnType<typeof createProviderServer>|undefined;

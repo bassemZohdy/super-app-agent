@@ -111,14 +111,14 @@ export class AutomationRuns{
     if(m.policy.limits.period==='DAY')options.day='2-digit';
     return `${m.policy.limits.period}:${new Intl.DateTimeFormat('en-CA',options).format(new Date(at))}`;
   }
-  private dueInvoice(m:PaymentMandate,accountId:string):Payable|undefined{
+  private eligibleInvoices(m:PaymentMandate,accountId:string):Payable[]{
     const target=m.policy.target;
-    if(target.kind!=='BILLER')return undefined;
+    if(target.kind!=='BILLER')return [];
     const now=Date.now(),horizon=new Date(now+(m.policy.trigger.type==='INVOICE_DUE'?m.policy.trigger.daysBefore:0)*86400000).toISOString().slice(0,10);
     const claimed=new Set(this.store.db.prepare('SELECT payable_key FROM automation_payable_claims WHERE account_id=?').all(accountId).map(r=>String(r!.payable_key)));
     return this.io.readPayables(accountId,target.provider)
       .filter(p=>p.reference===target.reference&&p.status==='UNPAID'&&typeof p.dueDate==='string'&&p.dueDate<=horizon&&!claimed.has(p.id))
-      .sort((a,b)=>String(a.dueDate).localeCompare(String(b.dueDate)))[0];
+      .sort((a,b)=>String(a.dueDate).localeCompare(String(b.dueDate))||a.id.localeCompare(b.id));
   }
   /** Resolve the exact server-owned due invoice and reserve shared authority in one transaction. */
   prepare(subject:string,input:{mandateId:string;occurrenceKey:string;requestKey:string}):AutomationPreparation|AutomationSkip{
@@ -157,9 +157,11 @@ export class AutomationRuns{
       if(existing&&this.released(String(existing!.execution_id)))return deny('AUTOMATION_OCCURRENCE_RELEASED','This occurrence already failed definitively and released its reservation; it is not retried with a fresh identity.');
       if(existing){const stored=this.store.db.prepare('SELECT body FROM automation_executions WHERE id=?').get(String(existing!.execution_id));
         if(!stored)return deny('AUTOMATION_OCCURRENCE_CONFLICT','The recorded occurrence has no execution.');return record(JSON.parse(String(stored!.body)) as AutomationPreparation);}
-      const payable=this.dueInvoice(m,accountId);
-      if(!payable)return skip('NO_DUE_INVOICE');
-      if(payable.amountMinor>policy.limits.perPaymentMinor)return skip('OVER_PER_PAYMENT_CAP');
+      const due=this.eligibleInvoices(m,accountId);
+      if(!due.length)return skip('NO_DUE_INVOICE');
+      // The earliest-due invoice within the per-payment cap; an invoice above it is skipped, never lowered, and does not hold up the ones behind it.
+      const payable=due.find(p=>p.amountMinor<=policy.limits.perPaymentMinor);
+      if(!payable)return skip('OVER_PER_PAYMENT_CAP');
       if(this.store.db.prepare("SELECT order_id FROM payment_order_obligations WHERE account_id=? AND provider=? AND state IN ('RESERVED','COMMITTED') AND (obligation_key=? OR json_extract(body,'$.resourceId')=?) LIMIT 1").get(accountId,payable.provider,payable.id,payable.id))
         return deny('AUTOMATION_PAYABLE_RESERVED','This obligation is reserved by an original payment review. Inspect that order first.');
       const last=this.store.db.prepare('SELECT body FROM automation_executions WHERE mandate_id=? ORDER BY rowid DESC LIMIT 1').get(m.id);

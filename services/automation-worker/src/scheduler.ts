@@ -24,8 +24,9 @@ export type TickResult = { enqueued: string[]; skipped: string[] };
 const MISSED = 'MISSED_CATCH_UP';
 
 export class Scheduler {
-  readonly store: JobStore; readonly source: RuleSource;
-  constructor(store: JobStore, source: RuleSource) { this.store = store; this.source = source; }
+  readonly store: JobStore; readonly source: RuleSource; readonly leadMs: number;
+  /** `leadMs` is how far ahead of a run the owner is told about it. */
+  constructor(store: JobStore, source: RuleSource, options: { leadMs?: number } = {}) { this.store = store; this.source = source; this.leadMs = options.leadMs ?? 24 * 3_600_000; }
 
   async tick(now: number): Promise<TickResult> {
     const out: TickResult = { enqueued: [], skipped: [] };
@@ -54,6 +55,10 @@ export class Scheduler {
         if (balance >= trigger.belowMinor) this.store.rearmThreshold(rule.mandateId, rule.policyVersion);
         else if (this.store.fireThreshold(base, now)) out.enqueued.push(`${rule.mandateId}:THR:${this.store.thresholdState(rule.mandateId, rule.policyVersion).seq}`);
       }
+      // Pre-run notification: once per rule and occurrence, when the next run is inside the lead time and has not started.
+      const upcoming = await this.nextRun(rule, now);
+      if (upcoming && upcoming.runAtUtc > now && upcoming.runAtUtc - now <= this.leadMs)
+        this.store.recordNotice(rule.mandateId, upcoming.key, 'UPCOMING_RUN', { runAt: new Date(upcoming.runAtUtc).toISOString(), policyVersion: rule.policyVersion, target: rule.target }, now);
       // NEW_FINE and PARKING_ENDING are event-driven and belong to their own tasks; they schedule nothing here.
     }
     return out;

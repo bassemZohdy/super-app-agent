@@ -196,3 +196,21 @@ test('AUTO-05: no credential reaches the database, the outbox or the attempt log
     assert.equal(store.get(job.id)!.state, 'SETTLED');
   } finally { store.close(); cleanup(dir); }
 });
+
+test('AUTO-08: failures only the owner can fix are recorded as requiring action and never retried with another source', async () => {
+  for (const code of ['CARD_DECLINED', 'CARD_LIMIT_EXCEEDED', 'INSUFFICIENT_AVAILABLE_FUNDS']) {
+    const store = new JobStore(':memory:'), { g, calls } = gateway({ execute: async () => ({ id: 'o', state: 'FAILED', fundsCaptured: false, failureCode: code }) });
+    const job = store.enqueue(rule);
+    const done = await worker(store, g).runOnce();
+    assert.equal(done!.state, 'FAILED', code);
+    assert.equal(done!.reason, code);
+    assert.deepEqual(store.outbox(job.id).map(e => e.kind), ['PREPARED', 'REQUIRES_ACTION'], code);
+    assert.equal(await worker(store, g).runOnce(), undefined, 'no second attempt, with this or any other source');
+    assert.deepEqual([calls.prepare, calls.credential], [1, 1]);
+  }
+  // A failure that needs no owner action stays an ordinary failure.
+  const store = new JobStore(':memory:'), { g } = gateway({ execute: async () => ({ id: 'o', state: 'FAILED', fundsCaptured: false, failureCode: 'APPROVAL_EXPIRED' }) });
+  const job = store.enqueue(rule);
+  await worker(store, g).runOnce();
+  assert.deepEqual(store.outbox(job.id).map(e => e.kind), ['PREPARED', 'FAILED']);
+});

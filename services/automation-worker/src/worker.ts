@@ -17,6 +17,8 @@ export interface ExecutionGateway {
 }
 export type WorkerOptions = { workerId: string; leaseMs?: number; maxAttempts?: number; stepRetries?: number; retryDelayMs?: number; clock?: () => number; sleep?: (ms: number) => Promise<void> };
 
+/** Failures only the owner can fix: the worker records them as requiring action and never tries another source or amount. */
+export const OWNER_ACTION_CODES: ReadonlySet<string> = new Set(['CARD_DECLINED', 'CARD_LIMIT_EXCEEDED', 'INSUFFICIENT_AVAILABLE_FUNDS', 'METHOD_EXPIRED', 'METHOD_CHANGED', 'CARD_EXPIRED']);
 const transient = (e: unknown) => { const status = (e as GatewayFailure).status; return status === undefined || status >= 500; };
 const codeOf = (e: unknown) => String((e as GatewayFailure).code || 'REJECTED').slice(0, 80);
 
@@ -133,7 +135,7 @@ export class AutomationWorker {
         if (order.state === 'SETTLED') { store.transition(claim, 'SETTLED', {}, { kind: 'SETTLED', body: { orderId: order.id } }, this.now()); return; }
         if (['FAILED', 'CANCELLED'].includes(order.state) && !order.fundsCaptured) {
           const reason = order.failureCode || order.state;
-          store.transition(claim, 'FAILED', { reason }, { kind: 'FAILED', body: { reason, orderId: order.id } }, this.now());
+          store.transition(claim, 'FAILED', { reason }, { kind: OWNER_ACTION_CODES.has(reason) ? 'REQUIRES_ACTION' : 'FAILED', body: { reason, orderId: order.id } }, this.now());
           return;
         }
         const reason = order.state === 'REQUIRES_ACTION' ? 'REQUIRES_ACTION' : order.fundsCaptured ? 'OUTCOME_UNKNOWN' : `ORDER_${order.state}`;

@@ -50,6 +50,7 @@ export class JobStore {
         attempts INTEGER NOT NULL DEFAULT 0,created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL,UNIQUE(mandate_id,policy_version,occurrence_key,target));
       CREATE TABLE IF NOT EXISTS job_attempts(seq INTEGER PRIMARY KEY AUTOINCREMENT,job_id TEXT NOT NULL REFERENCES jobs(id),fence INTEGER NOT NULL,worker_id TEXT NOT NULL,step TEXT NOT NULL,at INTEGER NOT NULL,outcome TEXT);
       CREATE TABLE IF NOT EXISTS job_outbox(seq INTEGER PRIMARY KEY AUTOINCREMENT,job_id TEXT NOT NULL REFERENCES jobs(id),kind TEXT NOT NULL,body TEXT NOT NULL,at INTEGER NOT NULL,delivered_at INTEGER,UNIQUE(job_id,kind));
+      CREATE TABLE IF NOT EXISTS job_notices(mandate_id TEXT NOT NULL,occurrence_key TEXT NOT NULL,kind TEXT NOT NULL,body TEXT NOT NULL,at INTEGER NOT NULL,PRIMARY KEY(mandate_id,occurrence_key,kind));
       CREATE TABLE IF NOT EXISTS threshold_state(mandate_id TEXT NOT NULL,policy_version INTEGER NOT NULL,armed INTEGER NOT NULL DEFAULT 1 CHECK(armed IN (0,1)),seq INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(mandate_id,policy_version));
       CREATE TRIGGER IF NOT EXISTS job_attempts_no_update BEFORE UPDATE OF job_id,fence,worker_id,step,at ON job_attempts BEGIN SELECT RAISE(ABORT,'Attempts are append-only');END;
       CREATE TRIGGER IF NOT EXISTS job_attempts_no_delete BEFORE DELETE ON job_attempts BEGIN SELECT RAISE(ABORT,'Attempts are append-only');END;`);
@@ -90,6 +91,14 @@ export class JobStore {
       if (current.state === 'SKIPPED') this.db.prepare('INSERT OR IGNORE INTO job_outbox(job_id,kind,body,at) VALUES(?,?,?,?)').run(job.id, 'SKIPPED', JSON.stringify({ reason }), now);
       return current;
     });
+  }
+  /** A notice about an occurrence before it exists as a job (for example the pre-run reminder); at most one per rule, occurrence and kind. */
+  recordNotice(mandateId: string, occurrenceKey: string, kind: string, body: Record<string, unknown>, now = Date.now()): boolean {
+    return this.db.prepare('INSERT OR IGNORE INTO job_notices(mandate_id,occurrence_key,kind,body,at) VALUES(?,?,?,?,?)').run(mandateId, occurrenceKey, kind, JSON.stringify(body), now).changes > 0;
+  }
+  notices(mandateId?: string) {
+    const rows = mandateId ? this.db.prepare('SELECT * FROM job_notices WHERE mandate_id=? ORDER BY at,occurrence_key').all(mandateId) : this.db.prepare('SELECT * FROM job_notices ORDER BY at,mandate_id,occurrence_key').all();
+    return rows.map(r => ({ mandateId: String(r.mandate_id), occurrenceKey: String(r.occurrence_key), kind: String(r.kind), body: JSON.parse(String(r.body)) as Record<string, unknown>, at: Number(r.at) }));
   }
   thresholdState(mandateId: string, policyVersion: number) {
     const r = this.db.prepare('SELECT armed,seq FROM threshold_state WHERE mandate_id=? AND policy_version=?').get(mandateId, policyVersion);

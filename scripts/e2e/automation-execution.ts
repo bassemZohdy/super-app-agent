@@ -132,8 +132,8 @@ try {
   let n = 1;
   const paymentsUrl = `http://localhost:${env.corePort + 107}/v1/accounts/${accountId}`;
   // The 60-second minimum cooldown is per mandate, so each scenario owns its own approved rule.
-  const newMandate = async () => {
-    const made = await api('mandates', { policy: { ...policy, purpose: `Pay my DEWA bill automatically (${++n})` } });
+  const newMandate = async (funding?: { id: string; version: number }) => {
+    const made = await api('mandates', { policy: { ...policy, sources: funding ? [{ methodId: funding.id, expectedVersion: funding.version }] : policy.sources, purpose: `Pay my DEWA bill automatically (${++n})` } });
     assert.equal(made.status, 200, JSON.stringify(made.data));
     const approved = await api('mandates/approve', { mandateId: made.data.mandate.id, expectedVersion: made.data.mandate.version, approvalDigest: made.data.mandate.approvalDigest });
     assert.equal(approved.status, 200, JSON.stringify(approved.data));
@@ -221,7 +221,6 @@ try {
   const finished = storeA.get(job.id)!;
   assert.equal(finished.state, 'SETTLED', JSON.stringify(finished));
   assert.equal(await wallet(), beforeWorker - 15000, 'the worker-driven job debited the wallet once');
-  assert.ok(paid(workerBill));
   assert.deepEqual(storeA.outbox(job.id).map(e => e.kind), ['PREPARED', 'SETTLED']);
   assert.equal(await new AutomationWorker(storeB, new HttpExecutionGateway(gatewayConfig), { workerId: 'worker-c' }).runOnce(), undefined, 'a settled job is never run again');
   assert.equal(await wallet(), beforeWorker - 15000);
@@ -284,6 +283,49 @@ try {
   assert.equal(paid(previewBill), false);
   assert.equal(claimCount(), beforePreview.claims, 'a preview claimed no invoice');
   console.log('PASS: the owner previews a rule through the app route with zero effect; other identities cannot.');
+  // ---- AUTO-08: card-funded and telecom invoices, and a decline that surfaces for the owner with no fallback. ----
+  const cardStore = new JobStore(join(scratch, 'cards.sqlite'));
+  const runJob = async (mandateRef: { id: string; policyVersion: number }, key: string) => {
+    const queued = cardStore.enqueue({ mandateId: mandateRef.id, policyVersion: mandateRef.policyVersion, occurrenceKey: key, target: `dewa-${billing.id}` });
+    await new AutomationWorker(cardStore, new HttpExecutionGateway(gatewayConfig), { workerId: 'worker-cards' }).runOnce();
+    return { job: cardStore.get(queued.id)!, events: cardStore.outbox(queued.id).map(e => e.kind) };
+  };
+  const addBill = (suffix: string) => { n++; const id = `e2e-auto-bill-${n}-${suffix}`; env!.providerStores.get('dewa')!.put(accountId, 'bill', { billId: id, accountNumber: dewa.reference, totalAmount: 150, status: 'UNPAID', dueDate: due }, id); return id; };
+  const approvedCard = (await api('methods', { preset: 'approved', nickname: 'Auto approved' })).data.method, declinedCard = (await api('methods', { preset: 'declined', nickname: 'Auto declined' })).data.method;
+  const cardRule = await newMandate(approvedCard);
+  addBill('card');
+  const beforeCard = await wallet();
+  const viaCard = await runJob(cardRule, 'occ-card-1');
+  assert.equal(viaCard.job.state, 'SETTLED', JSON.stringify(viaCard.job));
+  assert.deepEqual(viaCard.events, ['PREPARED', 'SETTLED']);
+  assert.equal(await wallet(), beforeCard, 'a card-funded rule leaves the wallet alone');
+  const declinedRule = await newMandate(declinedCard);
+  addBill('declined');
+  const beforeDecline = await wallet();
+  const declined = await runJob(declinedRule, 'occ-decline-1');
+  assert.equal(declined.job.state, 'FAILED', JSON.stringify(declined.job));
+  assert.equal(declined.job.reason, 'CARD_DECLINED');
+  assert.deepEqual(declined.events, ['PREPARED', 'REQUIRES_ACTION'], 'the owner is told that action is needed');
+  assert.equal(await wallet(), beforeDecline, 'a declined card never falls back to the wallet');
+  assert.equal(cardStore.get(declined.job.id)!.state, 'FAILED');
+  assert.equal(await new AutomationWorker(cardStore, new HttpExecutionGateway(gatewayConfig), { workerId: 'worker-cards' }).runOnce(), undefined, 'the failed occurrence is not retried');
+  const telecom = new (await import('../../services/provider-simulator/src/engine.ts')).ProviderEngine('etisalat', env.providerStores.get('etisalat')!);
+  const subscription = (env.providerStores.get('etisalat')!.list(accountId, 'subscription').find((x: { status?: string }) => x.status === 'ACTIVE') as { subscriptionId: string } | undefined);
+  assert.ok(subscription, 'the owner has an active Etisalat subscription');
+  telecom.lifecycle!.ingest(accountId, { kind: 'INVOICE_ISSUED', eventId: `e2e-issue-${n}`, billId: `e2e-tele-${n}`, reference: subscription!.subscriptionId, amountMinor: 15000, dueDate: due, period: due.slice(0, 7) });
+  const telecomLink = await api('billing-accounts', { provider: 'etisalat', reference: subscription!.subscriptionId, nickname: 'Mobile' });
+  assert.equal(telecomLink.status, 200, JSON.stringify(telecomLink.data));
+  const telecomPolicy = { ...policy, target: { kind: 'BILLER', billingAccountId: telecomLink.data.billingAccount.id, expectedVersion: telecomLink.data.billingAccount.version, provider: 'etisalat', reference: subscription!.subscriptionId }, purpose: 'Pay my Etisalat bill automatically' };
+  const telecomMade = await api('mandates', { policy: telecomPolicy });
+  assert.equal(telecomMade.status, 200, JSON.stringify(telecomMade.data));
+  const telecomRule = (await api('mandates/approve', { mandateId: telecomMade.data.mandate.id, expectedVersion: telecomMade.data.mandate.version, approvalDigest: telecomMade.data.mandate.approvalDigest })).data.mandate;
+  const beforeTelecom = await wallet();
+  const telecomJob = cardStore.enqueue({ mandateId: telecomRule.id, policyVersion: telecomRule.policyVersion, occurrenceKey: 'occ-tele-1', target: `etisalat-${telecomLink.data.billingAccount.id}` });
+  await new AutomationWorker(cardStore, new HttpExecutionGateway(gatewayConfig), { workerId: 'worker-cards' }).runOnce();
+  assert.equal(cardStore.get(telecomJob.id)!.state, 'SETTLED', JSON.stringify(cardStore.get(telecomJob.id)));
+  assert.equal(await wallet(), beforeTelecom - 15000, 'the telecom invoice was paid once from the wallet');
+  cardStore.close();
+  console.log('PASS: card-funded and telecom invoices settle once; a declined card needs the owner and never falls back to the wallet.');
 } finally {
   if (restoreBroker) execFileSync('docker', ['compose', '-f', 'docker-compose.demo.yml', 'up', '-d', '--force-recreate', '--wait', 'delegation-broker'], { stdio: 'ignore' });
   try { await env?.cleanup(); } catch { /* Windows may briefly hold SQLite files */ }

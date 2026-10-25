@@ -142,3 +142,21 @@ test('AUTO-06: invoices sharing a due date are one scheduled run, not a run and 
   assert.deepEqual(result, { enqueued: ['mandate_inv:INV:2026-11-15'], skipped: [] });
   assert.deepEqual(store.list().map(j => [j.occurrenceKey, j.state]), [['INV:2026-11-15', 'QUEUED']]);
 });
+
+test('AUTO-08: the owner is told once, ahead of a run, and never for a rule that cannot run', async () => {
+  const store = new JobStore(':memory:'), rule = invoice();
+  const scheduler = new Scheduler(store, source([rule], { invoices: ['2026-11-15'] }), { leadMs: 24 * HOUR });
+  await scheduler.tick(utc('2026-11-11T04:00:00Z'));
+  assert.deepEqual(store.notices(), [], 'twenty-five hours ahead is outside the lead time');
+  await scheduler.tick(utc('2026-11-11T06:00:00Z'));
+  for (const at of ['2026-11-11T07:00:00Z', '2026-11-11T20:00:00Z']) await scheduler.tick(utc(at));
+  assert.deepEqual(store.notices().map(n => [n.mandateId, n.occurrenceKey, n.kind]), [['mandate_inv', 'INV:2026-11-15', 'UPCOMING_RUN']]);
+  assert.equal(store.notices()[0]!.body.runAt, '2026-11-12T05:00:00.000Z');
+  assert.equal(store.list().length, 0, 'a reminder is not a job and moves nothing');
+  await scheduler.tick(utc('2026-11-12T05:00:00Z'));
+  assert.deepEqual(store.list().map(j => j.occurrenceKey), ['INV:2026-11-15']);
+  assert.equal(store.notices().length, 1, 'the run itself adds no second reminder');
+  const paused = new JobStore(':memory:');
+  await new Scheduler(paused, source([invoice({ state: 'PAUSED' })], { invoices: ['2026-11-15'] })).tick(utc('2026-11-11T20:00:00Z'));
+  assert.deepEqual(paused.notices(), [], 'a paused rule announces nothing');
+});
