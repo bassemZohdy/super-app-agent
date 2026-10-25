@@ -31,6 +31,20 @@ Each run advances by at most 31 days per command, spans at most 366 days, and su
 
 `SimulationRuns.clock(owner, runId)` returns an instance-scoped function for trusted business-time consumers. It never patches Date/global process time. JWT, key-cache, credential and authentication checks keep their real security clock. Runtime financial injection must later be bound to a verified isolated scenario; a caller-supplied clock/run ID must not alter normal account execution or grant authority. Current normal provider/card/ledger clocks are unchanged by preview commands.
 
+## Lifecycle events from the source providers
+
+`engine.lifecycle` (`services/provider-simulator/src/lifecycle-events.ts`) is the trusted seam through which a source provider's own world changes. It is not an HTTP route and no citizen request can reach it.
+
+| Event | Effect at the source |
+| --- | --- |
+| `INVOICE_ISSUED` | One new invoice for an owned DEWA account or Etisalat/du subscription |
+| `INVOICE_CYCLE` | Up to twelve monthly invoices (deterministic ids, due day 1–28, shorter months clamp); a period that already exists in any state is skipped, never recreated |
+| `FINE_DISCOUNT_CHANGED` | A police fine's discount changes against its current revision; the payable amount and revision follow |
+| `USAGE_RECORDED` | Toll or prepaid usage lowers the balance (never below zero) and bumps the target version, which makes any open recharge quote unpayable |
+| `PARKING_DEPARTED` | The parking session ends; its paid-until time stops at departure and it can no longer be extended |
+
+Every event has a stable id and lands in an immutable `provider_lifecycle_events` table. Redelivery returns the first outcome without a second bill, balance change or state change; reusing an id with different content is `EVENT_CONFLICT`. A malformed event throws and leaves no record. An event the current state no longer allows (a paid or withdrawn invoice, a moved revision, an ended session, a target the account does not own) is stored as `REJECTED` under its id, so redelivering it later cannot succeed against changed state. Subscription renewals are monthly `INVOICE_CYCLE` events on the subscription id. Payment-side duplicate and stale-event guards are covered by `services/test/sim02-lifecycle.test.ts`.
+
 ## Evidence
 
 Seven unit/integration tests cover persistence/reopen, deterministic fixtures, ordered/idempotent events, owner/revision/bounds, scoped reset, two connections, provider-data containment even when sharing a test database, and real-time JWT behavior after a 31-day business jump. `simulator:verify` executes separate CLI processes and checks create/advance/status/replay/reset, invalid backward advance and exact fixture restoration. [Current evidence](../reports/2026-10-24-lifecycle-simulator.md) · [Full backlog](../../TODO.md).

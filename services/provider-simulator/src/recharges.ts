@@ -54,6 +54,17 @@ export class ProviderRecharges {
     else{const raw=this.store.get(account,'prepaid-line',p.reference);this.store.put(account,'prepaid-line',{...raw,balanceMinor:next,version:target.version+1},p.reference);}
     q.refundedMinor=expectedMinor+amountMinor;this.save(account,q);return {providerBalanceMinor:next};
   });}
+  /** Source-owned consumption (tolls, prepaid usage). The balance never goes below zero; a recharge quote or admission built on the old balance goes stale on its own. */
+  recordUsage(account:string,reference:string,usageMinor:number):{appliedMinor:number;balanceMinor:number;version:number}{return this.atomic(()=>{
+    if(!Number.isSafeInteger(usageMinor)||usageMinor<1||usageMinor>MAX_PAYMENT_MINOR)return deny('USAGE_INVALID','Usage must be a positive integer amount in fils.',400);
+    const target=this.target(account,reference);
+    if(target.status!=='ACTIVE')return deny('RECHARGE_TARGET_CLOSED','Usage is only recorded on an active target.');
+    if(target.version>=1000000)return deny('VERSION_LIMIT','The target reached its demo version limit.');
+    const appliedMinor=Math.min(usageMinor,target.balanceMinor),next=target.balanceMinor-appliedMinor;
+    if(this.provider==='rta'){const raw=this.store.get(account,'salik');this.store.put(account,'salik',{...raw,balance:next/100,version:target.version+1});}
+    else{const raw=this.store.get(account,'prepaid-line',reference);this.store.put(account,'prepaid-line',{...raw,balanceMinor:next,version:target.version+1},reference);}
+    return {appliedMinor,balanceMinor:next,version:target.version+1};
+  });}
   applyAdmitted(account:string,p:Payable,paymentId:string,_at:number){return this.atomic(()=>{
     const q=this.saved(account,p.id),target=this.target(account,p.reference);
     if(q.receipt||q.payable.revision!==p.revision||target.status!=='ACTIVE'||target.version!==p.recharge!.targetVersion||target.balanceMinor!==p.recharge!.balanceBeforeMinor||!amount(target.balanceMinor+p.amountMinor))return deny('RECHARGE_TARGET_CHANGED','The admitted recharge needs source reconciliation.');
