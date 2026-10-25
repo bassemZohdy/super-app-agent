@@ -58,11 +58,21 @@ Each occurrence is judged on the fine's current record at preparation, not on th
 
 An automatic and a manual payment of one fine cannot both proceed: a manual review that already holds the fine makes preparation refuse it, a prepared execution makes a manual review of the same fine refuse, and either way the fine settles once with one debit. Fines that arrive together are paid one at a time: a mandate's cooldown between preparations is a wait (the job is retried after it under the same identity), not a failure, and the period and lifetime counts still bound the total.
 
+## Parking extensions
+
+A `PARKING_EXTENSION` rule binds one session (ticket, plate and zone) with a maximum number of hours, an end time and the usual cost, count and cooldown caps. When the session is within the rule's minutes of ending, the scheduler announces one occurrence per session expiry (`PARK:<ticket>:<expiry>`); extending moves the expiry, so the next extension is a new occurrence and not a repeat. Everything is judged on the current session at preparation:
+
+- the session must exist, be running and unexpired, and match the bound plate and zone; a departed session (`SESSION_ENDED`), an expired one (`SESSION_EXPIRED`, never revived), a missing one (`SESSION_NOT_FOUND`) or another plate or zone (`SESSION_MISMATCH`) is skipped, so a session is never created or inferred;
+- one more hour must stay within the rule's maximum hours (`MAXIMUM_DURATION_REACHED`) and end time (`END_TIME_REACHED`), which bounds any overnight stay; those two ask the owner to decide;
+- the hour is priced by the zone's tariff and must fit the per-payment cap.
+
+The source provider issues a quote for exactly that session state, and the extension is paid by an automatic order that only the dedicated execution route can admit, like any other payment. The order is bound to the session instead of a linked biller, and a manual order cannot take such a quote. The session only grows when an admitted, captured and settled order applies the quote while the session is exactly as quoted: departure, expiry or any other change after preparation makes the quote stale, admission refuses it, and nothing is charged. A rule has one unfinished extension at a time, an extension cannot be refunded, and the legacy manual extension still needs its own proof of payment.
+
 ## What the owner is told
 
 - **Before a run:** when a rule's next run is inside the lead time (24 hours by default), the scheduler records one `UPCOMING_RUN` notice per rule and occurrence in `job_notices` (a reminder, not a job; it moves nothing and a paused or expired rule announces nothing).
 - **Needs the owner:** a declined card, a card over its limit, short wallet funds and similar failures end the job as `FAILED` and record a `REQUIRES_ACTION` outbox event; a card challenge holds the job (`HELD`) and records the same event. The worker never tries another source, a lower amount or a different invoice for that occurrence, and the failed occurrence is not retried.
-- **Review needed:** a skip that only the owner can resolve (an unapproved fine type, a restricted fine, an amount above the cap) is recorded as `REQUIRES_ACTION`.
+- **Review needed:** a skip that only the owner can resolve (an unapproved fine type, a restricted fine, an amount above the cap, a parking session at its maximum hours or end time) is recorded as `REQUIRES_ACTION`.
 - **Everything else:** a skip, a settlement, a held unknown outcome or an ordinary failure records `SKIPPED`, `SETTLED`, `HELD` or `FAILED`.
 
 An invoice is chosen at preparation: the earliest-due unpaid, unreserved invoice that is within the rule's per-payment cap. An invoice above the cap is skipped, never lowered, and does not hold up a smaller one behind it. Paid and withdrawn invoices are never offered. Wallet, card, DEWA, Etisalat and du invoices follow the same path.

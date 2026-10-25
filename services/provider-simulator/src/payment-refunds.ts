@@ -38,6 +38,7 @@ export class PaymentRefunds {
     if(p){
       if(p.sourceFinalizationPending||!p.admissionId||!p.paymentId)return fail('SETTLEMENT_STATUS_UNKNOWN','Finish original payment confirmation before requesting reversal.');
       const claim=this.claims.get(a.accountId,p.paymentId);if(claim?.state!=='APPLIED'||(claim.reversedMinor||0)!==(o.refundedMinor||0))return fail('SETTLEMENT_STATUS_UNKNOWN','Current provider application and cumulative reversal must be confirmed.');
+      if(p.quote.payable.kind==='PARKING_EXTENSION')return fail('REFUND_NOT_SUPPORTED','Time already added to a parking session cannot be reversed.');
       if(p.quote.payable.kind!=='RECHARGE'&&((o.refundedMinor||0)!==0||input.amountMinor!==o.quote.totalMinor))return fail('FULL_REVERSAL_REQUIRED','Bills and fine selections support full provider cancellation only.');
     }
     const db=this.orders.store;

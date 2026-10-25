@@ -498,7 +498,8 @@
                             "BILL",
                             "FINE",
                             "FINE_SET",
-                            "RECHARGE"
+                            "RECHARGE",
+                            "PARKING_EXTENSION"
                           ]
                         },
                         "version": {
@@ -577,6 +578,49 @@
                         },
                         "paymentRestricted": {
                           "type": "boolean"
+                        },
+                        "parking": {
+                          "type": "object",
+                          "properties": {
+                            "ticketId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "zoneId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "plateNumber": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "hours": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 24
+                            },
+                            "expiresAtBefore": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "durationBefore": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 720
+                            }
+                          },
+                          "required": [
+                            "ticketId",
+                            "zoneId",
+                            "plateNumber",
+                            "hours",
+                            "expiresAtBefore",
+                            "durationBefore"
+                          ],
+                          "additionalProperties": false
                         },
                         "violation": {
                           "type": "string",
@@ -1040,7 +1084,8 @@
                             "BILL",
                             "FINE",
                             "FINE_SET",
-                            "RECHARGE"
+                            "RECHARGE",
+                            "PARKING_EXTENSION"
                           ]
                         },
                         "version": {
@@ -1119,6 +1164,49 @@
                         },
                         "paymentRestricted": {
                           "type": "boolean"
+                        },
+                        "parking": {
+                          "type": "object",
+                          "properties": {
+                            "ticketId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "zoneId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "plateNumber": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "hours": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 24
+                            },
+                            "expiresAtBefore": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "durationBefore": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 720
+                            }
+                          },
+                          "required": [
+                            "ticketId",
+                            "zoneId",
+                            "plateNumber",
+                            "hours",
+                            "expiresAtBefore",
+                            "durationBefore"
+                          ],
+                          "additionalProperties": false
                         },
                         "violation": {
                           "type": "string",
@@ -1453,7 +1541,8 @@
                                 "BILL",
                                 "FINE",
                                 "FINE_SET",
-                                "RECHARGE"
+                                "RECHARGE",
+                                "PARKING_EXTENSION"
                               ]
                             },
                             "version": {
@@ -1532,6 +1621,49 @@
                             },
                             "paymentRestricted": {
                               "type": "boolean"
+                            },
+                            "parking": {
+                              "type": "object",
+                              "properties": {
+                                "ticketId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "zoneId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "plateNumber": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "hours": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 24
+                                },
+                                "expiresAtBefore": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "durationBefore": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 720
+                                }
+                              },
+                              "required": [
+                                "ticketId",
+                                "zoneId",
+                                "plateNumber",
+                                "hours",
+                                "expiresAtBefore",
+                                "durationBefore"
+                              ],
+                              "additionalProperties": false
                             },
                             "violation": {
                               "type": "string",
@@ -1985,7 +2117,8 @@
                                 "BILL",
                                 "FINE",
                                 "FINE_SET",
-                                "RECHARGE"
+                                "RECHARGE",
+                                "PARKING_EXTENSION"
                               ]
                             },
                             "version": {
@@ -2064,6 +2197,49 @@
                             },
                             "paymentRestricted": {
                               "type": "boolean"
+                            },
+                            "parking": {
+                              "type": "object",
+                              "properties": {
+                                "ticketId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "zoneId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "plateNumber": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "hours": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 24
+                                },
+                                "expiresAtBefore": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "durationBefore": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 720
+                                }
+                              },
+                              "required": [
+                                "ticketId",
+                                "zoneId",
+                                "plateNumber",
+                                "hours",
+                                "expiresAtBefore",
+                                "durationBefore"
+                              ],
+                              "additionalProperties": false
                             },
                             "violation": {
                               "type": "string",
@@ -2463,7 +2639,8 @@
                                 "BILL",
                                 "FINE",
                                 "FINE_SET",
-                                "RECHARGE"
+                                "RECHARGE",
+                                "PARKING_EXTENSION"
                               ]
                             },
                             "version": {
@@ -2542,6 +2719,49 @@
                             },
                             "paymentRestricted": {
                               "type": "boolean"
+                            },
+                            "parking": {
+                              "type": "object",
+                              "properties": {
+                                "ticketId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "zoneId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "plateNumber": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "hours": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 24
+                                },
+                                "expiresAtBefore": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "durationBefore": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 720
+                                }
+                              },
+                              "required": [
+                                "ticketId",
+                                "zoneId",
+                                "plateNumber",
+                                "hours",
+                                "expiresAtBefore",
+                                "durationBefore"
+                              ],
+                              "additionalProperties": false
                             },
                             "violation": {
                               "type": "string",
@@ -2964,7 +3184,8 @@
                                 "BILL",
                                 "FINE",
                                 "FINE_SET",
-                                "RECHARGE"
+                                "RECHARGE",
+                                "PARKING_EXTENSION"
                               ]
                             },
                             "version": {
@@ -3043,6 +3264,49 @@
                             },
                             "paymentRestricted": {
                               "type": "boolean"
+                            },
+                            "parking": {
+                              "type": "object",
+                              "properties": {
+                                "ticketId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "zoneId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "plateNumber": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "hours": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 24
+                                },
+                                "expiresAtBefore": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "durationBefore": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 720
+                                }
+                              },
+                              "required": [
+                                "ticketId",
+                                "zoneId",
+                                "plateNumber",
+                                "hours",
+                                "expiresAtBefore",
+                                "durationBefore"
+                              ],
+                              "additionalProperties": false
                             },
                             "violation": {
                               "type": "string",
@@ -3465,7 +3729,8 @@
                                 "BILL",
                                 "FINE",
                                 "FINE_SET",
-                                "RECHARGE"
+                                "RECHARGE",
+                                "PARKING_EXTENSION"
                               ]
                             },
                             "version": {
@@ -3544,6 +3809,49 @@
                             },
                             "paymentRestricted": {
                               "type": "boolean"
+                            },
+                            "parking": {
+                              "type": "object",
+                              "properties": {
+                                "ticketId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "zoneId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "plateNumber": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "hours": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 24
+                                },
+                                "expiresAtBefore": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "durationBefore": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 720
+                                }
+                              },
+                              "required": [
+                                "ticketId",
+                                "zoneId",
+                                "plateNumber",
+                                "hours",
+                                "expiresAtBefore",
+                                "durationBefore"
+                              ],
+                              "additionalProperties": false
                             },
                             "violation": {
                               "type": "string",
@@ -3961,7 +4269,8 @@
                             "BILL",
                             "FINE",
                             "FINE_SET",
-                            "RECHARGE"
+                            "RECHARGE",
+                            "PARKING_EXTENSION"
                           ]
                         },
                         "version": {
@@ -4040,6 +4349,49 @@
                         },
                         "paymentRestricted": {
                           "type": "boolean"
+                        },
+                        "parking": {
+                          "type": "object",
+                          "properties": {
+                            "ticketId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "zoneId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "plateNumber": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "hours": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 24
+                            },
+                            "expiresAtBefore": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "durationBefore": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 720
+                            }
+                          },
+                          "required": [
+                            "ticketId",
+                            "zoneId",
+                            "plateNumber",
+                            "hours",
+                            "expiresAtBefore",
+                            "durationBefore"
+                          ],
+                          "additionalProperties": false
                         },
                         "violation": {
                           "type": "string",
@@ -4361,7 +4713,8 @@
                               "BILL",
                               "FINE",
                               "FINE_SET",
-                              "RECHARGE"
+                              "RECHARGE",
+                              "PARKING_EXTENSION"
                             ]
                           },
                           "version": {
@@ -4440,6 +4793,49 @@
                           },
                           "paymentRestricted": {
                             "type": "boolean"
+                          },
+                          "parking": {
+                            "type": "object",
+                            "properties": {
+                              "ticketId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              "zoneId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              "plateNumber": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              "hours": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 24
+                              },
+                              "expiresAtBefore": {
+                                "type": "integer",
+                                "minimum": 0
+                              },
+                              "durationBefore": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 720
+                              }
+                            },
+                            "required": [
+                              "ticketId",
+                              "zoneId",
+                              "plateNumber",
+                              "hours",
+                              "expiresAtBefore",
+                              "durationBefore"
+                            ],
+                            "additionalProperties": false
                           },
                           "violation": {
                             "type": "string",
@@ -4730,7 +5126,8 @@
                             "BILL",
                             "FINE",
                             "FINE_SET",
-                            "RECHARGE"
+                            "RECHARGE",
+                            "PARKING_EXTENSION"
                           ]
                         },
                         "version": {
@@ -4809,6 +5206,49 @@
                         },
                         "paymentRestricted": {
                           "type": "boolean"
+                        },
+                        "parking": {
+                          "type": "object",
+                          "properties": {
+                            "ticketId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "zoneId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "plateNumber": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "hours": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 24
+                            },
+                            "expiresAtBefore": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "durationBefore": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 720
+                            }
+                          },
+                          "required": [
+                            "ticketId",
+                            "zoneId",
+                            "plateNumber",
+                            "hours",
+                            "expiresAtBefore",
+                            "durationBefore"
+                          ],
+                          "additionalProperties": false
                         },
                         "violation": {
                           "type": "string",
@@ -5133,7 +5573,8 @@
                             "BILL",
                             "FINE",
                             "FINE_SET",
-                            "RECHARGE"
+                            "RECHARGE",
+                            "PARKING_EXTENSION"
                           ]
                         },
                         "version": {
@@ -5212,6 +5653,49 @@
                         },
                         "paymentRestricted": {
                           "type": "boolean"
+                        },
+                        "parking": {
+                          "type": "object",
+                          "properties": {
+                            "ticketId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "zoneId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "plateNumber": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "hours": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 24
+                            },
+                            "expiresAtBefore": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "durationBefore": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 720
+                            }
+                          },
+                          "required": [
+                            "ticketId",
+                            "zoneId",
+                            "plateNumber",
+                            "hours",
+                            "expiresAtBefore",
+                            "durationBefore"
+                          ],
+                          "additionalProperties": false
                         },
                         "violation": {
                           "type": "string",
@@ -5542,7 +6026,8 @@
                             "BILL",
                             "FINE",
                             "FINE_SET",
-                            "RECHARGE"
+                            "RECHARGE",
+                            "PARKING_EXTENSION"
                           ]
                         },
                         "version": {
@@ -5621,6 +6106,49 @@
                         },
                         "paymentRestricted": {
                           "type": "boolean"
+                        },
+                        "parking": {
+                          "type": "object",
+                          "properties": {
+                            "ticketId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "zoneId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "plateNumber": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "hours": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 24
+                            },
+                            "expiresAtBefore": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "durationBefore": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 720
+                            }
+                          },
+                          "required": [
+                            "ticketId",
+                            "zoneId",
+                            "plateNumber",
+                            "hours",
+                            "expiresAtBefore",
+                            "durationBefore"
+                          ],
+                          "additionalProperties": false
                         },
                         "violation": {
                           "type": "string",

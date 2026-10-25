@@ -422,6 +422,42 @@ try {
   assert.equal(fineStore.list().length, myFines.length, 'a paid or reviewed fine is not announced again');
   fineStore.close();
   console.log('PASS: only the approved fine type is paid automatically; the other fine waits for the owner and nothing else moves.');
+  // ---- AUTO-12: only the bound parking session is extended, one hour at a time, and departure ends it. ----
+  const parkingStore = new JobStore(join(scratch, 'parking.sqlite'));
+  const rtaStore = env.providerStores.get('rta')!, rtaEngine = new (await import('../../services/provider-simulator/src/engine.ts')).ProviderEngine('rta', rtaStore);
+  const { parkingZones } = await import('../../services/provider-simulator/src/fixtures.ts');
+  const zone = parkingZones[0]!, tariffMinor = Math.round(zone.tariffPerHour * 100), ticketId = `e2e-ticket-${n}`, plate = 'DXB E2E-1';
+  const startedAt = Date.now();
+  rtaStore.put(accountId, 'parking', { ticketId, zoneId: zone.id, zoneCode: zone.code, zoneName: zone.name, plateNumber: plate, durationHours: 1, totalFee: zone.tariffPerHour, startTime: startedAt - 1800000, expiresAt: startedAt + 5 * 60000, status: 'ACTIVE' }, ticketId);
+  const meterNow = () => rtaStore.get(accountId, 'parking', ticketId) as { expiresAt: number; durationHours: number; status: string };
+  const parkingPolicy = { ...policy, operation: 'PARKING_EXTENSION', purpose: 'Keep this parking session running', trigger: { type: 'PARKING_ENDING', minutesBefore: 10 },
+    target: { kind: 'PARKING', ticketId, plateNumber: plate, zoneId: zone.id, maximumHours: 3, endAt: new Date(startedAt + 6 * 3600000).toISOString() } };
+  const parkingMade = await api('mandates', { policy: parkingPolicy });
+  assert.equal(parkingMade.status, 200, JSON.stringify(parkingMade.data));
+  const parkingRule = (await api('mandates/approve', { mandateId: parkingMade.data.mandate.id, expectedVersion: parkingMade.data.mandate.version, approvalDigest: parkingMade.data.mandate.approvalDigest })).data.mandate;
+  const parkingRules = new HttpRuleSource(gatewayConfig);
+  const parkingOnly: typeof parkingRules = Object.assign(Object.create(parkingRules), { rules: async () => (await parkingRules.rules()).filter(r => r.mandateId === parkingRule.id) });
+  const parkingScheduler = new Scheduler(parkingStore, parkingOnly);
+  const beforeParking = { wallet: await wallet(), expiresAt: meterNow().expiresAt };
+  await Promise.all([parkingScheduler.tick(Date.now()), parkingScheduler.tick(Date.now())]);
+  assert.equal(parkingStore.list().length, 1, 'the ending session is announced once');
+  assert.equal(await wallet(), beforeParking.wallet, 'scheduling alone moves no money');
+  await new AutomationWorker(parkingStore, new HttpExecutionGateway(gatewayConfig), { workerId: 'worker-parking' }).drain();
+  assert.equal(parkingStore.list()[0]!.state, 'SETTLED', JSON.stringify(parkingStore.list()[0]));
+  assert.equal(meterNow().expiresAt, beforeParking.expiresAt + 3600000, 'the session grew by exactly one hour');
+  assert.equal(meterNow().durationHours, 2);
+  assert.equal(await wallet(), beforeParking.wallet - tariffMinor, 'the wallet paid for it once');
+  await parkingScheduler.tick(Date.now());
+  assert.equal(parkingStore.list().length, 1, 'the extended session is not ending yet, so nothing more is announced');
+  const manualExtension = await call(`http://localhost:${env.corePort + 101}/v1/accounts/${accountId}/parking/sessions/${ticketId}/extensions`, owner, { additionalHours: 1, paymentId: 'none', reference: 'manual-1' });
+  assert.ok(manualExtension.status >= 400, 'a manual extension still needs its own proof of payment');
+  // Departure ends the session for good: even if it were near its end again, nothing extends it.
+  rtaEngine.lifecycle!.ingest(accountId, { kind: 'PARKING_DEPARTED', eventId: `e2e-depart-${n}`, ticketId });
+  assert.equal(meterNow().status, 'ENDED');
+  await parkingScheduler.tick(Date.now());
+  assert.equal(parkingStore.list().length, 1, 'an ended session is never announced');
+  parkingStore.close();
+  console.log('PASS: the bound parking session is extended by one hour exactly once, paid once, and departure stops any further extension.');
 } finally {
   if (restoreBroker) execFileSync('docker', ['compose', '-f', 'docker-compose.demo.yml', 'up', '-d', '--force-recreate', '--wait', 'delegation-broker'], { stdio: 'ignore' });
   try { await env?.cleanup(); } catch { /* Windows may briefly hold SQLite files */ }

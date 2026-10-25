@@ -10,6 +10,7 @@ import type { AccountDatabase } from './database.ts';
 import type { PaymentOrders } from './payment-orders.ts';
 import type { WalletFunding } from './wallet-funding.ts';
 import type { ProviderRecharges } from './recharges.ts';
+import type { ProviderParkingExtensions } from './parking-extensions.ts';
 import { PayableError } from './payables.ts';
 import { WALLET_FUNDING_LIMITS } from '../../../packages/protocol-core/src/payments.ts';
 import type { Actor } from '../../../packages/backend-kit/src/context.ts';
@@ -30,11 +31,13 @@ export type AutomationRunIo={
   walletBalanceMinor?:(accountId:string)=>number;
   /** The source provider's recharge book (tolls and prepaid), for exact-target balance reads and on-demand recharge quotes. */
   recharges?:(provider:string)=>ProviderRecharges|undefined;
+  /** The source provider's parking book, for reading the bound session and quoting an extension. */
+  parkingExtensions?:(provider:string)=>ProviderParkingExtensions|undefined;
 };
 export type AutomationPreparation={
   id:string;runId:string;accountId:string;mandateId:string;policyVersion:number;occurrenceKey:string;
   state:'PREPARED';provider:string;payableId:string;payableRevision:string;amountMinor:number;currency:'AED';
-  sourceId:string;sourceVersion:number;purpose:string;boundDigest:string;periodKey:string;orderId?:string;kind?:'BILL_PAYMENT'|'WALLET_RELOAD'|'RECHARGE';
+  sourceId:string;sourceVersion:number;purpose:string;boundDigest:string;periodKey:string;orderId?:string;kind?:'BILL_PAYMENT'|'WALLET_RELOAD'|'RECHARGE'|'PARKING_EXTENSION';
   reservedPeriodMinor:number;reservedPeriodCount:number;reservedLifetimeMinor:number;reservedLifetimeCount:number;
   preparedAt:string;admissionExpiresAt:string;
 };
@@ -168,8 +171,9 @@ export class AutomationRuns{
       const bill=policy.operation==='BILL_PAYMENT'&&policy.target.kind==='BILLER'&&['dewa','etisalat','du'].includes(policy.target.provider)&&policy.trigger.type==='INVOICE_DUE';
       const fine=policy.operation==='FINE_PAYMENT'&&policy.target.kind==='BILLER'&&policy.target.provider==='police'&&policy.trigger.type==='NEW_FINE'&&Array.isArray(policy.fineTypes);
       const recharge=policy.operation==='RECHARGE'&&policy.target.kind==='BILLER'&&['rta','etisalat','du'].includes(policy.target.provider)&&policy.trigger.type==='LOW_BALANCE';
-      if(!reload&&!bill&&!recharge&&!fine)
-        return deny('AUTOMATION_UNSUPPORTED','This checkpoint prepares due DEWA/Etisalat/du invoices, low-balance wallet reloads, low-balance toll or prepaid recharges and approved fines only; other operations fail closed until their own tasks.',409);
+      const parking=policy.operation==='PARKING_EXTENSION'&&policy.target.kind==='PARKING'&&policy.trigger.type==='PARKING_ENDING';
+      if(!reload&&!bill&&!recharge&&!fine&&!parking)
+        return deny('AUTOMATION_UNSUPPORTED','This checkpoint prepares due DEWA/Etisalat/du invoices, low-balance wallet reloads, low-balance toll or prepaid recharges, approved fines and bounded parking extensions only; other operations fail closed until their own tasks.',409);
       const source=policy.sources[0],current=source.methodId==='wallet'
         ?{id:'wallet',kind:'wallet' as const,status:'ACTIVE' as const,version:1}
         :this.store.get<{id:string;status:string;version:number;kind:string;expiresMonth?:number;expiresYear?:number}>(accountId,'payment-method',source.methodId);
@@ -195,6 +199,24 @@ export class AutomationRuns{
         if(amount>policy.limits.perPaymentMinor)return skip('OVER_PER_PAYMENT_CAP');
         if(balance+amount>WALLET_FUNDING_LIMITS.balanceMaxMinor)return skip('WALLET_BALANCE_LIMIT');
         item={provider:'wallet',id:`wallet-reload:${m.id}:${input.occurrenceKey}`,revision:createHash('sha256').update(JSON.stringify(['wallet-reload',accountId,m.id,input.occurrenceKey,amount])).digest('hex'),amountMinor:amount};
+      }else if(parking){
+        // Only the one session the owner bound, only while it is still running, and never past the rule's own hours or end time.
+        const trigger=policy.trigger as Extract<typeof policy.trigger,{type:'PARKING_ENDING'}>,target=policy.target as Extract<typeof policy.target,{kind:'PARKING'}>;
+        const book=this.io.parkingExtensions?.('rta');
+        if(!book)return deny('AUTOMATION_PARKING_UNAVAILABLE','This run exposes no parking book.',503);
+        const meter=book.session(accountId,target.ticketId);
+        if(!meter)return skip('SESSION_NOT_FOUND');
+        if(meter.status!=='ACTIVE')return skip('SESSION_ENDED');
+        if(meter.plateNumber!==target.plateNumber||meter.zoneId!==target.zoneId)return skip('SESSION_MISMATCH');
+        if(meter.expiresAt<=now)return skip('SESSION_EXPIRED');
+        if(meter.expiresAt-now>trigger.minutesBefore*60000)return skip('SESSION_NOT_ENDING');
+        if(meter.durationHours+1>target.maximumHours)return skip('MAXIMUM_DURATION_REACHED');
+        if(meter.expiresAt+3600000>Date.parse(target.endAt))return skip('END_TIME_REACHED');
+        const amount=book.tariffMinor(meter.zoneId);
+        if(amount<1)return skip('ZONE_TARIFF_UNAVAILABLE');
+        if(amount>policy.limits.perPaymentMinor)return skip('OVER_PER_PAYMENT_CAP');
+        if(this.activeExecution(m.id))return deny('AUTOMATION_EXTENSION_IN_PROGRESS','An earlier extension for this rule has not finished or been released. Inspect it first.');
+        item={provider:'rta',id:'',revision:'',amountMinor:amount};
       }else if(fine){
         // One occurrence per fine: `FINE:<fine id>`. Every restriction is read from the current record, never from the event that announced it.
         const target=policy.target as Extract<typeof policy.target,{kind:'BILLER'}>,named=/^FINE:([A-Za-z0-9][A-Za-z0-9_.:-]{0,100})$/.exec(input.occurrenceKey);
@@ -247,9 +269,15 @@ export class AutomationRuns{
         catch(error){if(error instanceof PayableError)return skip(error.code);throw error;}
         item={provider:target.provider,id:quoted.id,revision:quoted.revision,amountMinor:quoted.amountMinor};
       }
-      const providerStore=reload?undefined:this.io.providerStore(policy.target.kind==='BILLER'?policy.target.provider:'');
+      if(parking){
+        const target=policy.target as Extract<typeof policy.target,{kind:'PARKING'}>,book=this.io.parkingExtensions!('rta')!,meter=book.session(accountId,target.ticketId)!;
+        try{quoted=book.quote(accountId,{ticketId:target.ticketId,hours:1,expectedExpiresAt:meter.expiresAt,intentId:`auto-${randomUUID()}`});}
+        catch(error){if(error instanceof PayableError)return skip(error.code);throw error;}
+        item={provider:'rta',id:quoted.id,revision:quoted.revision,amountMinor:quoted.amountMinor};
+      }
+      const providerStore=reload?undefined:this.io.providerStore(policy.target.kind==='BILLER'?policy.target.provider:parking?'rta':'');
       const preparation:AutomationPreparation={id:`autoexec_${randomUUID()}`,runId:this.context.runId,accountId,mandateId:m.id,policyVersion:m.policyVersion,
-        occurrenceKey:input.occurrenceKey,state:'PREPARED',kind:reload?'WALLET_RELOAD':recharge?'RECHARGE':'BILL_PAYMENT',provider:item.provider,payableId:item.id,payableRevision:item.revision,
+        occurrenceKey:input.occurrenceKey,state:'PREPARED',kind:reload?'WALLET_RELOAD':recharge?'RECHARGE':parking?'PARKING_EXTENSION':'BILL_PAYMENT',provider:item.provider,payableId:item.id,payableRevision:item.revision,
         amountMinor:item.amountMinor,currency:'AED',sourceId:current.id,sourceVersion:current.version,purpose:policy.purpose,
         boundDigest:createHash('sha256').update(JSON.stringify({mandateId:m.id,policyVersion:m.policyVersion,occurrenceKey:input.occurrenceKey,payableId:item.id,payableRevision:item.revision,amountMinor:item.amountMinor,sourceId:current.id,sourceVersion:current.version,purpose:policy.purpose})).digest('hex'),
         periodKey:key,reservedPeriodMinor:reservedPeriodMinor+item.amountMinor,reservedPeriodCount:reservedPeriodCount+1,
@@ -302,7 +330,9 @@ export class AutomationRuns{
       ?this.store.get<{status:string;version:number}>(preparation.accountId,'billing-account',mandate.policy.target.billingAccountId)
       :undefined;
     // A bill is current while it is the same unpaid revision; a reload is current while the balance is still below the threshold and would reload the same amount.
-    const trigger=mandate.policy.trigger,payableCurrent=preparation.kind==='RECHARGE'
+    const trigger=mandate.policy.trigger,payableCurrent=preparation.kind==='PARKING_EXTENSION'
+      ?(()=>{try{const q=this.io.parkingExtensions?.('rta')?.get(preparation.accountId,preparation.payableId);return !!q&&q.revision===preparation.payableRevision&&q.status==='UNPAID';}catch{return false;}})()
+      :preparation.kind==='RECHARGE'
       ?(()=>{try{const q=this.io.recharges?.(preparation.provider)?.get(preparation.accountId,preparation.payableId);return !!q&&q.revision===preparation.payableRevision&&q.status==='UNPAID';}catch{return false;}})()
       :preparation.kind==='WALLET_RELOAD'
       ?trigger.type==='LOW_BALANCE'&&!!this.io.walletBalanceMinor&&this.io.walletBalanceMinor(preparation.accountId)<trigger.belowMinor&&this.reloadAmount(trigger,this.io.walletBalanceMinor(preparation.accountId))===preparation.amountMinor
@@ -335,6 +365,14 @@ export class AutomationRuns{
       return {mandateId:m.id,policyVersion:m.policyVersion,state:m.state,trigger:m.policy.trigger,timezone:m.policy.timezone,startsAt:m.policy.startsAt,expiresAt:m.policy.expiresAt,
         target:target.kind==='BILLER'?`${target.provider}-${target.billingAccountId}`:target.kind.toLowerCase()};
     });
+  }
+  /** The one parking session a rule is bound to, for the scheduler's ending trigger; a read, nothing is reserved. */
+  parkingSession(worker:string,mandateId:string){
+    this.worker(worker);
+    const {m,accountId}=this.mandate(mandateId),target=m.policy.target;
+    if(m.policy.operation!=='PARKING_EXTENSION'||target.kind!=='PARKING')return null;
+    const meter=this.io.parkingExtensions?.('rta')?.session(accountId,target.ticketId);
+    return meter?{ticketId:meter.ticketId,status:meter.status,expiresAt:meter.expiresAt,durationHours:meter.durationHours,plateNumber:meter.plateNumber,zoneId:meter.zoneId}:null;
   }
   /** Unpaid, unclaimed fines of the rule's plate, as the scheduler's per-fine occurrences; a read, nothing is reserved. */
   fines(worker:string,mandateId:string){

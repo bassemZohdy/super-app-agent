@@ -14,6 +14,8 @@ export type PreviewFacts = {
   source?: Pick<PaymentMethod, 'id' | 'kind' | 'status' | 'version' | 'expiresMonth' | 'expiresYear'> & { nickname?: string };
   biller?: Pick<BillingAccount, 'status' | 'version'>;
   payables: Payable[]; claimedPayableIds?: ReadonlySet<string>;
+  /** The parking session a rule is bound to, when the source provider's book is readable. */
+  parkingSession?: { status: string; plateNumber: string; zoneId: string; durationHours: number; expiresAt: number; tariffMinor: number };
   /** The exact toll tag or prepaid number a recharge rule watches, when the source provider's book is readable. */
   rechargeTarget?: { status: string; balanceMinor: number; denominationsMinor: number[] };
   usage: PreviewUsage; walletBalanceMinor: number;
@@ -59,8 +61,9 @@ export function forecast(f: PreviewFacts): Forecast {
   const supported = policy.operation === 'BILL_PAYMENT' && target.kind === 'BILLER' && ['dewa', 'etisalat', 'du'].includes(target.provider) && policy.trigger.type === 'INVOICE_DUE';
   const reload = policy.operation === 'WALLET_RELOAD' && target.kind === 'WALLET' && policy.trigger.type === 'LOW_BALANCE';
   const recharge = policy.operation === 'RECHARGE' && target.kind === 'BILLER' && ['rta', 'etisalat', 'du'].includes(target.provider) && policy.trigger.type === 'LOW_BALANCE' && !!f.rechargeTarget;
+  const parking = policy.operation === 'PARKING_EXTENSION' && target.kind === 'PARKING' && policy.trigger.type === 'PARKING_ENDING' && !!f.parkingSession;
   const fines = policy.operation === 'FINE_PAYMENT' && target.kind === 'BILLER' && target.provider === 'police' && policy.trigger.type === 'NEW_FINE' && Array.isArray(policy.fineTypes);
-  if (!supported && !reload && !recharge && !fines) blockers.push('EXECUTION_NOT_SUPPORTED_YET');
+  if (!supported && !reload && !recharge && !fines && !parking) blockers.push('EXECUTION_NOT_SUPPORTED_YET');
 
   let nextRun: Forecast['nextRun'] = null;
   const candidates: Candidate[] = [];
@@ -73,6 +76,23 @@ export function forecast(f: PreviewFacts): Forecast {
   if (policy.trigger.type === 'CALENDAR') {
     const run = nextCalendarRun(policy.trigger, tz, now, startsAt, expiresAt);
     if (run) nextRun = { key: run.key, runAt: iso(run.runAtUtc) };
+  } else if (parking && target.kind === 'PARKING' && policy.trigger.type === 'PARKING_ENDING') {
+    // One more hour on exactly the bound session, only while it runs and inside the rule's hours and end time.
+    const trigger = policy.trigger, s = f.parkingSession!, reasons: string[] = [];
+    if (s.status !== 'ACTIVE') reasons.push('SESSION_ENDED');
+    else if (s.plateNumber !== target.plateNumber || s.zoneId !== target.zoneId) reasons.push('SESSION_MISMATCH');
+    else if (s.expiresAt <= now) reasons.push('SESSION_EXPIRED');
+    else if (s.durationHours + 1 > target.maximumHours) reasons.push('MAXIMUM_DURATION_REACHED');
+    else if (s.expiresAt + 3_600_000 > Date.parse(target.endAt)) reasons.push('END_TIME_REACHED');
+    const endingAt = s.expiresAt - trigger.minutesBefore * 60_000, ending = s.expiresAt - now <= trigger.minutesBefore * 60_000;
+    if (!reasons.length && !ending) reasons.push('SESSION_NOT_ENDING');
+    if (s.tariffMinor > limits.perPaymentMinor) reasons.push('OVER_PER_PAYMENT_CAP');
+    if (periodMinor + s.tariffMinor > limits.periodMinor || periodCount + 1 > limits.perPeriodCount) reasons.push('OVER_PERIOD_BUDGET');
+    if (lifetimeMinor + s.tariffMinor > limits.lifetimeMinor || lifetimeCount + 1 > limits.lifetimeCount) reasons.push('OVER_LIFETIME_BUDGET');
+    if (cooling) reasons.push('COOLDOWN');
+    candidates.push({ payableId: `parking:${target.ticketId}`, label: `Extend parking ${target.plateNumber} by 1 h`, amountMinor: s.tariffMinor, dueDate: iso(s.expiresAt).slice(0, 10), scheduledRunAt: iso(Math.max(now, endingAt)), reasons, warnings: [],
+      decision: reasons.length || blockers.length ? 'SKIP' : endingAt <= now ? 'DUE_NOW' : 'SCHEDULED' });
+    if (!reasons.some(r => ['SESSION_ENDED', 'SESSION_MISMATCH', 'SESSION_EXPIRED'].includes(r)) && endingAt > now) nextRun = { key: `PARK:${target.ticketId}:${s.expiresAt}`, runAt: iso(endingAt) };
   } else if (fines && target.kind === 'BILLER') {
     // Every unpaid fine of the plate is its own occurrence; each is judged on its current record against the approved types, cap and budget.
     const approved = new Set(policy.fineTypes);

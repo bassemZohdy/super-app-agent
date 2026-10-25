@@ -20,7 +20,7 @@ export type WorkerOptions = { workerId: string; leaseMs?: number; maxAttempts?: 
 /** Failures only the owner can fix: the worker records them as requiring action and never tries another source or amount. */
 export const OWNER_ACTION_CODES: ReadonlySet<string> = new Set(['CARD_DECLINED', 'CARD_LIMIT_EXCEEDED', 'INSUFFICIENT_AVAILABLE_FUNDS', 'METHOD_EXPIRED', 'METHOD_CHANGED', 'CARD_EXPIRED']);
 /** Skips that mean the owner should look: the rule did not pay, and only a person can decide whether it should. */
-export const REVIEW_SKIP_REASONS: ReadonlySet<string> = new Set(['FINE_TYPE_NOT_APPROVED', 'FINE_REQUIRES_REVIEW', 'OVER_PER_PAYMENT_CAP']);
+export const REVIEW_SKIP_REASONS: ReadonlySet<string> = new Set(['FINE_TYPE_NOT_APPROVED', 'FINE_REQUIRES_REVIEW', 'OVER_PER_PAYMENT_CAP', 'MAXIMUM_DURATION_REACHED', 'END_TIME_REACHED']);
 const transient = (e: unknown) => { const status = (e as GatewayFailure).status; return status === undefined || status >= 500; };
 const codeOf = (e: unknown) => String((e as GatewayFailure).code || 'REJECTED').slice(0, 80);
 

@@ -84,6 +84,7 @@ export async function startEnvironment(options:{authorizationClock?:()=>number;i
     // Trusted run fixture: the isolated gateway reads source obligations and holds the shared exclusion claim in the source's own store.
     const automationIo={
       readPayables:(accountId:string,provider:string)=>['dewa','etisalat','du','police'].includes(provider)?new ProviderEngine(provider as 'dewa'|'etisalat'|'du'|'police',providerStores.get(provider)!).payables!.list(accountId):[],
+      parkingExtensions:(provider:string)=>provider==='rta'&&providerStores.get('rta')?new ProviderEngine('rta',providerStores.get('rta')!).parkingExtensions:undefined,
       recharges:(provider:string)=>['rta','etisalat','du'].includes(provider)&&providerStores.get(provider)?new ProviderEngine(provider as 'rta'|'etisalat'|'du',providerStores.get(provider)!).recharges:undefined,
       providerStore:(provider:string)=>{const store=providerStores.get(provider);if(!store)throw new Error('No isolated store for this provider.');return store;},
     };

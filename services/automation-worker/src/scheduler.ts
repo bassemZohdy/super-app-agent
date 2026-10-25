@@ -17,6 +17,8 @@ export interface RuleSource {
   rules(): Promise<ScheduledRule[]>;
   /** Unpaid invoices of the rule's biller, by due date (YYYY-MM-DD). */
   dueInvoices(rule: ScheduledRule): Promise<{ dueDate: string }[]>;
+  /** The parking session a rule is bound to, if any. */
+  parkingSession?(rule: ScheduledRule): Promise<{ ticketId: string; status: string; expiresAt: number } | null>;
   /** Unpaid fines of the rule's plate; each is its own occurrence. Optional for sources that have no fines. */
   newFines?(rule: ScheduledRule): Promise<{ fineId: string }[]>;
   /** Current wallet balance in integer fils, for threshold triggers. */
@@ -54,6 +56,13 @@ export class Scheduler {
         const newest = due.pop();
         due.forEach(o => skip(o.key));
         if (newest) enqueue(newest.key);
+      } else if (trigger.type === 'PARKING_ENDING') {
+        // One occurrence per session expiry: the next extension needs the new expiry that the previous one produced. Whether the session may be extended is decided at preparation.
+        const session = this.source.parkingSession ? await this.source.parkingSession(rule) : null;
+        if (session && session.status === 'ACTIVE' && session.expiresAt > now && session.expiresAt - now <= trigger.minutesBefore * 60_000) {
+          const key = `PARK:${session.ticketId}:${session.expiresAt}`;
+          if (!handled.has(key)) enqueue(key);
+        }
       } else if (trigger.type === 'NEW_FINE') {
         // Every unpaid fine is announced once, as its own occurrence. Whether it may be paid automatically is decided on the current record at preparation.
         for (const fine of this.source.newFines ? await this.source.newFines(rule) : []) {
@@ -70,7 +79,6 @@ export class Scheduler {
       const upcoming = await this.nextRun(rule, now);
       if (upcoming && upcoming.runAtUtc > now && upcoming.runAtUtc - now <= this.leadMs)
         this.store.recordNotice(rule.mandateId, upcoming.key, 'UPCOMING_RUN', { runAt: new Date(upcoming.runAtUtc).toISOString(), policyVersion: rule.policyVersion, target: rule.target }, now);
-      // PARKING_ENDING is event-driven and belongs to its own task; it schedules nothing here.
     }
     return out;
   }
@@ -89,6 +97,12 @@ export class Scheduler {
         after = next.runAtUtc;
       }
       return null;
+    }
+    if (trigger.type === 'PARKING_ENDING') {
+      const session = this.source.parkingSession ? await this.source.parkingSession(rule) : null;
+      if (!session || session.status !== 'ACTIVE') return null;
+      const runAtUtc = session.expiresAt - trigger.minutesBefore * 60_000, key = `PARK:${session.ticketId}:${session.expiresAt}`;
+      return runAtUtc > now && session.expiresAt < expiresAt && !handled.has(key) ? { key, runAtUtc } : null;
     }
     if (trigger.type === 'INVOICE_DUE') {
       const upcoming = (await this.source.dueInvoices(rule)).map(i => invoiceRun(i.dueDate, trigger.daysBefore, rule.timezone))

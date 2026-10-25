@@ -26,6 +26,12 @@ function resources(p:Payable):Resource[]{
     if(!bounded(id)||typeof version!=='number'||!Number.isSafeInteger(version)||version<1||version>1000000)return deny('INVALID_OBLIGATION','The recharge intent and target version must be authoritative.');
     return [{kind:'RECHARGE_INTENT',resourceId:id,reference:p.reference,key:digest(['RECHARGE_INTENT',id])},{kind:'RECHARGE_TARGET_VERSION',resourceId:`${p.reference}@${version}`,reference:p.reference,key:digest(['RECHARGE_TARGET_VERSION',p.reference,version])}];
   }
+  if(p.kind==='PARKING_EXTENSION'){
+    // Besides the quote itself, the exact session state is reserved so two quotes cannot extend one expiry twice.
+    const k=p.parking;
+    if(!k||!bounded(k.ticketId)||!Number.isSafeInteger(k.expiresAtBefore)||k.expiresAtBefore<1)return deny('INVALID_OBLIGATION','The parking session and its quoted expiry must be authoritative.');
+    return [item(p),{kind:'OBLIGATION',resourceId:`session:${k.ticketId}@${k.expiresAtBefore}`,reference:p.reference,key:digest(['PARKING_SESSION',k.ticketId,k.expiresAtBefore])}];
+  }
   return [item(p)];
 }
 export class PaymentObligations {

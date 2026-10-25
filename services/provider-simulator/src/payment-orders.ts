@@ -18,6 +18,7 @@ export class PaymentOrderError extends Error {
 }
 const fail=(code:string,message:string,status=409):never=>{throw new PaymentOrderError(status,code,message);};
 const active=(order:Review)=>['AWAITING_APPROVAL','AUTHORIZATION_PENDING','REQUIRES_ACTION','AUTHORIZED','CAPTURING','CAPTURED','RECONCILIATION_REQUIRED'].includes(order.state);
+const parkingSession=(order:Review)=>order.quote.payable.kind==='PARKING_EXTENSION';
 type OrderInput={provider:string;payableId:string;expectedPayableRevision:string;methodId:string;expectedMethodVersion:number};
 export class PaymentOrders {
   readonly obligations:PaymentObligations;
@@ -55,7 +56,7 @@ export class PaymentOrders {
       this.uses.release(order.accountId,'METHOD',order.quote.source.id,'HOLD',order.authorization.id);
     }
     this.uses.release(order.accountId,'METHOD',order.quote.source.id,'ORDER',order.id);
-    this.uses.release(order.accountId,'BILLER',order.quote.billingAccount.id,'ORDER',order.id);
+    if(!parkingSession(order))this.uses.release(order.accountId,'BILLER',order.quote.billingAccount.id,'ORDER',order.id);
     order.state=state;if(code)order.failureCode=code;return this.save(order);
   }
   private sync(order:Review){
@@ -86,7 +87,11 @@ export class PaymentOrders {
   private build(actor:Actor,input:OrderInput,snapshot:Payable|undefined,automation?:Review['automation']):Review{
     return this.atomic(()=>{
       const eligibility=this.store.eligibility!.require(actor);this.refresh(actor);const payable=this.fresh(snapshot,input.provider,input.payableId,input.expectedPayableRevision),source=this.source(actor.accountId,input.methodId,input.expectedMethodVersion);
-      const links=this.store.list(actor.accountId,'billing-account') as BillingAccount[],link=links.find(b=>b.status==='ACTIVE'&&b.provider===payable.provider&&b.reference===payable.reference);
+      // A parking extension is bound to the session the source quoted, not to a linked biller, and only an automatic order may carry one.
+      if(payable.kind==='PARKING_EXTENSION'&&!automation)return fail('PAYABLE_NOT_SUPPORTED','Parking extensions are paid by an approved automation rule only.');
+      const links=this.store.list(actor.accountId,'billing-account') as BillingAccount[],link=payable.kind==='PARKING_EXTENSION'
+        ?{id:`parking:${payable.reference}`,accountId:actor.accountId,provider:payable.provider as BillingAccount['provider'],reference:payable.reference,nickname:'Parking session',status:'ACTIVE' as const,version:1,createdAt:new Date(this.clock()).toISOString()}
+        :links.find(b=>b.status==='ACTIVE'&&b.provider===payable.provider&&b.reference===payable.reference);
       if(!link)return fail('BILLER_NOT_LINKED','Link this owned biller before creating an authorization review.');
       if(this.store.db.prepare("SELECT id FROM payment_authorization_orders WHERE account_id=? AND provider=? AND payable_id=? AND state IN ('AWAITING_APPROVAL','AUTHORIZATION_PENDING','REQUIRES_ACTION','AUTHORIZED','CAPTURING','CAPTURED','RECONCILIATION_REQUIRED','SETTLED')").get(actor.accountId,input.provider,input.payableId))return fail('PAYABLE_RESERVED','An active or settled order already reserves this obligation. Inspect it first.');
       const count=this.store.db.prepare('SELECT count(*) n FROM payment_authorization_orders WHERE account_id=?').get(actor.accountId) as {n:number};if(count.n>=100)return fail('ORDER_HISTORY_LIMIT','The local authorization-review history limit was reached.');
@@ -95,7 +100,7 @@ export class PaymentOrders {
       const approvalDigest=createHash('sha256').update(JSON.stringify(automation?[actor.sub,actor.accountId,id,quote,eligibility.epoch,automation]:[actor.sub,actor.accountId,id,quote,eligibility.epoch])).digest('hex');
       const order:Review={eligibilityEpoch:eligibility.epoch,id,accountId:actor.accountId,ownerSub:actor.sub,quote,approvalDigest,expiresAt,createdAt,state:'AWAITING_APPROVAL',version:1,fundsCaptured:false,...(automation?{automation}:{})};
       this.uses.bind(actor.accountId,{resourceType:'METHOD',resourceId:source.id,resourceVersion:source.version,dependentKind:'ORDER',dependentId:id});
-      this.uses.bind(actor.accountId,{resourceType:'BILLER',resourceId:link.id,resourceVersion:link.version,dependentKind:'ORDER',dependentId:id});
+      if(payable.kind!=='PARKING_EXTENSION')this.uses.bind(actor.accountId,{resourceType:'BILLER',resourceId:link.id,resourceVersion:link.version,dependentKind:'ORDER',dependentId:id});
       this.store.db.prepare('INSERT INTO payment_authorization_orders VALUES(?,?,?,?,?,?,?)').run(id,actor.accountId,input.provider,input.payableId,order.state,Date.parse(expiresAt),JSON.stringify(order));this.obligations.reserve(order);emitGatewaySnapshot(this.store,'PAYMENT',order);return order;
     });
   }
@@ -114,8 +119,8 @@ export class PaymentOrders {
     this.obligations.assertHeld(order);
     const current=this.fresh(snapshot,order.quote.payable.provider,order.quote.payable.id,order.quote.payable.revision);
     if(current.amountMinor!==order.quote.totalMinor||current.reference!==order.quote.payable.reference)return fail('PAYABLE_CHANGED','The provider terms changed.');
-    const link=this.store.get<BillingAccount>(actor.accountId,'billing-account',order.quote.billingAccount.id);
-    if(!link||link.status!=='ACTIVE'||link.version!==order.quote.billingAccount.version)return fail('BILLER_CHANGED','The linked biller is unavailable or changed.');
+    if(!parkingSession(order)){const link=this.store.get<BillingAccount>(actor.accountId,'billing-account',order.quote.billingAccount.id);
+    if(!link||link.status!=='ACTIVE'||link.version!==order.quote.billingAccount.version)return fail('BILLER_CHANGED','The linked biller is unavailable or changed.');}
     return order;
   }
   approve(actor:Actor,id:string,input:{expectedVersion:number;approvalDigest:string},snapshot:Payable|undefined,automatic=false){
@@ -156,7 +161,7 @@ export class PaymentOrders {
   cancel(actor:Actor,id:string,expectedVersion:number){return this.atomic(()=>{const order=this.sync(this.owned(actor,id));if(order.automation)return fail('ORDER_AUTOMATIC','Revoke or pause the mandate instead; an automatic order is not cancelled directly.',403);if(order.version!==expectedVersion)return fail('ORDER_CHANGED','Refresh this review before cancelling.');if(!active(order)||order.fundsCaptured)return fail('ORDER_CLOSED','Captured or closed orders cannot be cancelled.');return this.close(order,'CANCELLED');});}
   beginCapture(actor:Actor,id:string,input:{expectedVersion:number;approvalDigest:string},snapshot:Payable,automatic=false){return this.atomic(()=>{
     const order=this.decision(actor,id,input,snapshot,automatic);if(order.state!=='AUTHORIZED'||!order.authorization)return fail('ORDER_NOT_AUTHORIZED','Authorize this exact order before payment.');
-    if(!['BILL','FINE','FINE_SET','RECHARGE'].includes(order.quote.payable.kind||''))return fail('PAYABLE_NOT_SUPPORTED','This payment flow supports utility/telecom bills and exact fine selections.');
+    if(!['BILL','FINE','FINE_SET','RECHARGE','PARKING_EXTENSION'].includes(order.quote.payable.kind||''))return fail('PAYABLE_NOT_SUPPORTED','This payment flow supports utility/telecom bills and exact fine selections.');
     this.source(actor.accountId,order.quote.source.id,order.quote.source.version);order.state='CAPTURING';order.paymentId=`payment_${randomUUID()}`;return this.save(order);
   });}
   private sameAdmission(order:Review,admission:PayableAdmission){return admission.orderId===order.id&&admission.approvalDigest===order.approvalDigest&&admission.payable.id===order.quote.payable.id&&admission.payable.revision===order.quote.payable.revision&&admission.payable.provider===order.quote.payable.provider&&admission.payable.reference===order.quote.payable.reference&&admission.payable.amountMinor===order.quote.totalMinor&&admission.payable.currency==='AED'&&admission.sourceId===order.quote.source.id&&admission.sourceVersion===order.quote.source.version&&Number.isFinite(Date.parse(admission.expiresAt))&&Date.parse(admission.expiresAt)<=Date.parse(order.authorization!.expiresAt);}
@@ -168,7 +173,7 @@ export class PaymentOrders {
     if(order.state!=='CAPTURING'||!order.authorization||order.admissionId!==admission.id||admission.state!=='ADMITTED'||!this.sameAdmission(order,admission)||Date.parse(admission.expiresAt)<=this.clock()||Date.parse(order.authorization.expiresAt)<=this.clock()||Date.parse(order.expiresAt)<=this.clock())return fail('CAPTURE_NOT_ADMITTED','A current exact provider admission and funding hold are required.');
     this.obligations.assertHeld(order);
     this.source(actor.accountId,order.quote.source.id,order.quote.source.version);
-    const link=this.store.get<BillingAccount>(actor.accountId,'billing-account',order.quote.billingAccount.id);if(!link||link.status!=='ACTIVE'||link.version!==order.quote.billingAccount.version)return fail('BILLER_CHANGED','The biller link changed.');
+    if(!parkingSession(order)){const link=this.store.get<BillingAccount>(actor.accountId,'billing-account',order.quote.billingAccount.id);if(!link||link.status!=='ACTIVE'||link.version!==order.quote.billingAccount.version)return fail('BILLER_CHANGED','The biller link changed.');}
     if(order.quote.source.kind==='wallet'){this.ledger.captureHold(actor.accountId,id,order.paymentId!,order.quote.totalMinor);order.authorization.state='CAPTURED';}
     else{order.authorization=this.issuer.capture(this.binding(order));this.ledger.record(actor.accountId,'PAYMENT',`charge:${order.paymentId}`,order.quote.totalMinor,'external');}
     const charge={id:order.paymentId,accountId:actor.accountId,amountMinor:order.quote.totalMinor,merchant:order.quote.payable.provider,reference:`payable:${order.quote.payable.revision}`,source:order.quote.source.id,sourceVersion:order.quote.source.version,status:'CAPTURED',currency:'AED',createdAt:new Date(this.clock()).toISOString(),refunded:false,orderId:id,attemptId:`capture_${id}`,admissionId:admission.id,quoteDigest:order.approvalDigest};
@@ -182,6 +187,6 @@ export class PaymentOrders {
     if(order.quote.payable.kind==='RECHARGE'&&(admission.receipt.targetReference!==order.quote.payable.reference||admission.receipt.providerBalanceMinor!==order.quote.payable.recharge!.balanceBeforeMinor+order.quote.totalMinor))return fail('SETTLEMENT_NOT_CONFIRMED','The provider has not confirmed this exact target credit.');
     order.state='SETTLED';order.receipt=admission.receipt;if(order.quote.payable.kind==='RECHARGE')order.sourceFinalizationPending=true;delete order.failureCode;
     const transaction=this.store.get(actor.accountId,'transaction',order.paymentId!);this.store.put(actor.accountId,'transaction',{...transaction,status:'SETTLED'},order.paymentId!);
-    this.uses.release(actor.accountId,'METHOD',order.quote.source.id,'ORDER',id);this.uses.release(actor.accountId,'BILLER',order.quote.billingAccount.id,'ORDER',id);return this.save(order);
+    this.uses.release(actor.accountId,'METHOD',order.quote.source.id,'ORDER',id);if(!parkingSession(order))this.uses.release(actor.accountId,'BILLER',order.quote.billingAccount.id,'ORDER',id);return this.save(order);
   });}
 }

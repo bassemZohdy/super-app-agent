@@ -21,6 +21,7 @@ export class HttpRuleSource implements RuleSource {
   }
   async rules(): Promise<ScheduledRule[]> { return (await this.get('')).rules as ScheduledRule[]; }
   async dueInvoices(rule: ScheduledRule) { return (await this.get(`/${encodeURIComponent(rule.mandateId)}/invoices`)).invoices as { dueDate: string }[]; }
+  async parkingSession(rule: ScheduledRule) { return (await this.get(`/${encodeURIComponent(rule.mandateId)}/session`)).session as { ticketId: string; status: string; expiresAt: number } | null; }
   async newFines(rule: ScheduledRule) { return (await this.get(`/${encodeURIComponent(rule.mandateId)}/fines`)).fines as { fineId: string }[]; }
   async balanceMinor(rule: ScheduledRule) { return (await this.balance(rule)).balanceMinor; }
   async balance(rule: ScheduledRule) {
