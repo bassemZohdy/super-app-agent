@@ -25,7 +25,7 @@ function fixture(t: any) {
     startsAt: new Date(now).toISOString(), expiresAt: new Date(now + 30 * 86400000).toISOString(),
     limits: { perPaymentMinor: 50000, periodMinor: 100000, lifetimeMinor: 300000, period: 'MONTH', perPeriodCount: 3, lifetimeCount: 9, cooldownSeconds: 3600 } });
   t.after(() => { db.close(); removeTemp(root); });
-  return { db, owner, mandates, policy };
+  return { db, owner, mandates, policy, post, card };
 }
 
 test('QA-01: an approval with a stale version or an old digest after a revision is refused and changes nothing', t => {
@@ -49,4 +49,20 @@ test('QA-01: another workspace cannot pause, revoke or approve a rule it does no
   assert.throws(() => f.mandates.approve(other, rule.id, rule.version, rule.approvalDigest));
   assert.throws(() => f.mandates.get(other, rule.id));
   assert.equal(f.mandates.get(f.owner, rule.id).state, 'AWAITING_APPROVAL', 'the stranger changed nothing');
+});
+
+test('QA-01: a rule cannot target a biller that another workspace linked', t => {
+  const f = fixture(t);
+  const stranger = actorFor({ sub: 'qa01-biller-stranger' }, undefined, 'Bearer stranger');
+  f.db.accounts(stranger.sub);
+  const foreign = f.policy();
+  foreign.target = { ...foreign.target, billingAccountId: 'billing_not_owned_by_this_workspace' };
+  assert.throws(() => f.mandates.create(f.owner, foreign), (e: any) => e.code === 'MANDATE_TARGET_CHANGED', 'a biller link the workspace does not own is refused');
+});
+
+
+test('QA-01: a rule cannot be created on a source the owner has disabled', t => {
+  const f = fixture(t);
+  f.post('/payment-methods/status', { methodId: f.card.id, expectedVersion: f.card.version, status: 'DISABLED' });
+  assert.throws(() => f.mandates.create(f.owner, f.policy()), (e: any) => e.code === 'MANDATE_SOURCE_CHANGED', 'a disabled source is refused');
 });
