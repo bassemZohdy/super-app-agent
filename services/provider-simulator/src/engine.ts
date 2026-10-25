@@ -11,6 +11,8 @@ import { ProviderReversals } from './provider-reversals.ts';
 import { PaymentResourceUses } from './payment-resource-uses.ts';
 import { PaymentIssuer } from './payment-issuer.ts';
 import { CheckoutGroups } from './checkout-groups.ts';
+import { forecast } from './mandate-preview.ts';
+import type { Payable, PaymentMethod, BillingAccount } from '../../../packages/protocol-core/src/payments.ts';
 import { PaymentOrders } from './payment-orders.ts';
 import { WalletFunding } from './wallet-funding.ts';
 import { PaymentClaims } from './payment-claims.ts';
@@ -39,6 +41,17 @@ export class ProviderEngine {
   constructor(provider: ProviderId, store: AccountDatabase, options: {businessClock?:()=>number;authorizationClock?:()=>number;issuerScenario?:IssuerScenarioContext;automationRun?:AutomationRunContext;automationIo?:import('./automation-runs.ts').AutomationRunIo} = {}) { this.provider = provider; this.store = store;if(provider==='payments'){if(options.issuerScenario)store.issuerScenarios=new IssuerScenarios(store,options.issuerScenario);else if(hasIssuerScenarioRun(store))throw new Error('An issuer scenario database requires its original isolated run context.');else if(hasAutomationRun(store)&&!options.automationRun)throw new Error('An automation run database requires its original isolated run context.');if(options.issuerScenario)store.scenarioControls=new ScenarioControls(store,store.issuerScenarios!);}if(provider!=='dld')store.events=new PaymentEvents(store,provider); if (provider === 'payments') { store.eligibility=new AccountEligibility(store);this.ledger = new PaymentLedger(store,options.authorizationClock); this.resourceUses = new PaymentResourceUses(store);this.mandates=new PaymentMandates(store,this.resourceUses);
           if(options.automationRun)store.automationRuns=new AutomationRuns(store,options.automationRun,{...options.automationIo!,consumeMandateSkip:(id:string)=>this.mandates!.consumeSkipNext(id),walletBalanceMinor:(accountId:string)=>this.ledger!.summary(accountId).balanceMinor});this.issuer=new PaymentIssuer(store,options.authorizationClock);this.orders=new PaymentOrders(store,this.issuer,this.ledger,this.resourceUses,options.authorizationClock);store.automationRuns?.attachOrders(this.orders);this.groups=new CheckoutGroups(this.orders);this.claims=new PaymentClaims(store);this.funding=new WalletFunding(store,this.issuer,this.ledger,this.resourceUses,options.authorizationClock);this.refunds=new PaymentRefunds(this.orders,this.funding,this.claims);this.reconciliation=new PaymentReconciliation(this.orders,this.funding,this.refunds);this.history=new PaymentHistory(store); } if(['dewa','etisalat','du','police'].includes(provider)) {this.payables=new ProviderPayables(store,provider as PayableProvider,options.businessClock);} if(['rta','etisalat','du'].includes(provider))this.recharges=new ProviderRecharges(store,provider as import('../../../packages/protocol-core/src/payments.ts').RechargeProvider,options.businessClock);if(this.payables||this.recharges)this.admissions=new PayableAdmissions(store,{inspect:(a,id,revision)=>this.obligationBook(id).inspect(a,id,revision),applyAdmitted:(a,p,paymentId,at)=>this.obligationBook(p.id).applyAdmitted(a,p,paymentId,at)},options.businessClock);if(this.admissions)this.reversals=new ProviderReversals(store,provider,this.admissions,this.payables,this.recharges); }
   private obligationBook(id:string){if(id.startsWith(`${this.provider}:recharge:`)&&this.recharges)return this.recharges;if(this.payables)return this.payables;return fail(404,'PAYABLE_NOT_FOUND','Payment obligation not found.');}
+  /** Owner-scoped, read-only forecast of a stored rule. `payables` are the source provider's current obligations, read by the caller. */
+  mandatePreview(actor:Actor,mandateId:string,payables:Payable[],now=Date.now()){
+    const m=this.mandates!.get(actor,mandateId),policy=m.policy,wanted=policy.sources[0],target=policy.target;
+    const source=wanted.methodId==='wallet'?{id:'wallet',kind:'wallet' as const,status:'ACTIVE' as const,version:1}:this.store.get<PaymentMethod>(actor.accountId,'payment-method',wanted.methodId);
+    const biller=target.kind==='BILLER'?this.store.get<BillingAccount>(actor.accountId,'billing-account',target.billingAccountId):undefined;
+    const runs=this.store.automationRuns,eligibility=this.store.eligibility!.snapshot(actor.accountId);
+    return forecast({mandate:m,now,eligibility:{active:eligibility.active,epoch:eligibility.epoch},source:source??undefined,biller:biller??undefined,payables,
+      claimedPayableIds:runs?.claimedPayables(actor.accountId),
+      usage:runs?runs.usage(mandateId,now):{periodMinor:0,periodCount:0,lifetimeMinor:0,lifetimeCount:0},
+      walletBalanceMinor:this.ledger!.summary(actor.accountId).balanceMinor});
+  }
   seed(actor: Actor) {
     const db = this.store, account = actor.accountId;
     if (db.get(account, 'seed')) {

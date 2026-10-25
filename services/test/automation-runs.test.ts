@@ -440,3 +440,71 @@ test('AUTO-06: the worker-scoped scheduling view lists rules, unclaimed due invo
   prepared(f.prepare(m.id,'occ_view'));
   assert.deepEqual(f.db.automationRuns!.dueInvoices('auto-worker',m.id),[]);
 });
+
+const dump=(db:AccountDatabase)=>(db.db.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all() as {name:string}[])
+  .map(t=>[t.name,db.db.prepare(`SELECT * FROM "${t.name}"`).all()]);
+
+test('AUTO-07: a preview shows amount, source, eligibility, next run and skip reasons while changing nothing',t=>{
+  const f=fixture(t),m=f.mandate();f.bill('auto-bill-1',150,1);f.bill('auto-bill-2',700,2);f.bill('auto-bill-3',100,5);
+  const payables=f.dewa.payables!.list(f.actor.accountId);
+  const before=[dump(f.db),dump(f.dewaDb)];
+  const forecast=f.payments.mandatePreview(f.actor,m.id,payables);
+  assert.deepEqual([dump(f.db),dump(f.dewaDb)],before,'a preview wrote nothing to the gateway or the source provider');
+  assert.equal(forecast.previewOnly,true);
+  assert.equal(forecast.zeroEffect,true);
+  assert.equal(forecast.wouldRun,true);
+  assert.deepEqual(forecast.blockers,[]);
+  assert.deepEqual(forecast.source,{id:'wallet',kind:'wallet',status:'ACTIVE',usable:true});
+  const byId=new Map(forecast.candidates.map(c=>[c.payableId,c]));
+  const small=byId.get('dewa:bill:auto-bill-1')!,big=byId.get('dewa:bill:auto-bill-2')!,far=byId.get('dewa:bill:auto-bill-3')!;
+  assert.deepEqual([small.amountMinor,small.decision,small.reasons],[15000,'DUE_NOW',[]]);
+  assert.deepEqual([big.amountMinor,big.decision,big.reasons],[70000,'SKIP',['OVER_PER_PAYMENT_CAP']]);
+  assert.equal(far.decision,'SCHEDULED','a later invoice is forecast for its own run time');
+  assert.ok(Date.parse(far.scheduledRunAt)>Date.now());
+  assert.equal(forecast.nextRun!.key,`INV:${small.dueDate}`);
+  assert.equal(forecast.budget.period.limitMinor,100000);
+  assert.equal(forecast.budget.period.usedMinor,0);
+  // Asking again, or later, is the same read and still reserves nothing.
+  assert.deepEqual(f.payments.mandatePreview(f.actor,m.id,payables,Date.parse(forecast.asOf)),forecast);
+  assert.deepEqual([dump(f.db),dump(f.dewaDb)],before);
+});
+
+test('AUTO-07: a preview counts real reservations and honors the same caps and cooldown that preparation enforces',t=>{
+  const f=fixture(t),m=f.mandate();f.bill('auto-bill-1',150,1);f.bill('auto-bill-2',400,2);f.bill('auto-bill-3',480,3);
+  prepared(f.prepare(m.id,'occ_used'));
+  const forecast=f.payments.mandatePreview(f.actor,m.id,f.dewa.payables!.list(f.actor.accountId));
+  assert.equal(forecast.budget.period.usedMinor,15000,'the reservation held by the first execution is counted');
+  assert.ok(forecast.budget.cooldownEndsAt,'the mandate cooldown is shown');
+  const open=forecast.candidates.filter(c=>c.decision==='SKIP');
+  assert.ok(open.length>0&&open.every(c=>c.reasons.includes('COOLDOWN')||c.reasons.includes('ALREADY_RESERVED')));
+  assert.ok(forecast.candidates.find(c=>c.payableId==='dewa:bill:auto-bill-1')!.reasons.includes('ALREADY_RESERVED'));
+  assert.equal(forecast.wouldRun,false,'nothing can run during the cooldown');
+});
+
+test('AUTO-07: drafts, paused rules and stale sources are shown as blockers, never as ready to run',t=>{
+  const f=fixture(t),m=f.mandate();f.bill('auto-bill-1',150,1);
+  const payables=f.dewa.payables!.list(f.actor.accountId);
+  f.payments.mandates!.pause(f.actor,m.id,m.version);
+  const paused=f.payments.mandatePreview(f.actor,m.id,payables);
+  assert.equal(paused.wouldRun,false);
+  assert.ok(paused.blockers.includes('MANDATE_PAUSED'));
+  assert.equal(paused.candidates[0]!.decision,'SKIP');
+  const draft=f.payments.mandates!.create(f.actor,{...f.payments.mandates!.get(f.actor,m.id).policy,purpose:'Draft DEWA rule'});
+  const preview=f.payments.mandatePreview(f.actor,draft.id,payables);
+  assert.deepEqual(preview.blockers,['AWAITING_OWNER_APPROVAL']);
+  assert.equal(preview.wouldRun,false);
+  // A preview never grants more than the rule: another owner's rule is not readable at all.
+  assert.throws(()=>f.payments.mandatePreview({...f.actor,sub:'someone-else',accountId:f.actor.accountId},m.id,payables));
+  assert.throws(()=>f.payments.mandatePreview(f.actor,'mandate_missing',payables));
+});
+
+test('AUTO-07: the preview does not authorize anything; execution re-reads current state and skips what changed after it',t=>{
+  const f=fixture(t),m=f.mandate();f.bill('auto-bill-1',150,1);
+  const forecast=f.payments.mandatePreview(f.actor,m.id,f.dewa.payables!.list(f.actor.accountId));
+  assert.equal(forecast.candidates[0]!.decision,'DUE_NOW');
+  assert.equal(f.dewaDb.db.prepare("SELECT count(*) n FROM sqlite_master WHERE name='automation_payable_claims'").get()!.n===0||Number(f.dewaDb.db.prepare('SELECT count(*) n FROM automation_payable_claims').get()!.n)===0,true,'the preview claimed nothing');
+  // The bill is paid elsewhere after the preview: preparation finds nothing due rather than trusting the forecast.
+  f.bill('auto-bill-1',150,1,'PAID');
+  assert.equal(skipped(f.prepare(m.id,'occ_after_preview')).reason,'NO_DUE_INVOICE');
+  assert.equal(f.db.automationRuns!.status('automation-operator').executionCount,0);
+});

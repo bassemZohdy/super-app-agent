@@ -264,6 +264,26 @@ try {
   assert.equal(schedulerStore.list().filter(j => j.mandateId === scheduled.id).length, 1, 'a settled occurrence is never scheduled again');
   schedulerStore.close();
   console.log('PASS: the scheduler reads rules over HTTP, enqueues the due invoice once under duplicate ticks, and the worker settles it once.');
+  // ---- A preview is an owner-only read that changes nothing. ----
+  n++;
+  const previewBill = `e2e-auto-bill-${n}`, previewRule = await newMandate();
+  env.providerStores.get('dewa')!.put(accountId, 'bill', { billId: previewBill, accountNumber: dewa.reference, totalAmount: 150, status: 'UNPAID', dueDate: due }, previewBill);
+  const claimCount = () => Number(env!.providerStores.get('dewa')!.db.prepare('SELECT count(*) n FROM automation_payable_claims').get()!.n);
+  const beforePreview = { wallet: await wallet(), claims: claimCount() };
+  const previewUrl = `${env.coreUrl}/api/payments/mandates/preview?accountId=${accountId}&mandateId=${previewRule.id}`;
+  const forecast = await call(previewUrl, owner);
+  assert.equal(forecast.status, 200, JSON.stringify(forecast.data));
+  assert.equal(forecast.data.forecast.zeroEffect, true);
+  assert.equal(forecast.data.forecast.wouldRun, true);
+  assert.ok(forecast.data.forecast.candidates.some((c: any) => c.amountMinor === 15000 && c.decision !== 'SKIP'));
+  assert.equal(forecast.data.forecast.source.usable, true);
+  assert.deepEqual((await call(previewUrl, owner)).data.forecast.candidates.map((c: any) => c.payableId), forecast.data.forecast.candidates.map((c: any) => c.payableId), 'asking again is the same read');
+  assert.ok([401, 403, 404].includes((await call(previewUrl, other)).status), 'another user cannot preview this rule');
+  assert.ok([401, 403].includes((await call(`${paymentsUrl}/payment-mandates/${previewRule.id}/preview`, worker)).status), 'the worker identity is not an owner');
+  assert.equal(await wallet(), beforePreview.wallet, 'a preview moved no money');
+  assert.equal(paid(previewBill), false);
+  assert.equal(claimCount(), beforePreview.claims, 'a preview claimed no invoice');
+  console.log('PASS: the owner previews a rule through the app route with zero effect; other identities cannot.');
 } finally {
   if (restoreBroker) execFileSync('docker', ['compose', '-f', 'docker-compose.demo.yml', 'up', '-d', '--force-recreate', '--wait', 'delegation-broker'], { stdio: 'ignore' });
   try { await env?.cleanup(); } catch { /* Windows may briefly hold SQLite files */ }

@@ -3797,6 +3797,80 @@
         }
       }
     },
+    "/v1/accounts/{accountId}/payment-mandates/{mandateId}/preview": {
+      "get": {
+        "operationId": "payments_previewPaymentMandate",
+        "description": "Read-only forecast of what this rule would do now: candidates, source, eligibility, next run, budget and skip reasons. It reserves nothing, issues no credential and mutates no provider.",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "mandateId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "forecast": {
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "forecast"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "402": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
     "/v1/accounts/{accountId}/payment-mandates/{mandateId}/history": {
       "get": {
         "operationId": "payments_getPaymentMandateHistory",

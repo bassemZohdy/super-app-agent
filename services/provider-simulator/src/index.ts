@@ -244,6 +244,13 @@ export function createProviderServer(provider: ProviderId, path: string, options
         }
         return send(result);
       }
+      const previewRoute=provider==='payments'&&req.method==='GET'?/^\/payment-mandates\/([^/]+)\/preview$/.exec(operationPath):null;
+      if(previewRoute&&engine.mandates){
+        // Owner-scoped read: the source provider's current obligations are read, nothing is reserved, claimed or written.
+        const target=engine.mandates.get(actor,previewRoute[1]).policy.target;
+        const payables=target.kind==='BILLER'?(await payments.call(target.provider,actor,'GET','/payables')).payables:[];
+        return send({status:200,data:{success:true,forecast:engine.mandatePreview(actor,previewRoute[1],payables)}});
+      }
       const checkoutAction=/^\/payment-orders\/([^/]+)\/(execute|recover|cancel)$/.exec(operationPath);
       if(checkout&&req.method==='POST'&&checkoutAction){
         const [,id,action]=checkoutAction;const order=action==='execute'?await checkout.execute(actor,id,body):action==='recover'?await checkout.recover(actor,id):await checkout.cancel(actor,id,body.expectedVersion);

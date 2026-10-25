@@ -228,6 +228,17 @@ export class AutomationRuns{
       boundDigest:preparation.boundDigest,preparedAt:preparation.preparedAt,admissionExpiresAt:preparation.admissionExpiresAt,
       expired:Date.now()>Date.parse(preparation.admissionExpiresAt)};
   }
+  /** Reservations the preview counts against the current budget period; a read of the same rows preparation sums. */
+  usage(mandateId:string,at:number){
+    const {m}=this.mandate(mandateId),key=this.periodKey(m,at);
+    const rows=this.store.db.prepare('SELECT body FROM automation_executions WHERE mandate_id=? AND id NOT IN (SELECT execution_id FROM automation_released) ORDER BY rowid').all(mandateId).map(r=>JSON.parse(String(r.body)) as AutomationPreparation);
+    const inPeriod=rows.filter(r=>r.periodKey===key),last=this.store.db.prepare('SELECT body FROM automation_executions WHERE mandate_id=? ORDER BY rowid DESC LIMIT 1').get(mandateId);
+    return {periodMinor:inPeriod.reduce((n,r)=>n+r.amountMinor,0),periodCount:inPeriod.length,lifetimeMinor:rows.reduce((n,r)=>n+r.amountMinor,0),lifetimeCount:rows.length,
+      lastPreparedAt:last?Date.parse((JSON.parse(String(last.body)) as AutomationPreparation).preparedAt):undefined};
+  }
+  claimedPayables(accountId:string):Set<string>{
+    return new Set(this.store.db.prepare('SELECT payable_key FROM automation_payable_claims WHERE account_id=?').all(accountId).map(r=>String(r.payable_key)));
+  }
   /** The scheduler's worker-scoped view of every mandate in this run: what to run, when, and against which target. Reads only. */
   rules(worker:string){
     this.worker(worker);

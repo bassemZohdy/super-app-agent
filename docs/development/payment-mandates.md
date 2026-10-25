@@ -55,6 +55,12 @@ npm run demo:verify:mandates
 
 The signed verification uses existing local Keycloak/Redis with temporary provider databases. It creates and explicitly approves all six policy families, checks retries/changed terms, wrong owners, service-token denial, source locks, revision/reapproval, historical restoration and actual provider restart, then revokes and removes the saved card. One synthetic parking payment sets up an owned session **before** the consent baseline; subsequent consent actions must leave wallet/transaction state identical. No model call or automatic service execution occurs. [Evidence](../reports/2026-10-24-payment-mandates.md).
 
+## Previewing a rule
+
+`GET /api/payments/mandates/preview?accountId=…&mandateId=…` (provider route `GET /payment-mandates/{mandateId}/preview`) returns a forecast of what the rule would do now: the invoices it would consider with amount, due date and scheduled run, the funding source and whether it is usable, whether the owner's access still matches, the next run, the period and lifetime budget used, any cooldown, and a skip reason for each invoice it would not pay. It works for drafts too, so a rule proposed in chat or voice can be reviewed before it is approved; a draft is shown as waiting for approval and never as ready to run.
+
+A preview is a read. The forecast is a pure function (`services/provider-simulator/src/mandate-preview.ts`) of facts read from the owner's workspace and the source provider; it reserves no budget, claims no invoice, issues no credential, creates no order and writes nothing. Only the signed-in owner can call it. It does not authorize anything: an execution re-reads the mandate, source, biller and invoice when it is prepared and skips what changed. The React panel shows the same facts through `describeForecast` (`packages/protocol-core/src/mandate-forecast-view.ts`) so every shell can word them identically.
+
 ## Execution authority gate
 
 [The AUTO-02 threat model](../architecture/payment-automation-security.md) separates consent records from executable permits. Current owner/source/target and exact policy terms must be rechecked when future AUTO-03 reservations and credentials are derived. The current API always returns `executionEnabled:false`; adding a mandate reference to a legacy grant is rejected. Budget/count/occurrence reservations, current membership/owner epochs and the worker/revoke admission boundary remain implementation gates.

@@ -53,6 +53,7 @@ export async function handlePaymentAccounts(actor: Actor, method: string, path: 
     if(method==='POST'&&path==='/api/payments/reconciliation/act'){const {accountId:_account,requestKey,inspectionId,...input}=body;return {status:200,data:await client.call('payments',actor,'POST',`/payment-reconciliation/inspections/${encodeURIComponent(inspectionId)}/act`,input,`recovery:${requestKey}`)};}
     if(method==='GET'&&path==='/api/payments/legacy-status')return {status:200,data:{success:true,inspection:await inspectLegacyPayment(actor,body.paymentId,client)}};
     if(method==='GET'&&path==='/api/payments/mandates')return {status:200,data:await client.call('payments',actor,'GET','/payment-mandates')};
+    if(method==='GET'&&path==='/api/payments/mandates/preview')return {status:200,data:await client.call('payments',actor,'GET',`/payment-mandates/${encodeURIComponent(body.mandateId)}/preview`)};
     if(method==='GET'&&path==='/api/payments/mandates/history')return {status:200,data:await client.call('payments',actor,'GET',`/payment-mandates/${encodeURIComponent(body.mandateId)}/history`)};
     if(method==='POST'&&path==='/api/payments/mandates'){const {accountId:_account,requestKey,...input}=body;return {status:200,data:await client.call('payments',actor,'POST','/payment-mandates',input,`mandate:${requestKey}`)};}
     const mandateAction=/^\/api\/payments\/mandates\/(revise|approve|revoke|pause|resume|skip-next)$/.exec(path);
