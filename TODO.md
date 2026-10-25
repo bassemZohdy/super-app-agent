@@ -26,8 +26,9 @@ Independent of that chain, so these can run in parallel at any time: the AUTO-04
   - [x] 2a. Worker-scoped read `GET /internal/automation-runs/{runId}/execution/{id}` with mandate/source/biller/payable freshness re-read at credential time
   - [x] 2b-i. One-time permit store in the broker (`services/delegation/src/permits.ts`): issued only from a fresh execution view, bound to one token fingerprint, consumed once for the exact operation; an uncertain outcome holds the execution
   - [x] 2b-ii-a. Broker endpoint `POST /api/delegation/automation/executions/{id}/credential`, the worker read lane on the provider, and the `automation-worker` client with `automation.execute` in the realm reconciler (offline tests with an injected exchange)
-  - [ ] 2b-ii-b. Qualify the Keycloak exchange that mints the bound token (the assertion carries `automation_permit_id`; the pinned downscope policy may need an extension) against the pinned image with `npm run demo:up`
+  - [x] 2b-ii-b. Keycloak exchange qualified on the pinned image: the worker token authenticates at the broker and the permit assertion mints a 60-second owner token
   - [ ] 3. Preparation creates the real gateway order (unexecutable through ordinary APIs); only the broker-issued worker token admits it through a dedicated execution route
+  - [ ] 3b. Prove the full path (worker token → broker → provider read of a real prepared execution → admission) in an armed isolated run
   - [ ] 4. Qualify two-worker races, revoke-versus-admission, outage, response loss and restart with docker compose and simulation; this closes PAY-08
 - [ ] **PAY-08 — Persist orders and reserve each payable before charging (automatic callers).** Manual and conversational paths already share stored reservations and unknown-capture recovery. **Remaining:** automatic caller integration and its budget/occurrence qualification. **Done when:** concurrent submissions create one payable reservation, exact retries return stored state, changed payloads conflict and an unknown attempt blocks a replacement charge after restart. **Depends:** AUTO-03 step 4.
 
