@@ -208,3 +208,22 @@ test('AUTO-03 checkpoint 2: the exact worker reads the immutable preparation wit
   assert.equal(paused.mandate.state,'PAUSED','freshness is read at credential time, not trusted from the preparation');
   assert.equal(paused.expired,false);
 });
+
+test('AUTO-03 step 3: preparation creates the real gateway order, which ordinary APIs cannot decide',t=>{
+  const f=fixture(t),m=f.mandate();f.bill('auto-bill-1',150,1);
+  const first=prepared(f.prepare(m.id,'occ_order'));
+  assert.ok(first.orderId,'the preparation names its gateway order');
+  const order=f.payments.orders!.get(f.actor,first.orderId!);
+  assert.equal(order.state,'AWAITING_APPROVAL');
+  assert.equal(order.quote.totalMinor,first.amountMinor);
+  assert.equal(order.quote.source.id,first.sourceId);
+  assert.deepEqual(order.automation,{executionId:first.id,mandateId:m.id,boundDigest:first.boundDigest});
+  assert.equal(prepared(f.prepare(m.id,'occ_order',`req_${randomUUID()}`)).orderId,first.orderId,'a retry returns the same order, never a second');
+  const decide={expectedVersion:order.version,approvalDigest:order.approvalDigest};
+  const refused=(e:any)=>e.code==='ORDER_AUTOMATIC';
+  assert.throws(()=>f.payments.orders!.approve(f.actor,order.id,decide,undefined),refused);
+  assert.throws(()=>f.payments.orders!.beginCapture(f.actor,order.id,decide,undefined as never),refused);
+  assert.throws(()=>f.payments.orders!.challenge(f.actor,order.id,{...decide,challengeId:'c1',decision:'APPROVE'},undefined,true),refused);
+  assert.throws(()=>f.payments.orders!.cancel(f.actor,order.id,order.version),refused);
+  assert.equal(f.payments.orders!.get(f.actor,order.id).state,'AWAITING_APPROVAL','refusals change nothing');
+});
