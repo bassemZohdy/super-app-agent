@@ -23,7 +23,7 @@ export type ExecutionView = {
 export type PermitState = 'ISSUED' | 'BOUND' | 'CONSUMED' | 'COMPLETED' | 'FAILED' | 'UNKNOWN' | 'CLOSED';
 export type Permit = {
   id: string; executionId: string; runId: string; accountId: string; owner: string; workerSub: string;
-  boundDigest: string; operationDigest: string; state: PermitState; attempt: number;
+  boundDigest: string; operationDigest: string; operation?: ReturnType<typeof permitOperation>; state: PermitState; attempt: number;
   issuedAt: number; expiresAt: number; fingerprint?: string; tokenExp?: number;
 };
 
@@ -113,7 +113,7 @@ export class PermitStore {
       if (rows.length >= MAX_PERMIT_ATTEMPTS) deny('PERMIT_ATTEMPTS_EXHAUSTED', 'This execution used all of its credential attempts.');
       const permit: Permit = {
         id: `permit_${randomUUID()}`, executionId: view.executionId, runId: view.runId, accountId: view.accountId, owner: view.ownerSub,
-        workerSub: worker.sub, boundDigest: view.boundDigest, operationDigest, state: 'ISSUED', attempt: rows.length + 1, issuedAt: now, expiresAt,
+        workerSub: worker.sub, boundDigest: view.boundDigest, operationDigest, operation: permitOperation(view), state: 'ISSUED', attempt: rows.length + 1, issuedAt: now, expiresAt,
       };
       this.db.prepare('INSERT INTO permits(id,execution_id,state,fingerprint,body) VALUES(?,?,?,NULL,?)').run(permit.id, permit.executionId, permit.state, JSON.stringify(permit));
       this.audit(permit.id, 'permit.issued', { executionId: permit.executionId, attempt: permit.attempt, operation: operationDigest, workerSub: worker.sub }, now);
@@ -149,6 +149,15 @@ export class PermitStore {
       this.audit(permit.id, 'permit.consumed', { operation: permit.operationDigest }, now);
       return permit;
     });
+  }
+
+  /** A consumed permit lets the provider chain finish exactly its own operation until the token expires; nothing else. */
+  session(fingerprint: string, sub: string, actor: string, now = Date.now()): Permit {
+    const permit = this.byFingerprint(fingerprint);
+    if (!permit) return deny('TOKEN_NOT_BOUND', 'No execution permit is bound to this token.');
+    if (!['CONSUMED', 'UNKNOWN'].includes(permit.state)) deny('PERMIT_NOT_ACTIVE', 'This permit has not been admitted or is closed.');
+    if (permit.tokenExp! * 1000 <= now || sub !== permit.owner || actor !== brokerClient || !permit.operation) deny('PERMIT_EXPIRED', 'The permit session is not valid for this token.');
+    return permit;
   }
 
   /** Record the outcome of a consumed permit. An uncertain outcome is never retried with a fresh credential. */

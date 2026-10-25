@@ -18,3 +18,14 @@ export async function authorizeAutomationPermit(authorization: string | undefine
   if (!response.ok || data.success !== true) throw new Error('Execution permit denied');
   return data;
 }
+
+export type AutomationSession = { permitId: string; executionId: string; operation: { accountId: string; payableId: string; executionId: string; runId: string } };
+/** Reads what an already-admitted per-execution token may still do; a missing, closed or expired permit throws. */
+export async function readAutomationSession(authorization: string | undefined): Promise<AutomationSession> {
+  if (process.env.NODE_ENV === 'production') throw new Error('Demo delegation cannot run in production');
+  const endpoint = new URL('/api/delegation/automation/session', process.env.DELEGATION_AUTHORITY_URL || 'http://localhost:4010');
+  const response = await fetch(endpoint, { method: 'POST', redirect: 'error', signal: AbortSignal.timeout(3000), headers: { Authorization: authorization || '', 'Content-Type': 'application/json' }, body: '{}' });
+  const data = await response.json() as { success: boolean } & Partial<AutomationSession>;
+  if (!response.ok || data.success !== true || !data.operation) throw new Error('No active execution session');
+  return data as AutomationSession;
+}
