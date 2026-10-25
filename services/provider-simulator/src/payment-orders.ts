@@ -99,8 +99,16 @@ export class PaymentOrders {
       this.store.db.prepare('INSERT INTO payment_authorization_orders VALUES(?,?,?,?,?,?,?)').run(id,actor.accountId,input.provider,input.payableId,order.state,Date.parse(expiresAt),JSON.stringify(order));this.obligations.reserve(order);emitGatewaySnapshot(this.store,'PAYMENT',order);return order;
     });
   }
-  private decision(actor:Actor,id:string,input:{expectedVersion:number;approvalDigest:string},snapshot:Payable|undefined){
-    const order=this.sync(this.owned(actor,id));if(order.automation)return fail('ORDER_AUTOMATIC','This order belongs to an automation mandate and is admitted only by its dedicated execution route.',403);this.store.eligibility!.require(actor,order.eligibilityEpoch||'1:1');
+  /** The only way to decide an automatic order: approve, authorize and begin capture for the stored execution. Callers must hold a consumed permit. */
+  admitAutomatic(actor:Actor,id:string,automation:NonNullable<Review['automation']>,snapshot:Payable):Review{return this.atomic(()=>{
+    const order=this.sync(this.owned(actor,id));
+    if(!order.automation||order.automation.executionId!==automation.executionId||order.automation.mandateId!==automation.mandateId||order.automation.boundDigest!==automation.boundDigest)return fail('ORDER_AUTOMATIC','This order does not belong to the presented execution.',403);
+    if(order.state==='AWAITING_APPROVAL'){const approved=this.approve(actor,id,{expectedVersion:order.version,approvalDigest:order.approvalDigest},snapshot,true);if(approved.state!=='AUTHORIZED')return approved;}
+    const ready=this.owned(actor,id);if(ready.state!=='AUTHORIZED')return ready;
+    return this.beginCapture(actor,id,{expectedVersion:ready.version,approvalDigest:ready.approvalDigest},snapshot,true);
+  });}
+  private decision(actor:Actor,id:string,input:{expectedVersion:number;approvalDigest:string},snapshot:Payable|undefined,automatic=false){
+    const order=this.sync(this.owned(actor,id));if(!!order.automation!==automatic)return fail('ORDER_AUTOMATIC','This order belongs to an automation mandate and is admitted only by its dedicated execution route.',403);this.store.eligibility!.require(actor,order.eligibilityEpoch||'1:1');
     if(order.version!==input.expectedVersion||order.approvalDigest!==input.approvalDigest)return fail('APPROVAL_CHANGED','The stored review changed or its approval does not match.');
     if(!active(order))return fail('ORDER_CLOSED','This authorization review is closed.');
     this.obligations.assertHeld(order);
@@ -110,9 +118,9 @@ export class PaymentOrders {
     if(!link||link.status!=='ACTIVE'||link.version!==order.quote.billingAccount.version)return fail('BILLER_CHANGED','The linked biller is unavailable or changed.');
     return order;
   }
-  approve(actor:Actor,id:string,input:{expectedVersion:number;approvalDigest:string},snapshot:Payable|undefined){
+  approve(actor:Actor,id:string,input:{expectedVersion:number;approvalDigest:string},snapshot:Payable|undefined,automatic=false){
     return this.atomic(()=>{
-      const order=this.decision(actor,id,input,snapshot);if(order.state!=='AWAITING_APPROVAL')return fail('ALREADY_DECIDED','This review has already been approved.');
+      const order=this.decision(actor,id,input,snapshot,automatic);if(order.state!=='AWAITING_APPROVAL')return fail('ALREADY_DECIDED','This review has already been approved.');
       try{
         this.source(actor.accountId,order.quote.source.id,order.quote.source.version);
         const expiresAt=Math.min(Date.parse(order.expiresAt),this.clock()+120000);
@@ -139,8 +147,8 @@ export class PaymentOrders {
     });
   }
   cancel(actor:Actor,id:string,expectedVersion:number){return this.atomic(()=>{const order=this.sync(this.owned(actor,id));if(order.automation)return fail('ORDER_AUTOMATIC','Revoke or pause the mandate instead; an automatic order is not cancelled directly.',403);if(order.version!==expectedVersion)return fail('ORDER_CHANGED','Refresh this review before cancelling.');if(!active(order)||order.fundsCaptured)return fail('ORDER_CLOSED','Captured or closed orders cannot be cancelled.');return this.close(order,'CANCELLED');});}
-  beginCapture(actor:Actor,id:string,input:{expectedVersion:number;approvalDigest:string},snapshot:Payable){return this.atomic(()=>{
-    const order=this.decision(actor,id,input,snapshot);if(order.state!=='AUTHORIZED'||!order.authorization)return fail('ORDER_NOT_AUTHORIZED','Authorize this exact order before payment.');
+  beginCapture(actor:Actor,id:string,input:{expectedVersion:number;approvalDigest:string},snapshot:Payable,automatic=false){return this.atomic(()=>{
+    const order=this.decision(actor,id,input,snapshot,automatic);if(order.state!=='AUTHORIZED'||!order.authorization)return fail('ORDER_NOT_AUTHORIZED','Authorize this exact order before payment.');
     if(!['BILL','FINE','FINE_SET','RECHARGE'].includes(order.quote.payable.kind||''))return fail('PAYABLE_NOT_SUPPORTED','This payment flow supports utility/telecom bills and exact fine selections.');
     this.source(actor.accountId,order.quote.source.id,order.quote.source.version);order.state='CAPTURING';order.paymentId=`payment_${randomUUID()}`;return this.save(order);
   });}

@@ -8,3 +8,13 @@ export async function authorizeDelegatedProvider(authorization: string | undefin
   if (!response.ok || data.success !== true || typeof data.sub !== 'string') throw new Error('Current delegated authority denied');
   return data;
 }
+
+/** Consumes the broker-bound automation permit for exactly this operation; denial or outage means no execution. */
+export async function authorizeAutomationPermit(authorization: string | undefined, operation: Record<string, unknown>) {
+  if (process.env.NODE_ENV === 'production') throw new Error('Demo delegation cannot run in production');
+  const endpoint = new URL('/api/delegation/automation/authorize', process.env.DELEGATION_AUTHORITY_URL || 'http://localhost:4010');
+  const response = await fetch(endpoint, { method: 'POST', redirect: 'error', signal: AbortSignal.timeout(3000), headers: { Authorization: authorization || '', 'Content-Type': 'application/json' }, body: JSON.stringify({ operation }) });
+  const data = await response.json() as { success: boolean; permitId?: string };
+  if (!response.ok || data.success !== true) throw new Error('Execution permit denied');
+  return data;
+}

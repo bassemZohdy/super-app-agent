@@ -8,6 +8,12 @@ import { AccountDatabase } from '../provider-simulator/src/database.ts';
 import { ProviderEngine } from '../provider-simulator/src/engine.ts';
 import { claimAutomationPayable,hasAutomationRun,type AutomationPreparation,type AutomationSkip } from '../provider-simulator/src/automation-runs.ts';
 import { actorFor } from '../../packages/backend-kit/src/context.ts';
+import { createHash } from 'node:crypto';
+import { PaymentCheckout } from '../provider-simulator/src/payment-checkout.ts';
+import { ProviderSettlements } from '../provider-simulator/src/provider-settlements.ts';
+import { executeAutomaticOrder } from '../provider-simulator/src/automation-execution.ts';
+import { permitOperation } from '../delegation/src/permits.ts';
+import type { ProviderClient } from '../../packages/backend-kit/src/provider-client.ts';
 
 const prepared=(result:AutomationPreparation|AutomationSkip):AutomationPreparation=>{
   assert.equal((result as AutomationSkip).skipped,undefined,`expected preparation, got skip ${(result as AutomationSkip).reason}`);
@@ -226,4 +232,60 @@ test('AUTO-03 step 3: preparation creates the real gateway order, which ordinary
   assert.throws(()=>f.payments.orders!.challenge(f.actor,order.id,{...decide,challengeId:'c1',decision:'APPROVE'},undefined,true),refused);
   assert.throws(()=>f.payments.orders!.cancel(f.actor,order.id,order.version),refused);
   assert.equal(f.payments.orders!.get(f.actor,order.id).state,'AWAITING_APPROVAL','refusals change nothing');
+});
+
+function execution(f:ReturnType<typeof fixture>){
+  const local=new ProviderSettlements(f.dewaDb,'dewa',{call:async(account,id,action,body:any)=>action==='claim'?f.payments.claims!.claim(account,id,'dewa',body):action==='ack'?f.payments.claims!.acknowledge(account,id,'dewa',body):f.payments.claims!.release(account,id,'dewa',body)});
+  let effects=0;
+  const client={call:async(_p:string,_a:unknown,method:string,path:string,body:any={},key='test')=>{
+    if(path.endsWith('/payments')){
+      const proof=f.payments.execute(f.actor,'GET',`/charges/${body.paymentId}`,{}).data.charge,fp=createHash('sha256').update(JSON.stringify([method,path,body])).digest('hex');
+      return (await local.execute(f.actor,key,fp,proof,claimed=>{effects++;return f.dewa.execute(f.actor,method,path,body,claimed);})).data;
+    }
+    let gatewayOrder;
+    if(path.endsWith('/admit')||path.endsWith('/cancel')){const admission=f.dewa.admissions!.get(f.actor.accountId,path.split('/')[4]);gatewayOrder=f.payments.orders!.get(f.actor,admission.orderId);}
+    return f.dewaDb.transaction(()=>f.dewa.execute(f.actor,method,path,body,undefined,undefined,gatewayOrder)).data;
+  }} as unknown as ProviderClient;
+  const consumed:Record<string,unknown>[]=[];let deny=false;
+  const deps={runs:f.db.automationRuns!,orders:f.payments.orders!,checkout:new PaymentCheckout(f.payments.orders!,client),client,
+    authority:async(_a:string|undefined,op:Record<string,unknown>)=>{if(deny)throw new Error('denied');consumed.push(op);}};
+  return {deps,consumed,effects:()=>effects,deny:(v:boolean)=>{deny=v;}};
+}
+const owner={sub:'auto-owner',authorization:'Bearer broker-bound'};
+
+test('AUTO-03 step 3: the dedicated route settles the automatic order once for the operation the broker would permit',async t=>{
+  const f=fixture(t),m=f.mandate();f.bill('auto-bill-1',150,1);
+  const first=prepared(f.prepare(m.id,'occ_exec')),x=execution(f);
+  const before=f.payments.ledger!.summary(f.actor.accountId).balanceMinor;
+  const settled=await executeAutomaticOrder(x.deps,owner,first.id);
+  assert.equal(settled.state,'SETTLED',String((settled as {failureCode?:string}).failureCode));
+  assert.equal(settled.fundsCaptured,true);
+  assert.equal(settled.quote.totalMinor,15000);
+  assert.equal(f.dewa.payables!.get(f.actor.accountId,first.payableId).status,'PAID');
+  assert.equal(f.payments.ledger!.summary(f.actor.accountId).balanceMinor,before-15000);
+  assert.equal(x.effects(),1);
+  // The provider and the broker derive the same operation independently.
+  const view=f.db.automationRuns!.readExecution('auto-worker',first.id);
+  assert.deepEqual(x.consumed,[permitOperation(view as never)]);
+  // The permit is spent: a second call can neither charge again nor re-admit.
+  await assert.rejects(executeAutomaticOrder(x.deps,owner,first.id),(e:any)=>e.code==='AUTOMATION_ALREADY_DISPATCHED');
+  assert.equal(x.effects(),1);
+  assert.equal(f.payments.ledger!.summary(f.actor.accountId).balanceMinor,before-15000);
+});
+
+test('AUTO-03 step 3: wrong owner, missing permit and stale authority execute nothing',async t=>{
+  const f=fixture(t),m=f.mandate();f.bill('auto-bill-1',150,1);
+  const first=prepared(f.prepare(m.id,'occ_stale')),x=execution(f),before=f.payments.ledger!.summary(f.actor.accountId).balanceMinor;
+  await assert.rejects(executeAutomaticOrder(x.deps,{...owner,sub:'someone-else'},first.id),(e:any)=>e.code==='AUTOMATION_OWNER_MISMATCH');
+  x.deny(true);
+  await assert.rejects(executeAutomaticOrder(x.deps,owner,first.id),(e:any)=>e.code==='AUTOMATION_PERMIT_DENIED');
+  x.deny(false);
+  assert.equal(x.consumed.length,0);
+  assert.equal(f.payments.orders!.get(f.actor,first.orderId!).state,'AWAITING_APPROVAL');
+  f.payments.mandates!.pause(f.actor,m.id,m.version);
+  await assert.rejects(executeAutomaticOrder(x.deps,owner,first.id),(e:any)=>e.code==='AUTOMATION_ADMISSION_REJECTED');
+  assert.equal(f.payments.orders!.get(f.actor,first.orderId!).state,'AWAITING_APPROVAL','a paused mandate captures nothing');
+  assert.equal(f.payments.ledger!.summary(f.actor.accountId).balanceMinor,before);
+  assert.equal(x.effects(),0);
+  await assert.rejects(executeAutomaticOrder(x.deps,owner,first.id),(e:any)=>e.code==='AUTOMATION_ALREADY_DISPATCHED','the rejection is recorded and final for this execution');
 });
