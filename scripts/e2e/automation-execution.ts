@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { startEnvironment } from './environment.ts';
 import { JobStore } from '../../services/automation-worker/src/jobs.ts';
+import { armFailpoint, clearFailpoints, failpointFirings } from '../../services/provider-simulator/src/failpoints.ts';
 import { AutomationWorker } from '../../services/automation-worker/src/worker.ts';
 import { HttpRuleSource } from '../../services/automation-worker/src/http-rules.ts';
 import { Scheduler } from '../../services/automation-worker/src/scheduler.ts';
@@ -545,6 +546,33 @@ try {
   assert.equal(parkingStore.list().length, 1, 'an ended session is never announced');
   parkingStore.close();
   console.log('PASS: the bound parking session is extended by one hour exactly once, paid once, and departure stops any further extension.');
+  // ---- AUTO-14 step 6: a lost response the worker cannot resolve is held as unknown, captures nothing, is never retried under a new identity, and says so in the owner inbox. ----
+  const unknownRule = await newMandate(), unknownBill = addBill('unknown');
+  const unknownStore = new JobStore(join(scratch, 'unknown.sqlite'));
+  const unknownJob = unknownStore.enqueue({ mandateId: unknownRule.id, policyVersion: unknownRule.policyVersion, occurrenceKey: 'occ-unknown', target: `dewa-${billing.id}` });
+  const unknownWorker = new AutomationWorker(unknownStore, new HttpExecutionGateway(gatewayConfig), { workerId: 'worker-unknown', retryDelayMs: 1, sleep: async () => {} });
+  const beforeUnknown = await wallet();
+  // The provider loses its response after the admission is created and before any capture. Recovery marks the order unresolved,
+  // which the worker sees as the order still capturing: it cannot tell whether money moved.
+  armFailpoint('checkout.after-admission', 100);
+  let unknownHeld;
+  try {
+    unknownHeld = await unknownWorker.runOnce();
+    assert.ok(failpointFirings('checkout.after-admission') >= 1, 'the provider lost its response before any capture');
+  } finally { clearFailpoints(); }
+  assert.equal(unknownHeld!.state, 'HELD', JSON.stringify(unknownHeld));
+  assert.ok(['OUTCOME_UNKNOWN', 'ORDER_CAPTURING'].includes(unknownHeld!.reason!), JSON.stringify(unknownHeld));
+  assert.equal(await wallet(), beforeUnknown, 'nothing was captured that the owner can see');
+  assert.equal(paid(unknownBill), false);
+  // The held outcome is never retried under a new identity, even though the failpoint is now cleared.
+  assert.equal(await unknownWorker.runOnce(), undefined, 'the held outcome is not run again');
+  process.env.AUTOMATION_JOBS_DB = join(scratch, 'unknown.sqlite');
+  const unknownEntry = (await inboxFor(owner)).data.entries!.find(e => e.mandateId === unknownRule.id && e.kind === 'HELD');
+  assert.ok(unknownEntry, 'the unknown outcome is in the owner inbox');
+  assert.match(unknownEntry!.effect, /may have moved/);
+  delete process.env.AUTOMATION_JOBS_DB;
+  unknownStore.close();
+  console.log('PASS: a lost response the worker cannot resolve is held as unknown, captures nothing it can see, is never retried under a new identity, and says so in the owner inbox.');
 } finally {
   if (restoreBroker) execFileSync('docker', ['compose', '-f', 'docker-compose.demo.yml', 'up', '-d', '--force-recreate', '--wait', 'delegation-broker'], { stdio: 'ignore' });
   try { await env?.cleanup(); } catch { /* Windows may briefly hold SQLite files */ }
