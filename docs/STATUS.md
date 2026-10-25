@@ -28,10 +28,10 @@ Counts come from task IDs in [TODO.md](../TODO.md); task groups overlap and have
 | OBO identity-delegation plan | 25 | 0 | 25 |
 | PAY payment extension | 1 | 0 | 1 |
 | AUTO consent/automatic services | 13 | 0 | 13 |
-| SIM simulation | 4 | 0 | 4 |
+| SIM simulation | 2 | 0 | 2 |
 | QA payment-extension acceptance | 8 | 0 | 8 |
 
-The selected payment extension has **50 tasks: 24 delivered and 26 open**; the delivered ledger moved to the [changelog](CHANGELOG.md). PAY-08 is partial pending actual automatic/manual caller qualification; SIM-01 was checked only for its preview foundation; SIM-02, AUTO-04, QA-01 and QA-02 have partial work but stay open. P2-02 was delivered for the selected local demo boundary and its entry lives in the changelog ledger.
+The selected payment extension has **50 tasks: 26 delivered and 24 open**; the delivered ledger moved to the [changelog](CHANGELOG.md). PAY-08 is partial pending actual automatic/manual caller qualification; SIM-01 was checked only for its preview foundation; SIM-02, AUTO-04, QA-01 and QA-02 have partial work but stay open. P2-02 was delivered for the selected local demo boundary and its entry lives in the changelog ledger.
 
 AUTO-03 is a proposed implementation contract with an archived unfinished prototype, not active application code. Later platform work did not enable recurring payments. Do not resume that prototype or treat mandate approval as execution authority without its existing acceptance gates.
 

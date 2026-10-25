@@ -14,6 +14,7 @@ export const FAILPOINTS = [
   'checkout.after-admission',
   'checkout.after-capture-commit',
   'checkout.after-settlement-request',
+  'funding.after-commit',
 ] as const;
 export type FailpointName = (typeof FAILPOINTS)[number];
 

@@ -11,6 +11,7 @@ import { issuerScenarioSchemas } from '../../../packages/protocol-core/src/issue
 import { IssuerScenarioError,type IssuerScenarioContext } from './issuer-scenarios.ts';
 import { AutomationRunError,automationRunSchemas } from './automation-runs.ts';
 import { ScenarioControlError } from './scenario-controls.ts';
+import { inspectRun } from './run-inspector.ts';
 import { startPaymentEventDelivery } from './payment-events.ts';
 import type { PaymentEvent } from '../../../packages/protocol-core/src/payment-events.ts';
 import { PaymentResourceError } from './payment-resource-uses.ts';
@@ -76,12 +77,17 @@ export function createProviderServer(provider: ProviderId, path: string, options
         if(req.method==='POST'&&kind==='account-eligibility'&&operator){const input=await readJsonBody(req);if(!validateEligibility(input))throw new ApiError(400,'VALIDATION_ERROR','Use the exact versioned eligibility decision.');const key=req.headers['idempotency-key'];if(typeof key!=='string')throw new ApiError(400,'IDEMPOTENCY_REQUIRED','An operator request key is required.');return send({status:200,data:{success:true,eligibility:store.eligibility!.change(account,input,claims.sub,key)}});}
         throw new ApiError(403,'ELIGIBILITY_OPERATION_DENIED','This workload cannot change or inspect this eligibility operation.');
       }
-      const controlRoute=/^\/internal\/scenario-controls\/(simrun_[a-f0-9-]{36})(?:\/(arm|clear))?$/.exec(url.pathname);
+      const controlRoute=/^\/internal\/scenario-controls\/(simrun_[a-f0-9-]{36})(?:\/(arm|clear|inspect))?$/.exec(url.pathname);
       if(url.pathname.startsWith('/internal/scenario-controls/')){
         const controls=store.scenarioControls;
         if(!controls||!controlRoute||url.search||controlRoute[1]!==controls.run.context.runId)throw new ApiError(404,'SCENARIO_CONTROLS_NOT_FOUND','No scenario controls are installed for this run.');
         if(!interactive||claims.act!==undefined)throw new ApiError(403,'SCENARIO_OPERATOR_REQUIRED','A signed interactive run operator is required.');
         if(req.method==='GET'&&!controlRoute[2])return send({status:200,data:{success:true,...controls.status(claims.sub)}});
+        if(req.method==='GET'&&controlRoute[2]==='inspect'){
+          const view=inspectRun(engine.store,{orders:engine.orders!,ledger:engine.ledger!,issuer:engine.issuer,claims:engine.claims,
+            methods:(accountId:string)=>engine.store.list(accountId,'payment-method') as {id:string;kind:string;status:string}[]});
+          return send({status:200,data:{success:true,...view}});
+        }
         if(req.method==='POST'&&controlRoute[2]==='arm'){
           const input=await readJsonBody(req);
           if(!ajv.validate({type:'object',properties:{name:{type:'string',enum:['checkout.after-admission','checkout.after-capture-commit','checkout.after-settlement-request']},times:{type:'integer',minimum:1,maximum:100},requestKey:{type:'string',pattern:'^[A-Za-z0-9_-]{8,100}$',minLength:8,maxLength:100}},required:['name','requestKey'],additionalProperties:false},input))throw new ApiError(400,'VALIDATION_ERROR','Arm a named failpoint with a bounded count and operator key.');

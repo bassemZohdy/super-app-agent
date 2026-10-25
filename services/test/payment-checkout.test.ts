@@ -94,7 +94,7 @@ const expectedAt: Record<(typeof FAILPOINTS)[number], { state: string; fundsCapt
   'checkout.after-capture-commit': { state: 'RECONCILIATION_REQUIRED', fundsCaptured: true },
   'checkout.after-settlement-request': { state: 'RECONCILIATION_REQUIRED', fundsCaptured: true },
 };
-for (const point of FAILPOINTS) test(`failpoint ${point} loses the response once and recovers the original order without a second debit`, async t => {
+for (const point of FAILPOINTS.filter(point => point.startsWith('checkout.'))) test(`failpoint ${point} loses the response once and recovers the original order without a second debit`, async t => {
   clearFailpoints();
   t.after(clearFailpoints);
   const f = fixture(t);

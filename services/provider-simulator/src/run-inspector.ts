@@ -24,6 +24,8 @@ export interface InspectorDependencies {
   ledger: PaymentLedger;
   issuer?: PaymentIssuer;
   claims?: PaymentClaims;
+  /** Read-only saved-card listing for the run view; wallet sources are excluded. */
+  methods?: (accountId: string) => { id: string; kind: string; status: string }[];
 }
 
 const TERMINAL = ['SETTLED', 'FAILED', 'CANCELLED'];
@@ -65,4 +67,46 @@ export function inspectOrder(deps: InspectorDependencies, actor: Actor, orderId:
     claim: claim ? { state: claim.state } : null,
     mismatches,
   };
+}
+
+export interface RunAccountInspection {
+  accountId: string;
+  walletMinor: number;
+  cards: { id: string; spentMinor: number; heldMinor: number }[];
+  orders: OrderInspection[];
+  claims: { paymentId: string; state: string }[];
+}
+
+export interface RunInspection {
+  accounts: RunAccountInspection[];
+  pendingEvents: { count: number };
+}
+
+interface InspectableStore {
+  db: { prepare(sql: string): { all(...params: unknown[]): Record<string, unknown>[]; get(...params: unknown[]): Record<string, unknown> | undefined } };
+}
+
+/** Read-only, run-wide explanation for the operator: wallet and card balances with
+ *  holds, every non-terminal order with its mismatch reasons, settlement claims and
+ *  the pending event outbox. It never mutates state and offers no balance control. */
+export function inspectRun(store: InspectableStore, deps: InspectorDependencies): RunInspection {
+  const accounts: RunAccountInspection[] = [];
+  for (const row of store.db.prepare('SELECT id,owner FROM accounts ORDER BY rowid LIMIT 10').all()) {
+    const accountId = String(row.id);
+    if (!store.db.prepare("SELECT id FROM resources WHERE account_id=? AND kind='wallet'").get(accountId)) continue;
+    const actor = { sub: String(row.owner), accountId } as unknown as Actor;
+    const cards: RunAccountInspection['cards'] = [];
+    for (const method of (deps.methods ? deps.methods(accountId) : []) as { id: string; kind: string; status: string }[]) {
+      if (method.kind !== 'card' || method.status === 'REMOVED' || !deps.issuer) continue;
+      const summary = deps.issuer.summary(accountId, method.id);
+      cards.push({ id: method.id, spentMinor: summary.spentMinor, heldMinor: summary.heldMinor });
+    }
+    const orders = store.db.prepare("SELECT id FROM payment_authorization_orders WHERE account_id=? AND state NOT IN ('SETTLED','FAILED','CANCELLED') ORDER BY rowid DESC LIMIT 20").all(accountId)
+      .map(row => inspectOrder(deps, actor, String(row.id)));
+    const claims = store.db.prepare('SELECT payment_id,state FROM payment_settlement_claims WHERE account_id=? ORDER BY rowid DESC LIMIT 20').all(accountId)
+      .map(row => ({ paymentId: String(row.payment_id), state: String(row.state) }));
+    accounts.push({ accountId, walletMinor: deps.ledger.summary(accountId).balanceMinor, cards, orders, claims });
+  }
+  const pendingRow = store.db.prepare("SELECT count(*) n FROM payment_event_outbox WHERE state='PENDING'").get();
+  return { accounts, pendingEvents: { count: Number(pendingRow?.n ?? 0) } };
 }

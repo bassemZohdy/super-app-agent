@@ -27,7 +27,7 @@ Reviewed **25 October 2026**, after application checkpoint `cd3c7d5` and the lat
 
 ## Payments and simulation
 
-The selected extension has **50 tasks: 24 delivered and 26 open**; the delivered ledger (PAY-01–PAY-07, PAY-09–PAY-21, AUTO-01–AUTO-02, SIM-03 and preview-only SIM-01) moved to the [changelog](CHANGELOG.md). Automatic execution remains disabled. [Authoritative backlog](../TODO.md#payment-accounts-and-automation-demo--planned-backlog).
+The selected extension has **50 tasks: 26 delivered and 24 open**; the delivered ledger (PAY-01–PAY-07, PAY-09–PAY-21, AUTO-01–AUTO-02, SIM-03 and preview-only SIM-01) moved to the [changelog](CHANGELOG.md). Automatic execution remains disabled. [Authoritative backlog](../TODO.md#payment-accounts-and-automation-demo--planned-backlog).
 
 | Guide | Delivered behavior or remaining boundary |
 | --- | --- |

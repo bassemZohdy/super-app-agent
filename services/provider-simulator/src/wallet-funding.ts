@@ -10,6 +10,7 @@ import { PaymentLedger, PaymentLedgerError } from './payment-ledger.ts';
 import { PaymentOrderError } from './payment-orders.ts';
 import { PaymentResourceUses } from './payment-resource-uses.ts';
 import { paymentRegistry } from './payment-registry.ts';
+import { hitFailpoint } from './failpoints.ts';
 const fail=(code:string,message:string,status=409):never=>{throw new PaymentOrderError(status,code,message);};
 const active=['AWAITING_APPROVAL','AUTHORIZATION_PENDING','REQUIRES_ACTION','AUTHORIZED'];
 export class WalletFunding {
@@ -56,13 +57,20 @@ export class WalletFunding {
   }catch(e){if(e instanceof IssuerError||e instanceof PaymentOrderError||e instanceof PaymentLedgerError)return this.close(o,'FAILED',e.code);throw e;}});}
   challenge(actor:Actor,id:string,input:{expectedVersion:number;approvalDigest:string;challengeId:string;decision:'APPROVE'|'REJECT'},interactive:boolean){return this.atomic(()=>{const o=this.decision(actor,id,input);this.method(actor.accountId,o.quote.source.id,o.quote.source.version);if(o.state!=='REQUIRES_ACTION')return fail('CHALLENGE_CLOSED','This review has no pending challenge.');o.authorization=this.issuer.challenge(this.binding(o),input.challengeId,input.decision,interactive);if(o.authorization.state==='DECLINED')return this.close(o,'FAILED',o.authorization.failureCode);o.state='AUTHORIZED';return this.save(o);});}
   cancel(actor:Actor,id:string,version:number){return this.atomic(()=>{const o=this.sync(this.owned(actor,id));if(o.version!==version||!active.includes(o.state))return fail('FUNDING_CLOSED','Refresh this current funding review before cancelling.');return this.close(o,'CANCELLED');});}
-  execute(actor:Actor,id:string,input:{expectedVersion:number;approvalDigest:string}){return this.atomic(()=>{
+  /** The response can only be lost after the atomic capture+credit commit; a retry replays the settled order. */
+  execute(actor:Actor,id:string,input:{expectedVersion:number;approvalDigest:string}){
+    const result=this.executeCommitted(actor,id,input);
+    hitFailpoint('funding.after-commit');
+    return result;
+  }
+  private executeCommitted(actor:Actor,id:string,input:{expectedVersion:number;approvalDigest:string}){return this.atomic(()=>{
     const existing=this.owned(actor,id);if(existing.state==='SETTLED'&&existing.approvalDigest===input.approvalDigest)return existing;
     const o=this.decision(actor,id,input);if(o.state!=='AUTHORIZED'||!o.authorization)return fail('FUNDING_NOT_AUTHORIZED','Authorize this exact card and amount before adding funds.');
     try{this.method(actor.accountId,o.quote.source.id,o.quote.source.version);this.capacity(actor.accountId,o.quote.amountMinor);o.authorization=this.issuer.capture(this.binding(o));}catch(e){if(e instanceof IssuerError||e instanceof PaymentOrderError||e instanceof PaymentLedgerError)return this.close(o,'FAILED',e.code);throw e;}
     const balance=this.ledger.record(actor.accountId,'TOPUP',`wallet-funding:${id}`,o.quote.amountMinor,'external'),capturedAt=new Date(this.clock()).toISOString();
     o.fundsCaptured=true;o.state='SETTLED';o.receipt={receiptNumber:id,amountMinor:o.quote.amountMinor,feeMinor:o.quote.feeMinor,currency:'AED',balanceMinor:balance.balanceMinor,capturedAt};
-    this.store.put(actor.accountId,'transaction',{id,type:'TOPUP',amount:o.quote.amountMinor/100,currency:'AED',purpose:'Wallet funding from saved demo card',status:'SETTLED',timestamp:this.clock(),orderId:id,source:o.quote.source,issuerAuthorizationId:o.authorization.id},id);this.release(o);return this.save(o);
+    this.store.put(actor.accountId,'transaction',{id,type:'TOPUP',amount:o.quote.amountMinor/100,currency:'AED',purpose:'Wallet funding from saved demo card',status:'SETTLED',timestamp:this.clock(),orderId:id,source:o.quote.source,issuerAuthorizationId:o.authorization.id},id);this.release(o);
+    return this.save(o);
   });}
   /** Retained flags resolve to one persistent finite card per preset, never a fresh credit source on retry or removal. */
   compatibility(actor:Actor,amountMinor:number,source:string){return this.atomic(()=>{
