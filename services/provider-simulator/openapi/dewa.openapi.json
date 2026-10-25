@@ -624,6 +624,11 @@
                             "paymentRestricted": {
                               "type": "boolean"
                             },
+                            "violation": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 80
+                            },
                             "items": {
                               "type": "array",
                               "minItems": 1,
@@ -1151,6 +1156,11 @@
                             "paymentRestricted": {
                               "type": "boolean"
                             },
+                            "violation": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 80
+                            },
                             "items": {
                               "type": "array",
                               "minItems": 1,
@@ -1623,6 +1633,11 @@
                             },
                             "paymentRestricted": {
                               "type": "boolean"
+                            },
+                            "violation": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 80
                             },
                             "items": {
                               "type": "array",
@@ -2120,6 +2135,11 @@
                             "paymentRestricted": {
                               "type": "boolean"
                             },
+                            "violation": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 80
+                            },
                             "items": {
                               "type": "array",
                               "minItems": 1,
@@ -2616,6 +2636,11 @@
                             "paymentRestricted": {
                               "type": "boolean"
                             },
+                            "violation": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 80
+                            },
                             "items": {
                               "type": "array",
                               "minItems": 1,
@@ -3106,6 +3131,11 @@
                         },
                         "paymentRestricted": {
                           "type": "boolean"
+                        },
+                        "violation": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 80
                         },
                         "items": {
                           "type": "array",
@@ -3610,6 +3640,11 @@
                           "paymentRestricted": {
                             "type": "boolean"
                           },
+                          "violation": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 80
+                          },
                           "items": {
                             "type": "array",
                             "minItems": 1,
@@ -3973,6 +4008,11 @@
                         },
                         "paymentRestricted": {
                           "type": "boolean"
+                        },
+                        "violation": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 80
                         },
                         "items": {
                           "type": "array",
@@ -4371,6 +4411,11 @@
                         },
                         "paymentRestricted": {
                           "type": "boolean"
+                        },
+                        "violation": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 80
                         },
                         "items": {
                           "type": "array",
@@ -4775,6 +4820,11 @@
                         },
                         "paymentRestricted": {
                           "type": "boolean"
+                        },
+                        "violation": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 80
                         },
                         "items": {
                           "type": "array",

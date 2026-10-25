@@ -59,7 +59,8 @@ export function forecast(f: PreviewFacts): Forecast {
   const supported = policy.operation === 'BILL_PAYMENT' && target.kind === 'BILLER' && ['dewa', 'etisalat', 'du'].includes(target.provider) && policy.trigger.type === 'INVOICE_DUE';
   const reload = policy.operation === 'WALLET_RELOAD' && target.kind === 'WALLET' && policy.trigger.type === 'LOW_BALANCE';
   const recharge = policy.operation === 'RECHARGE' && target.kind === 'BILLER' && ['rta', 'etisalat', 'du'].includes(target.provider) && policy.trigger.type === 'LOW_BALANCE' && !!f.rechargeTarget;
-  if (!supported && !reload && !recharge) blockers.push('EXECUTION_NOT_SUPPORTED_YET');
+  const fines = policy.operation === 'FINE_PAYMENT' && target.kind === 'BILLER' && target.provider === 'police' && policy.trigger.type === 'NEW_FINE' && Array.isArray(policy.fineTypes);
+  if (!supported && !reload && !recharge && !fines) blockers.push('EXECUTION_NOT_SUPPORTED_YET');
 
   let nextRun: Forecast['nextRun'] = null;
   const candidates: Candidate[] = [];
@@ -72,6 +73,22 @@ export function forecast(f: PreviewFacts): Forecast {
   if (policy.trigger.type === 'CALENDAR') {
     const run = nextCalendarRun(policy.trigger, tz, now, startsAt, expiresAt);
     if (run) nextRun = { key: run.key, runAt: iso(run.runAtUtc) };
+  } else if (fines && target.kind === 'BILLER') {
+    // Every unpaid fine of the plate is its own occurrence; each is judged on its current record against the approved types, cap and budget.
+    const approved = new Set(policy.fineTypes);
+    for (const p of f.payables.filter(x => x.reference === target.reference && x.status === 'UNPAID').sort((a, b) => a.id.localeCompare(b.id))) {
+      const reasons: string[] = [];
+      if (f.claimedPayableIds?.has(p.id)) reasons.push('ALREADY_RESERVED');
+      if (p.paymentRestricted) reasons.push('FINE_REQUIRES_REVIEW');
+      if (!approved.has(String(p.violation))) reasons.push('FINE_TYPE_NOT_APPROVED');
+      if (p.amountMinor > limits.perPaymentMinor) reasons.push('OVER_PER_PAYMENT_CAP');
+      if (periodMinor + p.amountMinor > limits.periodMinor || periodCount + 1 > limits.perPeriodCount) reasons.push('OVER_PERIOD_BUDGET');
+      if (lifetimeMinor + p.amountMinor > limits.lifetimeMinor || lifetimeCount + 1 > limits.lifetimeCount) reasons.push('OVER_LIFETIME_BUDGET');
+      if (cooling) reasons.push('COOLDOWN');
+      const open = reasons.length === 0 && blockers.length === 0;
+      if (open) { periodMinor += p.amountMinor; periodCount++; lifetimeMinor += p.amountMinor; lifetimeCount++; }
+      candidates.push({ payableId: p.id, label: p.label, amountMinor: p.amountMinor, dueDate: p.dueDate ?? iso(now).slice(0, 10), scheduledRunAt: iso(now), reasons, warnings: [], decision: open ? 'DUE_NOW' : 'SKIP' });
+    }
   } else if (recharge && policy.trigger.type === 'LOW_BALANCE') {
     // A recharge is driven by usage on exactly this target: it would run now only if that balance is below the threshold and the approved amount fits the target ceiling.
     const trigger = policy.trigger, found = f.rechargeTarget!, reasons: string[] = [];

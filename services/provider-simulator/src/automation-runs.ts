@@ -166,9 +166,10 @@ export class AutomationRuns{
       const policy=m.policy;
       const reload=policy.operation==='WALLET_RELOAD'&&policy.target.kind==='WALLET'&&policy.trigger.type==='LOW_BALANCE';
       const bill=policy.operation==='BILL_PAYMENT'&&policy.target.kind==='BILLER'&&['dewa','etisalat','du'].includes(policy.target.provider)&&policy.trigger.type==='INVOICE_DUE';
+      const fine=policy.operation==='FINE_PAYMENT'&&policy.target.kind==='BILLER'&&policy.target.provider==='police'&&policy.trigger.type==='NEW_FINE'&&Array.isArray(policy.fineTypes);
       const recharge=policy.operation==='RECHARGE'&&policy.target.kind==='BILLER'&&['rta','etisalat','du'].includes(policy.target.provider)&&policy.trigger.type==='LOW_BALANCE';
-      if(!reload&&!bill&&!recharge)
-        return deny('AUTOMATION_UNSUPPORTED','This checkpoint prepares due DEWA/Etisalat/du invoices, low-balance wallet reloads and low-balance toll or prepaid recharges only; other operations fail closed until their own tasks.',409);
+      if(!reload&&!bill&&!recharge&&!fine)
+        return deny('AUTOMATION_UNSUPPORTED','This checkpoint prepares due DEWA/Etisalat/du invoices, low-balance wallet reloads, low-balance toll or prepaid recharges and approved fines only; other operations fail closed until their own tasks.',409);
       const source=policy.sources[0],current=source.methodId==='wallet'
         ?{id:'wallet',kind:'wallet' as const,status:'ACTIVE' as const,version:1}
         :this.store.get<{id:string;status:string;version:number;kind:string;expiresMonth?:number;expiresYear?:number}>(accountId,'payment-method',source.methodId);
@@ -194,6 +195,19 @@ export class AutomationRuns{
         if(amount>policy.limits.perPaymentMinor)return skip('OVER_PER_PAYMENT_CAP');
         if(balance+amount>WALLET_FUNDING_LIMITS.balanceMaxMinor)return skip('WALLET_BALANCE_LIMIT');
         item={provider:'wallet',id:`wallet-reload:${m.id}:${input.occurrenceKey}`,revision:createHash('sha256').update(JSON.stringify(['wallet-reload',accountId,m.id,input.occurrenceKey,amount])).digest('hex'),amountMinor:amount};
+      }else if(fine){
+        // One occurrence per fine: `FINE:<fine id>`. Every restriction is read from the current record, never from the event that announced it.
+        const target=policy.target as Extract<typeof policy.target,{kind:'BILLER'}>,named=/^FINE:([A-Za-z0-9][A-Za-z0-9_.:-]{0,100})$/.exec(input.occurrenceKey);
+        if(!named)return deny('AUTOMATION_OCCURRENCE_INVALID','A fine rule runs once per fine: use FINE:<fine id> as the occurrence.',400);
+        const payable=this.io.readPayables(accountId,'police').find(p=>p.obligationId===named[1]);
+        if(!payable||payable.reference!==target.reference)return skip('FINE_NOT_FOUND');
+        if(payable.status!=='UNPAID')return skip('FINE_NOT_PAYABLE');
+        if(payable.paymentRestricted)return skip('FINE_REQUIRES_REVIEW');
+        if(!policy.fineTypes!.includes(String(payable.violation)))return skip('FINE_TYPE_NOT_APPROVED');
+        if(payable.amountMinor>policy.limits.perPaymentMinor)return skip('OVER_PER_PAYMENT_CAP');
+        if(this.store.db.prepare("SELECT order_id FROM payment_order_obligations WHERE account_id=? AND provider=? AND state IN ('RESERVED','COMMITTED') AND json_extract(body,'$.resourceId') IN (?,?) LIMIT 1").get(accountId,payable.provider,payable.id,String(payable.obligationId??payable.id)))
+          return deny('AUTOMATION_PAYABLE_RESERVED','This obligation is reserved by an original payment review. Inspect that order first.');
+        item={provider:payable.provider,id:payable.id,revision:payable.revision,amountMinor:payable.amountMinor};
       }else if(recharge){
         const trigger=policy.trigger as Extract<typeof policy.trigger,{type:'LOW_BALANCE'}>,target=policy.target as Extract<typeof policy.target,{kind:'BILLER'}>;
         const book=this.io.recharges?.(target.provider);
@@ -214,7 +228,7 @@ export class AutomationRuns{
         // The earliest-due invoice within the per-payment cap; an invoice above it is skipped, never lowered, and does not hold up the ones behind it.
         const payable=due.find(p=>p.amountMinor<=policy.limits.perPaymentMinor);
         if(!payable)return skip('OVER_PER_PAYMENT_CAP');
-        if(this.store.db.prepare("SELECT order_id FROM payment_order_obligations WHERE account_id=? AND provider=? AND state IN ('RESERVED','COMMITTED') AND (obligation_key=? OR json_extract(body,'$.resourceId')=?) LIMIT 1").get(accountId,payable.provider,payable.id,payable.id))
+        if(this.store.db.prepare("SELECT order_id FROM payment_order_obligations WHERE account_id=? AND provider=? AND state IN ('RESERVED','COMMITTED') AND json_extract(body,'$.resourceId') IN (?,?) LIMIT 1").get(accountId,payable.provider,payable.id,String(payable.obligationId??payable.id)))
           return deny('AUTOMATION_PAYABLE_RESERVED','This obligation is reserved by an original payment review. Inspect that order first.');
         item={provider:payable.provider,id:payable.id,revision:payable.revision,amountMinor:payable.amountMinor};
       }
@@ -321,6 +335,14 @@ export class AutomationRuns{
       return {mandateId:m.id,policyVersion:m.policyVersion,state:m.state,trigger:m.policy.trigger,timezone:m.policy.timezone,startsAt:m.policy.startsAt,expiresAt:m.policy.expiresAt,
         target:target.kind==='BILLER'?`${target.provider}-${target.billingAccountId}`:target.kind.toLowerCase()};
     });
+  }
+  /** Unpaid, unclaimed fines of the rule's plate, as the scheduler's per-fine occurrences; a read, nothing is reserved. */
+  fines(worker:string,mandateId:string){
+    this.worker(worker);
+    const {m,accountId}=this.mandate(mandateId),target=m.policy.target;
+    if(m.policy.operation!=='FINE_PAYMENT'||target.kind!=='BILLER')return [];
+    const claimed=new Set(this.store.db.prepare('SELECT payable_key FROM automation_payable_claims WHERE account_id=?').all(accountId).map(r=>String(r!.payable_key)));
+    return this.io.readPayables(accountId,target.provider).filter(p=>p.reference===target.reference&&p.status==='UNPAID'&&!claimed.has(p.id)).map(p=>({fineId:String(p.obligationId)}));
   }
   /** Unpaid, unclaimed invoices of the rule's biller by due date; a read, nothing is reserved. */
   dueInvoices(worker:string,mandateId:string){

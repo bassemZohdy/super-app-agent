@@ -21,6 +21,7 @@ const REASONS: Record<string, string> = {
   SOURCE_CHANGED: 'The funding source changed or is unavailable.', SOURCE_EXPIRED: 'The funding card has expired.',
   BILLER_CHANGED: 'The linked account changed or is unavailable.',
   EXECUTION_NOT_SUPPORTED_YET: 'Automatic payment is not available for this kind of rule yet.',
+  FINE_REQUIRES_REVIEW: 'This fine needs your review before it can be paid.', FINE_TYPE_NOT_APPROVED: 'This kind of fine is not one you approved for automatic payment.', FINE_NOT_FOUND: 'This fine is no longer on your plate.', FINE_NOT_PAYABLE: 'This fine is already paid or withdrawn.',
   TARGET_UNAVAILABLE: 'The linked tag or number is unavailable.', DENOMINATION_UNAVAILABLE: 'The approved recharge amount is not offered for this target.', WOULD_EXCEED_TARGET_BALANCE: 'The recharge would take the balance past its target.',
   BALANCE_ABOVE_THRESHOLD: 'The wallet balance is above the reload threshold.', NOTHING_TO_RELOAD: 'The wallet is already at or near its target balance.', SOURCE_NOT_A_CARD: 'A reload must be funded by a saved card.',
   OVER_PER_PAYMENT_CAP: 'Above the per-payment cap.', OVER_PERIOD_BUDGET: 'Would exceed this period’s budget.', OVER_LIFETIME_BUDGET: 'Would exceed the lifetime budget.',

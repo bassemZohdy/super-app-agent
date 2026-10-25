@@ -390,6 +390,38 @@ try {
   assert.equal(rechargeStore.list().length, 1, 'the recharge never triggers another');
   rechargeStore.close();
   console.log('PASS: usage on the exact prepaid line triggers one recharge from the wallet, and the settled recharge triggers nothing more.');
+  // ---- AUTO-11: only the fine types the owner approved are paid; the others ask for review and nothing moves. ----
+  const fineStore = new JobStore(join(scratch, 'fines.sqlite'));
+  const police = new (await import('../../services/provider-simulator/src/engine.ts')).ProviderEngine('police', env.providerStores.get('police')!);
+  const myFines = police.payables!.list(accountId).filter(p => p.kind === 'FINE' && p.status === 'UNPAID');
+  const speeding = myFines.find(p => p.violation === 'Speeding')!, overstay = myFines.find(p => p.violation === 'Parking overstay')!;
+  assert.ok(speeding && overstay, 'the owner has both kinds of fine');
+  const plateLink = await api('billing-accounts', { provider: 'police', reference: speeding.reference, nickname: 'My car' });
+  assert.equal(plateLink.status, 200, JSON.stringify(plateLink.data));
+  const finePolicy = { ...policy, operation: 'FINE_PAYMENT', purpose: 'Pay my speeding fines', fineTypes: ['Speeding'], trigger: { type: 'NEW_FINE' },
+    target: { kind: 'BILLER', billingAccountId: plateLink.data.billingAccount.id, expectedVersion: plateLink.data.billingAccount.version, provider: 'police', reference: speeding.reference } };
+  const fineMade = await api('mandates', { policy: finePolicy });
+  assert.equal(fineMade.status, 200, JSON.stringify(fineMade.data));
+  const fineRule = (await api('mandates/approve', { mandateId: fineMade.data.mandate.id, expectedVersion: fineMade.data.mandate.version, approvalDigest: fineMade.data.mandate.approvalDigest })).data.mandate;
+  const fineRules = new HttpRuleSource(gatewayConfig);
+  const fineOnly: typeof fineRules = Object.assign(Object.create(fineRules), { rules: async () => (await fineRules.rules()).filter(r => r.mandateId === fineRule.id) });
+  const fineScheduler = new Scheduler(fineStore, fineOnly);
+  const beforeFines = await wallet();
+  await Promise.all([fineScheduler.tick(Date.now()), fineScheduler.tick(Date.now())]);
+  assert.equal(fineStore.list().length, myFines.length, 'each unpaid fine is announced exactly once');
+  await new AutomationWorker(fineStore, new HttpExecutionGateway(gatewayConfig), { workerId: 'worker-fines' }).drain();
+  const byFine = (fine: { obligationId?: string }) => fineStore.list().find(j => j.occurrenceKey === `FINE:${fine.obligationId}`)!;
+  assert.equal(byFine(speeding).state, 'SETTLED', JSON.stringify(byFine(speeding)));
+  assert.equal(byFine(overstay).state, 'SKIPPED');
+  assert.equal(byFine(overstay).reason, 'FINE_TYPE_NOT_APPROVED');
+  assert.deepEqual(fineStore.outbox(byFine(overstay).id).map(e => e.kind), ['REQUIRES_ACTION'], 'the excluded fine asks the owner to review it');
+  assert.equal(await wallet(), beforeFines - speeding.amountMinor, 'only the approved fine was paid, once');
+  assert.equal(env.providerStores.get('police')!.get(accountId, 'fine', speeding.obligationId!).status, 'PAID');
+  assert.equal(env.providerStores.get('police')!.get(accountId, 'fine', overstay.obligationId!).status, 'UNPAID');
+  await fineScheduler.tick(Date.now());
+  assert.equal(fineStore.list().length, myFines.length, 'a paid or reviewed fine is not announced again');
+  fineStore.close();
+  console.log('PASS: only the approved fine type is paid automatically; the other fine waits for the owner and nothing else moves.');
 } finally {
   if (restoreBroker) execFileSync('docker', ['compose', '-f', 'docker-compose.demo.yml', 'up', '-d', '--force-recreate', '--wait', 'delegation-broker'], { stdio: 'ignore' });
   try { await env?.cleanup(); } catch { /* Windows may briefly hold SQLite files */ }

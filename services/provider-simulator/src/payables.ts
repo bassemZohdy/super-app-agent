@@ -53,7 +53,7 @@ export class ProviderPayables {
     const id = `${this.provider}:${fine ? 'fine' : 'bill'}:${obligationId}`;
     const revision = digest([account,id,reference,version,status,amountMinor,originalAmountMinor,discountMinor,b.dueDate || null,b.expiresAt || null,b.discountExpiresAt || null,b.period || null,b.blackPoints || 0,b.paymentRestricted === true]);
     return { id, provider:this.provider, reference, obligationId, kind:fine?'FINE':'BILL', version, label:fine?`${b.violation} · ${obligationId}`:`${this.provider.toUpperCase()} bill ${obligationId}`, amountMinor, originalAmountMinor, discountMinor, discountEligible, currency:'AED', status, dueState, revision,
-      ...(b.dueDate ? {dueDate:b.dueDate}:{}), ...(b.expiresAt ? {expiresAt:b.expiresAt}:{}), ...(b.discountExpiresAt ? {discountExpiresAt:b.discountExpiresAt}:{}), ...(b.period ? {period:b.period}:{}), ...(b.openingFixture ? {openingFixture:true}:{}), ...(fine ? {paymentRestricted:b.paymentRestricted === true || b.blackPoints > 0}:{}),
+      ...(fine ? {violation:String(b.violation)}:{}), ...(b.dueDate ? {dueDate:b.dueDate}:{}), ...(b.expiresAt ? {expiresAt:b.expiresAt}:{}), ...(b.discountExpiresAt ? {discountExpiresAt:b.discountExpiresAt}:{}), ...(b.period ? {period:b.period}:{}), ...(b.openingFixture ? {openingFixture:true}:{}), ...(fine ? {paymentRestricted:b.paymentRestricted === true || b.blackPoints > 0}:{}),
     };
   }
   list(account: string): Payable[] { return this.records(account).map(record => this.describe(account,record)); }

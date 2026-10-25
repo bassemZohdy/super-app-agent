@@ -19,6 +19,8 @@ export type WorkerOptions = { workerId: string; leaseMs?: number; maxAttempts?: 
 
 /** Failures only the owner can fix: the worker records them as requiring action and never tries another source or amount. */
 export const OWNER_ACTION_CODES: ReadonlySet<string> = new Set(['CARD_DECLINED', 'CARD_LIMIT_EXCEEDED', 'INSUFFICIENT_AVAILABLE_FUNDS', 'METHOD_EXPIRED', 'METHOD_CHANGED', 'CARD_EXPIRED']);
+/** Skips that mean the owner should look: the rule did not pay, and only a person can decide whether it should. */
+export const REVIEW_SKIP_REASONS: ReadonlySet<string> = new Set(['FINE_TYPE_NOT_APPROVED', 'FINE_REQUIRES_REVIEW', 'OVER_PER_PAYMENT_CAP']);
 const transient = (e: unknown) => { const status = (e as GatewayFailure).status; return status === undefined || status >= 500; };
 const codeOf = (e: unknown) => String((e as GatewayFailure).code || 'REJECTED').slice(0, 80);
 
@@ -69,12 +71,14 @@ export class AutomationWorker {
       const result = await this.gateway.prepare({ mandateId: job.mandateId, occurrenceKey: job.occurrenceKey, requestKey: identity.requestKey });
       if ('skipped' in result) {
         store.outcome(claim, `skipped:${result.reason}`);
-        store.transition(claim, 'SKIPPED', { reason: result.reason }, { kind: 'SKIPPED', body: { reason: result.reason } }, this.now());
+        store.transition(claim, 'SKIPPED', { reason: result.reason }, { kind: REVIEW_SKIP_REASONS.has(result.reason) ? 'REQUIRES_ACTION' : 'SKIPPED', body: { reason: result.reason } }, this.now());
         return undefined;
       }
       store.outcome(claim, 'prepared');
       return store.transition(claim, 'PREPARED', { runId: result.runId, executionId: result.id, orderId: result.orderId }, { kind: 'PREPARED', body: { executionId: result.id, orderId: result.orderId } }, this.now());
     } catch (e) {
+      // The mandate's cooldown between preparations is a wait, not a failure: the same occurrence is tried again after it, under the same identity.
+      if (codeOf(e) === 'AUTOMATION_COOLDOWN') { store.outcome(claim, 'cooldown'); store.yield(claim, Math.max(this.opts.retryDelayMs, 30_000), this.now()); return undefined; }
       if (transient(e)) {
         store.outcome(claim, 'unavailable');
         // Nothing is known to have moved, and the request key makes the retry the same preparation.

@@ -155,7 +155,7 @@ test('AUTO-05: refusals, rejections and captured-but-unsettled orders land in th
     ['order failed before funds', { execute: async () => ({ id: 'o', state: 'FAILED', fundsCaptured: false, failureCode: 'CARD_DECLINED' }) }, 'FAILED', 'CARD_DECLINED'],
     ['funds captured, outcome unknown', { execute: async () => ({ id: 'o', state: 'RECONCILIATION_REQUIRED', fundsCaptured: true }) }, 'HELD', 'OUTCOME_UNKNOWN'],
     ['card challenge', { execute: async () => ({ id: 'o', state: 'REQUIRES_ACTION', fundsCaptured: false }) }, 'HELD', 'REQUIRES_ACTION'],
-    ['preparation rejected', { prepare: async () => { throw fail(409, 'AUTOMATION_COOLDOWN'); } }, 'FAILED', 'AUTOMATION_COOLDOWN'],
+    ['preparation rejected', { prepare: async () => { throw fail(409, 'AUTOMATION_UNSUPPORTED'); } }, 'FAILED', 'AUTOMATION_UNSUPPORTED'],
   ];
   for (const [name, patch, state, reason] of outcomes) {
     const store = new JobStore(':memory:'), { g, calls } = gateway(patch);
@@ -213,4 +213,34 @@ test('AUTO-08: failures only the owner can fix are recorded as requiring action 
   const job = store.enqueue(rule);
   await worker(store, g).runOnce();
   assert.deepEqual(store.outbox(job.id).map(e => e.kind), ['PREPARED', 'FAILED']);
+});
+
+test('AUTO-11: a cooldown is a wait, not a failure: the same occurrence is retried after it under the same identity', async () => {
+  const store = new JobStore(':memory:'), keys: string[] = [];
+  let cooling = true;
+  const { g, calls } = gateway({ prepare: async input => { keys.push(input.requestKey); if (cooling) throw fail(409, 'AUTOMATION_COOLDOWN'); return { id: 'autoexec_1', runId: 'autorn_1', orderId: 'order_1' }; } });
+  const job = store.enqueue(rule);
+  let now = 1_000_000;
+  const w = new AutomationWorker(store, g, { workerId: 'w', clock: () => now, sleep: async () => {}, retryDelayMs: 1, leaseMs: 30_000, maxAttempts: 2 });
+  for (let i = 0; i < 4; i++) { await w.runOnce(); now += 31_000; }
+  assert.equal(store.get(job.id)!.state, 'PREPARING', 'cooling down repeatedly never fails the job, even past the attempt limit');
+  cooling = false;
+  await w.runOnce();
+  assert.equal(store.get(job.id)!.state, 'SETTLED');
+  assert.deepEqual([...new Set(keys)], [jobIdentity(rule).requestKey]);
+  assert.equal(calls.credential, 1);
+});
+
+test('AUTO-11: skips that need the owner to decide are recorded as requiring action', async () => {
+  for (const reason of ['FINE_TYPE_NOT_APPROVED', 'FINE_REQUIRES_REVIEW', 'OVER_PER_PAYMENT_CAP']) {
+    const store = new JobStore(':memory:'), { g } = gateway({ prepare: async () => ({ skipped: true, reason }) });
+    const job = store.enqueue(rule);
+    const done = await worker(store, g).runOnce();
+    assert.equal(done!.state, 'SKIPPED');
+    assert.deepEqual(store.outbox(job.id).map(e => e.kind), ['REQUIRES_ACTION'], reason);
+  }
+  const store = new JobStore(':memory:'), { g } = gateway({ prepare: async () => ({ skipped: true, reason: 'NO_DUE_INVOICE' }) });
+  const job = store.enqueue(rule);
+  await worker(store, g).runOnce();
+  assert.deepEqual(store.outbox(job.id).map(e => e.kind), ['SKIPPED'], 'an ordinary skip needs no one');
 });

@@ -17,6 +17,8 @@ export interface RuleSource {
   rules(): Promise<ScheduledRule[]>;
   /** Unpaid invoices of the rule's biller, by due date (YYYY-MM-DD). */
   dueInvoices(rule: ScheduledRule): Promise<{ dueDate: string }[]>;
+  /** Unpaid fines of the rule's plate; each is its own occurrence. Optional for sources that have no fines. */
+  newFines?(rule: ScheduledRule): Promise<{ fineId: string }[]>;
   /** Current wallet balance in integer fils, for threshold triggers. */
   balanceMinor(rule: ScheduledRule): Promise<number>;
   /** Balance plus how many external payments have ever debited the wallet; preferred when available. */
@@ -52,6 +54,12 @@ export class Scheduler {
         const newest = due.pop();
         due.forEach(o => skip(o.key));
         if (newest) enqueue(newest.key);
+      } else if (trigger.type === 'NEW_FINE') {
+        // Every unpaid fine is announced once, as its own occurrence. Whether it may be paid automatically is decided on the current record at preparation.
+        for (const fine of this.source.newFines ? await this.source.newFines(rule) : []) {
+          const key = `FINE:${fine.fineId}`;
+          if (!handled.has(key)) enqueue(key);
+        }
       } else if (trigger.type === 'LOW_BALANCE') {
         const reading = this.source.balance ? await this.source.balance(rule) : { balanceMinor: await this.source.balanceMinor(rule) };
         // Re-armed by recovery above the threshold; fired only for a new qualifying external payment, so a refund or the reload's own credit can never loop.
@@ -62,7 +70,7 @@ export class Scheduler {
       const upcoming = await this.nextRun(rule, now);
       if (upcoming && upcoming.runAtUtc > now && upcoming.runAtUtc - now <= this.leadMs)
         this.store.recordNotice(rule.mandateId, upcoming.key, 'UPCOMING_RUN', { runAt: new Date(upcoming.runAtUtc).toISOString(), policyVersion: rule.policyVersion, target: rule.target }, now);
-      // NEW_FINE and PARKING_ENDING are event-driven and belong to their own tasks; they schedule nothing here.
+      // PARKING_ENDING is event-driven and belongs to its own task; it schedules nothing here.
     }
     return out;
   }

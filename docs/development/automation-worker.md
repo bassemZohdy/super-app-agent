@@ -50,10 +50,19 @@ A `RECHARGE` rule keeps one toll tag or prepaid number topped up. The scheduler 
 
 Cost, count and cooldown caps are shared with every other rule, and a rule has at most one unfinished recharge, so two low-balance events cannot open two. Funding is the rule's own wallet or approved card and nothing else: short funds or a decline fail the job as requiring action and charge nothing, and no job starts another, so a failed recharge never causes a wallet reload or any other charge (chains of one automatic payment funding another stay off).
 
+## Fines
+
+Automatic fine payment is a separate, opt-in rule (`FINE_PAYMENT`): the owner approves one plate, a finite list of fine types, a per-fine amount cap and period and lifetime counts. Without such a rule fines stay manual. Every unpaid fine of the plate is its own occurrence (`FINE:<fine id>`), announced once by the scheduler however many times it looks; paid fines are never announced again.
+
+Each occurrence is judged on the fine's current record at preparation, not on the event that announced it. A fine that is paid or withdrawn, a type the owner did not approve, a simulated restriction on the fine (`paymentRestricted`) and an amount above the cap are all skipped with a reason (`FINE_NOT_PAYABLE`, `FINE_TYPE_NOT_APPROVED`, `FINE_REQUIRES_REVIEW`, `OVER_PER_PAYMENT_CAP`), move nothing, reserve nothing, and are recorded as requiring action so the owner can decide. A discount applied before preparation is honoured, so the rule pays the current amount. Once a fine is reserved by an execution the source provider refuses to amend or restrict it, and admission re-reads the record anyway.
+
+An automatic and a manual payment of one fine cannot both proceed: a manual review that already holds the fine makes preparation refuse it, a prepared execution makes a manual review of the same fine refuse, and either way the fine settles once with one debit. Fines that arrive together are paid one at a time: a mandate's cooldown between preparations is a wait (the job is retried after it under the same identity), not a failure, and the period and lifetime counts still bound the total.
+
 ## What the owner is told
 
 - **Before a run:** when a rule's next run is inside the lead time (24 hours by default), the scheduler records one `UPCOMING_RUN` notice per rule and occurrence in `job_notices` (a reminder, not a job; it moves nothing and a paused or expired rule announces nothing).
 - **Needs the owner:** a declined card, a card over its limit, short wallet funds and similar failures end the job as `FAILED` and record a `REQUIRES_ACTION` outbox event; a card challenge holds the job (`HELD`) and records the same event. The worker never tries another source, a lower amount or a different invoice for that occurrence, and the failed occurrence is not retried.
+- **Review needed:** a skip that only the owner can resolve (an unapproved fine type, a restricted fine, an amount above the cap) is recorded as `REQUIRES_ACTION`.
 - **Everything else:** a skip, a settlement, a held unknown outcome or an ordinary failure records `SKIPPED`, `SETTLED`, `HELD` or `FAILED`.
 
 An invoice is chosen at preparation: the earliest-due unpaid, unreserved invoice that is within the rule's per-payment cap. An invoice above the cap is skipped, never lowered, and does not hold up a smaller one behind it. Paid and withdrawn invoices are never offered. Wallet, card, DEWA, Etisalat and du invoices follow the same path.
