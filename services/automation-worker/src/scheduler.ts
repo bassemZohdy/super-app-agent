@@ -19,6 +19,8 @@ export interface RuleSource {
   dueInvoices(rule: ScheduledRule): Promise<{ dueDate: string }[]>;
   /** Current wallet balance in integer fils, for threshold triggers. */
   balanceMinor(rule: ScheduledRule): Promise<number>;
+  /** Balance plus how many external payments have ever debited the wallet; preferred when available. */
+  balance?(rule: ScheduledRule): Promise<{ balanceMinor: number; qualifyingDebits?: number }>;
 }
 export type TickResult = { enqueued: string[]; skipped: string[] };
 const MISSED = 'MISSED_CATCH_UP';
@@ -51,9 +53,10 @@ export class Scheduler {
         due.forEach(o => skip(o.key));
         if (newest) enqueue(newest.key);
       } else if (trigger.type === 'LOW_BALANCE') {
-        const balance = await this.source.balanceMinor(rule);
-        if (balance >= trigger.belowMinor) this.store.rearmThreshold(rule.mandateId, rule.policyVersion);
-        else if (this.store.fireThreshold(base, now)) out.enqueued.push(`${rule.mandateId}:THR:${this.store.thresholdState(rule.mandateId, rule.policyVersion).seq}`);
+        const reading = this.source.balance ? await this.source.balance(rule) : { balanceMinor: await this.source.balanceMinor(rule) };
+        // Re-armed by recovery above the threshold; fired only for a new qualifying external payment, so a refund or the reload's own credit can never loop.
+        if (reading.balanceMinor >= trigger.belowMinor) this.store.rearmThreshold(rule.mandateId, rule.policyVersion);
+        else if (this.store.fireThreshold(base, now, reading.qualifyingDebits)) out.enqueued.push(`${rule.mandateId}:THR:${this.store.thresholdState(rule.mandateId, rule.policyVersion).seq}`);
       }
       // Pre-run notification: once per rule and occurrence, when the next run is inside the lead time and has not started.
       const upcoming = await this.nextRun(rule, now);

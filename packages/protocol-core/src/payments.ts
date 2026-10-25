@@ -46,7 +46,7 @@ export type CheckoutGroup = {
 export type CheckoutGroupView = CheckoutGroup & {orders:PaymentAuthorizationReview[];settledMinor:number;
   state:'AWAITING_APPROVAL'|'AUTHORIZATION_PENDING'|'READY'|'REQUIRES_ACTION'|'RECONCILIATION_REQUIRED'|'PARTIAL'|'STOPPED'|'CANCELLED'|'COMPLETED'};
 export type WalletFundingOrder = RefundedPayment & {
-  eligibilityEpoch?:string;id:string; accountId:string; ownerSub:string; version:number;
+  automation?:{executionId:string;mandateId:string;boundDigest:string};eligibilityEpoch?:string;id:string; accountId:string; ownerSub:string; version:number;
   state:'AWAITING_APPROVAL'|'AUTHORIZATION_PENDING'|'REQUIRES_ACTION'|'AUTHORIZED'|'SETTLED'|'FAILED'|'CANCELLED';
   approvalDigest:string; createdAt:string; expiresAt:string; fundsCaptured:boolean; failureCode?:string;
   quote:{source:PaymentMethod;amountMinor:number;feeMinor:number;totalMinor:number;currency:'AED';walletAccountId:string};

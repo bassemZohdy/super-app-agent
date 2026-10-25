@@ -66,7 +66,7 @@ function fixture(t: { after(fn: () => void): void }, provider: Bills = 'dewa') {
     return sourceDb.transaction(() => source.execute(actor, method, p, body, undefined, undefined, gatewayOrder)).data;
   } } as unknown as ProviderClient;
   const consumed: Record<string, unknown>[] = [];
-  const deps = { runs: db.automationRuns!, orders: payments.orders!, checkout: new PaymentCheckout(payments.orders!, client), client,
+  const deps = { runs: db.automationRuns!, orders: payments.orders!, funding: payments.funding!, checkout: new PaymentCheckout(payments.orders!, client), client,
     authority: async (_a: string | undefined, op: Record<string, unknown>) => { consumed.push(op); }, session: async () => ({ executionId: String(consumed.at(-1)?.executionId) }) };
   const wallet = () => payments.ledger!.summary(account).balanceMinor;
   return { db, sourceDb, source, payments, actor, account, provider, bill, card, mandate, prepare, deps, consumed, effects: () => effects, wallet, status: (id: string) => source.payables!.get(account, id).status };

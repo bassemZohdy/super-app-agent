@@ -33,10 +33,16 @@ The state and an append-only attempt row are written before the step they descri
 - Calendar rules produce one occurrence per local month (`CAL:YYYY-MM`) with the rule's `LAST_DAY` or `SKIP` month-end behaviour in its own time zone. Invoice-due rules produce one occurrence per due date (`INV:YYYY-MM-DD`) three local days, or the rule's `daysBefore`, ahead at 09:00.
 - `tick` is a function of the rules, the occurrence keys already recorded for the rule under any version, and `now`. Repeating it, running it from two processes or advancing time in small or large steps gives the same jobs, and a revised rule never repeats an occurrence an earlier version handled.
 - After downtime only the latest missed occurrence stays pending; earlier ones are recorded as final `SKIPPED` jobs with reason `MISSED_CATCH_UP`, so nothing becomes a burst of charges and every skip is visible.
-- A balance threshold (`LOW_BALANCE`) fires one job per dip. Firing, the sequence number (`THR:n`) and the job are one transaction, the trigger stays disarmed while the balance stays below the threshold, and it re-arms when the balance recovers. Requiring a qualifying external debit before re-arming belongs to AUTO-09.
+- A balance threshold (`LOW_BALANCE`) fires one job per dip. Firing, the sequence number (`THR:n`) and the job are one transaction. The trigger stays disarmed while the balance stays below the threshold and re-arms when it recovers, and it fires again only after a new qualifying external debit: a payment from the wallet counts, while the reload's own credit, a top-up and a refund of a reload do not, so the reload cannot loop on itself (see Wallet reloads).
 - Event-driven triggers (new fine, parking ending) schedule nothing here.
 
 The loop runs the scheduler only when `AUTOMATION_SCHEDULE_ENABLED=true` in addition to `AUTOMATION_WORKER_ENABLED`; both are off by default. The business clock stays separate from security time: the scheduler takes `now` as a parameter, so a simulator clock can drive it without touching token expiry.
+
+## Wallet reloads
+
+A `WALLET_RELOAD` rule keeps a wallet funded from an approved card. When the balance is below the rule's threshold, preparation computes one finite amount (the rule's reload amount, never past its target balance, at least AED 1 and at most the funding limit, within the per-payment cap and the period and lifetime budget), reserves it and creates the gateway's funding order for that card inside the same transaction. The order is marked automatic: the ordinary approve, execute, challenge and cancel routes refuse it, and only the dedicated execution route admits it, with the same one-time permit, freshness check and release rules as a bill payment.
+
+Capture and wallet credit share one local transaction, so there is no provider chain. Only one funding order can be open for a wallet at a time, so two threshold events cannot open two reloads; a second occurrence is refused while one is active. At admission the rule must still be approved and the balance must still be below the threshold for the same amount, so an owner top-up or a revoked rule stops it. A decline fails the job as requiring action, a challenge holds it, and neither is retried or switched to another source; because the trigger stays disarmed until the balance recovers, a card that keeps failing is not charged repeatedly.
 
 ## What the owner is told
 

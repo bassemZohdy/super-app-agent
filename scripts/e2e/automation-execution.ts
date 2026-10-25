@@ -326,6 +326,39 @@ try {
   assert.equal(await wallet(), beforeTelecom - 15000, 'the telecom invoice was paid once from the wallet');
   cardStore.close();
   console.log('PASS: card-funded and telecom invoices settle once; a declined card needs the owner and never falls back to the wallet.');
+  // ---- AUTO-09: a low wallet balance reloads once from the approved card, and a balance that stays low does not reload again. ----
+  const reloadStore = new JobStore(join(scratch, 'reload.sqlite'));
+  const reloadPolicy = { ...policy, operation: 'WALLET_RELOAD', target: { kind: 'WALLET' }, sources: [{ methodId: approvedCard.id, expectedVersion: approvedCard.version }], purpose: 'Keep my wallet topped up',
+    trigger: { type: 'LOW_BALANCE', belowMinor: 900000, reloadMinor: 5000, targetBalanceMinor: 1000000 } };
+  const reloadMade = await api('mandates', { policy: reloadPolicy });
+  assert.equal(reloadMade.status, 200, JSON.stringify(reloadMade.data));
+  const reloadRule = (await api('mandates/approve', { mandateId: reloadMade.data.mandate.id, expectedVersion: reloadMade.data.mandate.version, approvalDigest: reloadMade.data.mandate.approvalDigest })).data.mandate;
+  const allRules = new HttpRuleSource(gatewayConfig);
+  const reloadOnly: typeof allRules = Object.assign(Object.create(allRules), { rules: async () => (await allRules.rules()).filter(r => r.mandateId === reloadRule.id) });
+  const reloadScheduler = new Scheduler(reloadStore, reloadOnly);
+  const beforeReload = await wallet();
+  const reloadTicks = await Promise.all([reloadScheduler.tick(Date.now()), reloadScheduler.tick(Date.now())]);
+  assert.equal(reloadTicks.flatMap(r => r.enqueued).length, 1, 'concurrent evaluations of one dip fire once');
+  assert.equal(await wallet(), beforeReload, 'scheduling alone moves no money');
+  await new AutomationWorker(reloadStore, new HttpExecutionGateway(gatewayConfig), { workerId: 'worker-reload' }).drain();
+  const reloadJob = reloadStore.list()[0]!;
+  assert.equal(reloadJob.state, 'SETTLED', JSON.stringify(reloadJob));
+  assert.equal(reloadJob.occurrenceKey, 'THR:1');
+  assert.equal(await wallet(), beforeReload + 5000, 'exactly one finite reload reached the wallet');
+  for (let i = 0; i < 3; i++) { await reloadScheduler.tick(Date.now()); await new AutomationWorker(reloadStore, new HttpExecutionGateway(gatewayConfig), { workerId: 'worker-reload' }).drain(); }
+  assert.equal(reloadStore.list().length, 1, 'a balance that stays below the threshold does not reload again');
+  assert.equal(await wallet(), beforeReload + 5000);
+  const orders = (await call(`${paymentsUrl}/wallet-funding-orders`, owner)).data.orders as { automation?: unknown; state: string; id: string; version: number; approvalDigest: string }[];
+  const automatic = orders.find(o => o.automation)!;
+  assert.equal(automatic.state, 'SETTLED');
+  assert.equal((await call(`${paymentsUrl}/wallet-funding-orders/${automatic.id}/approve`, owner, { expectedVersion: automatic.version, approvalDigest: automatic.approvalDigest })).status, 403);
+  assert.equal((await call(`${paymentsUrl}/wallet-funding-orders/${automatic.id}/cancel`, owner, { expectedVersion: automatic.version })).status, 403);
+  // Replaying execute on the settled order only returns it; it cannot credit again.
+  const replayed = await call(`${paymentsUrl}/wallet-funding-orders/${automatic.id}/execute`, owner, { expectedVersion: automatic.version, approvalDigest: automatic.approvalDigest });
+  assert.equal(replayed.data.order?.state ?? 'SETTLED', 'SETTLED');
+  assert.equal(await wallet(), beforeReload + 5000);
+  reloadStore.close();
+  console.log('PASS: a low balance reloads once from the approved card, never loops while it stays low, and the automatic funding order is closed to ordinary APIs.');
 } finally {
   if (restoreBroker) execFileSync('docker', ['compose', '-f', 'docker-compose.demo.yml', 'up', '-d', '--force-recreate', '--wait', 'delegation-broker'], { stdio: 'ignore' });
   try { await env?.cleanup(); } catch { /* Windows may briefly hold SQLite files */ }

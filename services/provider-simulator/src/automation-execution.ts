@@ -7,13 +7,14 @@ import type { ProviderClient } from '../../../packages/backend-kit/src/provider-
 import type { AutomationRuns } from './automation-runs.ts';
 import { AutomationRunError } from './automation-runs.ts';
 import type { PaymentOrders } from './payment-orders.ts';
+import type { WalletFunding } from './wallet-funding.ts';
 import type { PaymentCheckout } from './payment-checkout.ts';
 
 export type PermitAuthority=(authorization:string|undefined,operation:Record<string,unknown>)=>Promise<unknown>;
 /** Confirms an already-admitted token still has its session for this execution, without spending anything. */
 export type SessionCheck=(authorization:string|undefined)=>Promise<{executionId:string}>;
 
-async function run(deps:{runs:AutomationRuns;orders:PaymentOrders;checkout:PaymentCheckout;client:ProviderClient;authority:PermitAuthority;session:SessionCheck},
+async function run(deps:{runs:AutomationRuns;orders:PaymentOrders;funding:WalletFunding;checkout:PaymentCheckout;client:ProviderClient;authority:PermitAuthority;session:SessionCheck},
   caller:{sub:string;authorization:string},executionId:string){
   const target=deps.runs.target(executionId);
   if(caller.sub!==target.ownerSub)throw new AutomationRunError(403,'AUTOMATION_OWNER_MISMATCH',"The credential does not belong to this execution's owner.");
@@ -38,9 +39,12 @@ async function run(deps:{runs:AutomationRuns;orders:PaymentOrders;checkout:Payme
     if(session?.executionId!==executionId)throw new AutomationRunError(403,'AUTOMATION_PERMIT_DENIED','The execution session is missing, expired or belongs to another execution.');
   }
   const actor:Actor={sub:target.ownerSub,username:target.ownerSub,name:'Automation owner',accountId:preparation.accountId,requestId:`automation:${executionId}`,authorization:caller.authorization};
+  const automation={executionId,mandateId:preparation.mandateId,boundDigest:preparation.boundDigest};
+  // A wallet reload is local to the gateway: capture and credit share one transaction, so there is no provider chain to drive.
+  if(preparation.kind==='WALLET_RELOAD')return deps.funding.admitAutomatic(actor,target.orderId,automation);
   const order=deps.orders.get(actor,target.orderId);
   const snapshot=(await deps.client.call(order.quote.payable.provider,actor,'GET',`/payables/${encodeURIComponent(order.quote.payable.id)}`)).payable;
-  const decided=deps.orders.admitAutomatic(actor,target.orderId,{executionId,mandateId:preparation.mandateId,boundDigest:preparation.boundDigest},snapshot);
+  const decided=deps.orders.admitAutomatic(actor,target.orderId,automation,snapshot);
   if(!['CAPTURING','CAPTURED','RECONCILIATION_REQUIRED'].includes(decided.state))return decided;
   return deps.checkout.recover(actor,target.orderId);
 }

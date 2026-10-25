@@ -4,7 +4,7 @@
  *  claim an invoice, issue a credential, create an order or call a provider, and an execution never
  *  trusts it: authority, source, biller and invoice are read again when the work is prepared. */
 import type { PaymentMandate } from '../../../packages/protocol-core/src/payment-mandates.ts';
-import type { BillingAccount, Payable, PaymentMethod } from '../../../packages/protocol-core/src/payments.ts';
+import { WALLET_FUNDING_LIMITS, type BillingAccount, type Payable, type PaymentMethod } from '../../../packages/protocol-core/src/payments.ts';
 import { invoiceRun, nextCalendarRun, periodKey } from '../../../packages/protocol-core/src/mandate-schedule.ts';
 
 export type PreviewUsage = { periodMinor: number; periodCount: number; lifetimeMinor: number; lifetimeCount: number; lastPreparedAt?: number };
@@ -55,7 +55,8 @@ export function forecast(f: PreviewFacts): Forecast {
   const target = policy.target;
   if (target.kind === 'BILLER' && (!f.biller || f.biller.status !== 'ACTIVE' || f.biller.version !== target.expectedVersion)) blockers.push('BILLER_CHANGED');
   const supported = policy.operation === 'BILL_PAYMENT' && target.kind === 'BILLER' && ['dewa', 'etisalat', 'du'].includes(target.provider) && policy.trigger.type === 'INVOICE_DUE';
-  if (!supported) blockers.push('EXECUTION_NOT_SUPPORTED_YET');
+  const reload = policy.operation === 'WALLET_RELOAD' && target.kind === 'WALLET' && policy.trigger.type === 'LOW_BALANCE';
+  if (!supported && !reload) blockers.push('EXECUTION_NOT_SUPPORTED_YET');
 
   let nextRun: Forecast['nextRun'] = null;
   const candidates: Candidate[] = [];
@@ -68,6 +69,20 @@ export function forecast(f: PreviewFacts): Forecast {
   if (policy.trigger.type === 'CALENDAR') {
     const run = nextCalendarRun(policy.trigger, tz, now, startsAt, expiresAt);
     if (run) nextRun = { key: run.key, runAt: iso(run.runAtUtc) };
+  } else if (reload && policy.trigger.type === 'LOW_BALANCE') {
+    // A reload is event-driven: it would run now only if the balance is below the threshold, for the finite amount that stays within the target.
+    const trigger = policy.trigger, balance = f.walletBalanceMinor;
+    const amount = Math.max(0, Math.min(trigger.reloadMinor, trigger.targetBalanceMinor - balance, WALLET_FUNDING_LIMITS.maxMinor));
+    const reasons: string[] = [], warnings: string[] = [];
+    if (balance >= trigger.belowMinor) reasons.push('BALANCE_ABOVE_THRESHOLD');
+    else if (amount < WALLET_FUNDING_LIMITS.minMinor) reasons.push('NOTHING_TO_RELOAD');
+    if (sourceView.kind !== 'card') reasons.push('SOURCE_NOT_A_CARD');
+    if (amount > limits.perPaymentMinor) reasons.push('OVER_PER_PAYMENT_CAP');
+    if (periodMinor + amount > limits.periodMinor || periodCount + 1 > limits.perPeriodCount) reasons.push('OVER_PERIOD_BUDGET');
+    if (lifetimeMinor + amount > limits.lifetimeMinor || lifetimeCount + 1 > limits.lifetimeCount) reasons.push('OVER_LIFETIME_BUDGET');
+    if (cooling) reasons.push('COOLDOWN');
+    candidates.push({ payableId: 'wallet-reload', label: 'Wallet reload', amountMinor: amount, dueDate: iso(now).slice(0, 10), scheduledRunAt: iso(now), reasons, warnings,
+      decision: reasons.length || blockers.length ? 'SKIP' : 'DUE_NOW' });
   } else if (policy.trigger.type === 'INVOICE_DUE' && target.kind === 'BILLER') {
     const trigger = policy.trigger;
     const invoices = f.payables.filter(p => p.reference === target.reference && p.status === 'UNPAID' && typeof p.dueDate === 'string')

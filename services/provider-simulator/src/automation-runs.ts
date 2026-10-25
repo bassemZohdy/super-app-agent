@@ -8,6 +8,8 @@ import { relative,isAbsolute } from 'node:path';
 import { createHash,randomUUID } from 'node:crypto';
 import type { AccountDatabase } from './database.ts';
 import type { PaymentOrders } from './payment-orders.ts';
+import type { WalletFunding } from './wallet-funding.ts';
+import { WALLET_FUNDING_LIMITS } from '../../../packages/protocol-core/src/payments.ts';
 import type { Actor } from '../../../packages/backend-kit/src/context.ts';
 import type { Payable } from '../../../packages/protocol-core/src/payments.ts';
 import type { PaymentMandate } from '../../../packages/protocol-core/src/payment-mandates.ts';
@@ -28,7 +30,7 @@ export type AutomationRunIo={
 export type AutomationPreparation={
   id:string;runId:string;accountId:string;mandateId:string;policyVersion:number;occurrenceKey:string;
   state:'PREPARED';provider:string;payableId:string;payableRevision:string;amountMinor:number;currency:'AED';
-  sourceId:string;sourceVersion:number;purpose:string;boundDigest:string;periodKey:string;orderId?:string;
+  sourceId:string;sourceVersion:number;purpose:string;boundDigest:string;periodKey:string;orderId?:string;kind?:'BILL_PAYMENT'|'WALLET_RELOAD';
   reservedPeriodMinor:number;reservedPeriodCount:number;reservedLifetimeMinor:number;reservedLifetimeCount:number;
   preparedAt:string;admissionExpiresAt:string;
 };
@@ -93,9 +95,11 @@ export class AutomationRuns{
       if(!prior)store.db.prepare('INSERT INTO automation_runs VALUES(1,?,?,?,?)').run(context.runId,context.operatorSub,context.workerSub,root);
     });
   }
-  private orders?:PaymentOrders;
-  /** The gateway order store, bound once by the engine after it exists; preparation cannot run without it. */
-  attachOrders(orders:PaymentOrders){this.orders=orders;}
+  private orders?:PaymentOrders;private funding?:WalletFunding;
+  /** The gateway order stores, bound once by the engine after they exist; preparation cannot run without them. */
+  attachOrders(orders:PaymentOrders,funding?:WalletFunding){this.orders=orders;this.funding=funding;}
+  /** Finite reload: the configured amount, never past the target balance. */
+  private reloadAmount(t:{reloadMinor:number;targetBalanceMinor:number},balance:number){return Math.max(0,Math.min(t.reloadMinor,t.targetBalanceMinor-balance,WALLET_FUNDING_LIMITS.maxMinor));}
   private worker(subject:string){if(subject!==this.context.workerSub)deny('AUTOMATION_WORKER_REQUIRED','Preparation belongs to this run\'s exact workload identity.',403);}
   private operator(subject:string){if(subject!==this.context.operatorSub)deny('AUTOMATION_OPERATOR_REQUIRED','This isolated run belongs to another operator.',403);}
   private mandate(mandateId:string):{m:PaymentMandate;accountId:string}{
@@ -143,8 +147,10 @@ export class AutomationRuns{
       const eligibility=this.store.eligibility?.snapshot(accountId);
       if(!eligibility||!eligibility.active||eligibility.epoch!==(m.eligibilityEpoch||'1:1'))return skip('AUTHORITY_CHANGED');
       const policy=m.policy;
-      if(policy.operation!=='BILL_PAYMENT'||policy.target.kind!=='BILLER'||!['dewa','etisalat','du'].includes(policy.target.provider)||policy.trigger.type!=='INVOICE_DUE')
-        return deny('AUTOMATION_UNSUPPORTED','This checkpoint prepares due DEWA/Etisalat/du invoices only; other operations fail closed until their own tasks.',409);
+      const reload=policy.operation==='WALLET_RELOAD'&&policy.target.kind==='WALLET'&&policy.trigger.type==='LOW_BALANCE';
+      const bill=policy.operation==='BILL_PAYMENT'&&policy.target.kind==='BILLER'&&['dewa','etisalat','du'].includes(policy.target.provider)&&policy.trigger.type==='INVOICE_DUE';
+      if(!reload&&!bill)
+        return deny('AUTOMATION_UNSUPPORTED','This checkpoint prepares due DEWA/Etisalat/du invoices and low-balance wallet reloads only; other operations fail closed until their own tasks.',409);
       const source=policy.sources[0],current=source.methodId==='wallet'
         ?{id:'wallet',kind:'wallet' as const,status:'ACTIVE' as const,version:1}
         :this.store.get<{id:string;status:string;version:number;kind:string;expiresMonth?:number;expiresYear?:number}>(accountId,'payment-method',source.methodId);
@@ -157,47 +163,69 @@ export class AutomationRuns{
       if(existing&&this.released(String(existing!.execution_id)))return deny('AUTOMATION_OCCURRENCE_RELEASED','This occurrence already failed definitively and released its reservation; it is not retried with a fresh identity.');
       if(existing){const stored=this.store.db.prepare('SELECT body FROM automation_executions WHERE id=?').get(String(existing!.execution_id));
         if(!stored)return deny('AUTOMATION_OCCURRENCE_CONFLICT','The recorded occurrence has no execution.');return record(JSON.parse(String(stored!.body)) as AutomationPreparation);}
-      const due=this.eligibleInvoices(m,accountId);
-      if(!due.length)return skip('NO_DUE_INVOICE');
-      // The earliest-due invoice within the per-payment cap; an invoice above it is skipped, never lowered, and does not hold up the ones behind it.
-      const payable=due.find(p=>p.amountMinor<=policy.limits.perPaymentMinor);
-      if(!payable)return skip('OVER_PER_PAYMENT_CAP');
-      if(this.store.db.prepare("SELECT order_id FROM payment_order_obligations WHERE account_id=? AND provider=? AND state IN ('RESERVED','COMMITTED') AND (obligation_key=? OR json_extract(body,'$.resourceId')=?) LIMIT 1").get(accountId,payable.provider,payable.id,payable.id))
-        return deny('AUTOMATION_PAYABLE_RESERVED','This obligation is reserved by an original payment review. Inspect that order first.');
+      // What this occurrence would move: one invoice, or one finite wallet reload. Either way it is a single reserved item.
+      let item:{provider:string;id:string;revision:string;amountMinor:number};
+      if(reload){
+        const trigger=policy.trigger as Extract<typeof policy.trigger,{type:'LOW_BALANCE'}>;
+        if(current.kind!=='card')return skip('SOURCE_NOT_A_CARD');
+        if(!this.io.walletBalanceMinor)return deny('AUTOMATION_BALANCE_UNAVAILABLE','This run exposes no wallet balance.',503);
+        const balance=this.io.walletBalanceMinor(accountId);
+        if(balance>=trigger.belowMinor)return skip('BALANCE_ABOVE_THRESHOLD');
+        const amount=this.reloadAmount(trigger,balance);
+        if(amount<WALLET_FUNDING_LIMITS.minMinor)return skip('NOTHING_TO_RELOAD');
+        if(amount>policy.limits.perPaymentMinor)return skip('OVER_PER_PAYMENT_CAP');
+        if(balance+amount>WALLET_FUNDING_LIMITS.balanceMaxMinor)return skip('WALLET_BALANCE_LIMIT');
+        item={provider:'wallet',id:`wallet-reload:${m.id}:${input.occurrenceKey}`,revision:createHash('sha256').update(JSON.stringify(['wallet-reload',accountId,m.id,input.occurrenceKey,amount])).digest('hex'),amountMinor:amount};
+      }else{
+        const due=this.eligibleInvoices(m,accountId);
+        if(!due.length)return skip('NO_DUE_INVOICE');
+        // The earliest-due invoice within the per-payment cap; an invoice above it is skipped, never lowered, and does not hold up the ones behind it.
+        const payable=due.find(p=>p.amountMinor<=policy.limits.perPaymentMinor);
+        if(!payable)return skip('OVER_PER_PAYMENT_CAP');
+        if(this.store.db.prepare("SELECT order_id FROM payment_order_obligations WHERE account_id=? AND provider=? AND state IN ('RESERVED','COMMITTED') AND (obligation_key=? OR json_extract(body,'$.resourceId')=?) LIMIT 1").get(accountId,payable.provider,payable.id,payable.id))
+          return deny('AUTOMATION_PAYABLE_RESERVED','This obligation is reserved by an original payment review. Inspect that order first.');
+        item={provider:payable.provider,id:payable.id,revision:payable.revision,amountMinor:payable.amountMinor};
+      }
       const last=this.store.db.prepare('SELECT body FROM automation_executions WHERE mandate_id=? ORDER BY rowid DESC LIMIT 1').get(m.id);
       if(last&&now-Date.parse((JSON.parse(String(last!.body)) as AutomationPreparation).preparedAt)<policy.limits.cooldownSeconds*1000)
         return deny('AUTOMATION_COOLDOWN','The mandate cooldown between preparations has not elapsed.');
       const key=this.periodKey(m,now),rows=this.store.db.prepare('SELECT body FROM automation_executions WHERE mandate_id=? AND id NOT IN (SELECT execution_id FROM automation_released)').all(m.id).map(r=>JSON.parse(String(r.body)) as AutomationPreparation);
       const inPeriod=rows.filter(r=>r.periodKey===key),reservedPeriodMinor=inPeriod.reduce((n,r)=>n+r.amountMinor,0),reservedPeriodCount=inPeriod.length;
       const reservedLifetimeMinor=rows.reduce((n,r)=>n+r.amountMinor,0),reservedLifetimeCount=rows.length;
-      if(reservedPeriodMinor+payable.amountMinor>policy.limits.periodMinor||reservedPeriodCount+1>policy.limits.perPeriodCount)return skip('OVER_PERIOD_BUDGET');
-      if(reservedLifetimeMinor+payable.amountMinor>policy.limits.lifetimeMinor||reservedLifetimeCount+1>policy.limits.lifetimeCount)return skip('OVER_LIFETIME_BUDGET');
-      const providerStore=this.io.providerStore(policy.target.provider);
+      if(reservedPeriodMinor+item.amountMinor>policy.limits.periodMinor||reservedPeriodCount+1>policy.limits.perPeriodCount)return skip('OVER_PERIOD_BUDGET');
+      if(reservedLifetimeMinor+item.amountMinor>policy.limits.lifetimeMinor||reservedLifetimeCount+1>policy.limits.lifetimeCount)return skip('OVER_LIFETIME_BUDGET');
+      const providerStore=reload?undefined:this.io.providerStore(policy.target.kind==='BILLER'?policy.target.provider:'');
       const preparation:AutomationPreparation={id:`autoexec_${randomUUID()}`,runId:this.context.runId,accountId,mandateId:m.id,policyVersion:m.policyVersion,
-        occurrenceKey:input.occurrenceKey,state:'PREPARED',provider:policy.target.provider,payableId:payable.id,payableRevision:payable.revision,
-        amountMinor:payable.amountMinor,currency:'AED',sourceId:current.id,sourceVersion:current.version,purpose:policy.purpose,
-        boundDigest:createHash('sha256').update(JSON.stringify({mandateId:m.id,policyVersion:m.policyVersion,occurrenceKey:input.occurrenceKey,payableId:payable.id,payableRevision:payable.revision,amountMinor:payable.amountMinor,sourceId:current.id,sourceVersion:current.version,purpose:policy.purpose})).digest('hex'),
-        periodKey:key,reservedPeriodMinor:reservedPeriodMinor+payable.amountMinor,reservedPeriodCount:reservedPeriodCount+1,
-        reservedLifetimeMinor:reservedLifetimeMinor+payable.amountMinor,reservedLifetimeCount:reservedLifetimeCount+1,
+        occurrenceKey:input.occurrenceKey,state:'PREPARED',kind:reload?'WALLET_RELOAD':'BILL_PAYMENT',provider:item.provider,payableId:item.id,payableRevision:item.revision,
+        amountMinor:item.amountMinor,currency:'AED',sourceId:current.id,sourceVersion:current.version,purpose:policy.purpose,
+        boundDigest:createHash('sha256').update(JSON.stringify({mandateId:m.id,policyVersion:m.policyVersion,occurrenceKey:input.occurrenceKey,payableId:item.id,payableRevision:item.revision,amountMinor:item.amountMinor,sourceId:current.id,sourceVersion:current.version,purpose:policy.purpose})).digest('hex'),
+        periodKey:key,reservedPeriodMinor:reservedPeriodMinor+item.amountMinor,reservedPeriodCount:reservedPeriodCount+1,
+        reservedLifetimeMinor:reservedLifetimeMinor+item.amountMinor,reservedLifetimeCount:reservedLifetimeCount+1,
         preparedAt:new Date(now).toISOString(),admissionExpiresAt:new Date(now+ADMISSION_WINDOW_MS).toISOString()};
-      // The provider-side claim runs first; a gateway failure releases it so no claim outlives its execution.
-      if(claimAutomationPayable(providerStore,accountId,payable.id,preparation.id)!=='CLAIMED')
+      // The provider-side claim runs first; a gateway failure releases it so no claim outlives its execution. A reload has no provider obligation to claim.
+      if(providerStore&&claimAutomationPayable(providerStore,accountId,item.id,preparation.id)!=='CLAIMED')
         return deny('AUTOMATION_PAYABLE_RESERVED','This payable is already reserved by another execution or order.');
       try{
-        if(!this.orders)return deny('AUTOMATION_ORDERS_UNAVAILABLE','The gateway order store is not attached; nothing was prepared.',503);
+        if(!this.orders||!this.funding)return deny('AUTOMATION_ORDERS_UNAVAILABLE','The gateway order store is not attached; nothing was prepared.',503);
         const owner=this.store.db.prepare('SELECT owner FROM accounts WHERE id=?').get(accountId);
         if(!owner)return deny('AUTOMATION_EXECUTION_NOT_FOUND','The prepared execution has no workspace owner.',404);
         const actor:Actor={sub:String(owner!.owner),username:String(owner!.owner),name:'Automation owner',accountId,requestId:''};
+        const automation={executionId:preparation.id,mandateId:m.id,boundDigest:preparation.boundDigest};
         // The real gateway order is created inside the same transaction; ordinary APIs refuse to decide it.
-        const order=this.orders.createAutomatic(actor,{provider:payable.provider,payableId:payable.id,expectedPayableRevision:payable.revision,methodId:current.id,expectedMethodVersion:current.version},payable,
-          {executionId:preparation.id,mandateId:m.id,boundDigest:preparation.boundDigest});
-        preparation.orderId=order.id;
+        if(reload){
+          const funding=this.funding.createAutomatic(actor,{amountMinor:item.amountMinor,methodId:current.id,expectedMethodVersion:current.version},automation);
+          preparation.orderId=funding.id;
+        }else{
+          const payable=this.io.readPayables(accountId,item.provider).find(p=>p.id===item.id)!;
+          const order=this.orders.createAutomatic(actor,{provider:payable.provider,payableId:payable.id,expectedPayableRevision:payable.revision,methodId:current.id,expectedMethodVersion:current.version},payable,automation);
+          preparation.orderId=order.id;
+        }
         this.store.db.prepare('INSERT INTO automation_executions VALUES(?,?,?,?,?)').run(preparation.id,accountId,m.id,preparation.state,JSON.stringify(preparation));
         this.store.db.prepare('INSERT INTO automation_occurrences VALUES(?,?,?)').run(m.id,input.occurrenceKey,preparation.id);
-        this.store.db.prepare('INSERT INTO automation_payable_claims VALUES(?,?,?)').run(accountId,payable.id,preparation.id);
-        this.store.db.prepare('INSERT INTO automation_audit(body) VALUES(?)').run(JSON.stringify({at:preparation.preparedAt,runId:this.context.runId,workerSub:subject,mandateId:m.id,occurrenceKey:input.occurrenceKey,event:'PREPARED',payableId:payable.id,amountMinor:payable.amountMinor}));
+        if(!reload)this.store.db.prepare('INSERT INTO automation_payable_claims VALUES(?,?,?)').run(accountId,item.id,preparation.id);
+        this.store.db.prepare('INSERT INTO automation_audit(body) VALUES(?)').run(JSON.stringify({at:preparation.preparedAt,runId:this.context.runId,workerSub:subject,mandateId:m.id,occurrenceKey:input.occurrenceKey,event:'PREPARED',payableId:item.id,amountMinor:item.amountMinor}));
         return record(preparation);
-      }catch(error){releaseAutomationPayable(providerStore,preparation.id);throw error;}
+      }catch(error){if(providerStore)releaseAutomationPayable(providerStore,preparation.id);throw error;}
     });
   }
   /** The immutable preparation plus current authority freshness, for the credential broker. */
@@ -220,8 +248,11 @@ export class AutomationRuns{
     const biller=mandate.policy.target.kind==='BILLER'
       ?this.store.get<{status:string;version:number}>(preparation.accountId,'billing-account',mandate.policy.target.billingAccountId)
       :undefined;
-    const payableCurrent=this.io.readPayables(preparation.accountId,preparation.provider)
-      .some(payable=>payable.id===preparation.payableId&&payable.revision===preparation.payableRevision&&payable.status==='UNPAID');
+    // A bill is current while it is the same unpaid revision; a reload is current while the balance is still below the threshold and would reload the same amount.
+    const trigger=mandate.policy.trigger,payableCurrent=preparation.kind==='WALLET_RELOAD'
+      ?trigger.type==='LOW_BALANCE'&&!!this.io.walletBalanceMinor&&this.io.walletBalanceMinor(preparation.accountId)<trigger.belowMinor&&this.reloadAmount(trigger,this.io.walletBalanceMinor(preparation.accountId))===preparation.amountMinor
+      :this.io.readPayables(preparation.accountId,preparation.provider)
+        .some(payable=>payable.id===preparation.payableId&&payable.revision===preparation.payableRevision&&payable.status==='UNPAID');
     return {executionId:preparation.id,runId:this.context.runId,accountId:preparation.accountId,ownerSub:String(owner!.owner),
       mandate:{id:mandate.id,state:mandate.state,policyVersion:mandate.policyVersion,skipNext:mandate.skipNext===true},
       source:{id:preparation.sourceId,version:preparation.sourceVersion,current:current?.status==='ACTIVE'&&current?.version===source.expectedVersion},
@@ -258,11 +289,13 @@ export class AutomationRuns{
     const claimed=new Set(this.store.db.prepare('SELECT payable_key FROM automation_payable_claims WHERE account_id=?').all(accountId).map(r=>String(r!.payable_key)));
     return this.io.readPayables(accountId,target.provider).filter(p=>p.reference===target.reference&&p.status==='UNPAID'&&typeof p.dueDate==='string'&&!claimed.has(p.id)).map(p=>({dueDate:String(p.dueDate)}));
   }
+  /** The balance and how many wallet payments have ever debited it. Reloads, top-ups and refunds are not payments, so only a new payment re-arms a threshold. */
   balanceMinor(worker:string,mandateId:string){
     this.worker(worker);
     const {accountId}=this.mandate(mandateId);
     if(!this.io.walletBalanceMinor)return deny('AUTOMATION_BALANCE_UNAVAILABLE','This run exposes no wallet balance.',503);
-    return this.io.walletBalanceMinor(accountId);
+    const debits=this.store.db.prepare("SELECT count(*) n FROM payment_journal_entries WHERE account_id=? AND kind='PAYMENT' AND wallet_delta<0").get(accountId);
+    return {balanceMinor:this.io.walletBalanceMinor(accountId),qualifyingDebits:Number(debits!.n)};
   }
   /** The stored preparation, its owner and the exact operation a permit must authorize; nothing here comes from a caller. */
   target(executionId:string){
@@ -279,8 +312,9 @@ export class AutomationRuns{
    *  An order with captured or unknown funds, or one still awaiting a human challenge, is held untouched. */
   reconcile(executionId:string):'RELEASED'|'HELD'{
     if(this.released(executionId))return 'RELEASED';
-    const orders=this.orders;if(!orders)return 'HELD';
+    if(!this.orders||!this.funding)return 'HELD';
     const {preparation,ownerSub,orderId}=this.target(executionId),dispatch=this.dispatchState(executionId);
+    const orders=preparation.kind==='WALLET_RELOAD'?this.funding:this.orders;
     const actor:Actor={sub:ownerSub,username:ownerSub,name:'Automation owner',accountId:preparation.accountId,requestId:`automation-release:${executionId}`};
     const automation={executionId,mandateId:preparation.mandateId,boundDigest:preparation.boundDigest};
     let order=orders.get(actor,orderId);
@@ -292,7 +326,7 @@ export class AutomationRuns{
     this.store.transaction(()=>{
       this.store.db.prepare('INSERT OR IGNORE INTO automation_released VALUES(?,?,?)').run(executionId,order.failureCode||order.state,at);
       this.store.db.prepare('DELETE FROM automation_payable_claims WHERE execution_id=?').run(executionId);
-      releaseAutomationPayable(this.io.providerStore(preparation.provider),executionId);
+      if(preparation.kind!=='WALLET_RELOAD')releaseAutomationPayable(this.io.providerStore(preparation.provider),executionId);
       this.store.db.prepare('INSERT INTO automation_audit(body) VALUES(?)').run(JSON.stringify({at,runId:this.context.runId,mandateId:preparation.mandateId,event:'RELEASED',executionId,reason:order.failureCode||order.state}));
     });
     return 'RELEASED';

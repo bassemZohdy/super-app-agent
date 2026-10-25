@@ -110,7 +110,7 @@ export function createProviderServer(provider: ProviderId, path: string, options
         if(rulesRoute){
           if(!worker||req.method!=='GET')throw new ApiError(403,'AUTOMATION_ROLE_REQUIRED','Only the automation worker reads the scheduling view.');
           if(!rulesRoute[2])return send({status:200,data:{success:true,rules:runs.rules(claims.sub)}});
-          return send({status:200,data:{success:true,...(rulesRoute[3]==='invoices'?{invoices:runs.dueInvoices(claims.sub,rulesRoute[2])}:{balanceMinor:runs.balanceMinor(claims.sub,rulesRoute[2])})}});
+          return send({status:200,data:{success:true,...(rulesRoute[3]==='invoices'?{invoices:runs.dueInvoices(claims.sub,rulesRoute[2])}:runs.balanceMinor(claims.sub,rulesRoute[2]))}});
         }
         if(!automationRoute)throw new ApiError(404,'AUTOMATION_RUN_NOT_FOUND','Unknown automation run operation.');
         if(worker&&req.method==='GET'&&automationRoute[3]==='execution'&&!automationRoute[5])return send({status:200,data:{success:true,execution:runs.readExecution(claims.sub,automationRoute[4] as string)}});
@@ -118,7 +118,7 @@ export function createProviderServer(provider: ProviderId, path: string, options
         if(req.method==='POST'&&automationRoute[5]==='execute'){
           const scopes=String(claims.scope||'').split(' ');
           if(!delegated||claims.act!==undefined||!scopes.includes('delegation.write')||roles.length>0||!checkout||!engine.orders)throw new ApiError(403,'AUTOMATION_CREDENTIAL_REQUIRED','Only a broker-issued per-execution credential may execute an automatic order.');
-          const order=await executeAutomaticOrder({runs,orders:engine.orders,checkout,client:payments,authority:options.permitAuthority||authorizeAutomationPermit,session:options.sessionReader||readAutomationSession},{sub:claims.sub,authorization:req.headers.authorization as string},automationRoute[4] as string);
+          const order=await executeAutomaticOrder({runs,orders:engine.orders,funding:engine.funding!,checkout,client:payments,authority:options.permitAuthority||authorizeAutomationPermit,session:options.sessionReader||readAutomationSession},{sub:claims.sub,authorization:req.headers.authorization as string},automationRoute[4] as string);
           return send({status:200,data:{success:true,order}});
         }
         if(worker&&req.method==='POST'&&automationRoute[2]==='prepare'){

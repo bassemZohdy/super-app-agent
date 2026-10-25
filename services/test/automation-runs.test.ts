@@ -117,7 +117,13 @@ test('AUTO-03: unsupported operations fail closed and revoked authority never pr
   reloadPolicy.sources=[{methodId:card.id,expectedVersion:card.version}];
   const created=f.payments.mandates!.create(f.actor,reloadPolicy);
   f.payments.mandates!.approve(f.actor,created.id,created.version,created.approvalDigest);
-  assert.throws(()=>f.prepare(created.id,'occ_reload'),(e:any)=>e.code==='AUTOMATION_UNSUPPORTED');
+  assert.equal(skipped(f.prepare(created.id,'occ_reload')).reason,'BALANCE_ABOVE_THRESHOLD','a reload rule with a healthy wallet prepares nothing');
+  const calendarPolicy=JSON.parse(JSON.stringify(m.policy));
+  calendarPolicy.trigger={type:'CALENDAR',dayOfMonth:1,hour:9,minute:0,monthEnd:'LAST_DAY'};
+  calendarPolicy.purpose='Calendar bill rule';
+  const calendar=f.payments.mandates!.create(f.actor,calendarPolicy);
+  f.payments.mandates!.approve(f.actor,calendar.id,calendar.version,calendar.approvalDigest);
+  assert.throws(()=>f.prepare(calendar.id,'occ_calendar'),(e:any)=>e.code==='AUTOMATION_UNSUPPORTED','a trigger that cannot execute yet fails closed');
   f.payments.mandates!.revoke(f.actor,m.id,m.version);
   f.bill('auto-bill-1',150,1);
   assert.equal(skipped(f.prepare(m.id,'occ_revoked',`req_${randomUUID()}`)).reason,'MANDATE_NOT_ACTIVE');
@@ -249,7 +255,7 @@ function execution(f:ReturnType<typeof fixture>){
     return f.dewaDb.transaction(()=>f.dewa.execute(f.actor,method,path,body,undefined,undefined,gatewayOrder)).data;
   }} as unknown as ProviderClient;
   const consumed:Record<string,unknown>[]=[];let deny=false;
-  const deps={runs:f.db.automationRuns!,orders:f.payments.orders!,checkout:new PaymentCheckout(f.payments.orders!,client),client,
+  const deps={runs:f.db.automationRuns!,orders:f.payments.orders!,funding:f.payments.funding!,checkout:new PaymentCheckout(f.payments.orders!,client),client,
     authority:async(_a:string|undefined,op:Record<string,unknown>)=>{if(deny)throw new Error('denied');consumed.push(op);},
     session:async()=>({executionId:String(consumed.at(-1)?.executionId)})};
   return {deps,consumed,effects:()=>effects,deny:(v:boolean)=>{deny=v;}};
@@ -431,7 +437,7 @@ test('AUTO-06: the worker-scoped scheduling view lists rules, unclaimed due invo
   assert.equal(rules[0]!.trigger.type,'INVOICE_DUE');
   assert.match(rules[0]!.target,/^dewa-/);
   assert.deepEqual(f.db.automationRuns!.dueInvoices('auto-worker',m.id).map(i=>i.dueDate.length),[10],'only the unpaid bill is a due invoice');
-  assert.equal(f.db.automationRuns!.balanceMinor('auto-worker',m.id),f.payments.ledger!.summary(f.actor.accountId).balanceMinor);
+  assert.deepEqual(f.db.automationRuns!.balanceMinor('auto-worker',m.id),{balanceMinor:f.payments.ledger!.summary(f.actor.accountId).balanceMinor,qualifyingDebits:0});
   for(const who of ['automation-operator','auto-owner','someone-else']){
     assert.throws(()=>f.db.automationRuns!.rules(who),(e:any)=>e.code==='AUTOMATION_WORKER_REQUIRED');
     assert.throws(()=>f.db.automationRuns!.dueInvoices(who,m.id),(e:any)=>e.code==='AUTOMATION_WORKER_REQUIRED');

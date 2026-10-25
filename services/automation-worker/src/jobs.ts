@@ -51,11 +51,13 @@ export class JobStore {
       CREATE TABLE IF NOT EXISTS job_attempts(seq INTEGER PRIMARY KEY AUTOINCREMENT,job_id TEXT NOT NULL REFERENCES jobs(id),fence INTEGER NOT NULL,worker_id TEXT NOT NULL,step TEXT NOT NULL,at INTEGER NOT NULL,outcome TEXT);
       CREATE TABLE IF NOT EXISTS job_outbox(seq INTEGER PRIMARY KEY AUTOINCREMENT,job_id TEXT NOT NULL REFERENCES jobs(id),kind TEXT NOT NULL,body TEXT NOT NULL,at INTEGER NOT NULL,delivered_at INTEGER,UNIQUE(job_id,kind));
       CREATE TABLE IF NOT EXISTS job_notices(mandate_id TEXT NOT NULL,occurrence_key TEXT NOT NULL,kind TEXT NOT NULL,body TEXT NOT NULL,at INTEGER NOT NULL,PRIMARY KEY(mandate_id,occurrence_key,kind));
-      CREATE TABLE IF NOT EXISTS threshold_state(mandate_id TEXT NOT NULL,policy_version INTEGER NOT NULL,armed INTEGER NOT NULL DEFAULT 1 CHECK(armed IN (0,1)),seq INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(mandate_id,policy_version));
+      CREATE TABLE IF NOT EXISTS threshold_state(mandate_id TEXT NOT NULL,policy_version INTEGER NOT NULL,armed INTEGER NOT NULL DEFAULT 1 CHECK(armed IN (0,1)),seq INTEGER NOT NULL DEFAULT 0,debit_mark INTEGER,PRIMARY KEY(mandate_id,policy_version));
       CREATE TRIGGER IF NOT EXISTS job_attempts_no_update BEFORE UPDATE OF job_id,fence,worker_id,step,at ON job_attempts BEGIN SELECT RAISE(ABORT,'Attempts are append-only');END;
       CREATE TRIGGER IF NOT EXISTS job_attempts_no_delete BEFORE DELETE ON job_attempts BEGIN SELECT RAISE(ABORT,'Attempts are append-only');END;`);
+    this.migrate();
   }
   close() { this.db.close(); }
+  private migrate() { try { this.db.exec('ALTER TABLE threshold_state ADD COLUMN debit_mark INTEGER'); } catch { /* already present */ } }
   private atomic<T>(fn: () => T): T { this.db.exec('BEGIN IMMEDIATE'); try { const out = fn(); this.db.exec('COMMIT'); return out; } catch (e) { this.db.exec('ROLLBACK'); throw e; } }
 
   get(id: string): Job | undefined { const r = this.db.prepare('SELECT * FROM jobs WHERE id=?').get(id); return r ? row(r) : undefined; }
@@ -104,11 +106,12 @@ export class JobStore {
     const r = this.db.prepare('SELECT armed,seq FROM threshold_state WHERE mandate_id=? AND policy_version=?').get(mandateId, policyVersion);
     return { armed: r ? Number(r.armed) === 1 : true, seq: r ? Number(r.seq) : 0 };
   }
-  /** Fire once: disarm, advance the sequence and enqueue the job in one transaction, or do nothing when already disarmed. */
-  fireThreshold(rule: { mandateId: string; policyVersion: number; target: string }, now = Date.now()): Job | undefined {
+  /** Fire once: disarm, advance the sequence and enqueue the job in one transaction, or do nothing when already disarmed.
+   *  With `debits` (the count of qualifying external debits so far) it also refuses to fire again until that count has grown past the one recorded at the last fire. */
+  fireThreshold(rule: { mandateId: string; policyVersion: number; target: string }, now = Date.now(), debits?: number): Job | undefined {
     return this.atomic(() => {
       this.db.prepare('INSERT OR IGNORE INTO threshold_state(mandate_id,policy_version) VALUES(?,?)').run(rule.mandateId, rule.policyVersion);
-      const moved = this.db.prepare('UPDATE threshold_state SET armed=0,seq=seq+1 WHERE mandate_id=? AND policy_version=? AND armed=1').run(rule.mandateId, rule.policyVersion);
+      const moved = this.db.prepare('UPDATE threshold_state SET armed=0,seq=seq+1,debit_mark=COALESCE(?,debit_mark) WHERE mandate_id=? AND policy_version=? AND armed=1 AND (? IS NULL OR debit_mark IS NULL OR ? > debit_mark)').run(debits ?? null, rule.mandateId, rule.policyVersion, debits ?? null, debits ?? null);
       if (!moved.changes) return undefined;
       const seq = this.thresholdState(rule.mandateId, rule.policyVersion).seq;
       const { id } = jobIdentity({ ...rule, occurrenceKey: `THR:${seq}` });
