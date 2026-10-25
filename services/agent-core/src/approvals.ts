@@ -72,6 +72,21 @@ export function actionIsApproved(state: SuperAppAgentState, action: string, payl
   });
 }
 
+/** True when the dispatched action is advertised only by disabled buttons of the current surface. */
+export function actionIsDisabled(state: SuperAppAgentState, action: string): boolean {
+  const surface = state.currentSurface;
+  if (!surface) return false;
+  let disabled = false;
+  const walk = (node: UIComponentNode) => {
+    if (node.type === 'Button' && node.properties?.disabled === true) {
+      if (node.onEvents?.some(event => event.actionType === 'AGENT_ACTION_DISPATCH' && event.payload.action === action)) disabled = true;
+    }
+    node.children?.forEach(walk);
+  };
+  walk(surface.view);
+  return disabled;
+}
+
 export function recordApproval(state: SuperAppAgentState, event: 'offered' | 'confirmed' | 'cancelled', action?: string) {
   if (!state.approval) return;
   enrichCorrelation({workflowId:state.sessionId,approvalId:state.approval.id});

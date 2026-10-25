@@ -251,8 +251,14 @@ export function validateUIComponentNode(
   }
   if (n.type === 'ChoiceGroup') {
     if (!Array.isArray(props.options) || props.options.length > 100 ||
-        props.options.some((o: unknown) => !isObjectLike(o) || typeof o.id !== 'string' || typeof o.title !== 'string')) {
+        props.options.some((o: unknown) => !isObjectLike(o) || typeof o.id !== 'string' || !o.id.trim() || o.id.length > 128 ||
+          typeof o.title !== 'string' || !o.title.trim() || o.title.length > 400)) {
       errors.push(`${path}.properties.options: Invalid choices`);
+    }
+    if (props.selectedId !== undefined &&
+        (typeof props.selectedId !== 'string' || !Array.isArray(props.options) ||
+         !props.options.some((o: unknown) => isObjectLike(o) && o.id === props.selectedId))) {
+      errors.push(`${path}.properties.selectedId: Preselection must be one of the advertised choices`);
     }
   }
   if (n.type === 'MetricWidget' && (typeof props.label !== 'string' || !['string','number'].includes(typeof props.value) || (typeof props.value === 'number' && !Number.isFinite(props.value)))) errors.push(`${path}: Invalid metric`);

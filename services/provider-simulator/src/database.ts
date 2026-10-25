@@ -11,6 +11,7 @@ export class AccountDatabase {
   eligibility?:AccountEligibility;
   events?:PaymentEvents;
   issuerScenarios?:IssuerScenarios;
+  automationRuns?:import('./automation-runs.ts').AutomationRuns;
   constructor(path: string) {
     this.path = path;
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });

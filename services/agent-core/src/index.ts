@@ -8,7 +8,7 @@ import { manualServices } from './manual-services.ts';
 import { proxyDelegation } from '../../../packages/backend-kit/src/delegation-proxy.ts';
 import { HttpPolicy, HttpError, readJsonBody } from '../../../packages/backend-kit/src/http-policy.ts';
 import { handleMcp } from './mcp.ts';
-import { issueApproval, actionIsApproved, recordApproval } from './approvals.ts';
+import { issueApproval, actionIsApproved, actionIsDisabled, recordApproval } from './approvals.ts';
 import { actorContext, actorFor, accountIdFor } from '../../../packages/backend-kit/src/context.ts';
 import { redisSessions, SessionError } from './session-store.ts';
 import { randomUUID } from 'node:crypto';
@@ -266,6 +266,10 @@ async function handleGatewayRequest(
         retry: { allowed: false, next: 'refresh_surface' }, surface: session.currentSurface } };
     }
     if (!actionIsApproved(session, body.action, body.payload || {}, actor.sub, accountId)) {
+      if (actionIsDisabled(session, body.action)) {
+        return { status: 409, data: { success: false, code: 'ACTION_DISABLED',
+          error: 'This action is disabled for the current review state.', surface: session.currentSurface } };
+      }
       return { status: 403, data: { error: 'Action is not authorized for the current UI surface' } };
     }
     if (authResult.user) {
@@ -326,6 +330,8 @@ export async function executeGatewayRequest(method: string, pathname: string,
   catch (error) {
     if(error instanceof EligibilityReadError)return {status:[403,409].includes(error.status)?error.status:503,data:{success:false,code:'ELIGIBILITY_DENIED',error:'Current owner or workspace membership prevents access. History is retained.'}};
     if (error instanceof SessionError) return { status: error.status, data: { success: false, code: error.code, error: error.message } };
+    // A deliberately raised HttpError is our own controlled user-facing rejection, not an upstream detail.
+    if (error instanceof HttpError) return { status: error.status, data: { success: false, code: error.code || 'REQUEST_REJECTED', error: error.message } };
     const outcome = executionOutcome(steps);
     const domainError = error instanceof DomainOperationError;
     const code = outcome === 'UNKNOWN' ? 'DOMAIN_OUTCOME_UNKNOWN'

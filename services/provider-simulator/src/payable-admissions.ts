@@ -12,6 +12,7 @@ export function assertPayableUnreserved(store:AccountDatabase,account:string,pay
   const rows=store.db.prepare("SELECT id,body FROM provider_payable_admissions WHERE account_id=? AND state='PREPARED'").all(account);
   for(const row of rows){const admission=JSON.parse(String(row.body));if(Date.parse(admission.expiresAt)<=clock()){admission.state='CANCELLED';store.db.prepare("UPDATE provider_admission_items SET active=0 WHERE admission_id=?").run(admission.id);store.db.prepare("UPDATE provider_payable_admissions SET state='CANCELLED',body=? WHERE id=?").run(JSON.stringify(admission),String(row.id));}}
   if(store.db.prepare("SELECT admission_id FROM provider_admission_items WHERE account_id=? AND payable_id=? AND active=1").get(account,payableId)||store.db.prepare("SELECT id FROM provider_payable_admissions WHERE account_id=? AND payable_id=? AND state IN ('PREPARED','ADMITTED','APPLIED')").get(account,payableId))settlementFailure('PAYABLE_RESERVED','This obligation has an admitted or completed payment. Inspect that order first.');
+  if(store.db.prepare("SELECT name FROM sqlite_master WHERE name='automation_payable_claims'").get()&&store.db.prepare('SELECT execution_id FROM automation_payable_claims WHERE account_id=? AND payable_key=?').get(account,payableId))settlementFailure('PAYABLE_RESERVED','This obligation is reserved by a prepared automatic execution. Inspect that run first.');
 }
 export class PayableAdmissions{
   readonly store:AccountDatabase;readonly book:AdmissionBook;readonly clock:()=>number;

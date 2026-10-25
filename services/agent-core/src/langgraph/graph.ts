@@ -1,3 +1,10 @@
+import { HttpError } from '../../../../packages/backend-kit/src/http-policy.ts';
+
+/** A dispatch must name its selected resource; silent demo defaults are removed (P1-13). */
+const explicitSelection = (value: unknown, kind: string): string => {
+  if (typeof value === 'string' && value.trim()) return value;
+  throw new HttpError(409, `Choose an available ${kind} before continuing.`);
+};
 import { formatStatementAED } from '../../../../packages/protocol-core/src/payment-history.ts';
 import { formatAED } from '../../../../packages/protocol-core/src/payments.ts';
 import { handlePaymentSurfaceAction } from '../payment-surfaces.ts';
@@ -348,7 +355,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
     } else if (action === 'activate_parking') {
       onProgress?.('🅿️ Activating RTA / Mawaqif Smart Parking meter...');
       const res = await executeRideRequest('POST', '/mobility/parking/activate', {}, {
-        zoneId: payload.selectedChoice || payload.zoneId || 'zone_302a',
+        zoneId: explicitSelection(payload.selectedChoice || payload.zoneId, 'parking zone'),
         durationHours: payload.durationHours || 2,
         plateNumber: payload.plateNumber || 'Dubai B-74892',
       });
@@ -645,7 +652,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
     } else if (action === 'book_ride') {
       onProgress?.('🚖 Dispatching driver via Ride Microservice...');
       const res = await executeRideRequest('POST', '/rides/book', {}, {
-        driverId: payload.selectedChoice || payload.driverId || 'drv_1',
+        driverId: explicitSelection(payload.selectedChoice || payload.driverId, 'driver'),
         pickup: '100 Market St',
         dropoff: 'Downtown Restaurant',
       });
@@ -709,7 +716,7 @@ Service summary: ${state.messages.at(-1)?.content || ''}` },
       onProgress?.('🍕 Creating food order with kitchen...');
       const res = await executeFoodRequest('POST', '/orders/create', {}, {
         restaurantId: 'rest_1',
-        items: [payload.selectedChoice || 'item_diavola'],
+        items: [explicitSelection(payload.selectedChoice, 'dish')],
         deliveryAddress: '100 Market St, Apt 4B',
       });
 

@@ -9,6 +9,7 @@ import { MandateError } from './payment-mandates.ts';
 import { verifyMandateTarget } from './mandate-targets.ts';
 import { issuerScenarioSchemas } from '../../../packages/protocol-core/src/issuer-scenarios.ts';
 import { IssuerScenarioError,type IssuerScenarioContext } from './issuer-scenarios.ts';
+import { AutomationRunError,automationRunSchemas } from './automation-runs.ts';
 import { startPaymentEventDelivery } from './payment-events.ts';
 import type { PaymentEvent } from '../../../packages/protocol-core/src/payment-events.ts';
 import { PaymentResourceError } from './payment-resource-uses.ts';
@@ -73,6 +74,20 @@ export function createProviderServer(provider: ProviderId, path: string, options
         if(req.method==='GET'&&kind==='account-lifecycle'&&operator)return send({status:200,data:{success:true,...store.eligibility!.impact(account)}});
         if(req.method==='POST'&&kind==='account-eligibility'&&operator){const input=await readJsonBody(req);if(!validateEligibility(input))throw new ApiError(400,'VALIDATION_ERROR','Use the exact versioned eligibility decision.');const key=req.headers['idempotency-key'];if(typeof key!=='string')throw new ApiError(400,'IDEMPOTENCY_REQUIRED','An operator request key is required.');return send({status:200,data:{success:true,eligibility:store.eligibility!.change(account,input,claims.sub,key)}});}
         throw new ApiError(403,'ELIGIBILITY_OPERATION_DENIED','This workload cannot change or inspect this eligibility operation.');
+      }
+      const automationRoute=/^\/internal\/automation-runs\/(autorn_[a-f0-9-]{36})(?:\/(prepare))?$/.exec(url.pathname);
+      if(url.pathname.startsWith('/internal/automation-runs/')){
+        const runs=store.automationRuns;
+        if(!runs||!automationRoute||url.search||automationRoute[1]!==runs.context.runId)throw new ApiError(404,'AUTOMATION_RUN_NOT_FOUND','No automatic execution run is installed here.');
+        if(!interactive||claims.act!==undefined)throw new ApiError(403,'AUTOMATION_ROLE_REQUIRED','A signed interactive run identity is required.');
+        if(req.method==='GET'&&!automationRoute[2]){return send({status:200,data:{success:true,...runs.status(claims.sub)}});}
+        if(req.method==='POST'&&automationRoute[2]==='prepare'){
+          const input=await readJsonBody(req);
+          if(!ajv.validate(automationRunSchemas.prepare,input))throw new ApiError(400,'VALIDATION_ERROR','The preparation request has invalid or unsupported fields.');
+          const result=runs.prepare(claims.sub,input as {mandateId:string;occurrenceKey:string;requestKey:string});
+          return send({status:200,data:{success:true,...result}});
+        }
+        throw new ApiError(404,'AUTOMATION_RUN_NOT_FOUND','Unknown automation run operation.');
       }
       const scenarioRoute=/^\/internal\/issuer-scenarios\/(simrun_[a-f0-9-]{36})(?:\/(configuration|pending))?$/.exec(url.pathname);
       if(url.pathname.startsWith('/internal/issuer-scenarios/')){
@@ -218,9 +233,9 @@ export function createProviderServer(provider: ProviderId, path: string, options
       });
       send(result);
     } catch (error) {
-      const status = error instanceof HttpError ? error.status : error instanceof ObligationError||error instanceof EligibilityError||error instanceof MandateError || error instanceof IssuerScenarioError || error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError || error instanceof SettlementError ? error.status : 503;
+      const status = error instanceof HttpError ? error.status : error instanceof ObligationError||error instanceof EligibilityError||error instanceof MandateError || error instanceof IssuerScenarioError || error instanceof AutomationRunError || error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError || error instanceof SettlementError ? error.status : 503;
       res.setHeader('Connection', 'close');
-      send({ status, data: { success: false, code: error instanceof ObligationError||error instanceof EligibilityError||error instanceof MandateError || error instanceof IssuerScenarioError || error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError || error instanceof SettlementError ? error.code : 'PROVIDER_UNAVAILABLE', error: error instanceof HttpError ? error.message : error instanceof ObligationError||error instanceof EligibilityError||error instanceof MandateError || error instanceof IssuerScenarioError || error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError || error instanceof SettlementError ? error.message : 'The simulator could not complete this request. Check operation status before retrying a write.' } });
+      send({ status, data: { success: false, code: error instanceof ObligationError||error instanceof EligibilityError||error instanceof MandateError || error instanceof IssuerScenarioError || error instanceof AutomationRunError || error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError || error instanceof SettlementError ? error.code : 'PROVIDER_UNAVAILABLE', error: error instanceof HttpError ? error.message : error instanceof ObligationError||error instanceof EligibilityError||error instanceof MandateError || error instanceof IssuerScenarioError || error instanceof AutomationRunError || error instanceof ApiError || error instanceof PaymentRegistryError || error instanceof PaymentLedgerError || error instanceof PaymentResourceError || error instanceof PayableError || error instanceof PaymentOrderError || error instanceof IssuerError || error instanceof UpstreamError || error instanceof SettlementError ? error.message : 'The simulator could not complete this request. Check operation status before retrying a write.' } });
     }
   },{identity:'provider',ready:()=>{store.db.prepare('SELECT 1').get();}}));
   server.once('close',()=>telemetry.close());

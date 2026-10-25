@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 25 October 2026 — P1 parity slices and the AUTO-03 preparation checkpoint
+
+P1-12: dispatches whose action is advertised only by disabled buttons are rejected explicitly with `ACTION_DISABLED` instead of a generic denial. P1-13: conversational parking/ride/food dispatches no longer fall back to hardcoded demo resources; a missing selection fails closed with a visible rejection, and controlled `HttpError` rejections now keep their status and message at the gateway boundary. P1-14: choice-group validation enforces non-empty option ids/titles and coherent `selectedId` preselections, covered by the fuzz suite. AUTO-03 first checkpoint: run-scoped automatic execution preparation and owned inspection in a pristine, persisted isolated run — exact worker/operator identities, server-owned due-invoice resolution, one-transaction shared budget/count/cooldown/occurrence and payable exclusion, immutable preparation records with bounded admission windows and recorded skip reasons. No credential is issued, no order is created and no funds move; mandates keep `executionEnabled:false` and credential issuance, admission and qualification remain later checkpoints.
+
 ## 25 October 2026 — multi-group surface dispatch (P1-12)
 
 Surfaces with several choice groups now dispatch a `selectedChoices` map keyed by group id; single-group surfaces keep `selectedChoice`. Every surface group scopes each dispatch, each selection must be an advertised option of its own group, and approval validates the exact per-group map while rejecting substituted options, missing or extra groups and wrong payload shapes. Client form values cannot inject either key. Group scoping moved from "rejected as ambiguous" to supported with adversarial coverage in the surface-action-scoping and approval-bindings tests.
