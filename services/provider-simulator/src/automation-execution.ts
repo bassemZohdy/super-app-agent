@@ -23,7 +23,13 @@ export async function executeAutomaticOrder(deps:{runs:AutomationRuns;orders:Pay
   if(!dispatched){
     // Consumption is the first irreversible step; an outage or denial here executes nothing.
     try{await deps.authority(caller.authorization,target.operation);}
-    catch{throw new AutomationRunError(403,'AUTOMATION_PERMIT_DENIED','The execution permit is missing, consumed, expired or does not match this operation.');}
+    catch{
+      // A lost response or crash can leave the permit spent with no admission recorded here. Only that exact state may continue:
+      // the session proves this token's permit is consumed for this execution, and the one-row admission below stays exclusive.
+      let session:{executionId:string}|undefined;
+      try{session=await deps.session(caller.authorization);}catch{/* no session: fail closed below */}
+      if(session?.executionId!==executionId)throw new AutomationRunError(403,'AUTOMATION_PERMIT_DENIED','The execution permit is missing, expired or does not match this operation.');
+    }
     preparation=deps.runs.admit(executionId,caller.sub);
   }else{
     // The permit is already spent. The same token may only resume this execution's own order, never start another effect.

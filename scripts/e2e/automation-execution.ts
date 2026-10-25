@@ -123,8 +123,83 @@ try {
   for (const [path, body] of [['/wallet'], ['/transactions'], ['/topups', { amountMinor: 100, source: 'demo_approved' }]] as const) assert.equal((await call(`http://localhost:${env.corePort + 107}/v1/accounts/${accountId}${path}`, bearer, body)).status, 403, path);
   assert.equal((await call(`${env.coreUrl}/api/accounts`, bearer)).status === 200, false);
   console.log('PASS: replay moves no money and the token cannot reach any other operation.');
+  // ---- Qualification: races, outage, revocation and restart. Each scenario prepares a fresh execution. ----
+  let n = 1;
+  const paymentsUrl = `http://localhost:${env.corePort + 107}/v1/accounts/${accountId}`;
+  // The 60-second minimum cooldown is per mandate, so each scenario owns its own approved rule.
+  const newMandate = async () => {
+    const made = await api('mandates', { policy: { ...policy, purpose: `Pay my DEWA bill automatically (${++n})` } });
+    assert.equal(made.status, 200, JSON.stringify(made.data));
+    const approved = await api('mandates/approve', { mandateId: made.data.mandate.id, expectedVersion: made.data.mandate.version, approvalDigest: made.data.mandate.approvalDigest });
+    assert.equal(approved.status, 200, JSON.stringify(approved.data));
+    return approved.data.mandate;
+  };
+  const newExecution = async (forMandate?: { id: string }) => {
+    const target = forMandate ?? await newMandate();
+    n++;
+    const id = `e2e-auto-bill-${n}`;
+    env!.providerStores.get('dewa')!.put(accountId, 'bill', { billId: id, accountNumber: dewa.reference, totalAmount: 150, status: 'UNPAID', dueDate: due }, id);
+    const p = await call(`${run}/prepare`, worker, { mandateId: target.id, occurrenceKey: `occ-e2e-${n}`, requestKey: randomUUID() });
+    assert.equal(p.status, 200, JSON.stringify(p.data));
+    return { ...p.data, billId: id, mandateId: target.id };
+  };
+  const credentialFor = (id: string) => call(`${brokerUrl}/api/delegation/automation/executions/${id}/credential`, worker, { runId: env!.automationRunId });
+  const paid = (billId: string) => env!.providerStores.get('dewa')!.get(accountId, 'bill', billId).status === 'PAID';
+
+  // Two workers ask at once: exactly one token is bound; the loser's token (if one was minted) is useless.
+  const raced = await newExecution(), start = await wallet();
+  const pair = await Promise.all([credentialFor(raced.id), credentialFor(raced.id)]);
+  assert.deepEqual(pair.map(r => r.status).sort(), [200, 403], JSON.stringify(pair.map(r => r.data.code)));
+  const winner = pair.find(r => r.status === 200)!.data.accessToken as string;
+  // Three concurrent executes with the one bound token: the permit admits once, the rest resume or are refused, money moves once.
+  const executeUrl = (id: string) => `${run}/execution/${id}/execute`;
+  const burst = await Promise.all([1, 2, 3].map(() => call(executeUrl(raced.id), winner, {})));
+  assert.ok(burst.some(r => r.status === 200 && r.data.order.state === 'SETTLED'), JSON.stringify(burst.map(r => [r.status, r.data.code])));
+  assert.ok(burst.every(r => [200, 403, 409, 503].includes(r.status)), JSON.stringify(burst.map(r => r.status)));
+  assert.equal(await wallet(), start - 15000, 'concurrent executes debited the wallet exactly once');
+  assert.ok(paid(raced.billId));
+  console.log('PASS: two workers and three concurrent executes yield one credential, one admission and one debit.');
+
+  // Authority outage fails closed, moves nothing, and the same bound token completes after recovery.
+  const outage = await newExecution(), outageToken = (await credentialFor(outage.id)).data.accessToken as string, beforeOutage = await wallet();
+  execFileSync('docker', [...compose, '-f', override, 'stop', 'delegation-broker'], { stdio: 'ignore' });
+  const down = await call(executeUrl(outage.id), outageToken, {});
+  assert.ok(down.status >= 400, JSON.stringify(down.data));
+  assert.equal(await wallet(), beforeOutage, 'an unreachable authority moved no money');
+  assert.equal(paid(outage.billId), false);
+  execFileSync('docker', [...compose, '-f', override, 'up', '-d', '--wait', 'delegation-broker'], { stdio: 'ignore' });
+  const recovered = await call(executeUrl(outage.id), outageToken, {});
+  assert.equal(recovered.status, 200, JSON.stringify(recovered.data));
+  assert.equal(recovered.data.order.state, 'SETTLED');
+  assert.equal(await wallet(), beforeOutage - 15000);
+  console.log('PASS: broker outage fails closed with no effect; the original credential completes once after recovery.');
+
+  // A provider restart keeps the settled outcome and the permit session; a replay moves nothing.
+  const afterOutage = await wallet();
+  await env.restartPayments();
+  const restarted = await call(executeUrl(outage.id), outageToken, {});
+  assert.equal(restarted.status, 200, JSON.stringify(restarted.data));
+  assert.equal(restarted.data.order.id, recovered.data.order.id);
+  assert.equal(restarted.data.order.state, 'SETTLED');
+  assert.equal(await wallet(), afterOutage, 'restart plus replay charged nothing');
+  console.log('PASS: payments restart preserves the settled order and a replay is idempotent.');
+
+  // Owner pauses the rule after the credential was issued: admission re-reads authority and moves nothing.
+  const revoked = await newExecution(), revokedToken = (await credentialFor(revoked.id)).data.accessToken as string, beforePause = await wallet();
+  const current = (await call(`${paymentsUrl}/payment-mandates/${revoked.mandateId}`, owner)).data.mandate;
+  const pause = await call(`${paymentsUrl}/payment-mandates/${revoked.mandateId}/pause`, owner, { expectedVersion: current.version });
+  assert.equal(pause.status, 200, JSON.stringify(pause.data));
+  const refused = await call(executeUrl(revoked.id), revokedToken, {});
+  assert.ok(refused.status >= 400, JSON.stringify(refused.data));
+  assert.equal(refused.data.code, 'AUTOMATION_ADMISSION_REJECTED');
+  assert.equal(await wallet(), beforePause);
+  assert.equal(paid(revoked.billId), false);
+  const retry = await call(executeUrl(revoked.id), revokedToken, {});
+  assert.ok(retry.status >= 400 && await wallet() === beforePause, 'a rejected execution cannot be revived');
+  assert.equal((await call(`${paymentsUrl}/payment-orders/${revoked.orderId}`, owner)).data.order.state, 'AWAITING_APPROVAL');
+  console.log('PASS: pausing the rule before admission denies the held credential; the reservation stays held and no money moves.');
 } finally {
   if (restoreBroker) execFileSync('docker', ['compose', '-f', 'docker-compose.demo.yml', 'up', '-d', '--force-recreate', '--wait', 'delegation-broker'], { stdio: 'ignore' });
-  await env?.cleanup();
+  try { await env?.cleanup(); } catch { /* Windows may briefly hold SQLite files */ }
   try { rmSync(scratch, { recursive: true, force: true }); } catch { /* Windows may briefly hold the directory */ }
 }

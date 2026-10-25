@@ -312,3 +312,26 @@ test('AUTO-03 step 3: a lost response resumes the same order with the same spent
   x.deps.session=async()=>{throw new Error('no session');};
   await assert.rejects(executeAutomaticOrder(x.deps,owner,first.id),(e:any)=>e.code==='AUTOMATION_PERMIT_DENIED');
 });
+
+test('AUTO-03 step 4: a spent permit with no recorded admission continues once; without a session it stays held',async t=>{
+  const f=fixture(t),m=f.mandate();f.bill('auto-bill-1',150,1);
+  const first=prepared(f.prepare(m.id,'occ_crash')),x=execution(f),before=f.payments.ledger!.summary(f.actor.accountId).balanceMinor;
+  // The broker consumed the permit, then the provider crashed before recording the admission.
+  x.consumed.push({executionId:first.id});
+  const denyConsume=x.deps.authority;x.deps.authority=async()=>{throw new Error('permit already consumed');};
+  assert.equal(f.db.automationRuns!.dispatchState(first.id),undefined);
+  const settled=await executeAutomaticOrder(x.deps,owner,first.id);
+  assert.equal(settled.state,'SETTLED');
+  assert.equal(f.db.automationRuns!.dispatchState(first.id),'ADMITTED');
+  assert.equal(x.effects(),1);
+  assert.equal(f.payments.ledger!.summary(f.actor.accountId).balanceMinor,before-15000);
+  x.deps.authority=denyConsume;
+  // A token that never had a consumed permit (no session) cannot admit, and nothing moves.
+  const g=fixture(t),n=g.mandate();g.bill('auto-bill-2',150,1);
+  const second=prepared(g.prepare(n.id,'occ_held')),y=execution(g);
+  y.deps.authority=async()=>{throw new Error('broker unreachable');};y.deps.session=async()=>{throw new Error('no session');};
+  await assert.rejects(executeAutomaticOrder(y.deps,owner,second.id),(e:any)=>e.code==='AUTOMATION_PERMIT_DENIED');
+  assert.equal(g.db.automationRuns!.dispatchState(second.id),undefined);
+  assert.equal(g.payments.orders!.get(g.actor,second.orderId!).state,'AWAITING_APPROVAL');
+  assert.equal(y.effects(),0);
+});
