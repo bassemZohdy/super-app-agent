@@ -10,7 +10,7 @@ The worker refuses to start unless `AUTOMATION_WORKER_ENABLED=true`, never runs 
 
 One job is one rule version, occurrence and target: the id is a hash of `(mandateId, policyVersion, occurrenceKey, target)`, so enqueueing again, or from another process, returns the same job, and a revised rule is a different job. The preparation request key is derived from the job id, so every retry is the same preparation.
 
-States: `QUEUED → PREPARING → PREPARED → CREDENTIALING → EXECUTING`, then `SETTLED`, `SKIPPED`, `FAILED` or `HELD`. `HELD` means the outcome is unknown or needs a person (an unknown capture, a card challenge, a lost credential); the worker does not touch it again.
+States: `QUEUED → PREPARING → PREPARED → CREDENTIALING → EXECUTING`, then `SETTLED`, `SKIPPED`, `FAILED` or `HELD`. `HELD` means the outcome is unknown or needs a person (an unknown capture, a lost credential); the worker does not touch it again. The one exception is a card challenge, held with reason `REQUIRES_ACTION`: the worker parks it for a wait and polls the owner's answer (see Needs the owner below).
 
 ## Leases and fencing
 
@@ -75,7 +75,7 @@ A `SUBSCRIPTION_RENEWAL` rule renews one billing period at a time (`CAL:YYYY-MM`
 ## What the owner is told
 
 - **Before a run:** when a rule's next run is inside the lead time (24 hours by default), the scheduler records one `UPCOMING_RUN` notice per rule and occurrence in `job_notices` (a reminder, not a job; it moves nothing and a paused or expired rule announces nothing).
-- **Needs the owner:** a declined card, a card over its limit, short wallet funds and similar failures end the job as `FAILED` and record a `REQUIRES_ACTION` outbox event; a card challenge holds the job (`HELD`) and records the same event. The worker never tries another source, a lower amount or a different invoice for that occurrence, and the failed occurrence is not retried.
+- **Needs the owner:** a declined card, a card over its limit, short wallet funds and similar failures end the job as `FAILED` and record a `REQUIRES_ACTION` outbox event. A card challenge holds the job (`HELD`, reason `REQUIRES_ACTION`) and records the same event, then the worker parks it for `challengeWaitMs` (60 seconds by default) and asks the broker once per wait for the owner's answer. While the answer is pending nothing is recorded and no credential exists. If the owner rejects it, the job fails with `CHALLENGE_REJECTED` and a `CHALLENGE_ANSWERED` event with `decision: REJECT`, and nothing else runs. If the owner approves it, the broker issues one resumed credential for the same execution and operation, the job records `CHALLENGE_ANSWERED` with `decision: APPROVE` as it moves to `EXECUTING`, and the same order is executed once more. A resume that cannot be confirmed (an unreachable broker, or a crash while the resumed credential is being requested) is held for reconciliation, and a refused resume holds with its reason; neither is asked again. The worker never tries another source, a lower amount or a different invoice for that occurrence, and the failed occurrence is not retried.
 - **Review needed:** a skip that only the owner can resolve (an unapproved fine type, a restricted fine, an amount above the cap, a parking session at its maximum hours or end time) is recorded as `REQUIRES_ACTION`.
 - **Everything else:** a skip, a settlement, a held unknown outcome or an ordinary failure records `SKIPPED`, `SETTLED`, `HELD` or `FAILED`.
 
@@ -83,7 +83,7 @@ An invoice is chosen at preparation: the earliest-due unpaid, unreserved invoice
 
 ## Outbox
 
-`job_outbox` has at most one row per job and kind (`PREPARED`, `SKIPPED`, `SETTLED`, `FAILED`, `HELD`, `REQUIRES_ACTION`), written in the same transaction as the state change. It is what AUTO-14 will turn into notifications.
+`job_outbox` has at most one row per job and kind (`PREPARED`, `SKIPPED`, `SETTLED`, `FAILED`, `HELD`, `REQUIRES_ACTION`, `CHALLENGE_ANSWERED`), written in the same transaction as the state change. The owner inbox turns these into entries (`services/automation-worker/src/inbox.ts`).
 
 ## Evidence
 

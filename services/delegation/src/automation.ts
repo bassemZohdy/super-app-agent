@@ -26,13 +26,14 @@ export function requireWorker(claims: Worker) {
     !String(claims.scope || '').split(' ').includes('automation.execute')) deny('AUTOMATION_WORKER_REQUIRED', 'Only the dedicated automation workload with the execute scope may request an execution credential.');
 }
 
-export async function issueExecutionCredential(deps: AutomationDeps, worker: Worker, authorization: string, input: { runId?: unknown; executionId?: unknown }) {
+/** `FIRST` is the one credential of a prepared execution; `RESUME` replaces a consumed one once its card challenge was approved. */
+export async function issueExecutionCredential(deps: AutomationDeps, worker: Worker, authorization: string, input: { runId?: unknown; executionId?: unknown }, mode: 'FIRST' | 'RESUME' = 'FIRST') {
   requireWorker(worker);
   if (typeof input.runId !== 'string' || !/^autorn_[a-f0-9-]{36}$/.test(input.runId) || typeof input.executionId !== 'string' || !ids.test(input.executionId))
     throw new DelegationError(400, 'VALIDATION_ERROR', 'Name one run and one prepared execution.');
   const view = await deps.readView(input.runId, input.executionId, authorization);
   if (view.runId !== input.runId || view.executionId !== input.executionId) deny('PERMIT_VIEW_INVALID', 'The provider returned a different execution than requested.');
-  const permit = deps.permits.issue({ sub: worker.sub, azp: worker.azp }, view);
+  const permit = mode === 'RESUME' ? deps.permits.issueResume({ sub: worker.sub, azp: worker.azp }, view) : deps.permits.issue({ sub: worker.sub, azp: worker.azp }, view);
   try { await deps.eligible(view); } catch (e) { deps.permits.close(permit.id, 'ELIGIBILITY'); throw e; }
   let minted: MintedToken;
   try { minted = await deps.mint(permit, view); } catch (e) {
@@ -40,6 +41,7 @@ export async function issueExecutionCredential(deps: AutomationDeps, worker: Wor
     if (e instanceof MintRefused) deps.permits.close(permit.id, 'EXCHANGE_REFUSED');
     throw e instanceof DelegationError ? e : new DelegationError(503, 'AUTOMATION_EXCHANGE_FAILED', 'The execution credential could not be issued; retry only the same execution.');
   }
-  const bound = deps.permits.bind(permit.id, minted.fingerprint, { sub: minted.sub, azp: minted.azp, exp: minted.exp });
+  let bound = deps.permits.bind(permit.id, minted.fingerprint, { sub: minted.sub, azp: minted.azp, exp: minted.exp });
+  if (mode === 'RESUME') bound = deps.permits.markResumed(bound.id);
   return { accessToken: minted.accessToken, permitId: bound.id, expiresAt: minted.exp * 1000, attempt: bound.attempt, operation: permitOperation(view) };
 }

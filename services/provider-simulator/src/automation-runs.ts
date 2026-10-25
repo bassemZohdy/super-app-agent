@@ -354,12 +354,17 @@ export class AutomationRuns{
       ?trigger.type==='LOW_BALANCE'&&!!this.io.walletBalanceMinor&&this.io.walletBalanceMinor(preparation.accountId)<trigger.belowMinor&&this.reloadAmount(trigger,this.io.walletBalanceMinor(preparation.accountId))===preparation.amountMinor
       :this.io.readPayables(preparation.accountId,preparation.provider)
         .some(payable=>payable.id===preparation.payableId&&payable.revision===preparation.payableRevision&&payable.status==='UNPAID');
+    // The owner's answer to a held card challenge, read from the order itself; anything unreadable is NONE, so the broker refuses to resume.
+    const orderRow=preparation.orderId?this.store.db.prepare('SELECT body FROM payment_authorization_orders WHERE account_id=? AND id=?').get(preparation.accountId,preparation.orderId):undefined;
+    const order=orderRow?JSON.parse(String(orderRow!.body)) as {state?:string;authorization?:{challengeId?:string}}:undefined;
+    const challenged=!!order?.authorization?.challengeId;
+    const challenge:'APPROVED'|'PENDING'|'REJECTED'|'NONE'=!challenged?'NONE':order!.state==='AUTHORIZED'?'APPROVED':order!.state==='REQUIRES_ACTION'?'PENDING':order!.state==='FAILED'||order!.state==='CANCELLED'?'REJECTED':'NONE';
     return {executionId:preparation.id,runId:this.context.runId,accountId:preparation.accountId,ownerSub:String(owner!.owner),
       mandate:{id:mandate.id,state:mandate.state,policyVersion:mandate.policyVersion,skipNext:mandate.skipNext===true},
       source:{id:preparation.sourceId,version:preparation.sourceVersion,current:current?.status==='ACTIVE'&&current?.version===source.expectedVersion},
       biller:mandate.policy.target.kind==='BILLER'?{id:mandate.policy.target.billingAccountId,current:biller?.status==='ACTIVE'&&biller?.version===mandate.policy.target.expectedVersion}:undefined,
       payable:{id:preparation.payableId,revision:preparation.payableRevision,amountMinor:preparation.amountMinor,current:payableCurrent},
-      boundDigest:preparation.boundDigest,preparedAt:preparation.preparedAt,admissionExpiresAt:preparation.admissionExpiresAt,
+      boundDigest:preparation.boundDigest,challenge,preparedAt:preparation.preparedAt,admissionExpiresAt:preparation.admissionExpiresAt,
       expired:Date.now()>Date.parse(preparation.admissionExpiresAt)};
   }
   /** Reservations the preview counts against the current budget period; a read of the same rows preparation sums. */

@@ -84,3 +84,17 @@ test('AUTO-14: the owner rejects the held challenge and the order closes with it
   assert.equal(f.status(f.payableId()), 'UNPAID');
   assert.equal(f.wallet(), before);
 });
+
+test('AUTO-14: the execution view tells the broker whether the owner has answered, approved or rejected the challenge', async t => {
+  const f = held(t), { order, execution } = await f.start();
+  const answer = () => f.db.automationRuns!.readExecution('auto-worker', execution!.id).challenge;
+  assert.equal(answer(), 'PENDING');
+  f.payments.orders!.challenge(f.actor, order.id, { expectedVersion: order.version, approvalDigest: order.approvalDigest, challengeId: order.authorization!.challengeId!, decision: 'APPROVE' }, f.source.payables!.get(f.account, f.payableId()), true);
+  assert.equal(answer(), 'APPROVED');
+});
+
+test('AUTO-14: a rejected challenge reads as REJECTED, so the broker never resumes it', async t => {
+  const f = held(t), { order, execution } = await f.start();
+  f.payments.orders!.challenge(f.actor, order.id, { expectedVersion: order.version, approvalDigest: order.approvalDigest, challengeId: order.authorization!.challengeId!, decision: 'REJECT' }, f.source.payables!.get(f.account, f.payableId()), true);
+  assert.equal(f.db.automationRuns!.readExecution('auto-worker', execution!.id).challenge, 'REJECTED');
+});

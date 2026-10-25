@@ -6,7 +6,7 @@
  *  the caller owns are returned; the caller supplies that set, so no entry crosses an account boundary. */
 import type { JobStore, Job } from './jobs.ts';
 
-export type InboxKind = 'UPCOMING_RUN' | 'PREPARED' | 'SETTLED' | 'SKIPPED' | 'FAILED' | 'HELD' | 'REQUIRES_ACTION';
+export type InboxKind = 'UPCOMING_RUN' | 'PREPARED' | 'SETTLED' | 'SKIPPED' | 'FAILED' | 'HELD' | 'REQUIRES_ACTION' | 'CHALLENGE_ANSWERED';
 export type InboxEntry = {
   id: string; kind: InboxKind; mandateId: string; policyVersion: number; occurrenceKey: string;
   reason?: string; effect: string; at: number;
@@ -17,6 +17,7 @@ const effectOf = (state: Job['state']) => state === 'SETTLED' ? 'Money moved onc
 const headline: Record<InboxKind, string> = {
   UPCOMING_RUN: 'Upcoming run', PREPARED: 'Payment prepared', SETTLED: 'Payment completed', SKIPPED: 'Run skipped',
   FAILED: 'Run did not complete', HELD: 'Run is on hold', REQUIRES_ACTION: 'Your decision is needed',
+  CHALLENGE_ANSWERED: 'Card challenge answered',
 };
 export const inboxHeadline = (kind: InboxKind) => headline[kind];
 

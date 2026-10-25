@@ -19,6 +19,8 @@ export type Job = {
   leaseOwner?: string; leaseExpiresAt: number; fence: number; attempts: number; createdAt: number; updatedAt: number;
 };
 export type Claim = { job: Job; fence: number; workerId: string };
+/** The reason a held job carries while its order waits for the owner's answer to a card challenge. */
+export const CHALLENGE_REASON = 'REQUIRES_ACTION';
 
 export class StaleWorkerError extends Error { readonly code = 'STALE_WORKER'; constructor() { super('This worker no longer holds the job lease.'); } }
 export class JobError extends Error { readonly code: string; constructor(code: string, message: string) { super(message); this.code = code; } }
@@ -131,7 +133,8 @@ export class JobStore {
   claim(workerId: string, ttlMs: number, now = Date.now()): Claim | undefined {
     if (!token.test(workerId) || !Number.isSafeInteger(ttlMs) || ttlMs < 1000) throw new JobError('CLAIM_INVALID', 'Use a named worker and a lease of at least one second.');
     return this.atomic(() => {
-      const found = this.db.prepare(`SELECT * FROM jobs WHERE state IN ('QUEUED','PREPARING','PREPARED','CREDENTIALING','EXECUTING') AND lease_expires_at<=? ORDER BY created_at,id LIMIT 1`).get(now);
+      // A job parked on an owner's card challenge is polled again after its wait; nothing else held is ever claimed.
+      const found = this.db.prepare(`SELECT * FROM jobs WHERE (state IN ('QUEUED','PREPARING','PREPARED','CREDENTIALING','EXECUTING') OR (state='HELD' AND reason=?)) AND lease_expires_at<=? ORDER BY created_at,id LIMIT 1`).get(CHALLENGE_REASON, now);
       if (!found) return undefined;
       const fence = Number(found.fence) + 1;
       this.db.prepare('UPDATE jobs SET lease_owner=?,lease_expires_at=?,fence=?,attempts=attempts+1,updated_at=? WHERE id=?').run(workerId, now + ttlMs, fence, now, String(found.id));
@@ -140,9 +143,9 @@ export class JobStore {
   }
 
   private fenced(claim: Claim, now: number) {
-    const r = this.db.prepare('SELECT lease_owner,lease_expires_at,fence,state FROM jobs WHERE id=?').get(claim.job.id);
+    const r = this.db.prepare('SELECT lease_owner,lease_expires_at,fence,state,reason FROM jobs WHERE id=?').get(claim.job.id);
     if (!r || r.lease_owner !== claim.workerId || Number(r.fence) !== claim.fence || Number(r.lease_expires_at) <= now) throw new StaleWorkerError();
-    return String(r.state) as JobState;
+    return { state: String(r.state) as JobState, reason: r.reason == null ? undefined : String(r.reason) };
   }
   /** Extend a live lease; a stale holder cannot. */
   renew(claim: Claim, ttlMs: number, now = Date.now()) {
@@ -156,14 +159,17 @@ export class JobStore {
   begin(claim: Claim, step: string, now = Date.now()) {
     this.atomic(() => { this.fenced(claim, now); this.db.prepare('INSERT INTO job_attempts(job_id,fence,worker_id,step,at) VALUES(?,?,?,?,?)').run(claim.job.id, claim.fence, claim.workerId, step, now); });
   }
-  /** Move the job to a new state under the fence, optionally attaching facts and one outbox event. */
-  transition(claim: Claim, state: JobState, patch: { runId?: string; executionId?: string; orderId?: string; reason?: string } = {}, event?: { kind: string; body?: Record<string, unknown> }, now = Date.now()): Job {
+  /** Move the job to a new state under the fence, optionally attaching facts and one outbox event.
+   *  `parkMs` keeps a job held on a card challenge claimable again after that wait instead of making it final. */
+  transition(claim: Claim, state: JobState, patch: { runId?: string; executionId?: string; orderId?: string; reason?: string } = {}, event?: { kind: string; body?: Record<string, unknown> }, now = Date.now(), parkMs = 0): Job {
     return this.atomic(() => {
       const current = this.fenced(claim, now);
-      if (!ACTIVE_STATES.includes(current)) throw new JobError('JOB_FINAL', 'This job already reached a final state.');
-      const final = !ACTIVE_STATES.includes(state);
-      this.db.prepare('UPDATE jobs SET state=?,run_id=COALESCE(?,run_id),execution_id=COALESCE(?,execution_id),order_id=COALESCE(?,order_id),reason=?,lease_expires_at=CASE WHEN ? THEN 0 ELSE lease_expires_at END,updated_at=? WHERE id=?')
-        .run(state, patch.runId ?? null, patch.executionId ?? null, patch.orderId ?? null, patch.reason ?? null, final ? 1 : 0, now, claim.job.id);
+      const parkable = current.state === 'HELD' && current.reason === CHALLENGE_REASON;
+      if (!ACTIVE_STATES.includes(current.state) && !parkable) throw new JobError('JOB_FINAL', 'This job already reached a final state.');
+      const parked = state === 'HELD' && patch.reason === CHALLENGE_REASON && parkMs > 0;
+      const final = !ACTIVE_STATES.includes(state) && !parked;
+      this.db.prepare('UPDATE jobs SET state=?,run_id=COALESCE(?,run_id),execution_id=COALESCE(?,execution_id),order_id=COALESCE(?,order_id),reason=?,lease_expires_at=CASE WHEN ? THEN 0 WHEN ? THEN ? ELSE lease_expires_at END,updated_at=? WHERE id=?')
+        .run(state, patch.runId ?? null, patch.executionId ?? null, patch.orderId ?? null, patch.reason ?? null, final ? 1 : 0, parked ? 1 : 0, now + parkMs, now, claim.job.id);
       if (event) this.db.prepare('INSERT OR IGNORE INTO job_outbox(job_id,kind,body,at) VALUES(?,?,?,?)').run(claim.job.id, event.kind, JSON.stringify(event.body ?? {}), now);
       return this.get(claim.job.id)!;
     });

@@ -4,18 +4,21 @@
  *  one credential of the prepared execution, and presents that credential to the dedicated route.
  *  The credential lives only in this process: if the process dies, the job is held for
  *  reconciliation. It is never re-requested, and no payment identity is ever created here. */
-import { JobStore, StaleWorkerError, jobIdentity, type Claim, type Job } from './jobs.ts';
+import { CHALLENGE_REASON, JobStore, StaleWorkerError, jobIdentity, type Claim, type Job } from './jobs.ts';
 
 export type GatewayFailure = Error & { status?: number; code?: string };
 export type PrepareResult = { skipped: true; reason: string } | { id: string; runId: string; orderId: string };
 export type ExecutedOrder = { id: string; state: string; fundsCaptured: boolean; failureCode?: string };
+/** The owner's answer to a held card challenge, asked for once per poll; APPROVED carries the one new credential. */
+export type ChallengeAnswer = { state: 'PENDING' } | { state: 'REJECTED' } | { state: 'APPROVED'; accessToken: string; expiresAt: number };
 /** The worker's whole view of the world; HTTP in production, a fake in tests. */
 export interface ExecutionGateway {
   prepare(input: { mandateId: string; occurrenceKey: string; requestKey: string }): Promise<PrepareResult>;
   credential(runId: string, executionId: string): Promise<{ accessToken: string; expiresAt: number }>;
   execute(runId: string, executionId: string, accessToken: string): Promise<ExecutedOrder>;
+  resume(runId: string, executionId: string): Promise<ChallengeAnswer>;
 }
-export type WorkerOptions = { workerId: string; leaseMs?: number; maxAttempts?: number; stepRetries?: number; retryDelayMs?: number; clock?: () => number; sleep?: (ms: number) => Promise<void> };
+export type WorkerOptions = { workerId: string; leaseMs?: number; maxAttempts?: number; stepRetries?: number; retryDelayMs?: number; challengeWaitMs?: number; clock?: () => number; sleep?: (ms: number) => Promise<void> };
 
 /** Failures only the owner can fix: the worker records them as requiring action and never tries another source or amount. */
 export const OWNER_ACTION_CODES: ReadonlySet<string> = new Set(['CARD_DECLINED', 'CARD_LIMIT_EXCEEDED', 'INSUFFICIENT_AVAILABLE_FUNDS', 'METHOD_EXPIRED', 'METHOD_CHANGED', 'CARD_EXPIRED']);
@@ -28,7 +31,7 @@ export class AutomationWorker {
   readonly store: JobStore; readonly gateway: ExecutionGateway; readonly opts: Required<WorkerOptions>;
   constructor(store: JobStore, gateway: ExecutionGateway, options: WorkerOptions) {
     this.store = store; this.gateway = gateway;
-    this.opts = { leaseMs: 60_000, maxAttempts: 5, stepRetries: 3, retryDelayMs: 500, clock: Date.now, sleep: ms => new Promise(done => setTimeout(done, ms)), ...options };
+    this.opts = { leaseMs: 60_000, maxAttempts: 5, stepRetries: 3, retryDelayMs: 500, challengeWaitMs: 60_000, clock: Date.now, sleep: ms => new Promise(done => setTimeout(done, ms)), ...options };
   }
 
   /** Claim and run at most one job. Returns the job's state afterwards, or undefined when nothing was runnable. */
@@ -51,6 +54,8 @@ export class AutomationWorker {
       store.transition(claim, 'HELD', { reason: 'CREDENTIAL_LOST_AFTER_RESTART' }, { kind: 'HELD', body: { reason: 'CREDENTIAL_LOST_AFTER_RESTART', executionId: claim.job.executionId } }, this.now());
       return;
     }
+    // Only a job parked on a card challenge is claimed while held; it resumes when the owner has answered.
+    if (state === 'HELD') return this.resume(claim);
     let job = claim.job;
     if (state === 'QUEUED' || state === 'PREPARING') {
       const prepared = await this.prepare(claim);
@@ -124,9 +129,36 @@ export class AutomationWorker {
     return undefined;
   }
 
-  private async execute(claim: Claim, runId: string, executionId: string, credential: { accessToken: string; expiresAt: number }) {
+  /** Ask the broker whether the owner answered the held challenge. The job is CREDENTIALING before the request, so a crash
+   *  mid-request is held for reconciliation rather than asked again: a resumed credential is never requested twice. */
+  private async resume(claim: Claim) {
+    const { store } = this, { runId, executionId } = claim.job;
+    store.transition(claim, 'CREDENTIALING', {}, undefined, this.now());
+    store.begin(claim, 'resume', this.now());
+    let answer: ChallengeAnswer;
+    try { answer = await this.gateway.resume(runId!, executionId!); } catch (e) {
+      const code = transient(e) ? 'CREDENTIAL_UNKNOWN' : codeOf(e);
+      store.outcome(claim, `error:${code}`);
+      store.transition(claim, 'HELD', { reason: code }, { kind: 'HELD', body: { reason: code, executionId } }, this.now());
+      return;
+    }
+    if (answer.state === 'PENDING') {
+      store.outcome(claim, 'pending');
+      store.transition(claim, 'HELD', { reason: CHALLENGE_REASON }, undefined, this.now(), this.opts.challengeWaitMs);
+      return;
+    }
+    if (answer.state === 'REJECTED') {
+      store.outcome(claim, 'rejected');
+      store.transition(claim, 'FAILED', { reason: 'CHALLENGE_REJECTED' }, { kind: 'CHALLENGE_ANSWERED', body: { decision: 'REJECT', reason: 'CHALLENGE_REJECTED' } }, this.now());
+      return;
+    }
+    store.outcome(claim, 'approved');
+    await this.execute(claim, runId!, executionId!, answer, { kind: 'CHALLENGE_ANSWERED', body: { decision: 'APPROVE' } });
+  }
+
+  private async execute(claim: Claim, runId: string, executionId: string, credential: { accessToken: string; expiresAt: number }, event?: { kind: string; body?: Record<string, unknown> }) {
     const { store } = this;
-    store.transition(claim, 'EXECUTING', {}, undefined, this.now());
+    store.transition(claim, 'EXECUTING', {}, event, this.now());
     let last = 'OUTCOME_UNKNOWN';
     for (let attempt = 1; attempt <= this.opts.stepRetries; attempt++) {
       // The same credential is the only thing ever retried, and only while it is alive.
@@ -143,7 +175,8 @@ export class AutomationWorker {
           return;
         }
         const reason = order.state === 'REQUIRES_ACTION' ? 'REQUIRES_ACTION' : order.fundsCaptured ? 'OUTCOME_UNKNOWN' : `ORDER_${order.state}`;
-        store.transition(claim, 'HELD', { reason }, { kind: order.state === 'REQUIRES_ACTION' ? 'REQUIRES_ACTION' : 'HELD', body: { reason, orderId: order.id } }, this.now());
+        // A card challenge is parked, not final: the owner's answer is polled for after the wait.
+        store.transition(claim, 'HELD', { reason }, { kind: order.state === 'REQUIRES_ACTION' ? 'REQUIRES_ACTION' : 'HELD', body: { reason, orderId: order.id } }, this.now(), order.state === 'REQUIRES_ACTION' ? this.opts.challengeWaitMs : 0);
         return;
       } catch (e) {
         const code = codeOf(e);

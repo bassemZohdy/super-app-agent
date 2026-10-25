@@ -153,11 +153,11 @@ export async function automationSession(authorization: string | undefined) {
   return { permitId: permit.id, executionId: permit.executionId, operation: permit.operation };
 }
 async function automationCredential(path: string, body: any, authorization?: string): Promise<Reply> {
-  const route = /^\/api\/delegation\/automation\/executions\/([A-Za-z0-9_-]{1,200})\/credential$/.exec(path);
+  const route = /^\/api\/delegation\/automation\/executions\/([A-Za-z0-9_-]{1,200})\/(credential|resume-credential)$/.exec(path);
   if (!route) return { status: 404, data: { success: false, code: 'NOT_FOUND' } };
   let claims: JwtClaims;
   try { claims = await verifyJwt(authorization, 'delegation-api'); } catch { throw new DelegationError(401, 'AUTOMATION_WORKER_REQUIRED', 'A valid automation workload token is required.'); }
-  const out = await issueExecutionCredential(automationDeps(), { ...claims, azp: String(claims.azp) }, authorization!, { runId: body?.runId, executionId: route[1] });
+  const out = await issueExecutionCredential(automationDeps(), { ...claims, azp: String(claims.azp) }, authorization!, { runId: body?.runId, executionId: route[1] }, route[2] === 'resume-credential' ? 'RESUME' : 'FIRST');
   return { status: 200, data: { success: true, ...out } };
 }
 export async function handleDelegation(method: string, path: string, body: any, authorization?: string): Promise<Reply | undefined> {

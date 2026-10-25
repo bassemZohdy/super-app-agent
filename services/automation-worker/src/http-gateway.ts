@@ -3,7 +3,7 @@
  *  never logged or stored here. */
 import { tracedFetch as fetch } from '../../../packages/backend-kit/src/observability.ts';
 import { ClientCredentials } from '../../../packages/backend-kit/src/oauth.ts';
-import type { ExecutedOrder, ExecutionGateway, GatewayFailure, PrepareResult } from './worker.ts';
+import type { ChallengeAnswer, ExecutedOrder, ExecutionGateway, GatewayFailure, PrepareResult } from './worker.ts';
 
 export type HttpGatewayConfig = { runId: string; paymentsUrl: string; brokerUrl: string; clientSecret: string; clientId?: string };
 
@@ -44,6 +44,20 @@ export class HttpExecutionGateway implements ExecutionGateway {
     const data = await this.call(this.config.brokerUrl, `/api/delegation/automation/executions/${encodeURIComponent(executionId)}/credential`, await this.credentials.token(), { runId });
     if (typeof data.accessToken !== 'string' || !Number.isFinite(data.expiresAt)) throw failure(502, 'CREDENTIAL_INVALID', 'The credential response was incomplete.');
     return { accessToken: data.accessToken as string, expiresAt: Number(data.expiresAt) };
+  }
+  /** One poll for the owner's answer. The broker refuses a pending or rejected answer before it issues anything. */
+  async resume(runId: string, executionId: string): Promise<ChallengeAnswer> {
+    if (runId !== this.config.runId) throw failure(400, 'RUN_MISMATCH', 'The job belongs to another run.');
+    try {
+      const data = await this.call(this.config.brokerUrl, `/api/delegation/automation/executions/${encodeURIComponent(executionId)}/resume-credential`, await this.credentials.token(), { runId });
+      if (typeof data.accessToken !== 'string' || !Number.isFinite(data.expiresAt)) throw failure(502, 'CREDENTIAL_INVALID', 'The credential response was incomplete.');
+      return { state: 'APPROVED', accessToken: data.accessToken as string, expiresAt: Number(data.expiresAt) };
+    } catch (e) {
+      const code = (e as GatewayFailure).code;
+      if (code === 'CHALLENGE_PENDING') return { state: 'PENDING' };
+      if (code === 'CHALLENGE_REJECTED') return { state: 'REJECTED' };
+      throw e;
+    }
   }
   async execute(runId: string, executionId: string, accessToken: string): Promise<ExecutedOrder> {
     if (runId !== this.config.runId) throw failure(400, 'RUN_MISMATCH', 'The job belongs to another run.');
