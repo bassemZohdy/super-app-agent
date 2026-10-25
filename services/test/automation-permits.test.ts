@@ -205,3 +205,16 @@ test('AUTO-03 3b: only an admitted, unexpired token keeps a session, and it name
   assert.throws(() => store.session(fingerprint, owner, brokerClient, NOW + 61_000), code('PERMIT_EXPIRED'));
   assert.throws(() => store.session(tokenHash('unknown'), owner, brokerClient, NOW), code('TOKEN_NOT_BOUND'));
 });
+
+test('AUTO-03 step 4: two connections racing to consume one bound token admit exactly one', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'cityside-permit-race-')), path = join(dir, 'permits.sqlite');
+  const a = new PermitStore(new DatabaseSync(path)), b = new PermitStore(new DatabaseSync(path));
+  try {
+    const permit = a.issue(worker, view(), NOW), fingerprint = tokenHash('race-token');
+    a.bind(permit.id, fingerprint, { sub: owner, azp: brokerClient, exp: exp(60_000) }, NOW);
+    const op = permitOperation(view());
+    const results = [a, b].map(store => { try { return store.authorize(fingerprint, owner, brokerClient, op, NOW).state; } catch (e) { return (e as DelegationError).code; } });
+    assert.deepEqual([...results].sort(), ['CONSUMED', 'PERMIT_ALREADY_CONSUMED']);
+    assert.equal(b.get(permit.id).state, 'CONSUMED');
+  } finally { a.db.close(); b.db.close(); try { rmSync(dir, { recursive: true, force: true }); } catch { /* Windows may briefly hold the directory */ } }
+});
