@@ -4,6 +4,8 @@ import { accountIdFor } from '../../../packages/backend-kit/src/context.ts';
 
 export const brokerClient = 'delegation-broker';
 export const runnerClient = 'delegation-runner';
+/** Dedicated service-account workload that requests per-execution automation credentials. */
+export const automationWorkerClient = 'automation-worker';
 export const idpAlias = 'trusted-delegation-issuer';
 export class DelegationError extends Error {
   status: number; code: string;

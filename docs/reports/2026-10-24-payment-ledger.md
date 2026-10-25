@@ -1,6 +1,6 @@
 # Payment journal migration — 24 October 2026
 
-PAY-02 delivered after payment-account checkpoint `65fec3c`. The accompanying publication commit identifies the exact journal source. [Storage/migration/recovery guide](../development/payment-ledger.md) · [Remaining payment tasks](../../TODO.md#payment-accounts-and-automation-demo--planned-backlog).
+PAY-02 delivered after payment-account checkpoint `65fec3c`. The accompanying publication commit identifies the exact journal source. [Storage/migration/recovery guide](../development/payment-ledger.md) · [Remaining payment tasks](../../TODO.md).
 
 ## Executed evidence
 

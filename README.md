@@ -2,7 +2,23 @@
 
 A runnable city-services demo with a conversational concierge, independently persisted provider APIs, Keycloak authentication, Redis sessions, and a checkpointed LangGraph approval flow. RTA, DEWA, Etisalat, du, Dubai Police and Dubai Land Department are **simulated entities**. Payments use simulated funds; no real government or financial system is connected.
 
-[Current implementation and verification](docs/STATUS.md) · [Documentation index](docs/INDEX.md) · [Remaining tasks](TODO.md). Latest executed application checkpoint: `cd3c7d5`, 533 Node tests and 18 workspace builds. Since then, multi-group surface dispatch (P1-12), explicit-selection and disabled-action parity (P1-12/P1-13), choice-group and telecom route contract semantics (P1-14), application request-body validation (P2-05), guarded scenario failpoint controls (SIM-04/SIM-05) and the AUTO-03 isolated-run preparation checkpoint landed with focused tests (570 offline tests; [evidence](docs/reports/2026-10-25-p1-parity-automation-preparation.md)).
+[What exists today](#what-exists-today) · [Documentation index](docs/INDEX.md) · [Open work](TODO.md) · [Verification evidence](docs/reports/README.md)
+
+## What exists today
+
+| Area | Implemented in the local demo | Not claimed |
+| --- | --- | --- |
+| Runtime | Concierge plus six application APIs and seven account-scoped provider simulators; real HTTP boundaries and SQLite persistence | Real agency, UAE PASS, bank or PSP integration; records and funds are synthetic |
+| Identity | Keycloak 26.6.4 pinned by digest; browser PKCE, signed ownership checks, introspection, separate RFC 7523 delegation broker | Production identity, custom actor mapper, multi-hop authority; local HTTP with seeded credentials |
+| Conversation | Bounded LangGraph review/execute flow, Redis ownership/leases/checkpoints/replay, explicit approval and cancellation, authenticated MCP | Model-selected tool plans, general workflow engine or compensation |
+| Text and voice | Internal local Qwen/llama.cpp, KittenTTS and Whisper; React/Angular voice settings, reviewable English/Arabic dictation | Arabic speech, physical device and native evaluation |
+| Payments | Linked billers and synthetic saved cards; finite wallet/card reviews; bills, exact fines, prepaid/toll recharges, wallet funding, grouped checkout, original-source refunds, signed events, recovery and statements | Real cards or money; atomic multi-provider settlement (cross-provider effects are sequential with truthful partial and unknown states) |
+| Automation | Finite versioned consent records that can be paused, resumed, skipped and revoked in the React panel; run-scoped preparation of automatic executions in isolated simulator runs | Execution: no worker, credentials or spending are enabled, and mandates return `executionEnabled:false` |
+| Simulator | Persistent business clock, eight isolated issuer outcomes, guarded run-scoped failpoint controls, read-only run inspector, partial lifecycle fixtures | Network admin panel, full lifecycle event generation |
+| Shells | React primary; Angular and Flutter comparison shells | Full payment, accessibility, localization and native-device parity |
+| Operations | Fifteen Node processes with private telemetry, correlation IDs, dependency readiness, bounded shutdown, encrypted cold restore and fenced single-writer rehearsal | Replicated HA, scheduled off-host backup, immutable audit archive |
+
+Open work is tracked only in [TODO.md](TODO.md); the delivered record is the [changelog](docs/CHANGELOG.md); what was verified, when and against which revision is the [evidence register](docs/reports/README.md). Dated reports and recordings state what was true at their own checkpoint.
 
 ## Run the integrated demo
 
@@ -111,58 +127,20 @@ npm run recordings:serve
 
 Watch [the latest recording](http://localhost:3300) or open its [checked-in viewer](docs/recordings/index.html).
 
-## Payment accounts and planned automation
+## Payments and automation
 
-Open **Payment accounts** in React to save synthetic card presets, link provider-verified biller references and review a fresh quote with your chosen source. Prepaid/vehicle discovery, defaults, disabled cards, account switching, source versions and active-use removal guards are checked; the preview does not move funds. Linked bill/fine history now shows source-owned revisions, due/closed states and seeded prior cycles. Bill service payments share the stored wallet-order flow. [Guide and compatibility](docs/development/payment-accounts.md) · [Executed checks](docs/reports/2026-10-24-payment-checkout.md).
+Open **Payment accounts** in React to save synthetic card presets and link provider-verified billers, then pay bills, exact fine sets and toll/prepaid recharges from the wallet or a saved card, fund the wallet, check out a group, refund through the original source, recover pending payments and browse statements. Every step is an explicit reviewed action: review, bound authorization, optional one-time challenge, then Pay. Lost responses and restarts keep the original payment identity and recover through the owner's inspection, never through a blind retry.
 
-[Stored authorization reviews](docs/development/payment-authorization.md) now support explicit owner approval, finite card/wallet holds, one-time demo challenges and cancellation. Bills now have a separate explicit Pay action with provider admission, capture, recovery and confirmed receipts. Run `npm run demo:verify:payment-authorization` for its isolated browser verification.
+Each capability has a guide in the [documentation index](docs/INDEX.md#payments-and-simulation) with its paced recording and verification command. The automation design and its security contract are in [payment-automation-demo](docs/architecture/payment-automation-demo.md) and [payment-automation-security](docs/architecture/payment-automation-security.md).
 
-Current wallet payments now append balanced journal entries, with one-time legacy balance migration and checked posted/held/available funds. [Journal and recovery guide](docs/development/payment-ledger.md) · [Live migration evidence](docs/reports/2026-10-24-payment-ledger.md).
+`npm run simulator:verify` exercises the persisted preview business clock across separate processes; it emits descriptive due events and resets its isolated run without touching provider funds ([commands and limits](docs/development/simulator.md)).
 
-[Payment recovery](docs/development/payment-reconciliation.md) now inspects original capture/provider evidence, resumes existing operations and creates separately approved refund reviews. Saved outcomes and audit survive reload/restart. [Paced recording](docs/recordings/payment-reconciliation/index.html).
+## Operations and recovery
 
-[Statements & funding history](docs/development/payment-history.md) now page posted journal effects and all payment activity, with exact running balances, original masked source/biller and separate pending/refund outcomes. [Paced recording](docs/recordings/payment-history/index.html).
-
-[Automation security review](docs/architecture/payment-automation-security.md) now defines the trusted admission/permit/budget boundary and hardens the existing broker against implicit permission growth, substituted authority and stale results. Scheduled spending remains disabled pending shared reservations, execution permits and worker admission gates. [Executed checks](docs/reports/2026-10-24-automation-security.md).
-
-[Owner/workspace lifecycle](docs/development/payment-lifecycle.md) now blocks new authority for restricted owners/memberships, invalidates old approvals after restoration and identifies original in-flight work. A separate local operator CLI controls permission decisions; the browser keeps the current workspace and never moves a rule to another source. [Paced recording](docs/recordings/payment-lifecycle/index.html) · [Evidence](docs/reports/2026-10-24-payment-lifecycle.md).
-
-The [payment backlog](TODO.md#payment-accounts-and-automation-demo--planned-backlog) tracks 50 tasks: 24 slices delivered and 26 open. The remaining work covers automatic-caller reservation qualification, bounded autopay/automatic services and deterministic clock/failure simulation. [Full design](docs/architecture/payment-automation-demo.md).
-
-Use `npm run simulator:verify` to try the persisted preview-only business clock across separate processes. It emits descriptive due events and resets its isolated run without touching provider funds. [Commands and limits](docs/development/simulator.md) · [Lifecycle/scenario evidence](docs/reports/2026-10-24-lifecycle-simulator.md). Automatic execution and its scenario controls remain in the backlog.
+P2-02 is complete for the local demo: protected, redacted trace/metric inspection, correlated request/run/workflow/tool/approval IDs, dependency-aware readiness, stuck-work/backpressure alerts and encrypted cold backups. Start with `npm run ops:init`; use `npm run ops:inspect` after recreating the Node containers. The [operations runbook](docs/development/operations.md) covers qualification SLOs, backup/restore and fenced single-writer failover; [executed evidence](docs/reports/2026-10-24-operations.md) records the tested boundary. Production HA remains a separate release requirement.
 
 ## Documentation
 
 [Documentation index](docs/INDEX.md) · [System overview](docs/architecture/system-overview.md) · [Provider contracts](docs/architecture/service-contracts.md) · [Session and stream behavior](docs/architecture/event-stream.md) · [Testing](docs/development/testing.md) · [Change history](docs/CHANGELOG.md)
 
 License: MIT.
-
-[Settlement claims and refund guards](docs/development/settlement-claims.md) now protect existing provider payments from stale-proof/refund races. Old unrefunded captures are conservatively marked unknown until source reconciliation; the migration preserves balances and history. Bill capture is now enabled through approved orders; autopay remains open.
-
-[End-to-end wallet/card bill payments](docs/development/payment-checkout.md): authorize, explicitly Pay, inspect a provider-confirmed receipt, or recover the original pending payment. Existing conversational bill payments share the same wallet-order path.
-
-[Saved-card wallet funding](docs/development/wallet-funding.md) now provides review, bound authorization/challenge, explicit card capture and one balanced wallet credit. [Watch its paced recording](docs/recordings/wallet-funding/index.html) or run `npm run record:wallet-funding`.
-
-[Exact-set fine payments](docs/development/fine-checkout.md) now support wallet and saved cards, current discounts/restrictions, shared per-fine reservations and confirmed receipts. [Paced recording](docs/recordings/fine-checkout/index.html).
-
-[Wallet/card provider recharges](docs/development/provider-recharges.md) now credit owned Salik tags and Etisalat/du prepaid lines with displayed denominations, bound challenges, pending recovery and confirmed provider balances. [Six paced journeys](docs/recordings/recharge-checkout/index.html).
-
-[Grouped checkout](docs/development/checkout-groups.md) now uses one selected wallet/card across sequential child payments, with explicit review, per-line challenges, partial receipts and original-payment recovery. [Paced success/partial demo](docs/recordings/checkout-groups/index.html).
-
-[Original-source refunds](docs/development/payment-refunds.md) now support full demo bill/fine cancellation, bounded partial toll/mobile-credit return and card-funded wallet reversal with no overdraft. Provider reversal precedes money return; unknown outcomes retain their original refund identity. [Paced refund demo](docs/recordings/payment-refunds/index.html).
-
-[Signed financial status events](docs/development/payment-events.md) now use transactional outboxes, persisted delivery leases and an authenticated deduplicating gateway inbox. Source notifications prompt owner recovery of the original operation; callbacks do not move funds or assert bill settlement. [Response-loss recovery recording](docs/recordings/payment-events/index.html). PAY-18 covers current manual paths; general simulator fault controls and automatic-caller qualification retain separate gates.
-
-[Isolated issuer scenarios](docs/development/issuer-scenarios.md) now provide eight authenticated operator presets, including persisted pending decisions and refund failure. `npm run simulator:issuer` executes the isolated matrix; [the paced recording](docs/recordings/issuer-scenarios/index.html) shows customer outcomes and a pending provider restart. Normal provider controls remain unavailable.
-
-[Finite payment/service consent](docs/development/payment-mandates.md) now records six exact policy families with explicit owner approval, immutable versions and guarded lifecycle references. `npm run demo:verify:mandates` proves signed ownership/restart and zero consent-time money effects. Automatic execution remains disabled pending the worker and per-execution authority tasks.
-
-[Conversational payment reviews](docs/development/payment-surfaces.md) now select wallet/card funding and separate exact authorization, challenge and payment. Header cancellation releases original holds; reload and lost responses retain the original payment. `demo:verify:payment-surfaces` validates the signed flow; [paced recording](docs/recordings/payment-surfaces/index.html).
-
-[Signed payment events](docs/development/payment-events.md) now cover retained raw capture/refund and parking activation/extension alongside stored payment paths. Owner-only **Inspect original capture** re-reads existing provider status; callbacks never settle claims or create funds. [Paced legacy/parking recording](docs/recordings/legacy-payment-events/index.html).
-
-[Business reservations and original attempts](docs/development/payment-obligations.md) now exclude overlapping fines and recharge target versions before authorization, retain unknown attempts across restart and expose original payment IDs in the lifecycle view. [Paced recording](docs/recordings/payment-obligations/index.html). PAY-08 remains open for actual automatic-caller qualification; no scheduled authority is enabled.
-
-## Operations and recovery
-
-P2-02 is complete for the local demo: protected, redacted trace/metric inspection, correlated request/run/workflow/tool/approval IDs, dependency-aware readiness, stuck-work/backpressure alerts and encrypted cold backups. Start with `npm run ops:init`; use `npm run ops:inspect` after recreating the Node containers. The [operations runbook](docs/development/operations.md) covers qualification SLOs, backup/restore and fenced single-writer failover; [executed evidence](docs/reports/2026-10-24-operations.md) records the tested boundary. Production HA remains a separate release requirement.

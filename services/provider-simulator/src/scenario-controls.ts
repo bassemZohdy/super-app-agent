@@ -14,7 +14,8 @@ export class ScenarioControlError extends Error { readonly status:number; readon
   constructor(status:number,code:string,message:string){super(message);this.status=status;this.code=code;} }
 const deny=(code:string,message:string,status=409):never=>{throw new ScenarioControlError(status,code,message);};
 
-const armSchemaProperties={name:{type:'string',enum:[...FAILPOINTS]},times:{type:'integer',minimum:1,maximum:100},requestKey:{type:'string',pattern:'^[A-Za-z0-9_-]{8,100}$',minLength:8,maxLength:100}};
+/** Request schema for arming a failpoint over HTTP; derived from the registry so a new failpoint is armable without a second edit. */
+export const scenarioArmSchema={type:'object',properties:{name:{type:'string',enum:[...FAILPOINTS]},times:{type:'integer',minimum:1,maximum:100},requestKey:{type:'string',pattern:'^[A-Za-z0-9_-]{8,100}$',minLength:8,maxLength:100}},required:['name','requestKey'],additionalProperties:false};
 
 export class ScenarioControls{
   readonly store:AccountDatabase;readonly run:IssuerScenarios;

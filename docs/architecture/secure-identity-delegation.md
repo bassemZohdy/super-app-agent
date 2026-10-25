@@ -1,6 +1,6 @@
 # Secure identity delegation — analysis and proposed implementation
 
-**Reviewed:** 24 October 2026. **Status:** original planning analysis; the bounded local implementation is now accepted under [ADR-0012](../adr/ADR-0012-secure-delegation-demo.md), following the instruction to start. **Target:** local synthetic demo. Production/security release approval remains separate. [OBO backlog](../../TODO.md#proposed-secure-identity-delegation--obo).
+**Reviewed:** 24 October 2026. **Status:** original planning analysis; the bounded local implementation is now accepted under [ADR-0012](../adr/ADR-0012-secure-delegation-demo.md), following the instruction to start. **Target:** local synthetic demo. Production/security release approval remains separate. [OBO backlog](../../TODO.md#production-gate-separate-from-the-demo).
 
 This records the pre-implementation analysis of the supplied blueprint and tagged sources. The [implementation guide](../development/delegation.md) and [execution evidence](../reports/2026-10-24-delegation-demo.md) now describe the separate broker, grant authority, private-key exchange, provider enforcement, consent controls and deliberate limits. The gap table below is the earlier baseline. No custom mapper or preview feature was installed; production certification is not claimed.
 
@@ -154,7 +154,7 @@ Recommended first read is an existing owned balance/status capability, with the 
 
 Rollback must disable new delegation issuance, revoke active grants/bindings, cancel pending delegated execution and remove the optional mapper/policies with a tested migration. Preserve interactive login, existing UUIDs and unrelated service lanes. Do not silently restore header-based impersonation on delegated endpoints. Production additionally requires persistent Keycloak database, TLS/hostname/proxy configuration, restricted networks, non-root optimized images, vault/KMS controls, backups/restore, HA/replay-state validation and an incident runbook; localhost `start-dev` is insufficient.
 
-The detailed [TODO tasks](../../TODO.md#proposed-secure-identity-delegation--obo) refine existing P0/P1/P2 requirements; checking a demo task does not close their broader production acceptance criteria. This proposal does not re-enable GitHub workflows or authorize a production rollout.
+The detailed [TODO tasks](../../TODO.md#production-gate-separate-from-the-demo) refine existing P0/P1/P2 requirements; checking a demo task does not close their broader production acceptance criteria. This proposal does not re-enable GitHub workflows or authorize a production rollout.
 
 ## Standards references
 

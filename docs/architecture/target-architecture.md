@@ -6,7 +6,7 @@ The bounded [delegation demo](../development/delegation.md) now implements expli
 
 **Status:** **Proposed**—not implemented by the current demonstration. This describes design direction for future ADRs and implementation plans, not current production readiness.
 
-The selected next demo workstream is the [payment accounts and automation plan](payment-automation-demo.md). It narrows the general workflow direction into finite wallet/card payments, explicit mandates, a small local persistent worker and deterministic simulation. Its [backlog](../../TODO.md#payment-accounts-and-automation-demo--planned-backlog) contains delivered manual-payment slices and open automation gates; it does not implement a scheduler or production authority.
+The selected next demo workstream is the [payment accounts and automation plan](payment-automation-demo.md). It narrows the general workflow direction into finite wallet/card payments, explicit mandates, a small local persistent worker and deterministic simulation. Open work is tracked in [TODO.md](../../TODO.md); the demo does not implement a scheduler or production authority.
 
 ## Goal and decision boundary
 
@@ -87,4 +87,4 @@ HITL authorization must use immutable server-side quotations, actor+subject bind
 5. **Standards UI:** official AG-UI/A2UI bindings, vetted renderer catalog, mobile/web parity.
 6. **Operations:** HA/DR, monitoring, load testing, offline/air-gap packaging if required.
 
-See [TODO](../../TODO.md), [security](../../SECURITY.md), [current demo status/evidence](../STATUS.md) and ADRs for implemented boundaries and current decisions.
+See [TODO](../../TODO.md), [security](../../SECURITY.md), [what exists today](../../README.md#what-exists-today) and ADRs for implemented boundaries and current decisions.

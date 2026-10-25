@@ -19,7 +19,7 @@ Architecture review applied the orchestrator's context → specialist review →
 
 ## Acceptance and tradeoffs
 
-The [initial acceptance report](../reports/2026-10-24-demo-completion.md) records its dated gates, exceptions and mapping of original TODO groups. [Current status](../STATUS.md) and the [evidence register](../reports/README.md) identify subsequent implementation and checks. The original production criteria remain visible and unchecked where only part is delivered. [TODO](../../TODO.md) remains the source of remaining requirements; this ADR does not waive or relabel unfinished features as complete.
+The [initial acceptance report](../reports/2026-10-24-demo-completion.md) records its dated gates, exceptions and mapping of original TODO groups. [what exists today](../../README.md#what-exists-today) and the [evidence register](../reports/README.md) identify subsequent implementation and checks. The original production criteria remain visible and unchecked where only part is delivered. [TODO](../../TODO.md) remains the source of remaining requirements; this ADR does not waive or relabel unfinished features as complete.
 
 Source mounts and public demo credentials make the local stack easy to inspect and reset, but are unsuitable for public deployment. Redis AOF `everysec` plus SQLite provides ordinary restart persistence. P2-02 subsequently adds tested local cold backup/restore and fenced recovery; replicated HA, lossless external transactions and production disaster recovery remain unqualified. Three reference renderers cost more maintenance and do not imply identical component/accessibility/device support.
 
@@ -33,4 +33,4 @@ A real provider contract, public hosting request, remote-agent requirement, remo
 - **Bounded delegated identity:** [ADR-0012](ADR-0012-secure-delegation-demo.md) accepts the supported RFC 7523 broker, current exact grants and limited synthetic writes. It does not authorize general recurring spending or preview features.
 - **Local operating quality:** P2-02 at `cd3c7d5` adds private telemetry, dependency readiness, graceful shutdown, load/soak and encrypted cold recovery with explicit RPO/RTO procedures. It does not add a replicated production deployment or automated off-host backups. [Runbook](../development/operations.md).
 
-[Current implementation/status](../STATUS.md) and [remaining tasks](../../TODO.md) supersede earlier checkpoint summaries without changing the local-only delivery target.
+[what exists today](../../README.md#what-exists-today) and [remaining tasks](../../TODO.md) supersede earlier checkpoint summaries without changing the local-only delivery target.
