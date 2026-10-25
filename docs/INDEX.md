@@ -45,6 +45,7 @@ Payments use synthetic funds only. Automatic execution is disabled; open work is
 | [Financial events](development/payment-events.md) | Signed outbox/inbox, delivery leases and inspection-only callbacks |
 | [Issuer scenarios](development/issuer-scenarios.md) | Isolated operator-bound finite issuer outcomes |
 | [Mandates](development/payment-mandates.md) | Finite consent records; execution disabled |
+| [Automation worker](development/automation-worker.md) | Off-by-default leased jobs; no schedule yet |
 | [Payment surfaces](development/payment-surfaces.md) | Shared explicit review, challenge, pay, cancel and recovery actions |
 | [Reconciliation](development/payment-reconciliation.md) | Owned evidence-bound inspections and guarded original-operation actions |
 | [History/receipts](development/payment-history.md) | Snapshot-paginated journals/activity and original-source details |

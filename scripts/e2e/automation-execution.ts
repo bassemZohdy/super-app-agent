@@ -8,6 +8,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { startEnvironment } from './environment.ts';
+import { JobStore } from '../../services/automation-worker/src/jobs.ts';
+import { AutomationWorker } from '../../services/automation-worker/src/worker.ts';
+import { HttpExecutionGateway } from '../../services/automation-worker/src/http-gateway.ts';
 import { MANDATE_ACTOR, type MandatePolicy } from '../../packages/protocol-core/src/payment-mandates.ts';
 
 const scratch = mkdtempSync(join(tmpdir(), 'cityside-auto-broker-'));
@@ -198,6 +201,43 @@ try {
   assert.ok(retry.status >= 400 && await wallet() === beforePause, 'a rejected execution cannot be revived');
   assert.equal((await call(`${paymentsUrl}/payment-orders/${revoked.orderId}`, owner)).data.order.state, 'CANCELLED');
   console.log('PASS: pausing the rule before admission denies the held credential; the order is closed, its reservation released and no money moves.');
+  // ---- The persistent worker drives the same path from a leased job; two workers race over one job file. ----
+  const jobsPath = join(scratch, 'jobs.sqlite'), storeA = new JobStore(jobsPath), storeB = new JobStore(jobsPath);
+  const gatewayConfig = { runId: env.automationRunId!, paymentsUrl: `http://localhost:${env.corePort + 107}`, brokerUrl, clientSecret: readFileSync('.data/delegation/automation-worker-secret', 'utf8').trim() };
+  const workerMandate = await newMandate();
+  n++;
+  const workerBill = `e2e-auto-bill-${n}`;
+  env.providerStores.get('dewa')!.put(accountId, 'bill', { billId: workerBill, accountNumber: dewa.reference, totalAmount: 150, status: 'UNPAID', dueDate: due }, workerBill);
+  const job = storeA.enqueue({ mandateId: workerMandate.id, policyVersion: workerMandate.policyVersion, occurrenceKey: 'occ-worker-1', target: `dewa-${billing.id}` });
+  assert.equal(storeB.enqueue({ mandateId: workerMandate.id, policyVersion: workerMandate.policyVersion, occurrenceKey: 'occ-worker-1', target: `dewa-${billing.id}` }).id, job.id);
+  const beforeWorker = await wallet();
+  const results = await Promise.all([
+    new AutomationWorker(storeA, new HttpExecutionGateway(gatewayConfig), { workerId: 'worker-a' }).runOnce(),
+    new AutomationWorker(storeB, new HttpExecutionGateway(gatewayConfig), { workerId: 'worker-b' }).runOnce(),
+  ]);
+  assert.equal(results.filter(Boolean).length, 1, 'only one worker obtained the leased job');
+  const finished = storeA.get(job.id)!;
+  assert.equal(finished.state, 'SETTLED', JSON.stringify(finished));
+  assert.equal(await wallet(), beforeWorker - 15000, 'the worker-driven job debited the wallet once');
+  assert.ok(paid(workerBill));
+  assert.deepEqual(storeA.outbox(job.id).map(e => e.kind), ['PREPARED', 'SETTLED']);
+  assert.equal(await new AutomationWorker(storeB, new HttpExecutionGateway(gatewayConfig), { workerId: 'worker-c' }).runOnce(), undefined, 'a settled job is never run again');
+  assert.equal(await wallet(), beforeWorker - 15000);
+  // A job whose rule has since been paused fails definitively: nothing moves and the reservation is released.
+  n++;
+  const stoppedBill = `e2e-auto-bill-${n}`, stoppedRule = await newMandate();
+  env.providerStores.get('dewa')!.put(accountId, 'bill', { billId: stoppedBill, accountNumber: dewa.reference, totalAmount: 150, status: 'UNPAID', dueDate: due }, stoppedBill);
+  const beforeStopped = await wallet();
+  const stoppedJob = storeA.enqueue({ mandateId: stoppedRule.id, policyVersion: stoppedRule.policyVersion, occurrenceKey: 'occ-worker-2', target: `dewa-${billing.id}` });
+  const ruleNow = (await call(`${paymentsUrl}/payment-mandates/${stoppedRule.id}`, owner)).data.mandate;
+  assert.equal((await call(`${paymentsUrl}/payment-mandates/${stoppedRule.id}/pause`, owner, { expectedVersion: ruleNow.version })).status, 200);
+  const stopped = await new AutomationWorker(storeA, new HttpExecutionGateway(gatewayConfig), { workerId: 'worker-a' }).runOnce();
+  assert.equal(stopped!.id, stoppedJob.id);
+  assert.equal(stopped!.state, 'SKIPPED', JSON.stringify(stopped));
+  assert.equal(await wallet(), beforeStopped);
+  assert.equal(paid(stoppedBill), false);
+  storeA.close(); storeB.close();
+  console.log('PASS: the persistent worker settles a leased job once under a two-worker race, never reruns it, and skips a paused rule without moving money.');
 } finally {
   if (restoreBroker) execFileSync('docker', ['compose', '-f', 'docker-compose.demo.yml', 'up', '-d', '--force-recreate', '--wait', 'delegation-broker'], { stdio: 'ignore' });
   try { await env?.cleanup(); } catch { /* Windows may briefly hold SQLite files */ }
