@@ -30,7 +30,7 @@ test('AUTO-04: owner amounts in AED become whole fils, with at most two decimals
 });
 
 test('AUTO-04: expanding raises the cap and refuses to lower or keep it', async () => {
-  const { expandPerPayment, changeSource } = await import('../../packages/protocol-core/src/mandate-narrow.ts');
+  const { expandPerPayment } = await import('../../packages/protocol-core/src/mandate-narrow.ts');
   const out = expandPerPayment(policy, 60000);
   assert.equal(out.ok, true);
   assert.equal((out as any).policy.limits.perPaymentMinor, 60000);
