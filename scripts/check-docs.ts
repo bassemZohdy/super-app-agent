@@ -3,7 +3,7 @@ import { join, dirname, resolve, extname } from 'node:path';
 
 const walk = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap(entry =>
   entry.isDirectory() ? walk(join(dir, entry.name)) : entry.name.endsWith('.md') ? [join(dir, entry.name)] : []);
-const files = ['README.md', 'TODO.md', 'SECURITY.md', 'services/voice/THIRD_PARTY.md', ...walk('docs')];
+const files = ['README.md', 'TODO.md', 'AGENTS.md', 'SECURITY.md', 'services/voice/THIRD_PARTY.md', ...walk('docs')];
 const scripts = JSON.parse(readFileSync('package.json', 'utf8')).scripts as Record<string, string>;
 const errors: string[] = [];
 const contents = new Map(files.map(file => [resolve(file), readFileSync(file, 'utf8')]));
@@ -50,18 +50,24 @@ for (const file of files) {
   if (!historical) for (const match of source.matchAll(/\bnpm run ([\w:-]+)/g)) if (!Object.hasOwn(scripts, match[1])) errors.push(`${file}: unknown npm script ${match[1]}`);
 }
 
+// TODO.md is the only task tracker: unique IDs, short bullets, no second status file, no counts elsewhere.
 const todo = readFileSync('TODO.md', 'utf8'), ids = new Set<string>();
-const groups = new Map<string, { total: number; checked: number }>();
-for (const match of todo.matchAll(/^- \[([ x])\] \*\*(([A-Z][A-Z0-9]*)-\d+)\b/gm)) {
+const maxTaskBullet = 700;
+for (const line of todo.split('\n')) {
+  const match = /^- \[([ x])\] \*\*(([A-Z][A-Z0-9]*)-\d+)\b/.exec(line);
+  if (!match) continue;
   if (ids.has(match[2])) errors.push(`TODO.md: duplicate task ${match[2]}`);
-  ids.add(match[2]); const group = groups.get(match[3]) ?? { total: 0, checked: 0 };
-  group.total++; if (match[1] === 'x') group.checked++; groups.set(match[3], group);
+  ids.add(match[2]);
+  if (match[1] === 'x') errors.push(`TODO.md: ${match[2]} is checked; delete delivered tasks and record them in docs/CHANGELOG.md`);
+  if (line.length > maxTaskBullet) errors.push(`TODO.md: ${match[2]} is ${line.length} characters; keep task bullets under ${maxTaskBullet} and move detail to a guide or the changelog`);
 }
-const status = readFileSync('docs/STATUS.md', 'utf8'), documented = new Set<string>();
-for (const match of status.matchAll(/^\| (P0|P1|P2|OBO|PAY|AUTO|SIM|QA)\b[^|]*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|/gm)) {
-  const group = groups.get(match[1]); documented.add(match[1]);
-  if (!group || group.total !== Number(match[2]) || group.checked !== Number(match[3]) || group.total - group.checked !== Number(match[4])) errors.push(`docs/STATUS.md: ${match[1]} counts disagree with TODO.md`);
+if (existsSync('docs/STATUS.md')) errors.push('docs/STATUS.md: task status lives only in TODO.md; remove this file');
+const trackedElsewhere = /\b\d+ (?:tasks|slices|items)\b[^.\n]{0,60}\b(?:delivered|open)\b|\b\d+ (?:delivered|open)\b|\bdelivered and \d+ open\b/i;
+for (const file of files) {
+  const posix = file.replaceAll('\\', '/');
+  if (posix === 'TODO.md' || /^docs\/(?:reports|history|recordings)\//.test(posix) || posix === 'docs/CHANGELOG.md') continue;
+  const hit = trackedElsewhere.exec(contents.get(resolve(file))!);
+  if (hit) errors.push(`${file}: task counts belong nowhere (found "${hit[0]}"); TODO.md is the only tracker`);
 }
-for (const group of groups.keys()) if (!documented.has(group)) errors.push(`docs/STATUS.md: missing task group ${group}`);
 if (errors.length) { console.error(errors.join('\n')); process.exitCode = 1; }
-else console.log(`PASS: ${files.length} Markdown documents; local paths/sections, current npm commands and ${ids.size} unique task IDs/status counts.`);
+else console.log(`PASS: ${files.length} Markdown documents; local paths/sections, current npm commands and ${ids.size} unique open task IDs.`);

@@ -1,6 +1,6 @@
 # Testing and verification
 
-Latest executed application checkpoint and scoped evidence are in [STATUS.md](../STATUS.md). Current documentation checks cover local paths/Markdown anchors, documented npm commands outside historical material, duplicate task IDs and status-table counts. Dated report totals remain historical.
+Verification results and the evidence behind them are in the [evidence register](../reports/README.md). Current documentation checks cover local paths/Markdown anchors, documented npm commands outside historical material, unique task IDs and short task bullets in `TODO.md`. Dated report totals remain historical.
 
 ## Commands
 
@@ -74,7 +74,7 @@ The new Flutter consent widget test proves inspection does not create consent, g
 
 ## Planned payment/automation acceptance
 
-QA-01–QA-08 in [the new backlog](../../TODO.md#payment-accounts-and-automation-demo--planned-backlog) specify future security, ledger, concurrency/restart, positive/failure browser, shell-parity and paced-recording gates. SIM-01–SIM-06 provide run-isolated business time, issuer presets and delivery/commit failpoints. The first `demo:verify:payment-accounts` check now covers setup/link/quote and negative ownership/version scenarios; the complete planned payment/automation matrix is not yet current coverage. The business clock must never override JWT/security time, and assertions must inspect both funds and provider effects. Existing twelve journeys remain regression requirements. [Design and scenario scope](../architecture/payment-automation-demo.md).
+QA-01–QA-08 in [the new backlog](../../TODO.md) specify future security, ledger, concurrency/restart, positive/failure browser, shell-parity and paced-recording gates. SIM-01–SIM-06 provide run-isolated business time, issuer presets and delivery/commit failpoints. The first `demo:verify:payment-accounts` check now covers setup/link/quote and negative ownership/version scenarios; the complete planned payment/automation matrix is not yet current coverage. The business clock must never override JWT/security time, and assertions must inspect both funds and provider effects. Existing twelve journeys remain regression requirements. [Design and scenario scope](../architecture/payment-automation-demo.md).
 
 `npm run demo:verify:payment-accounts` builds an isolated React/provider environment using real local Keycloak/Redis and verifies the new setup workspace without moving funds. Eight payment-account regressions cover strict contracts, persistence, ownership forwarding, non-executable snapshot binding and owned inventory upgrades. [Usage and required ports](payment-accounts.md) · [Executed results](../reports/2026-10-24-payment-accounts.md).
 

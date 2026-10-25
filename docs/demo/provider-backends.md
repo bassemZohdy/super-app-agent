@@ -56,7 +56,7 @@ Payment capture and provider settlement are **separate local transactions**. A t
 
 Unified checkout calls each provider settlement once; integration mode skips the old graph's follow-on duplicate payments. Move-in calls DLD, DEWA and an RTA residential permit operation, instead of charging a 720-hour parking meter. These multi-step flows remain deterministic demo workflows.
 
-For private request/run/workflow/tool/approval tracing, dependency probes, shutdown and encrypted full-state recovery, see [operations](../development/operations.md). [Current implementation and verified boundary](../STATUS.md).
+For private request/run/workflow/tool/approval tracing, dependency probes, shutdown and encrypted full-state recovery, see [operations](../development/operations.md). [what exists today](../../README.md#what-exists-today).
 
 ## Redis conversations
 
@@ -100,7 +100,7 @@ All integrated JWT verification now includes access-token type and authenticated
 
 ## Planned payment simulator extension
 
-The gateway now persists saved synthetic cards/defaults and provider-verified biller links. A balanced journal and projection/available-funds checks now back the existing financial effects. Finite authorization/challenge and cancellation now work through stored interactive reviews. Admitted bill capture/settlement is implemented; finite mandate consent records are implemented; automatic service execution remains open. [Journal and migration](../development/payment-ledger.md). [Current setup APIs](../development/payment-accounts.md). [The proposed design](../architecture/payment-automation-demo.md) and [50-task backlog](../../TODO.md#payment-accounts-and-automation-demo--planned-backlog) cover those additions, linked biller/prepaid resources, payment orders and reconciliation, plus a controlled business clock and fault scenarios. They preserve synthetic money and current identity/provider boundaries. Existing `/v1` OpenAPI and commands remain authoritative until versioned changes land.
+The gateway now persists saved synthetic cards/defaults and provider-verified biller links. A balanced journal and projection/available-funds checks now back the existing financial effects. Finite authorization/challenge and cancellation now work through stored interactive reviews. Admitted bill capture/settlement is implemented; finite mandate consent records are implemented; automatic service execution remains open. [Journal and migration](../development/payment-ledger.md). [Current setup APIs](../development/payment-accounts.md). [The proposed design](../architecture/payment-automation-demo.md) and [50-task backlog](../../TODO.md) cover those additions, linked biller/prepaid resources, payment orders and reconciliation, plus a controlled business clock and fault scenarios. They preserve synthetic money and current identity/provider boundaries. Existing `/v1` OpenAPI and commands remain authoritative until versioned changes land.
 
 Telecom inventories now include owned prepaid lines and Police includes registered vehicles independently of unpaid fines. Existing accounts gain these resources once; reads never reset modified prepaid balances or reopen paid obligations. Payment card/biller removals are guarded by persisted active related-use records. [Lifecycle evidence](../reports/2026-10-24-lifecycle-simulator.md).
 

@@ -11,7 +11,7 @@ Historical initial-pass status: **planning completed; payment/automation impleme
 
 ## Planning delivered
 
-[The design](../architecture/payment-automation-demo.md) records current code limitations and the proposed domain/state/ownership model. [TODO](../../TODO.md#payment-accounts-and-automation-demo--planned-backlog) contains **50 unique unchecked implementation tasks**, with component reuse/creation, responsible discipline, acceptance criteria, dependencies and risk-first sequencing:
+[The design](../architecture/payment-automation-demo.md) records current code limitations and the proposed domain/state/ownership model. [TODO](../../TODO.md) contains **50 unique unchecked implementation tasks**, with component reuse/creation, responsible discipline, acceptance criteria, dependencies and risk-first sequencing:
 
 | Group | Count | Scope |
 | --- | --- | --- |

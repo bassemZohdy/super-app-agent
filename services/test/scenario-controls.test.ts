@@ -7,7 +7,9 @@ import { join } from 'node:path';
 import { AccountDatabase } from '../provider-simulator/src/database.ts';
 import { ProviderEngine } from '../provider-simulator/src/engine.ts';
 import { actorFor } from '../../packages/backend-kit/src/context.ts';
-import { ScenarioControls } from '../provider-simulator/src/scenario-controls.ts';
+import Ajv from 'ajv';
+import { ScenarioControls,scenarioArmSchema } from '../provider-simulator/src/scenario-controls.ts';
+import { FAILPOINTS } from '../provider-simulator/src/failpoints.ts';
 import { PaymentCheckout } from '../provider-simulator/src/payment-checkout.ts';
 import { inspectRun } from '../provider-simulator/src/run-inspector.ts';
 import type { ProviderClient } from '../../packages/backend-kit/src/provider-client.ts';
@@ -26,7 +28,7 @@ function fixture(t:unknown){
   const arm=(subject:string,name:string,times?:number,requestKey?:string)=>controls.arm(subject,{name,times,requestKey:requestKey??`req_${randomUUID()}`});
   const checkout=async(methodId='wallet')=>{
     const payable={id:'dewa:bill:ctrl',provider:'dewa' as const,reference:'ctrl-home',obligationId:'ctrl',kind:'BILL' as const,version:1,label:'Control bill',amountMinor:1000,currency:'AED' as const,status:'UNPAID' as const,revision:'a'.repeat(64)};
-    const order=db.transaction(()=>engine.execute(actor,'POST','/payment-orders',{provider:'dewa',payableId:payable.id,expectedPayableRevision:payable.revision,methodId,expectedMethodVersion:1},payable)).data.order;
+    db.transaction(()=>engine.execute(actor,'POST','/payment-orders',{provider:'dewa',payableId:payable.id,expectedPayableRevision:payable.revision,methodId,expectedMethodVersion:1},payable));
     return engine.orders!;
   };
   return {root,path,context,db,engine,actor,controls,arm,checkout};
@@ -161,4 +163,12 @@ test('SIM-04: the armed wallet-path failpoint loses the response after the real 
   assert.equal(f.engine.ledger!.summary(f.actor.accountId).balanceMinor,155000,'the replay returns the settled order without a second credit');
   assert.equal(f.controls.status('scenario-operator').armed.find((a:{name:string})=>a.name==='funding.after-commit')!.fired,1);
   f.controls.clear('scenario-operator');
+});
+
+test('SIM-05: the HTTP arm schema is derived from the failpoint registry, so every registered failpoint can be armed',()=>{
+  const ajv=new Ajv({strict:false,allErrors:true});
+  assert.deepEqual(scenarioArmSchema.properties.name.enum,[...FAILPOINTS]);
+  for(const name of FAILPOINTS)assert.equal(ajv.validate(scenarioArmSchema,{name,requestKey:'req_registry_1'}),true,`${name} must be armable`);
+  for(const bad of [{name:'checkout.unknown',requestKey:'req_registry_1'},{name:FAILPOINTS[0],requestKey:'short'},{name:FAILPOINTS[0],requestKey:'req_registry_1',times:101},{name:FAILPOINTS[0],requestKey:'req_registry_1',url:'http://elsewhere'}])
+    assert.equal(ajv.validate(scenarioArmSchema,bad),false,JSON.stringify(bad));
 });
