@@ -121,3 +121,43 @@ test('current source-owned eligibility rejects prepaid/subscription confusion, w
   await assert.rejects(verifyMandateTarget(client,f.actor,{...base,operation:'SUBSCRIPTION_RENEWAL',target:target('du','prepaid-line')}),code('MANDATE_TARGET_UNAVAILABLE'));
   await assert.rejects(verifyMandateTarget(client,f.actor,{...base,operation:'PARKING_EXTENSION',target:{kind:'PARKING',ticketId:'ticket',plateNumber:'plate',zoneId:'zone',maximumHours:2,endAt:base.expiresAt}}),code('MANDATE_TARGET_UNAVAILABLE'));
 });
+
+test('AUTO-04: an owner pauses, resumes and revokes rules with exact versions and current consent',t=>{
+  const f=fixture(t),m=f.mandates.create(f.actor,f.policy());
+  const approved=f.mandates.approve(f.actor,m.id,m.version,m.approvalDigest);
+  const pause=(expectedVersion:number)=>f.mandates.pause(f.actor,approved.id,expectedVersion);
+  const paused=pause(approved.version);
+  assert.equal(paused.state,'PAUSED');
+  assert.throws(()=>pause(approved.version),code('MANDATE_CHANGED'));
+  const other=actorFor({sub:'other-owner'},undefined,'Bearer other');
+  assert.throws(()=>f.mandates.pause(other,approved.id,paused.version),code('ACCOUNT_FORBIDDEN'));
+  const resumed=f.mandates.resume(f.actor,paused.id,paused.version);
+  assert.equal(resumed.state,'APPROVED','resume succeeds while every pinned source version is current');
+  const revoked=f.mandates.revoke(f.actor,resumed.id,resumed.version);
+  assert.equal(revoked.state,'REVOKED');
+  const second=f.mandates.create(f.actor,f.policy());
+  const secondApproved=f.mandates.approve(f.actor,second.id,second.version,second.approvalDigest);
+  const secondPaused=f.mandates.pause(f.actor,secondApproved.id,secondApproved.version);
+  f.post('/payment-methods/status',{methodId:f.card.id,expectedVersion:f.card.version,status:'DISABLED'});
+  assert.throws(()=>f.mandates.resume(f.actor,secondPaused.id,secondPaused.version),code('MANDATE_SOURCE_CHANGED'),'resume revalidates current sources');
+});
+
+test('AUTO-04: skip-next is a versioned one-shot consumed exactly once by the execution authority',t=>{
+  const f=fixture(t),m=f.mandates.create(f.actor,f.policy());
+  const approved=f.mandates.approve(f.actor,m.id,m.version,m.approvalDigest);
+  const marked=f.mandates.skipNext(f.actor,approved.id,approved.version);
+  assert.equal(marked.skipNext,true);
+  assert.equal(f.mandates.consumeSkipNext(approved.id),true);
+  assert.equal(f.mandates.consumeSkipNext(approved.id),false,'the one-shot skip is consumed once');
+  const current=f.mandates.get(f.actor,approved.id);
+  assert.equal(current.skipNext,false);
+  assert.equal(current.version,marked.version+1,'the consumption is a versioned consent change');
+});
+
+test('AUTO-04: the gateway accepts the new mandate actions and rejects malformed bodies',()=>{
+  for(const action of ['pause','resume','skipNext']){
+    assert.equal(validateRequest('agent-core','POST',`/api/payments/mandates/${action}`,{},{accountId:'a',mandateId:'mandate_x',expectedVersion:2,requestKey:'rk_00000001'}),undefined);
+    assert.ok(validateRequest('agent-core','POST',`/api/payments/mandates/${action}`,{},{accountId:'a',mandateId:'mandate_x',expectedVersion:2,extra:true}));
+    assert.ok(validateRequest('agent-core','POST',`/api/payments/mandates/${action}`,{},{accountId:'a',mandateId:'mandate_x'}));
+  }
+});

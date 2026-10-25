@@ -174,3 +174,17 @@ test('AUTO-03: the isolated run cannot arm on normal or copied data, rebind iden
   assert.throws(()=>new ProviderEngine('payments',copied,{automationRun:f.context,automationIo:{readPayables:()=>[],providerStore:()=>copied}}));
   assert.equal(copied.db.prepare("SELECT name FROM sqlite_master WHERE name='automation_runs'").get(),undefined);
 });
+
+test('AUTO-04: preparation refuses paused rules and honors the one-shot owner skip',t=>{
+  const f=fixture(t),m=f.mandate();f.bill('auto-bill-1',150,1);
+  const paused=f.payments.mandates!.pause(f.actor,m.id,m.version);
+  assert.equal(skipped(f.prepare(m.id,'occ_paused',`req_${randomUUID()}`)).reason,'MANDATE_NOT_ACTIVE');
+  const resumed=f.payments.mandates!.resume(f.actor,m.id,paused.version);
+  assert.equal(resumed.state,'APPROVED');
+  f.payments.mandates!.skipNext(f.actor,m.id,resumed.version);
+  assert.equal(skipped(f.prepare(m.id,'occ_skip',`req_${randomUUID()}`)).reason,'OPERATOR_SKIP_NEXT');
+  const next=prepared(f.prepare(m.id,'occ_next',`req_${randomUUID()}`));
+  assert.equal(next.state,'PREPARED','the skip was one-shot; the following occurrence prepares');
+  const current=f.payments.mandates!.get(f.actor,m.id);
+  assert.equal(current.skipNext,false);
+});

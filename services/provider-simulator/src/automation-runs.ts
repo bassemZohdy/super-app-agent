@@ -17,6 +17,8 @@ export type AutomationRunIo={
   readPayables:(accountId:string,provider:string)=>Payable[];
   /** The isolated provider store that owns the payable, for the shared exclusion claim. */
   providerStore:(provider:string)=>AccountDatabase;
+  /** Consumes the owner's one-shot skip-next consent marker before preparing. */
+  consumeMandateSkip?:(mandateId:string)=>boolean;
 };
 export type AutomationPreparation={
   id:string;runId:string;accountId:string;mandateId:string;policyVersion:number;occurrenceKey:string;
@@ -125,6 +127,7 @@ export class AutomationRuns{
         return result;
       };
       if(m.state!=='APPROVED')return skip('MANDATE_NOT_ACTIVE');
+      if(m.skipNext&&this.io.consumeMandateSkip?.(m.id))return skip('OPERATOR_SKIP_NEXT');
       if(Date.parse(m.policy.startsAt)>now||Date.parse(m.policy.expiresAt)<=now)return skip('MANDATE_WINDOW_CLOSED');
       const eligibility=this.store.eligibility?.snapshot(accountId);
       if(!eligibility||!eligibility.active||eligibility.epoch!==(m.eligibilityEpoch||'1:1'))return skip('AUTHORITY_CHANGED');

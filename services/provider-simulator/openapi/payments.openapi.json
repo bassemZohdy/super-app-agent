@@ -1148,6 +1148,7 @@
                             "enum": [
                               "AWAITING_APPROVAL",
                               "APPROVED",
+                              "PAUSED",
                               "REVOKED",
                               "EXPIRED"
                             ]
@@ -2342,6 +2343,7 @@
                           "enum": [
                             "AWAITING_APPROVAL",
                             "APPROVED",
+                            "PAUSED",
                             "REVOKED",
                             "EXPIRED"
                           ]
@@ -3106,6 +3108,7 @@
                           "enum": [
                             "AWAITING_APPROVAL",
                             "APPROVED",
+                            "PAUSED",
                             "REVOKED",
                             "EXPIRED"
                           ]
@@ -3873,6 +3876,7 @@
                             "enum": [
                               "AWAITING_APPROVAL",
                               "APPROVED",
+                              "PAUSED",
                               "REVOKED",
                               "EXPIRED"
                             ]
@@ -5081,6 +5085,7 @@
                           "enum": [
                             "AWAITING_APPROVAL",
                             "APPROVED",
+                            "PAUSED",
                             "REVOKED",
                             "EXPIRED"
                           ]
@@ -5881,6 +5886,7 @@
                           "enum": [
                             "AWAITING_APPROVAL",
                             "APPROVED",
+                            "PAUSED",
                             "REVOKED",
                             "EXPIRED"
                           ]
@@ -6676,6 +6682,7 @@
                           "enum": [
                             "AWAITING_APPROVAL",
                             "APPROVED",
+                            "PAUSED",
                             "REVOKED",
                             "EXPIRED"
                           ]

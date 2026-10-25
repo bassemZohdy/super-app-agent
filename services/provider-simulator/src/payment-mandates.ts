@@ -115,6 +115,35 @@ export class PaymentMandates {
     this.store.eligibility!.require(actor,m.eligibilityEpoch||'1:1');if(m.state!=='AWAITING_APPROVAL'||m.approvalDigest!==approvalDigest||this.approval(m)!==approvalDigest)deny('MANDATE_APPROVAL_INVALID','Approve the exact current unexpired mandate review.');
     this.snapshot(actor,m.policy);m.state='APPROVED';m.approvedAt=new Date(this.clock()).toISOString();return this.save(m);
   });}
+  /** Pause keeps the consent and its binds; preparation refuses anything not APPROVED. */
+  pause(actor:Actor,id:string,expectedVersion:number){return this.atomic(()=>{
+    this.interactive(actor);const m=this.sync(this.load(actor,id));this.expected(m,expectedVersion);
+    if(m.state!=='APPROVED')deny('MANDATE_NOT_APPROVED','Only an approved rule can pause.');
+    m.state='PAUSED';return this.save(m);});}
+  /** Resume revalidates the current consent, sources and target exactly like approval. */
+  resume(actor:Actor,id:string,expectedVersion:number){return this.atomic(()=>{
+    this.interactive(actor);const m=this.sync(this.load(actor,id));this.expected(m,expectedVersion);
+    if(m.state!=='PAUSED')deny('MANDATE_NOT_PAUSED','Resume a paused rule.');
+    this.snapshot(actor,m.policy);m.state='APPROVED';m.approvedAt=new Date(this.clock()).toISOString();return this.save(m);});}
+  /** One-shot operator skip: the next due occurrence is skipped with a recorded reason. */
+  skipNext(actor:Actor,id:string,expectedVersion:number){return this.atomic(()=>{
+    this.interactive(actor);const m=this.sync(this.load(actor,id));this.expected(m,expectedVersion);
+    if(!active(m))deny('MANDATE_CLOSED','Skip-next applies to an active rule.');
+    m.skipNext=!m.skipNext;return this.save(m);});}
+  /** The execution authority consumes the one-shot skip before preparing an occurrence. */
+  consumeSkipNext(id:string):boolean{return this.atomic(()=>{
+    const row=this.store.db.prepare('SELECT account_id FROM payment_mandates WHERE id=?').get(id);
+    if(!row)return false;
+    const body=this.store.db.prepare('SELECT v.body FROM payment_mandates m JOIN payment_mandate_versions v ON v.id=m.id AND v.version=m.version WHERE m.id=?').get(id);
+    if(!body)return false;
+    const m=JSON.parse(String(body!.body)) as PaymentMandate;
+    if(!m.skipNext||m.state!=='APPROVED')return false;
+    m.skipNext=false;
+    const before=m.version;m.version++;m.updatedAt=new Date(this.clock()).toISOString();
+    const result=this.store.db.prepare('UPDATE payment_mandates SET version=? WHERE id=? AND account_id=? AND version=?').run(m.version,m.id,m.accountId,before);
+    if(result.changes!==1)return false;
+    this.store.db.prepare('INSERT INTO payment_mandate_versions VALUES(?,?,?)').run(m.id,m.version,JSON.stringify(m));return true;
+  });}
   revoke(actor:Actor,id:string,expectedVersion:number){return this.atomic(()=>{
     this.interactive(actor);const m=this.sync(this.load(actor,id));this.expected(m,expectedVersion);if(active(m)){this.release(m);m.state='REVOKED';return this.save(m);}return m;
   });}

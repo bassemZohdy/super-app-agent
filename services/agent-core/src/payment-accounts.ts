@@ -55,7 +55,7 @@ export async function handlePaymentAccounts(actor: Actor, method: string, path: 
     if(method==='GET'&&path==='/api/payments/mandates')return {status:200,data:await client.call('payments',actor,'GET','/payment-mandates')};
     if(method==='GET'&&path==='/api/payments/mandates/history')return {status:200,data:await client.call('payments',actor,'GET',`/payment-mandates/${encodeURIComponent(body.mandateId)}/history`)};
     if(method==='POST'&&path==='/api/payments/mandates'){const {accountId:_account,requestKey,...input}=body;return {status:200,data:await client.call('payments',actor,'POST','/payment-mandates',input,`mandate:${requestKey}`)};}
-    const mandateAction=/^\/api\/payments\/mandates\/(revise|approve|revoke)$/.exec(path);
+    const mandateAction=/^\/api\/payments\/mandates\/(revise|approve|revoke|pause|resume|skip-next)$/.exec(path);
     if(method==='POST'&&mandateAction){const {accountId:_account,requestKey,mandateId,...input}=body;return {status:200,data:await client.call('payments',actor,'POST',`/payment-mandates/${encodeURIComponent(mandateId)}/${mandateAction[1]}`,input,`mandate:${requestKey}`)};}
     if(method==='GET'&&path==='/api/payments/wallet-funding-orders')return {status:200,data:await client.call('payments',actor,'GET','/wallet-funding-orders')};
     if(method==='POST'&&path==='/api/payments/wallet-funding-orders'){const {accountId:_account,requestKey,...input}=body;return {status:200,data:await client.call('payments',actor,'POST','/wallet-funding-orders',input,`wallet-funding:${requestKey}`)};}

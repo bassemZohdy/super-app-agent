@@ -1,6 +1,10 @@
 # Documentation changelog
 
-## 25 October 2026 — SIM-04 and SIM-06 completed
+## 25 October 2026 — consent management actions (AUTO-04)
+
+Automation rules can now be paused, resumed, skipped for one occurrence and revoked from the React panel through new authenticated mandate routes. Pause keeps the consent and its binds while the execution authority refuses to prepare anything not approved; resume revalidates the current sources and target exactly like a fresh approval; skip-next is a versioned one-shot that the preparation consumes once with a recorded reason. The generate provider contracts now include the new actions. Create/expand/source-change consent flows and the rule editor remain open.
+
+## Completed task ledger## 25 October 2026 — SIM-04 and SIM-06 completed
 
 The simulator now covers the wallet funding path with the `funding.after-commit` failpoint: the response is lost after the real atomic capture-and-credit commit and the retry replays the settled order with exactly one credit. The run-wide read-only inspection (`inspectRun`) is exposed through the operator-guarded internal controls, reporting wallet and card balances with holds, non-terminal orders with concrete mismatch reasons, settlement claims and the pending event outbox. SIM-04 and SIM-06 are delivered for the retained local-demo boundaries; their ledger entries moved to this changelog.
 
