@@ -290,6 +290,34 @@ try {
   await scheduler.tick(Date.now());
   assert.equal(schedulerStore.list().filter(j => j.mandateId === scheduled.id).length, 1, 'a settled occurrence is never scheduled again');
   schedulerStore.close();
+  // ---- AUTO-14: the owner is told once, ahead of a run that has not started, and nothing is queued until the run is due. ----
+  const upcomingRule = await newMandate(); n++;
+  const upcomingBill = `e2e-auto-bill-${n}-upcoming`;
+  const upcomingDue = new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10);
+  env!.providerStores.get('dewa')!.put(accountId, 'bill', { billId: upcomingBill, accountNumber: dewa.reference, totalAmount: 150, status: 'UNPAID', dueDate: upcomingDue }, upcomingBill);
+  const upcomingStore = new JobStore(join(scratch, 'upcoming.sqlite'));
+  const upcomingScheduler = new Scheduler(upcomingStore, new HttpRuleSource(gatewayConfig));
+  // Step the scheduler's clock forward until this rule's run is inside the lead time; the run itself is still in the future.
+  let noticeAt: number | undefined;
+  for (let t = Date.now(); t < Date.now() + 12 * 86400000 && noticeAt === undefined; t += 6 * 3600000) {
+    await upcomingScheduler.tick(t);
+    if (upcomingStore.notices(upcomingRule.id).length > 0) noticeAt = t;
+  }
+  assert.ok(noticeAt !== undefined, 'the scheduler announced the upcoming run');
+  const notice = upcomingStore.notices(upcomingRule.id)[0];
+  assert.equal(notice.kind, 'UPCOMING_RUN');
+  assert.ok(Date.parse(String(notice.body.runAt)) > noticeAt!, 'the announced run has not started yet');
+  // Other unpaid bills on this account may already be due and queued; what must not happen is queuing the announced occurrence early.
+  assert.equal(upcomingStore.list().filter(j => j.mandateId === upcomingRule.id && j.occurrenceKey === notice.occurrenceKey).length, 0, 'the announced run is not queued before it is due');
+  process.env.AUTOMATION_JOBS_DB = join(scratch, 'upcoming.sqlite');
+  const upcomingEntries = (await inboxFor(owner)).data.entries!.filter(e => e.mandateId === upcomingRule.id && e.kind === 'UPCOMING_RUN');
+  assert.equal(upcomingEntries.length, 1, 'the owner is told once');
+  assert.match(upcomingEntries[0].effect, /until the run itself/);
+  await upcomingScheduler.tick(noticeAt!);
+  assert.equal(upcomingStore.notices(upcomingRule.id).length, 1, 'a repeated tick never repeats the notice');
+  delete process.env.AUTOMATION_JOBS_DB;
+  upcomingStore.close();
+  console.log('PASS: the scheduler tells the owner once, ahead of a run that has not started, and queues nothing until the run is due.');
   console.log('PASS: the scheduler reads rules over HTTP, enqueues the due invoice once under duplicate ticks, and the worker settles it once.');
   // ---- A preview is an owner-only read that changes nothing. ----
   n++;
