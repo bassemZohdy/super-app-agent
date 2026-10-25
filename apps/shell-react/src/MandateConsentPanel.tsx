@@ -25,7 +25,13 @@ export function MandateConsentPanel({busy,read,mutate,work}:Props){
   return <section className="payment-review" aria-labelledby="mandate-consent-heading"><h3 id="mandate-consent-heading">Automation rules</h3>
     <p>Pause, resume, skip the next occurrence or revoke each rule. Pause keeps the consent; resume revalidates the current sources and target. Automatic execution stays disabled in this demo.</p>
     {notice&&<p role="status">{notice}</p>}
-    <div className="payment-actions"><button disabled={busy} onClick={load}>Load automation rules</button></div>
+    <div className="payment-actions"><button disabled={busy} onClick={load}>Load automation rules</button>
+      <button disabled={busy} onClick={()=>void work(async()=>{
+        const result=await mutate('mandates/pause-all',{requestKey:`pause-all-${Date.now()}`});
+        const paused=Array.isArray(result?.paused)?result.paused.length:0;const failed=Array.isArray(result?.notPaused)?result.notPaused.length:0;
+        setNotice(`Paused ${paused} rule${paused===1?'':'s'}${failed?`; ${failed} could not be paused and are unchanged`:''}. Pausing stops new runs only; a payment already made is not reversed.`);
+        await new Promise(resolve=>setTimeout(resolve,0));load();
+      })}>Pause all rules</button></div>
     {views&&(views.length===0?<p>No automation rules yet.</p>:<ol aria-label="Automation rule consent">{views.map(({id,view,state,version,skipNext})=><li key={id}>
       <h4>{view.title}</h4>
       <p>Rule {id} · {view.status}{skipNext?' · next occurrence will be skipped':''}</p>

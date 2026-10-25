@@ -36,6 +36,8 @@ export class AutomationWorker {
 
   /** Claim and run at most one job. Returns the job's state afterwards, or undefined when nothing was runnable. */
   async runOnce(): Promise<Job | undefined> {
+    // AUTO-15: an engaged kill switch admits no new step; nothing is claimed, so nothing is prepared, requested or executed.
+    if (this.store.killSwitch().engaged) return undefined;
     const claim = this.store.claim(this.opts.workerId, this.opts.leaseMs, this.opts.clock());
     if (!claim) return undefined;
     try { await this.run(claim); } catch (e) {
@@ -54,6 +56,8 @@ export class AutomationWorker {
       store.transition(claim, 'HELD', { reason: 'CREDENTIAL_LOST_AFTER_RESTART' }, { kind: 'HELD', body: { reason: 'CREDENTIAL_LOST_AFTER_RESTART', executionId: claim.job.executionId } }, this.now());
       return;
     }
+    // A kill switch engaged between steps stops this job where it stands: no effect has begun, and the job waits untouched.
+    if (this.store.killSwitch().engaged) { store.yield(claim, 0, this.now()); return; }
     // Only a job parked on a card challenge is claimed while held; it resumes when the owner has answered.
     if (state === 'HELD') return this.resume(claim);
     let job = claim.job;
@@ -61,6 +65,7 @@ export class AutomationWorker {
       const prepared = await this.prepare(claim);
       if (!prepared) return;
       job = prepared;
+      if (this.store.killSwitch().engaged) { store.yield(claim, 0, this.now()); return; }
     }
     const runId = job.runId!, executionId = job.executionId!;
     const credential = await this.credential(claim, runId, executionId);
@@ -158,6 +163,12 @@ export class AutomationWorker {
 
   private async execute(claim: Claim, runId: string, executionId: string, credential: { accessToken: string; expiresAt: number }, event?: { kind: string; body?: Record<string, unknown> }) {
     const { store } = this;
+    // The credential was issued but never presented: nothing was admitted, and the held credential is not reused.
+    // The provider's permit stays unconsumed until its admission window closes, and that release is its own sweep.
+    if (this.store.killSwitch().engaged) {
+      store.transition(claim, 'HELD', { reason: 'KILL_SWITCH_ENGAGED' }, { kind: 'HELD', body: { reason: 'KILL_SWITCH_ENGAGED', executionId } }, this.now());
+      return;
+    }
     store.transition(claim, 'EXECUTING', {}, event, this.now());
     let last = 'OUTCOME_UNKNOWN';
     for (let attempt = 1; attempt <= this.opts.stepRetries; attempt++) {

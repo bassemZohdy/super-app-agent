@@ -53,6 +53,7 @@ export class JobStore {
       CREATE TABLE IF NOT EXISTS job_attempts(seq INTEGER PRIMARY KEY AUTOINCREMENT,job_id TEXT NOT NULL REFERENCES jobs(id),fence INTEGER NOT NULL,worker_id TEXT NOT NULL,step TEXT NOT NULL,at INTEGER NOT NULL,outcome TEXT);
       CREATE TABLE IF NOT EXISTS job_outbox(seq INTEGER PRIMARY KEY AUTOINCREMENT,job_id TEXT NOT NULL REFERENCES jobs(id),kind TEXT NOT NULL,body TEXT NOT NULL,at INTEGER NOT NULL,delivered_at INTEGER,UNIQUE(job_id,kind));
       CREATE TABLE IF NOT EXISTS job_notices(mandate_id TEXT NOT NULL,occurrence_key TEXT NOT NULL,kind TEXT NOT NULL,body TEXT NOT NULL,at INTEGER NOT NULL,PRIMARY KEY(mandate_id,occurrence_key,kind));
+      CREATE TABLE IF NOT EXISTS kill_switch(id TEXT PRIMARY KEY CHECK(id='global'),engaged INTEGER NOT NULL CHECK(engaged IN (0,1)),reason TEXT,at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS threshold_state(mandate_id TEXT NOT NULL,policy_version INTEGER NOT NULL,armed INTEGER NOT NULL DEFAULT 1 CHECK(armed IN (0,1)),seq INTEGER NOT NULL DEFAULT 0,debit_mark INTEGER,PRIMARY KEY(mandate_id,policy_version));
       CREATE TRIGGER IF NOT EXISTS job_attempts_no_update BEFORE UPDATE OF job_id,fence,worker_id,step,at ON job_attempts BEGIN SELECT RAISE(ABORT,'Attempts are append-only');END;
       CREATE TRIGGER IF NOT EXISTS job_attempts_no_delete BEFORE DELETE ON job_attempts BEGIN SELECT RAISE(ABORT,'Attempts are append-only');END;`);
@@ -69,6 +70,16 @@ export class JobStore {
     return rows.map(r => ({ seq: Number(r.seq), jobId: String(r.job_id), kind: String(r.kind), body: JSON.parse(String(r.body)) as Record<string, unknown>, at: Number(r.at), deliveredAt: r.delivered_at == null ? undefined : Number(r.delivered_at) }));
   }
   attempts(jobId: string) { return this.db.prepare('SELECT fence,worker_id,step,outcome FROM job_attempts WHERE job_id=? ORDER BY seq').all(jobId).map(r => ({ fence: Number(r.fence), workerId: String(r.worker_id), step: String(r.step), outcome: r.outcome == null ? undefined : String(r.outcome) })); }
+
+  /** The operator's global kill switch (AUTO-15). Persisted, so a restart keeps it engaged until someone releases it. */
+  killSwitch(): { engaged: boolean; reason?: string; at?: number } {
+    const r = this.db.prepare("SELECT engaged,reason,at FROM kill_switch WHERE id='global'").get();
+    return r ? { engaged: Number(r.engaged) === 1, reason: r.reason == null ? undefined : String(r.reason), at: Number(r.at) } : { engaged: false };
+  }
+  setKillSwitch(engaged: boolean, reason = '', now = Date.now()) {
+    this.db.prepare("INSERT INTO kill_switch(id,engaged,reason,at) VALUES('global',?,?,?) ON CONFLICT(id) DO UPDATE SET engaged=excluded.engaged,reason=excluded.reason,at=excluded.at")
+      .run(engaged ? 1 : 0, reason.slice(0, 120), now);
+  }
 
   /** Idempotent: the same rule version, occurrence and target is the same job, whoever asks and however often. */
   enqueue(input: { mandateId: string; policyVersion: number; occurrenceKey: string; target: string }, now = Date.now()): Job {

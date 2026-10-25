@@ -79,6 +79,7 @@ route('agent-core','POST','/api/payments/checkout-groups',withPaymentAccount(pay
 for(const [action,schema] of Object.entries({approve:paymentSchemas.approveOrder,execute:paymentSchemas.executeOrder,cancel:paymentSchemas.cancelOrder}))route('agent-core','POST',`/api/payments/checkout-groups/${action}`,withPaymentAccount(withOrderId(schema)));
 route('agent-core','GET','/api/payments/mandates',object({accountId:id},['accountId']));
 route('agent-core','GET','/api/payments/automation-inbox',object({accountId:id},['accountId']));
+route('agent-core','POST','/api/payments/mandates/pause-all',withPaymentAccount(mandateSchemas.pauseAll));
 route('agent-core','POST','/api/payments/mandates',withPaymentAccount(mandateSchemas.create));
 for(const [action,schema] of Object.entries({revise:mandateSchemas.revise,approve:mandateSchemas.approve,revoke:mandateSchemas.revoke,pause:mandateSchemas.pause,resume:mandateSchemas.resume,skipNext:mandateSchemas.skipNext}))route('agent-core','POST',`/api/payments/mandates/${action}`,withPaymentAccount(paymentObject({...schema.properties,mandateId:id},[...schema.required,'mandateId'])));
 route('agent-core','GET','/api/payments/mandates/history',object({accountId:id,mandateId:id},['accountId','mandateId']));

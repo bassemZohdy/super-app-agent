@@ -90,3 +90,9 @@ The inbox is served by `GET /api/payments/automation-inbox` (`services/agent-cor
 ## Evidence
 
 `services/test/automation-worker.test.ts` covers identity, fencing, a two-connection race, restart at each persisted step, retry rules, final states and the absence of the credential from every database file. The real-stack scenario is in `scripts/e2e/automation-execution.ts`.
+
+## Kill switch and owner pause (AUTO-15)
+
+The operator's global kill switch is a persisted flag in the worker's job store (`kill_switch`). Engaging it with `node --experimental-strip-types scripts/automation-kill-switch.ts engage --reason "<why>"` (release with `release`, check with `status`; `AUTOMATION_JOBS_DB` names the store, and a missing store is an error, never a new file) changes three things. No new job is claimed. A job that has finished a step stops before its next one, untouched, and carries on after release. A credential already issued while the switch engages is held as `KILL_SWITCH_ENGAGED` and is never presented or replayed; the provider's permit then expires unused and its reservation is released by the provider's own sweep. A restart keeps the switch engaged. Its authentication is the local operator: whoever can write the worker's store. An authenticated broker-scoped admin route and a panel control are still open.
+
+An owner's pause-all (`POST /api/payments/mandates/pause-all`, with `requestKey`) pauses each approved rule at its current version, under a key derived from the request and the rule. A rule that cannot be paused is reported with its reason and left as it is; retrying with the same key does not repeat the pauses that succeeded. Pausing stops new runs only. It does not reverse a payment that was already committed.

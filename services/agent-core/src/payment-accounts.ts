@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { inspectLegacyPayment } from './legacy-payment-status.ts';
 import { automationInbox } from './automation-inbox.ts';
+import { pauseAllMandates } from './mandate-pause-all.ts';
 import { ProviderClient, UpstreamError } from '../../../packages/backend-kit/src/provider-client.ts';
 import type { Actor } from '../../../packages/backend-kit/src/context.ts';
 import { PAYMENT_CONTRACT_VERSION, MAX_PAYMENT_MINOR, type BillerCandidate, type Payable, type PaymentPreview, type PaymentOverview } from '../../../packages/protocol-core/src/payments.ts';
@@ -54,6 +55,7 @@ export async function handlePaymentAccounts(actor: Actor, method: string, path: 
     if(method==='POST'&&path==='/api/payments/reconciliation/act'){const {accountId:_account,requestKey,inspectionId,...input}=body;return {status:200,data:await client.call('payments',actor,'POST',`/payment-reconciliation/inspections/${encodeURIComponent(inspectionId)}/act`,input,`recovery:${requestKey}`)};}
     if(method==='GET'&&path==='/api/payments/legacy-status')return {status:200,data:{success:true,inspection:await inspectLegacyPayment(actor,body.paymentId,client)}};
     if(method==='GET'&&path==='/api/payments/mandates')return {status:200,data:await client.call('payments',actor,'GET','/payment-mandates')};
+    if(method==='POST'&&path==='/api/payments/mandates/pause-all'){const {accountId:_account,requestKey}=body;return {status:200,data:await pauseAllMandates(actor,(p,a,m,rel,b,k)=>client.call(p,a,m,rel,b,k),String(requestKey))};}
     if(method==='GET'&&path==='/api/payments/automation-inbox')return {status:200,data:{success:true,...await automationInbox(actor,(p,a,m,rel)=>client.call(p,a,m,rel))}};
     if(method==='GET'&&path==='/api/payments/mandates/preview')return {status:200,data:await client.call('payments',actor,'GET',`/payment-mandates/${encodeURIComponent(body.mandateId)}/preview`)};
     if(method==='GET'&&path==='/api/payments/mandates/history')return {status:200,data:await client.call('payments',actor,'GET',`/payment-mandates/${encodeURIComponent(body.mandateId)}/history`)};

@@ -45,6 +45,7 @@ export const mandateSchemas={
   revise:paymentObject({expectedVersion:version,policy:mandatePolicySchema}),
   approve:paymentObject({expectedVersion:version,approvalDigest:{type:'string',pattern:'^[a-f0-9]{64}$'}}),
   revoke:paymentObject({expectedVersion:version}),
+  pauseAll:paymentObject({}),
 };
 export const mandateRecordSchema=paymentObject({eligibilityEpoch:{type:'string',pattern:'^[1-9][0-9]{0,6}:[1-9][0-9]{0,6}$'},id,accountId:id,ownerSub:text,version,policyVersion:version,state:{enum:['AWAITING_APPROVAL','APPROVED','PAUSED','REVOKED','EXPIRED']},executionEnabled:{const:false},policy:mandatePolicySchema,
   sourceSnapshots:{type:'array',minItems:1,maxItems:3,items:paymentMethodSchema},billerSnapshot:billingAccountSchema,approvalDigest:{type:'string',pattern:'^[a-f0-9]{64}$'},reviewExpiresAt:date,createdAt:date,updatedAt:date,approvedAt:date},

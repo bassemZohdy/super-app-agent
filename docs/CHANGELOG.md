@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 25 October 2026 — operator kill switch and owner pause-all (AUTO-15, steps 1–2)
+
+The automation worker honours a persisted global kill switch, engaged and released with `scripts/automation-kill-switch.ts`. Engaged, it claims no job and starts no step. A credential already issued is held as `KILL_SWITCH_ENGAGED` and never presented. The state survives a restart. The owner can pause every approved rule at once through `POST /api/payments/mandates/pause-all`, which reports the rules it could not pause and retries under stable keys; the React rules panel has the button. Still open in AUTO-15: the authenticated broker-scoped admin route and panel control, and the race and outage tests in its `Done when`. Evidence: `services/test/auto15-kill-switch.test.ts`, `services/test/auto15-pause-all.test.ts`.
+
 ## 25 October 2026 — owner inbox feed and panel (AUTO-14, step 3)
 
 `GET /api/payments/automation-inbox` returns the worker's inbox entries for the signed-in owner's rules only. The owned set comes from the provider's owner-scoped mandate list, the response carries the request's `requestId`, and a missing job store reads as empty without being created. The React payments panel loads it on demand under the same per-account key as the rules panel, so an account switch re-reads it. Polling replaces streaming for the demo. Still open in AUTO-14: answering a held challenge from the inbox, and the notification and "paused" outcome checks in its `Done when`. Evidence: `services/test/auto14-inbox-feed.test.ts`; the React shell type-checks; the Compose stack was not run.
