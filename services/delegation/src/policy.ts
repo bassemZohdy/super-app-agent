@@ -6,6 +6,8 @@ export const brokerClient = 'delegation-broker';
 export const runnerClient = 'delegation-runner';
 /** Dedicated service-account workload that requests per-execution automation credentials. */
 export const automationWorkerClient = 'automation-worker';
+/** Operator client that may only set the desired kill-switch state (AUTO-15 step 3b). It can read nothing else and execute nothing. */
+export const automationAdminClient = 'automation-admin';
 export const idpAlias = 'trusted-delegation-issuer';
 export class DelegationError extends Error {
   status: number; code: string;

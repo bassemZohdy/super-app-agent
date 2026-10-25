@@ -76,7 +76,7 @@ test('AUTO-15: an engage while a credential is in flight holds the job and never
 test('AUTO-15 step 3b: a desired kill-switch state from an authority is applied to the worker\'s own store, and an unknown read changes nothing', async () => {
   const store = new JobStore(':memory:');
   const job = store.enqueue(rule);
-  let desired: { engaged: boolean; reason: string } | undefined | 'FAIL' = { engaged: true, reason: 'authority stop' };
+  let desired: { engaged: boolean; reason: string; at: number } | undefined | 'FAIL' = { engaged: true, reason: 'authority stop', at: Date.now() - 2000 };
   const calls = { prepare: 0 };
   const g: ExecutionGateway = {
     prepare: async () => { calls.prepare++; return { id: 'autoexec_1', runId: 'autorn_1', orderId: 'order_1' }; },
@@ -100,8 +100,28 @@ test('AUTO-15 step 3b: a desired kill-switch state from an authority is applied 
   assert.equal(await w.runOnce(), undefined, 'an absent desired state changes nothing');
   assert.equal(store.killSwitch().engaged, true);
 
-  desired = { engaged: false, reason: '' };
+  desired = { engaged: false, reason: '', at: Date.now() + 60_000 };
   assert.equal((await w.runOnce())!.state, 'SETTLED', 'a released desired state lets the worker run again');
   assert.equal(store.get(job.id)!.state, 'SETTLED');
+  store.close();
+});
+
+test('AUTO-15 step 3b-i: an older authority engage never undoes a newer local release', async () => {
+  const store = new JobStore(':memory:');
+  store.enqueue(rule);
+  const older = { engaged: true, reason: 'authority stop', at: Date.now() - 60_000 };
+  const g: ExecutionGateway = {
+    prepare: async () => ({ id: 'autoexec_1', runId: 'autorn_1', orderId: 'order_1' }),
+    credential: async () => ({ accessToken: 'secret-bearer-do-not-store', expiresAt: Date.now() + 600_000 }),
+    execute: async (): Promise<ExecutedOrder> => ({ id: 'order_1', state: 'SETTLED', fundsCaptured: true }),
+    resume: async () => { throw new Error('not expected'); },
+    killSwitch: async () => older,
+  };
+  const w = new AutomationWorker(store, g, { workerId: 'worker-a', clock: () => Date.now(), sleep: async () => {}, retryDelayMs: 1, leaseMs: 30_000 });
+  assert.equal(await w.runOnce(), undefined, 'the authority engage is applied first');
+  assert.equal(store.killSwitch().engaged, true);
+  store.setKillSwitch(false, 'operator released it', Date.now());
+  assert.equal((await w.runOnce())!.state, 'SETTLED', 'the local release holds against the older authority state');
+  assert.equal(store.killSwitch().engaged, false);
   store.close();
 });

@@ -59,6 +59,19 @@ export class HttpExecutionGateway implements ExecutionGateway {
       throw e;
     }
   }
+  /** The broker's desired kill-switch state. 404 means no state was ever set, which the worker reads as "change nothing". */
+  async killSwitch(): Promise<{ engaged: boolean; reason: string; at: number } | undefined> {
+    const bearer = await this.credentials.token();
+    let response: Response;
+    try {
+      response = await fetch(new URL('/api/delegation/automation/kill-switch', endpoint(this.config.brokerUrl)), { method: 'GET', redirect: 'error', signal: AbortSignal.timeout(5000),
+        headers: { Authorization: `Bearer ${bearer}` } });
+    } catch { throw failure(undefined, 'UNREACHABLE', 'The kill-switch state could not be read.'); }
+    if (response.status === 404) return undefined;
+    const data = await response.json().catch(() => ({})) as Record<string, unknown>;
+    if (!response.ok || typeof data.engaged !== 'boolean' || !Number.isFinite(data.at)) throw failure(response.status, 'KILL_SWITCH_UNREADABLE', 'The kill-switch state response was invalid.');
+    return { engaged: data.engaged, reason: String(data.reason ?? ''), at: Number(data.at) };
+  }
   async execute(runId: string, executionId: string, accessToken: string): Promise<ExecutedOrder> {
     if (runId !== this.config.runId) throw failure(400, 'RUN_MISMATCH', 'The job belongs to another run.');
     const data = await this.call(this.config.paymentsUrl, this.run(`/execution/${encodeURIComponent(executionId)}/execute`), accessToken, {}, 60000);

@@ -6,6 +6,7 @@ import { brokerClient, runnerClient, DelegationError, deny, digest, tokenHash,gr
 import { GrantStore } from './store.ts';
 import { PermitStore, type ExecutionView, type Permit } from './permits.ts';
 import { issueExecutionCredential, MintRefused, type AutomationDeps } from './automation.ts';
+import { DesiredKillSwitchStore, authorizeKillSwitchRead, authorizeKillSwitchWrite } from './kill-switch.ts';
 import { assertionTimes, keyMaterial, signedJwt } from './keys.ts';
 import { EligibilityClient,EligibilityReadError,eligibilityEnforced } from '../../../packages/backend-kit/src/eligibility-client.ts';
 import { actorFor } from '../../../packages/backend-kit/src/context.ts';
@@ -152,6 +153,28 @@ export async function automationSession(authorization: string | undefined) {
   await currentEligibility(permit.owner, permit.accountId);
   return { permitId: permit.id, executionId: permit.executionId, operation: permit.operation };
 }
+let killSwitchSingleton: DesiredKillSwitchStore | undefined;
+const killSwitchStore = () => killSwitchSingleton ||= new DesiredKillSwitchStore(grantStore().db);
+/** The desired kill-switch state: the admin client writes it, the worker reads it. No other caller reaches either. */
+async function automationKillSwitch(method: string, body: any, authorization?: string): Promise<Reply> {
+  let claims: JwtClaims;
+  try { claims = await verifyJwt(authorization, 'delegation-api'); } catch { throw new DelegationError(401, 'AUTOMATION_WORKER_REQUIRED', 'A valid automation token is required.'); }
+  if (method === 'GET') {
+    authorizeKillSwitchRead(claims);
+    const desired = killSwitchStore().get();
+    if (!desired) return { status: 404, data: { success: false, code: 'NO_DESIRED_STATE' } };
+    return { status: 200, data: { success: true, engaged: desired.engaged, reason: desired.reason, at: desired.at } };
+  }
+  if (method === 'POST') {
+    authorizeKillSwitchWrite(claims);
+    if (typeof body?.engaged !== 'boolean') throw new DelegationError(400, 'VALIDATION_ERROR', 'Name whether the kill switch is engaged.');
+    const reason = typeof body.reason === 'string' ? body.reason.trim() : '';
+    if (body.engaged && !reason) throw new DelegationError(400, 'VALIDATION_ERROR', 'Engaging the kill switch needs a reason.');
+    const desired = killSwitchStore().set(body.engaged, reason, String(claims.sub));
+    return { status: 200, data: { success: true, engaged: desired.engaged, reason: desired.reason, at: desired.at } };
+  }
+  return { status: 404, data: { success: false, code: 'NOT_FOUND' } };
+}
 async function automationCredential(path: string, body: any, authorization?: string): Promise<Reply> {
   const route = /^\/api\/delegation\/automation\/executions\/([A-Za-z0-9_-]{1,200})\/(credential|resume-credential)$/.exec(path);
   if (!route) return { status: 404, data: { success: false, code: 'NOT_FOUND' } };
@@ -169,6 +192,7 @@ export async function handleDelegation(method: string, path: string, body: any, 
     if (path === '/api/delegation/authorize' && method === 'POST') { const claims = await delegatedAuthorization(authorization, body); return { status: 200, data: { success: true, sub: claims.sub, actor: claims.azp } }; }
     if (path === '/api/delegation/automation/session' && method === 'POST') return { status: 200, data: { success: true, ...await automationSession(authorization) } };
     if (path === '/api/delegation/automation/authorize' && method === 'POST') { const out = await authorizeExecutionPermit(authorization, body?.operation); return { status: 200, data: { success: true, ...out } }; }
+    if (path === '/api/delegation/automation/kill-switch') return await automationKillSwitch(method, body, authorization);
     if (path.startsWith('/api/delegation/automation/')) return method === 'POST' ? await automationCredential(path, body, authorization) : { status: 404, data: { success: false, code: 'NOT_FOUND' } };
     const executePath = /^\/api\/delegation\/grants\/([a-f0-9-]{36})\/execute$/.exec(path);
     if (executePath && method === 'POST') return await execute(executePath[1], body.requestKey, authorization);

@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 25 October 2026 — broker-scoped kill-switch admin client and desired state (AUTO-15, step 3b-ii)
+
+A new `automation-admin` Keycloak client, whose only scope is `automation.admin`, writes the desired kill-switch state at `POST /api/delegation/automation/kill-switch`. The automation worker reads it with its own execute scope. The worker applies it only when it is newer than the worker's last change, so a local engage or release is never undone by an older authority state. Verified on the Compose stack with real tokens (`npm run demo:verify:automation-kill-switch`): the admin sets the state, the worker reads it through its gateway, and the worker and the admin are each refused the other's direction. Still open in AUTO-15: 3b-iii, the panel control.
+
 ## 25 October 2026 — the worker applies an authority's kill-switch state (AUTO-15, step 3b-i)
 
 The worker now reads an optional desired kill-switch state from its gateway and applies it to its own store. The worker stays the only writer of that store. A desired engaged state stops new claims; a desired released state lets work resume; an unreadable or absent state changes nothing, so a switch is never released on a failed read. The HTTP gateway does not call an authority yet, so nothing changes in a running system until the broker side (3b-ii) exists. Evidence: `services/test/auto15-kill-switch.test.ts`.

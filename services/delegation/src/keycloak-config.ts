@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { brokerClient, runnerClient, automationWorkerClient, idpAlias } from './policy.ts';
+import { brokerClient, runnerClient, automationWorkerClient, automationAdminClient, idpAlias } from './policy.ts';
 
 /** Local demo reconciliation only; never deletes/recreates a human user. */
 export async function configureDelegation(api: (path: string, method?: string, body?: any) => Promise<any>) {
@@ -63,5 +63,18 @@ export async function configureDelegation(api: (path: string, method?: string, b
   for (const kind of ['default', 'optional']) for (const scope of await api(`/clients/${w.id}/${kind}-client-scopes`)) if (scope.name !== 'automation.execute' || kind === 'default') await api(`/clients/${w.id}/${kind}-client-scopes/${scope.id}`, 'DELETE');
   const executeScope = (await api('/client-scopes')).find((s: any) => s.name === workerScope.name);
   await api(`/clients/${w.id}/optional-client-scopes/${executeScope.id}`, 'PUT');
-  console.log('Demo JWT-grant IdP, private-key broker, scope policy, runner and existing-user links reconciled. No preview features enabled.');
+  // Operator admin client (AUTO-15 step 3b): a service account whose only scope sets the desired kill-switch state.
+  const adminScope = { name: 'automation.admin', protocol: 'openid-connect', attributes: { 'include.in.token.scope': 'true', 'display.on.consent.screen': 'false' } };
+  const foundAdminScope = (await api('/client-scopes')).find((s: any) => s.name === adminScope.name);
+  await api(foundAdminScope ? `/client-scopes/${foundAdminScope.id}` : '/client-scopes', foundAdminScope ? 'PUT' : 'POST', adminScope);
+  const adminSecretPath = '.data/delegation/automation-admin-secret';
+  if (!existsSync(adminSecretPath)) writeFileSync(adminSecretPath, randomBytes(32).toString('base64url'), { mode: 0o600, flag: 'wx' });
+  const admin = { clientId: automationAdminClient, enabled: true, protocol: 'openid-connect', publicClient: false, clientAuthenticatorType: 'client-secret', secret: readFileSync(adminSecretPath, 'utf8'), standardFlowEnabled: false, directAccessGrantsEnabled: false, serviceAccountsEnabled: true, fullScopeAllowed: false, defaultClientScopes: [], optionalClientScopes: ['automation.admin'], protocolMappers: [audience('delegation-api'), audience('provider-api'), audience('cityside-verifier')], attributes: { 'use.refresh.tokens': 'false', 'access.token.lifespan': '300' } };
+  let [a] = await api(`/clients?clientId=${automationAdminClient}`);
+  await api(a ? `/clients/${a.id}` : '/clients', a ? 'PUT' : 'POST', admin);
+  [a] = await api(`/clients?clientId=${automationAdminClient}`);
+  for (const kind of ['default', 'optional']) for (const scope of await api(`/clients/${a.id}/${kind}-client-scopes`)) if (scope.name !== 'automation.admin' || kind === 'default') await api(`/clients/${a.id}/${kind}-client-scopes/${scope.id}`, 'DELETE');
+  const adminScopeFound = (await api('/client-scopes')).find((s: any) => s.name === adminScope.name);
+  await api(`/clients/${a.id}/optional-client-scopes/${adminScopeFound.id}`, 'PUT');
+  console.log('Demo JWT-grant IdP, private-key broker, scope policy, runner, automation worker and admin links reconciled. No preview features enabled.');
 }
