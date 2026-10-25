@@ -232,6 +232,11 @@ export class AutomationRuns{
     return {preparation:p,ownerSub:String(owner!.owner),orderId:p.orderId,
       operation:automationOperation({executionId:p.id,runId:p.runId,accountId:p.accountId,boundDigest:p.boundDigest,payableId:p.payableId,payableRevision:p.payableRevision,amountMinor:p.amountMinor,sourceId:p.sourceId,sourceVersion:p.sourceVersion})};
   }
+  /** 'ADMITTED' or 'REJECTED' once the permit has been spent for this execution; undefined before. */
+  dispatchState(executionId:string):'ADMITTED'|'REJECTED'|undefined{
+    const row=this.store.db.prepare('SELECT state FROM automation_dispatch WHERE execution_id=?').get(executionId);
+    return row?row.state as 'ADMITTED'|'REJECTED':undefined;
+  }
   /** After the broker consumed the permit: re-read current authority and record the one admission. A stale fact closes it for good. */
   admit(executionId:string,ownerSub:string):AutomationPreparation{
     const outcome=this.store.transaction(()=>{

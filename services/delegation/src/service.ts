@@ -119,7 +119,8 @@ async function mintExecutionToken(permit: Permit) {
     body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', client_id: brokerClient, assertion, scope, client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer', client_assertion: clientAssertion }),
   });
   if (!response.ok) {
-    logEvent('error', 'Automation credential exchange rejected', { status: response.status });
+    const error = await response.json().catch(() => ({})) as { error?: string; error_description?: string };
+    logEvent('error', 'Automation credential exchange rejected', { status: response.status, error: String(error.error || '').slice(0, 100), error_description: String(error.error_description || '').replace(/[A-Za-z0-9_-]{60,}/g, '[redacted]').slice(0, 250) });
     if (response.status >= 400 && response.status < 500) throw new MintRefused(`rejected ${response.status}`);
     throw new Error(`exchange failed ${response.status}`);
   }

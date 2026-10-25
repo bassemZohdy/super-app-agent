@@ -7,7 +7,7 @@ import { mkdtemp, mkdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, extname } from 'node:path';
 
-export async function startEnvironment(options:{authorizationClock?:()=>number;issuerOperatorSub?:string}={}) {
+export async function startEnvironment(options:{authorizationClock?:()=>number;issuerOperatorSub?:string;automation?:{operatorSub:string;workerSub:string}}={}) {
   const appPort = Number(process.env.E2E_APP_PORT || 3002);
   const corePort = Number(process.env.E2E_CORE_PORT || 14000);
   assert.ok([3000, 3001, 3002].includes(appPort), 'Use a free seeded Keycloak redirect port: 3000, 3001 or 3002');
@@ -15,7 +15,7 @@ export async function startEnvironment(options:{authorizationClock?:()=>number;i
   const issuer = keycloakIssuerUrl;
   const discovery = await fetch(`${issuer}/.well-known/openid-configuration`, { signal: AbortSignal.timeout(5000) });
   assert.equal(discovery.status, 200, 'Start local Keycloak/Redis with npm run demo:up first');
-  const dir = await mkdtemp(join(tmpdir(), 'cityside-e2e-'));
+  const dir = await mkdtemp(join(tmpdir(), options.automation ? 'cityside-auto-' : 'cityside-e2e-'));
   const servers: Server[] = [];
   const databases: Array<{ close(): void }> = [];
   const providerServers=new Map<string,Server>();
@@ -52,7 +52,7 @@ export async function startEnvironment(options:{authorizationClock?:()=>number;i
   }
   async function listen(server: Server, port: number) {
     servers.push(server);
-    await new Promise<void>((done, fail) => { server.once('error', fail); server.listen(port, '127.0.0.1', () => { server.off('error', fail); done(); }); });
+    await new Promise<void>((done, fail) => { server.once('error', fail); server.listen(port, options.automation && port === corePort + 107 ? '0.0.0.0' : '127.0.0.1', () => { server.off('error', fail); done(); }); });
   }
   const cleanup = async () => {
     await Promise.all(servers.map(server => new Promise<void>(done => {
@@ -78,12 +78,20 @@ export async function startEnvironment(options:{authorizationClock?:()=>number;i
     const { providerIds } = await import('../../services/provider-simulator/src/contracts.ts');
     let issuerScenario:import('../../services/provider-simulator/src/issuer-scenarios.ts').IssuerScenarioContext|undefined;
     if(options.issuerOperatorSub){const {SimulationRuns}=await import('../../services/provider-simulator/src/simulation-run.ts');const runs=new SimulationRuns(join(dir,'issuer-run.sqlite'));databases.push(runs);const run=runs.create(options.issuerOperatorSub,'issuer-outcomes',Date.now(),crypto.randomUUID());issuerScenario={runId:run.id,operatorSub:options.issuerOperatorSub,root:dir};}
+    let automationRun:import('../../services/provider-simulator/src/automation-runs.ts').AutomationRunContext|undefined;
+    if(options.automation)automationRun={runId:`autorn_${crypto.randomUUID()}`,operatorSub:options.automation.operatorSub,workerSub:options.automation.workerSub,root:dir};
+    const { ProviderEngine } = await import('../../services/provider-simulator/src/engine.ts');
+    // Trusted run fixture: the isolated gateway reads source obligations and holds the shared exclusion claim in the source's own store.
+    const automationIo={
+      readPayables:(accountId:string,provider:string)=>provider==='dewa'?new ProviderEngine('dewa',providerStores.get('dewa')!).payables!.list(accountId):[],
+      providerStore:(provider:string)=>{const store=providerStores.get(provider);if(!store)throw new Error('No isolated store for this provider.');return store;},
+    };
     let paymentInstance:ReturnType<typeof createProviderServer>|undefined;
 
     for (const [index, name] of providerIds.entries()) {
       const settlementTransport=name!=='payments'&&name!=='dld'?new SettlementClient(name):undefined;
       if(settlementTransport){const send=settlementTransport.call.bind(settlementTransport);settlementTransport.call=async(...args:Parameters<typeof send>)=>{if(args[2]==='ack'&&heldAcknowledgements.has(name))throw new Error('Isolated test holds original provider acknowledgement.');return send(...args);};}
-      const provider = createProviderServer(name, join(dir, `${name}.sqlite`),name==='payments'?{authorizationClock:options.authorizationClock,paymentClient,issuerScenario}:{settlementTransport});
+      const provider = createProviderServer(name, join(dir, `${name}.sqlite`),name==='payments'?{authorizationClock:options.authorizationClock,paymentClient,issuerScenario,automationRun,automationIo}:{settlementTransport});
       providerServers.set(name,provider.server);providerStores.set(name, provider.store);if(name==='payments')paymentInstance=provider;
       databases.push(provider.store.db); await listen(provider.server, corePort + 101 + index);
     }
@@ -95,6 +103,8 @@ export async function startEnvironment(options:{authorizationClock?:()=>number;i
     await listen(server, corePort);
     const { redisSessions } = await import('../../services/agent-core/src/session-store.ts');
     await redisSessions()!.connect();
+    // Provider/broker proofs need no browser bundle; building one is skipped for armed automation runs.
+    if (!options.automation) {
     const web = join(dir, 'web'); await mkdir(web);
     console.log('Building an isolated React demo (live model calls disabled)…');
     await new Promise<void>((done, fail) => {
@@ -116,11 +126,12 @@ export async function startEnvironment(options:{authorizationClock?:()=>number;i
         response.writeHead(200, { 'Content-Type': types[extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-store' }); response.end(content);
       } catch { response.writeHead(500).end('Demo asset unavailable'); }
     }), appPort);
+    }
     const { PaymentResourceUses } = await import('../../services/provider-simulator/src/payment-resource-uses.ts');
     const { ProviderPayables } = await import('../../services/provider-simulator/src/payables.ts');
     const restartPayments=async()=>{
       assert.ok(paymentInstance);const old=paymentInstance;await new Promise<void>(done=>{old.server.closeAllConnections();old.server.close(()=>done());});old.store.close();servers.splice(servers.indexOf(old.server),1);databases.splice(databases.indexOf(old.store.db),1);
-      const next=createProviderServer('payments',join(dir,'payments.sqlite'),{authorizationClock:options.authorizationClock,paymentClient,issuerScenario});paymentInstance=next;providerStores.set('payments',next.store);databases.push(next.store.db);await listen(next.server,corePort+107);
+      const next=createProviderServer('payments',join(dir,'payments.sqlite'),{authorizationClock:options.authorizationClock,paymentClient,issuerScenario,automationRun,automationIo});paymentInstance=next;providerStores.set('payments',next.store);databases.push(next.store.db);await listen(next.server,corePort+107);
     };
     const assertPaymentSource=(provider:string)=>assert.ok(['dewa','etisalat','du','police','rta'].includes(provider));
     return { appUrl, coreUrl, corePort, cleanup,
@@ -128,7 +139,7 @@ export async function startEnvironment(options:{authorizationClock?:()=>number;i
       resumeProvider:async(name:string)=>{const server=providerServers.get(name);assert.ok(server);const port=corePort+101+providerIds.indexOf(name as import('../../services/provider-simulator/src/contracts.ts').ProviderId);await new Promise<void>(done=>server.listen(port,'127.0.0.1',done));},
       failNextPaymentPreparation:(provider:string)=>{assertPaymentSource(provider);failedPreparations.add(provider);},
       loseNextReversalResponse:(provider:string)=>{assertPaymentSource(provider);lostReversals.add(provider);},
-      holdSourceReads:(provider:string,hold:boolean)=>{assertPaymentSource(provider);if(hold)blockedSourceReads.add(provider);else blockedSourceReads.delete(provider);},issuerRunId:issuerScenario?.runId,restartPayments,holdLegacyAcknowledgement:(provider:string,hold:boolean)=>{assert.ok(['rta','dewa','etisalat','du','police'].includes(provider));if(hold)heldAcknowledgements.add(provider);else heldAcknowledgements.delete(provider);},receivedPaymentEvents:(account:string)=>providerStores.get('payments')!.db.prepare('SELECT id,disposition FROM payment_event_inbox WHERE account_id=? ORDER BY rowid').all(account).map(r=>({id:String(r.id),disposition:String(r.disposition)})),paymentEventRecords:(provider:string,account:string)=>providerStores.get(provider)!.db.prepare('SELECT body FROM payment_event_outbox WHERE account_id=? ORDER BY rowid').all(account).map(row=>JSON.parse(String(row.body)) as import('../../packages/protocol-core/src/payment-events.ts').PaymentEvent),loseNextSettlementResponse:(provider:string)=>{assert.ok(['dewa','etisalat','du','police','rta'].includes(provider));lostSettlementResponses.add(provider);},providerState: (provider: string, account: string, kind: string) => providerStores.get(provider)?.get(account, kind),
+      holdSourceReads:(provider:string,hold:boolean)=>{assertPaymentSource(provider);if(hold)blockedSourceReads.add(provider);else blockedSourceReads.delete(provider);},issuerRunId:issuerScenario?.runId,automationRunId:automationRun?.runId,providerStores,restartPayments,holdLegacyAcknowledgement:(provider:string,hold:boolean)=>{assert.ok(['rta','dewa','etisalat','du','police'].includes(provider));if(hold)heldAcknowledgements.add(provider);else heldAcknowledgements.delete(provider);},receivedPaymentEvents:(account:string)=>providerStores.get('payments')!.db.prepare('SELECT id,disposition FROM payment_event_inbox WHERE account_id=? ORDER BY rowid').all(account).map(r=>({id:String(r.id),disposition:String(r.disposition)})),paymentEventRecords:(provider:string,account:string)=>providerStores.get(provider)!.db.prepare('SELECT body FROM payment_event_outbox WHERE account_id=? ORDER BY rowid').all(account).map(row=>JSON.parse(String(row.body)) as import('../../packages/protocol-core/src/payment-events.ts').PaymentEvent),loseNextSettlementResponse:(provider:string)=>{assert.ok(['dewa','etisalat','du','police','rta'].includes(provider));lostSettlementResponses.add(provider);},providerState: (provider: string, account: string, kind: string) => providerStores.get(provider)?.get(account, kind),
       // Trusted test fixture only: no HTTP route can create/release lifecycle locks.
       bindPaymentUse: (account: string, binding: Parameters<InstanceType<typeof PaymentResourceUses>['bind']>[1]) => {
         const uses = new PaymentResourceUses(providerStores.get('payments')!); uses.bind(account,binding);

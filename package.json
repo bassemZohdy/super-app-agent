@@ -72,6 +72,7 @@
     "simulator:issuer": "node --experimental-strip-types scripts/e2e/issuer-scenarios.ts",
     "demo:verify:issuer-scenarios": "node --experimental-strip-types scripts/e2e/issuer-scenarios.ts",
     "record:issuer-scenarios": "node --experimental-strip-types scripts/e2e/issuer-scenarios.ts --record",
+    "demo:verify:automation-execution": "node --experimental-strip-types scripts/e2e/automation-execution.ts",
     "demo:verify:mandates": "node --experimental-strip-types scripts/e2e/payment-mandates.ts",
     "demo:verify:payment-surfaces": "node --experimental-strip-types scripts/e2e/payment-surfaces.ts",
     "record:payment-surfaces": "node --experimental-strip-types scripts/e2e/payment-surfaces.ts --record",

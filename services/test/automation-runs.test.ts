@@ -248,7 +248,8 @@ function execution(f:ReturnType<typeof fixture>){
   }} as unknown as ProviderClient;
   const consumed:Record<string,unknown>[]=[];let deny=false;
   const deps={runs:f.db.automationRuns!,orders:f.payments.orders!,checkout:new PaymentCheckout(f.payments.orders!,client),client,
-    authority:async(_a:string|undefined,op:Record<string,unknown>)=>{if(deny)throw new Error('denied');consumed.push(op);}};
+    authority:async(_a:string|undefined,op:Record<string,unknown>)=>{if(deny)throw new Error('denied');consumed.push(op);},
+    session:async()=>({executionId:String(consumed.at(-1)?.executionId)})};
   return {deps,consumed,effects:()=>effects,deny:(v:boolean)=>{deny=v;}};
 }
 const owner={sub:'auto-owner',authorization:'Bearer broker-bound'};
@@ -267,8 +268,10 @@ test('AUTO-03 step 3: the dedicated route settles the automatic order once for t
   // The provider and the broker derive the same operation independently.
   const view=f.db.automationRuns!.readExecution('auto-worker',first.id);
   assert.deepEqual(x.consumed,[permitOperation(view as never)]);
-  // The permit is spent: a second call can neither charge again nor re-admit.
-  await assert.rejects(executeAutomaticOrder(x.deps,owner,first.id),(e:any)=>e.code==='AUTOMATION_ALREADY_DISPATCHED');
+  // The permit is spent: a second call spends nothing, re-admits nothing and only returns the settled order.
+  const again=await executeAutomaticOrder(x.deps,owner,first.id);
+  assert.equal(again.state,'SETTLED');
+  assert.equal(x.consumed.length,1,'the permit was consumed exactly once');
   assert.equal(x.effects(),1);
   assert.equal(f.payments.ledger!.summary(f.actor.accountId).balanceMinor,before-15000);
 });
@@ -288,4 +291,24 @@ test('AUTO-03 step 3: wrong owner, missing permit and stale authority execute no
   assert.equal(f.payments.ledger!.summary(f.actor.accountId).balanceMinor,before);
   assert.equal(x.effects(),0);
   await assert.rejects(executeAutomaticOrder(x.deps,owner,first.id),(e:any)=>e.code==='AUTOMATION_ALREADY_DISPATCHED','the rejection is recorded and final for this execution');
+});
+
+test('AUTO-03 step 3: a lost response resumes the same order with the same spent permit, never a second effect',async t=>{
+  const f=fixture(t),m=f.mandate();f.bill('auto-bill-1',150,1);
+  const first=prepared(f.prepare(m.id,'occ_resume')),x=execution(f),before=f.payments.ledger!.summary(f.actor.accountId).balanceMinor;
+  // The permit is spent and the admission recorded, but the snapshot read is lost before the order moves.
+  const real=x.deps.client.call.bind(x.deps.client);let lose=true;
+  x.deps.client.call=async(...args:Parameters<typeof real>)=>{if(lose&&args[2]==='GET'&&/\/payables\/[^/]+$/.test(args[3])){lose=false;throw new Error('connection lost');}return real(...args);};
+  await assert.rejects(executeAutomaticOrder(x.deps,owner,first.id),/connection lost/);
+  assert.equal(f.db.automationRuns!.dispatchState(first.id),'ADMITTED');
+  assert.equal(f.payments.orders!.get(f.actor,first.orderId!).state,'AWAITING_APPROVAL');
+  assert.equal(f.payments.ledger!.summary(f.actor.accountId).balanceMinor,before);
+  const settled=await executeAutomaticOrder(x.deps,owner,first.id);
+  assert.equal(settled.state,'SETTLED');
+  assert.equal(x.consumed.length,1,'the retry did not spend another permit');
+  assert.equal(x.effects(),1);
+  assert.equal(f.payments.ledger!.summary(f.actor.accountId).balanceMinor,before-15000);
+  // A token without a session for this execution cannot resume it.
+  x.deps.session=async()=>{throw new Error('no session');};
+  await assert.rejects(executeAutomaticOrder(x.deps,owner,first.id),(e:any)=>e.code==='AUTOMATION_PERMIT_DENIED');
 });

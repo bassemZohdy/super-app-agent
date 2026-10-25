@@ -43,7 +43,7 @@ import { ProviderEngine, ApiError, type ApiResult } from './engine.ts';
 import { operations, openApi, providerIds, type ProviderId } from './contracts.ts';
 export const callers: Record<ProviderId, string[]> = { rta: ['service-ride','service-catalog','service-wallet'], dewa: ['service-food','service-wallet','service-catalog'], etisalat: ['service-telecom'], du: ['service-telecom'], police: ['service-wallet'], dld: ['service-catalog'], payments: ['service-wallet','service-food','service-ride','service-telecom','provider-settlements'] };
 const canonical = (value: any): any => Array.isArray(value) ? value.map(canonical) : value && typeof value === 'object' ? Object.fromEntries(Object.keys(value).sort().map(k => [k, canonical(value[k])])) : value;
-export function createProviderServer(provider: ProviderId, path: string, options:{authorizationClock?:()=>number;settlementTransport?:ClaimTransport;paymentClient?:ProviderClient;issuerScenario?:IssuerScenarioContext;permitAuthority?:PermitAuthority;sessionReader?:(authorization:string|undefined)=>Promise<AutomationSession>}={}) {
+export function createProviderServer(provider: ProviderId, path: string, options:{authorizationClock?:()=>number;settlementTransport?:ClaimTransport;paymentClient?:ProviderClient;issuerScenario?:IssuerScenarioContext;automationRun?:import('./automation-runs.ts').AutomationRunContext;automationIo?:import('./automation-runs.ts').AutomationRunIo;permitAuthority?:PermitAuthority;sessionReader?:(authorization:string|undefined)=>Promise<AutomationSession>}={}) {
   const store = new AccountDatabase(path), engine = new ProviderEngine(provider, store,options);
   const ajv = new Ajv({ strict: false, allErrors: true });
   const routes = operations[provider].map(operation => ({ ...operation, regex: new RegExp(`^${operation.path.replace(/\{\w+\}/g, '[^/]+')}$`), validate: operation.body ? ajv.compile(operation.body) : undefined }));
@@ -111,8 +111,13 @@ export function createProviderServer(provider: ProviderId, path: string, options
         if(req.method==='POST'&&automationRoute[5]==='execute'){
           const scopes=String(claims.scope||'').split(' ');
           if(!delegated||claims.act!==undefined||!scopes.includes('delegation.write')||roles.length>0||!checkout||!engine.orders)throw new ApiError(403,'AUTOMATION_CREDENTIAL_REQUIRED','Only a broker-issued per-execution credential may execute an automatic order.');
-          const order=await executeAutomaticOrder({runs,orders:engine.orders,checkout,client:payments,authority:options.permitAuthority||authorizeAutomationPermit},{sub:claims.sub,authorization:req.headers.authorization as string},automationRoute[4] as string);
+          const order=await executeAutomaticOrder({runs,orders:engine.orders,checkout,client:payments,authority:options.permitAuthority||authorizeAutomationPermit,session:options.sessionReader||readAutomationSession},{sub:claims.sub,authorization:req.headers.authorization as string},automationRoute[4] as string);
           return send({status:200,data:{success:true,order}});
+        }
+        if(worker&&req.method==='POST'&&automationRoute[2]==='prepare'){
+          const input=await readJsonBody(req);
+          if(!ajv.validate(automationRunSchemas.prepare,input))throw new ApiError(400,'VALIDATION_ERROR','The preparation request has invalid or unsupported fields.');
+          return send({status:200,data:{success:true,...runs.prepare(claims.sub,input as {mandateId:string;occurrenceKey:string;requestKey:string})}});
         }
         if(automationRoute[5]||!interactive||claims.act!==undefined)throw new ApiError(403,'AUTOMATION_ROLE_REQUIRED','A signed interactive run identity is required.');
         if(req.method==='GET'&&!automationRoute[2]&&!automationRoute[3]){return send({status:200,data:{success:true,...runs.status(claims.sub)}});}
@@ -168,7 +173,7 @@ export function createProviderServer(provider: ProviderId, path: string, options
       if(claimRoute&&!claimant)throw new ApiError(403,'CLAIM_CLIENT_REQUIRED','Only the exact provider settlement workload can change a claim.');
       if(provider==='payments'&&(operationPath==='/payment-lifecycle'||operationPath.startsWith('/payment-history')||operationPath.startsWith('/payment-statement')||operationPath.startsWith('/payment-reconciliation')||operationPath.startsWith('/payment-mandates')||operationPath.startsWith('/payment-orders')||operationPath.startsWith('/wallet-funding-orders')||operationPath.startsWith('/checkout-groups')||operationPath.startsWith('/payment-refunds')||operationPath==='/payment-events')&&!interactive&&!session)throw new ApiError(403,'INTERACTIVE_REVIEW_REQUIRED','Stored authorization reviews require the signed-in owner. Unattended actors cannot approve or answer challenges.');
       if((operationPath.includes('/admissions')||operationPath==='/fine-selections'||operationPath==='/recharge-quotes'||operationPath.startsWith('/payment-reversals/'))&&!interactive&&!session)throw new ApiError(403,'INTERACTIVE_ADMISSION_REQUIRED','Payable admission requires the current signed-in owner.');
-      const actor: Actor = { sub: subject, username: subject, name: typeof req.headers['x-user-name'] === 'string' ? Buffer.from(req.headers['x-user-name'], 'base64url').toString('utf8').slice(0, 200) : 'Demo citizen', accountId, requestId: '', authorization: interactive ? req.headers.authorization : undefined };
+      const actor: Actor = { sub: subject, username: subject, name: typeof req.headers['x-user-name'] === 'string' ? Buffer.from(req.headers['x-user-name'], 'base64url').toString('utf8').slice(0, 200) : 'Demo citizen', accountId, requestId: '', authorization: interactive || session ? req.headers.authorization : undefined };
       if(provider==='payments'&&req.method==='GET'&&operationPath==='/account-eligibility'&&interactive)return send({status:200,data:{success:true,eligibility:store.eligibility!.snapshot(accountId)}});
       // Settlement claim/proof lanes retain original captured identities; they cannot admit a new charge.
       const retainedSettlement=claimant||claims.azp==='provider-settlements'&&provider==='payments'&&req.method==='GET'&&/^\/charges\/[A-Za-z0-9_-]+$/.test(operationPath);
