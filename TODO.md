@@ -21,12 +21,9 @@ Agent rules are in [AGENTS.md](AGENTS.md).
 
 ## Critical path
 
-`QA-01`–`QA-08`.
+`QA-04`–`QA-08`, after `SIM-05` (QA-04 depends on it).
 
-Independent of that chain, so these can run in parallel at any time: SIM-05 and the QA-01/QA-02 partials.
-
-## Demo — automation services
-
+Independent of that chain: QA-09 and QA-10 can run at any time.
 
 ## Demo — simulator and acceptance
 
@@ -71,7 +68,7 @@ Independent of that chain, so these can run in parallel at any time: SIM-05 and 
 
 ## Production gate (separate from the demo)
 
-Nothing below blocks the local demo. P0 means the item blocks use with real users, identity, money or government records. The `OBO-` entries are the production remainder of identity-delegation work that is already delivered for the demo boundary ([changelog](docs/CHANGELOG.md#completed-task-ledger)); read [ADR-0012](docs/adr/ADR-0012-secure-delegation-demo.md) and the [delegation analysis](docs/architecture/secure-identity-delegation.md) first. Keycloak 26.6.4 is pinned; native `token-exchange-delegation` and other preview/experimental features stay excluded.
+Source for the archived Phase 10 list in [demo-backlog-pre-production](docs/history/demo-backlog-pre-production.md): identity and PKCE → P0-01; authorization → P0-03; durable sessions → P0-05; settlement → P0-06; deployment and scanning → P0-07, P2-03; agent runtime → P1-03; AG-UI/A2UI → P1-06. Nothing below blocks the local demo. P0 means the item blocks use with real users, identity, money or government records. The `OBO-` entries are the production remainder of identity-delegation work that is already delivered for the demo boundary ([changelog](docs/CHANGELOG.md#completed-task-ledger)); read [ADR-0012](docs/adr/ADR-0012-secure-delegation-demo.md) and the [delegation analysis](docs/architecture/secure-identity-delegation.md) first. Keycloak 26.6.4 is pinned; native `token-exchange-delegation` and other preview/experimental features stay excluded.
 
 - [ ] **P0-01 — Real end-user login in retained shells.** React/Angular use PKCE with tokens in sessionStorage; Flutter uses a demo password grant. **Remaining:** native PKCE/redirects, production session/token handling, cross-tab/account/logout interruption, device tests; remove demo credentials and grants from any production profile.
 - [ ] **P0-02 — Complete authenticated stream lifecycle.** **Remaining:** native/device interruption, reauthentication, proxy and slow-client tests, global connection quotas. **Done when:** these pass with no tokens in URLs.
