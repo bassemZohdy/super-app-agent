@@ -9,6 +9,7 @@
  *  credential, so an uncertain outcome keeps its reservation until original-ID reconciliation. */
 import { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
+import { automationOperation } from '../../../packages/protocol-core/src/automation-operation.ts';
 import { brokerClient, automationWorkerClient, deny, digest } from './policy.ts';
 
 export type ExecutionView = {
@@ -38,11 +39,8 @@ const isoMs = (value: unknown) => typeof value === 'string' ? Date.parse(value) 
 
 /** The exact operation a provider must present to consume the permit; nothing in it comes from the worker. */
 export function permitOperation(view: Pick<ExecutionView, 'executionId' | 'runId' | 'accountId' | 'boundDigest' | 'source' | 'payable'>) {
-  return {
-    kind: 'AUTOMATION_EXECUTION', runId: view.runId, executionId: view.executionId, accountId: view.accountId,
-    boundDigest: view.boundDigest, payableId: view.payable.id, payableRevision: view.payable.revision,
-    amountMinor: view.payable.amountMinor, sourceId: view.source.id, sourceVersion: view.source.version,
-  };
+  return automationOperation({ executionId: view.executionId, runId: view.runId, accountId: view.accountId, boundDigest: view.boundDigest,
+    payableId: view.payable.id, payableRevision: view.payable.revision, amountMinor: view.payable.amountMinor, sourceId: view.source.id, sourceVersion: view.source.version });
 }
 
 function checkedView(view: ExecutionView) {
@@ -77,6 +75,11 @@ export class PermitStore {
     this.db.prepare('UPDATE permits SET state=?,fingerprint=?,body=? WHERE id=?').run(permit.state, permit.fingerprint ?? null, JSON.stringify({ ...permit, fingerprint: undefined }), permit.id);
   }
   get(permitId: string): Permit { return this.read(this.db.prepare('SELECT body,state,fingerprint FROM permits WHERE id=?').get(permitId) as never); }
+  /** The permit bound to a token fingerprint, without changing it. */
+  byFingerprint(fingerprint: string): Permit | undefined {
+    const row = this.db.prepare('SELECT body,state,fingerprint FROM permits WHERE fingerprint=?').get(fingerprint) as never;
+    return row ? this.read(row) : undefined;
+  }
   /** The newest permit for an execution, for inspection and reconciliation. */
   forExecution(executionId: string): Permit | undefined {
     const row = this.db.prepare('SELECT body,state,fingerprint FROM permits WHERE execution_id=? ORDER BY rowid DESC LIMIT 1').get(executionId) as never;

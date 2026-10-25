@@ -133,6 +133,16 @@ const automationDeps = (): AutomationDeps => ({
   permits: permitStore(), readView: readExecutionView, mint: mintExecutionToken,
   eligible: async view => { await currentEligibility(view.ownerSub, view.accountId); },
 });
+/** Provider-side check that consumes the bound permit once for the exact operation. */
+export async function authorizeExecutionPermit(authorization: string | undefined, operation: Parameters<PermitStore['authorize']>[3]) {
+  const c = await verifyJwt(authorization, 'provider-api');
+  if (c.azp !== brokerClient || c.act !== undefined || !String(c.scope || '').split(' ').includes('delegation.write')) deny('INVALID_DELEGATED_PRINCIPAL');
+  const fingerprint = tokenHash(authorization!.slice(7)), permit = permitStore().byFingerprint(fingerprint);
+  if (!permit) deny('TOKEN_NOT_BOUND', 'No execution permit is bound to this token.');
+  await currentEligibility(permit!.owner, permit!.accountId);
+  const consumed = permitStore().authorize(fingerprint, c.sub, c.azp, operation);
+  return { permitId: consumed.id, executionId: consumed.executionId };
+}
 async function automationCredential(path: string, body: any, authorization?: string): Promise<Reply> {
   const route = /^\/api\/delegation\/automation\/executions\/([A-Za-z0-9_-]{1,200})\/credential$/.exec(path);
   if (!route) return { status: 404, data: { success: false, code: 'NOT_FOUND' } };
@@ -148,6 +158,7 @@ export async function handleDelegation(method: string, path: string, body: any, 
   try {
     if (method === 'GET' && ['/api/delegation/jwks', '/api/delegation/client-jwks'].includes(path)) return { status: 200, data: { keys: [keyMaterial(path.endsWith('/client-jwks') ? 'client' : 'issuer').jwk] } };
     if (path === '/api/delegation/authorize' && method === 'POST') { const claims = await delegatedAuthorization(authorization, body); return { status: 200, data: { success: true, sub: claims.sub, actor: claims.azp } }; }
+    if (path === '/api/delegation/automation/authorize' && method === 'POST') { const out = await authorizeExecutionPermit(authorization, body?.operation); return { status: 200, data: { success: true, ...out } }; }
     if (path.startsWith('/api/delegation/automation/')) return method === 'POST' ? await automationCredential(path, body, authorization) : { status: 404, data: { success: false, code: 'NOT_FOUND' } };
     const executePath = /^\/api\/delegation\/grants\/([a-f0-9-]{36})\/execute$/.exec(path);
     if (executePath && method === 'POST') return await execute(executePath[1], body.requestKey, authorization);

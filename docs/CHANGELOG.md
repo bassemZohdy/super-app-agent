@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 25 October 2026 — dedicated execution route for automatic orders (AUTO-03 step 3)
+
+`POST /internal/automation-runs/{runId}/execution/{id}/execute` accepts only the broker-issued per-execution token (no actor chain, no roles). The provider derives the operation from its stored preparation (`packages/protocol-core/src/automation-operation.ts`, shared with the broker's permit), the broker consumes the permit once through `POST /api/delegation/automation/authorize` after re-checking owner eligibility, and the run then re-reads mandate, source, biller and payable freshness. A stale fact records a final `REJECTED` dispatch and moves nothing; otherwise the stored order is approved, authorized and captured by the existing checkout driver (`services/provider-simulator/src/automation-execution.ts`). Only the owning execution can pass the automation claim in the provider's admission step. A second call finds the permit spent and the dispatch closed, so it cannot charge again. Not yet proven on the real stack: the dewa admission lane still requires the interactive owner (TODO 3b). Evidence: `services/test/automation-runs.test.ts`.
+
 ## 25 October 2026 — preparation creates the gateway order (AUTO-03 step 3a)
 
 Preparing an automatic execution now also creates the real payment order for the exact payable, source and biller in the same transaction, using the existing order rules (eligibility, freshness, one active order per obligation). The order carries an `automation` marker bound to the execution, mandate and bound digest, and the preparation records its `orderId`; a retry returns the same order. Ordinary approve, challenge, capture and cancel refuse a marked order with `ORDER_AUTOMATIC`, so nothing but the dedicated execution route (step 3, still open) can move it. No credential, hold or capture exists yet and mandates still return `executionEnabled:false`. Evidence: `services/test/automation-runs.test.ts`.

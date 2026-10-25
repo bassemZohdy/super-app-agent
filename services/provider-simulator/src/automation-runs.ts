@@ -12,6 +12,7 @@ import type { Actor } from '../../../packages/backend-kit/src/context.ts';
 import type { Payable } from '../../../packages/protocol-core/src/payments.ts';
 import type { PaymentMandate } from '../../../packages/protocol-core/src/payment-mandates.ts';
 import { paymentObject } from '../../../packages/protocol-core/src/payments.ts';
+import { automationOperation } from '../../../packages/protocol-core/src/automation-operation.ts';
 
 export type AutomationRunContext={runId:string;operatorSub:string;workerSub:string;root:string};
 export type AutomationRunIo={
@@ -81,6 +82,7 @@ export class AutomationRuns{
         CREATE TABLE IF NOT EXISTS automation_executions(id TEXT PRIMARY KEY,account_id TEXT NOT NULL REFERENCES accounts(id),mandate_id TEXT NOT NULL,state TEXT NOT NULL CHECK(state='PREPARED'),body TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS automation_occurrences(mandate_id TEXT NOT NULL,occurrence_key TEXT NOT NULL,execution_id TEXT NOT NULL REFERENCES automation_executions(id),PRIMARY KEY(mandate_id,occurrence_key));
         CREATE TABLE IF NOT EXISTS automation_payable_claims(account_id TEXT NOT NULL,payable_key TEXT NOT NULL,execution_id TEXT NOT NULL REFERENCES automation_executions(id),PRIMARY KEY(account_id,payable_key));
+        CREATE TABLE IF NOT EXISTS automation_dispatch(execution_id TEXT PRIMARY KEY REFERENCES automation_executions(id),state TEXT NOT NULL CHECK(state IN ('ADMITTED','REJECTED')),permit_owner TEXT NOT NULL,at TEXT NOT NULL,reason TEXT);
         CREATE TABLE IF NOT EXISTS automation_audit(id INTEGER PRIMARY KEY,body TEXT NOT NULL);
         CREATE TRIGGER IF NOT EXISTS automation_audit_no_update BEFORE UPDATE ON automation_audit BEGIN SELECT RAISE(ABORT,'Automation audit is immutable');END;
         CREATE TRIGGER IF NOT EXISTS automation_audit_no_delete BEFORE DELETE ON automation_audit BEGIN SELECT RAISE(ABORT,'Automation audit is immutable');END;
@@ -194,6 +196,9 @@ export class AutomationRuns{
   /** The immutable preparation plus current authority freshness, for the credential broker. */
   readExecution(worker:string,executionId:string){
     if(worker!==this.context.workerSub)return deny('AUTOMATION_WORKER_REQUIRED',"Only this run's exact workload identity reads a prepared execution.",403);
+    return this.view(executionId);
+  }
+  private view(executionId:string){
     const row=this.store.db.prepare('SELECT body,account_id,mandate_id FROM automation_executions WHERE id=?').get(executionId);
     if(!row)return deny('AUTOMATION_EXECUTION_NOT_FOUND','No such prepared execution exists in this run.',404);
     const preparation=JSON.parse(String(row!.body)) as AutomationPreparation;
@@ -216,6 +221,31 @@ export class AutomationRuns{
       payable:{id:preparation.payableId,revision:preparation.payableRevision,amountMinor:preparation.amountMinor,current:payableCurrent},
       boundDigest:preparation.boundDigest,preparedAt:preparation.preparedAt,admissionExpiresAt:preparation.admissionExpiresAt,
       expired:Date.now()>Date.parse(preparation.admissionExpiresAt)};
+  }
+  /** The stored preparation, its owner and the exact operation a permit must authorize; nothing here comes from a caller. */
+  target(executionId:string){
+    const row=this.store.db.prepare('SELECT body FROM automation_executions WHERE id=?').get(executionId);
+    if(!row)return deny('AUTOMATION_EXECUTION_NOT_FOUND','No such prepared execution exists in this run.',404);
+    const p=JSON.parse(String(row!.body)) as AutomationPreparation;
+    const owner=this.store.db.prepare('SELECT owner FROM accounts WHERE id=?').get(p.accountId);
+    if(!owner||!p.orderId)return deny('AUTOMATION_EXECUTION_NOT_FOUND','The prepared execution has no owner or order.',404);
+    return {preparation:p,ownerSub:String(owner!.owner),orderId:p.orderId,
+      operation:automationOperation({executionId:p.id,runId:p.runId,accountId:p.accountId,boundDigest:p.boundDigest,payableId:p.payableId,payableRevision:p.payableRevision,amountMinor:p.amountMinor,sourceId:p.sourceId,sourceVersion:p.sourceVersion})};
+  }
+  /** After the broker consumed the permit: re-read current authority and record the one admission. A stale fact closes it for good. */
+  admit(executionId:string,ownerSub:string):AutomationPreparation{
+    const outcome=this.store.transaction(()=>{
+      const {preparation}=this.target(executionId),prior=this.store.db.prepare('SELECT state FROM automation_dispatch WHERE execution_id=?').get(executionId);
+      if(prior)return deny('AUTOMATION_ALREADY_DISPATCHED','This execution was already admitted or closed; recover its original order instead.');
+      const v=this.view(executionId);
+      const stale=v.expired?'ADMISSION_EXPIRED':v.mandate.state!=='APPROVED'?'MANDATE_NOT_ACTIVE':v.mandate.skipNext?'SKIP_PENDING':!v.source.current?'SOURCE_CHANGED':v.biller&&!v.biller.current?'BILLER_CHANGED':!v.payable.current?'PAYABLE_CHANGED':undefined;
+      const at=new Date().toISOString();
+      this.store.db.prepare('INSERT INTO automation_dispatch VALUES(?,?,?,?,?)').run(executionId,stale?'REJECTED':'ADMITTED',ownerSub,at,stale??null);
+      this.store.db.prepare('INSERT INTO automation_audit(body) VALUES(?)').run(JSON.stringify({at,runId:this.context.runId,mandateId:preparation.mandateId,event:stale?'ADMISSION_REJECTED':'ADMITTED',executionId,reason:stale}));
+      return {preparation,stale};
+    });
+    if(outcome.stale)return deny('AUTOMATION_ADMISSION_REJECTED',`Current authority no longer allows this execution (${outcome.stale}). Its reservation stays held until reconciled.`);
+    return outcome.preparation;
   }
   /** Owned inspection: the interactive owner sees this workspace's reserved executions. */
   inspect(subject:string,accountId:string,mandateId?:string):AutomationExecutionView[]{

@@ -28,7 +28,7 @@ export class PaymentCheckout{
     try{
       let admission:PayableAdmission;
       if(!order.admissionId){
-        const prepared=await this.client.call(provider,actor,'POST',base,{orderId:id,expectedRevision:order.quote.payable.revision,approvalDigest:order.approvalDigest,sourceId:order.quote.source.id,sourceVersion:order.quote.source.version,expiresAt:order.authorization!.expiresAt},`order-prepare:${id}`);
+        const prepared=await this.client.call(provider,actor,'POST',base,{orderId:id,expectedRevision:order.quote.payable.revision,approvalDigest:order.approvalDigest,sourceId:order.quote.source.id,sourceVersion:order.quote.source.version,expiresAt:order.authorization!.expiresAt,...(order.automation?{automationExecutionId:order.automation.executionId}:{})},`order-prepare:${id}`);
         admission=prepared.admission;order=this.orders.attachAdmission(actor,id,admission);
       }else admission=(await this.client.call(provider,actor,'GET',`${base}/${order.admissionId}`)).admission;
       if(!order.fundsCaptured){
