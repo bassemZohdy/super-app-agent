@@ -1,12 +1,12 @@
 # Documentation index
 
-Reviewed **25 October 2026**, after application checkpoint `cd3c7d5` and the later P1/AUTO-03 slices ([evidence](reports/2026-10-25-p1-parity-automation-preparation.md)). [Current status](STATUS.md) is the implementation/verification summary; [TODO.md](../TODO.md) owns remaining acceptance criteria. Dated reports and recordings preserve their own checkpoint facts.
+The [README](../README.md) describes what exists today, [TODO.md](../TODO.md) is the only tracker of open work, the [changelog](CHANGELOG.md) is the delivered record and the [evidence register](reports/README.md) says what was verified and when. Dated reports and recordings preserve their own checkpoint facts.
 
 ## Reading order
 
 1. [README](../README.md) — purpose and quickstart.
-2. [Current status](STATUS.md) — delivered scope, open boundaries and latest executed checks.
-3. [Local development](development/local-development.md), [testing](development/testing.md) and [current status](STATUS.md).
+2. [What exists today](../README.md#what-exists-today) — implemented scope and its explicit limits.
+3. [Local development](development/local-development.md) and [testing](development/testing.md).
 4. [System overview](architecture/system-overview.md), [service contracts](architecture/service-contracts.md), [agent runtime](architecture/agent-runtime.md) and [frontend shells](architecture/frontend-and-miniapps.md).
 5. [Custom protocol inventory](architecture/protocol-ag-ui-a2-ui.md) and [authenticated event stream](architecture/event-stream.md).
 6. [Operations/recovery](development/operations.md), [security](../SECURITY.md) and [evidence register](reports/README.md).
@@ -27,7 +27,7 @@ Reviewed **25 October 2026**, after application checkpoint `cd3c7d5` and the lat
 
 ## Payments and simulation
 
-The selected extension has **50 tasks: 26 delivered and 24 open**; the delivered ledger (PAY-01–PAY-07, PAY-09–PAY-21, AUTO-01–AUTO-02, SIM-03 and preview-only SIM-01) moved to the [changelog](CHANGELOG.md). Automatic execution remains disabled. [Authoritative backlog](../TODO.md#payment-accounts-and-automation-demo--planned-backlog).
+Payments use synthetic funds only. Automatic execution is disabled; open work is in [TODO.md](../TODO.md).
 
 | Guide | Delivered behavior or remaining boundary |
 | --- | --- |

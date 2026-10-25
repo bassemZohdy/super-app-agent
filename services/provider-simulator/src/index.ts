@@ -10,7 +10,7 @@ import { verifyMandateTarget } from './mandate-targets.ts';
 import { issuerScenarioSchemas } from '../../../packages/protocol-core/src/issuer-scenarios.ts';
 import { IssuerScenarioError,type IssuerScenarioContext } from './issuer-scenarios.ts';
 import { AutomationRunError,automationRunSchemas } from './automation-runs.ts';
-import { ScenarioControlError } from './scenario-controls.ts';
+import { ScenarioControlError, scenarioArmSchema } from './scenario-controls.ts';
 import { inspectRun } from './run-inspector.ts';
 import { startPaymentEventDelivery } from './payment-events.ts';
 import type { PaymentEvent } from '../../../packages/protocol-core/src/payment-events.ts';
@@ -90,7 +90,7 @@ export function createProviderServer(provider: ProviderId, path: string, options
         }
         if(req.method==='POST'&&controlRoute[2]==='arm'){
           const input=await readJsonBody(req);
-          if(!ajv.validate({type:'object',properties:{name:{type:'string',enum:['checkout.after-admission','checkout.after-capture-commit','checkout.after-settlement-request']},times:{type:'integer',minimum:1,maximum:100},requestKey:{type:'string',pattern:'^[A-Za-z0-9_-]{8,100}$',minLength:8,maxLength:100}},required:['name','requestKey'],additionalProperties:false},input))throw new ApiError(400,'VALIDATION_ERROR','Arm a named failpoint with a bounded count and operator key.');
+          if(!ajv.validate(scenarioArmSchema,input))throw new ApiError(400,'VALIDATION_ERROR','Arm a named failpoint with a bounded count and operator key.');
           return send({status:200,data:{success:true,...controls.arm(claims.sub,input as {name:string;times?:number;requestKey:string})}});
         }
         if(req.method==='POST'&&controlRoute[2]==='clear')return send({status:200,data:{success:true,...controls.clear(claims.sub)}});

@@ -1,6 +1,6 @@
 # ADR-0004 — Mini-app presentation and deployment strategy
 
-> Implementation review, 24 October 2026: [current status](../STATUS.md), [delivery target](ADR-0011-local-demo-target.md) and [bounded delegation amendment](ADR-0012-secure-delegation-demo.md) identify the implemented demo. This decision does not establish production approval.
+> Implementation review, 24 October 2026: [what exists today](../../README.md#what-exists-today), [delivery target](ADR-0011-local-demo-target.md) and [bounded delegation amendment](ADR-0012-secure-delegation-demo.md) identify the implemented demo. This decision does not establish production approval.
 
 **Status:** **Embedded mini-app demonstration implemented; independent MFE runtime proposed.**
 **Reviewed:** 2026-10-24.
