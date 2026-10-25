@@ -529,3 +529,35 @@ test('AUTO-15: a pause survives a provider restart and still refuses preparation
   assert.equal(skipped(restarted.automationRuns!.prepare('auto-worker',{mandateId:m.id,occurrenceKey:'occ_restart',requestKey:`req_${randomUUID()}`})).reason,'MANDATE_NOT_ACTIVE');
   restarted.close();
 });
+
+test('AUTO-15: a limit reduction after preparation stops the in-flight execution before any money moves',async t=>{
+  const f=fixture(t),m=f.mandate();f.bill('auto-bill-limit',150,1);
+  const first=prepared(f.prepare(m.id,'occ_limit')),x=execution(f),before=f.payments.ledger!.summary(f.actor.accountId).balanceMinor;
+  // The owner lowers the per-payment cap below the prepared amount: the revision needs approval again, and the old binding is released.
+  const current=f.payments.mandates!.get(f.actor,m.id);
+  const lowered=f.payments.mandates!.revise(f.actor,m.id,current.version,{...current.policy,limits:{...current.policy.limits,perPaymentMinor:10000}});
+  assert.equal(lowered.state,'AWAITING_APPROVAL');
+  await assert.rejects(executeAutomaticOrder(x.deps,owner,first.id),(e:any)=>e.code==='AUTOMATION_ADMISSION_REJECTED');
+  assert.equal(f.payments.orders!.get(f.actor,first.orderId!).state,'CANCELLED','the stopped execution closes its order');
+  assert.equal(f.payments.ledger!.summary(f.actor.accountId).balanceMinor,before,'no money moved under the old limit');
+  assert.equal(x.effects(),0);
+  console.log('PASS: a limit reduction between preparation and admission stops the execution with nothing moved.');
+});
+
+test('AUTO-15: disabling the card after preparation stops the in-flight execution before any money moves',async t=>{
+  const f=fixture(t),base=f.mandate();f.bill('auto-bill-card-disable',150,1);
+  const card=f.payments.execute(f.actor,'POST','/payment-methods',{preset:'approved',nickname:'Race card'}).data.method as {id:string;version:number};
+  const billing=f.payments.execute(f.actor,'GET','/billing-accounts',{}).data.billingAccounts.find((b:{provider:string})=>b.provider==='dewa');
+  const policy={...base.policy,sources:[{methodId:card.id,expectedVersion:card.version}],target:{...base.policy.target,billingAccountId:billing.id,expectedVersion:billing.version}};
+  const created=f.payments.mandates!.create(f.actor,policy);
+  const cardRule=f.payments.mandates!.approve(f.actor,created.id,created.version,created.approvalDigest);
+  const first=prepared(f.prepare(cardRule.id,'occ_card_disable')),x=execution(f),before=f.payments.ledger!.summary(f.actor.accountId).balanceMinor;
+  // The owner disables the card between preparation and admission.
+  const disabled=f.payments.execute(f.actor,'POST','/payment-methods/status',{methodId:card.id,expectedVersion:card.version,status:'DISABLED'});
+  assert.equal(disabled.status,200,JSON.stringify(disabled.data));
+  await assert.rejects(executeAutomaticOrder(x.deps,owner,first.id),(e:any)=>e.code==='AUTOMATION_ADMISSION_REJECTED');
+  assert.equal(f.payments.orders!.get(f.actor,first.orderId!).state,'CANCELLED','the stopped execution closes its order');
+  assert.equal(f.payments.ledger!.summary(f.actor.accountId).balanceMinor,before,'a disabled card moves no money');
+  assert.equal(x.effects(),0);
+  console.log('PASS: a card disabled between preparation and admission stops the execution with nothing moved.');
+});
