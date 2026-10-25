@@ -72,3 +72,36 @@ test('AUTO-15: an engage while a credential is in flight holds the job and never
   assert.equal(await w.runOnce(), undefined, 'a held job is not replayed with a fresh credential');
   assert.equal(calls.credential, 1);
 });
+
+test('AUTO-15 step 3b: a desired kill-switch state from an authority is applied to the worker\'s own store, and an unknown read changes nothing', async () => {
+  const store = new JobStore(':memory:');
+  const job = store.enqueue(rule);
+  let desired: { engaged: boolean; reason: string } | undefined | 'FAIL' = { engaged: true, reason: 'authority stop' };
+  const calls = { prepare: 0 };
+  const g: ExecutionGateway = {
+    prepare: async () => { calls.prepare++; return { id: 'autoexec_1', runId: 'autorn_1', orderId: 'order_1' }; },
+    credential: async () => ({ accessToken: 'secret-bearer-do-not-store', expiresAt: Date.now() + 600_000 }),
+    execute: async (): Promise<ExecutedOrder> => ({ id: 'order_1', state: 'SETTLED', fundsCaptured: true }),
+    resume: async () => { throw new Error('not expected'); },
+    killSwitch: async () => { if (desired === 'FAIL') throw new Error('authority unreachable'); return desired; },
+  };
+  const w = new AutomationWorker(store, g, { workerId: 'worker-a', clock: () => Date.now(), sleep: async () => {}, retryDelayMs: 1, leaseMs: 30_000 });
+
+  assert.equal(await w.runOnce(), undefined, 'the desired engaged state stops claims');
+  assert.equal(store.killSwitch().engaged, true);
+  assert.equal(store.killSwitch().reason, 'authority stop');
+  assert.equal(calls.prepare, 0);
+
+  desired = 'FAIL';
+  assert.equal(await w.runOnce(), undefined, 'an unreadable authority does not release the switch');
+  assert.equal(store.killSwitch().engaged, true);
+
+  desired = undefined;
+  assert.equal(await w.runOnce(), undefined, 'an absent desired state changes nothing');
+  assert.equal(store.killSwitch().engaged, true);
+
+  desired = { engaged: false, reason: '' };
+  assert.equal((await w.runOnce())!.state, 'SETTLED', 'a released desired state lets the worker run again');
+  assert.equal(store.get(job.id)!.state, 'SETTLED');
+  store.close();
+});

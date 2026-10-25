@@ -17,6 +17,8 @@ export interface ExecutionGateway {
   credential(runId: string, executionId: string): Promise<{ accessToken: string; expiresAt: number }>;
   execute(runId: string, executionId: string, accessToken: string): Promise<ExecutedOrder>;
   resume(runId: string, executionId: string): Promise<ChallengeAnswer>;
+  /** The kill switch an authority wants the worker to hold (AUTO-15 step 3b). Absent means no desired state is known. */
+  killSwitch?(): Promise<{ engaged: boolean; reason: string } | undefined>;
 }
 export type WorkerOptions = { workerId: string; leaseMs?: number; maxAttempts?: number; stepRetries?: number; retryDelayMs?: number; challengeWaitMs?: number; clock?: () => number; sleep?: (ms: number) => Promise<void> };
 
@@ -36,6 +38,7 @@ export class AutomationWorker {
 
   /** Claim and run at most one job. Returns the job's state afterwards, or undefined when nothing was runnable. */
   async runOnce(): Promise<Job | undefined> {
+    await this.applyDesiredKillSwitch();
     // AUTO-15: an engaged kill switch admits no new step; nothing is claimed, so nothing is prepared, requested or executed.
     if (this.store.killSwitch().engaged) return undefined;
     const claim = this.store.claim(this.opts.workerId, this.opts.leaseMs, this.opts.clock());
@@ -45,6 +48,17 @@ export class AutomationWorker {
       if (!(e instanceof StaleWorkerError)) throw e;
     }
     return this.store.get(claim.job.id);
+  }
+  /** The worker is the only writer of its own kill switch. An authority's desired state is applied when it is known; an unreadable
+   *  or absent state changes nothing, so a switch is never released on a failed read. */
+  private async applyDesiredKillSwitch() {
+    if (!this.gateway.killSwitch) return;
+    let desired: { engaged: boolean; reason: string } | undefined;
+    try { desired = await this.gateway.killSwitch(); } catch { return; }
+    if (!desired) return;
+    const current = this.store.killSwitch();
+    if (current.engaged === desired.engaged) return;
+    this.store.setKillSwitch(desired.engaged, desired.reason, this.now());
   }
   async drain(limit = 100) { let n = 0; while (n < limit && await this.runOnce()) n++; return n; }
 

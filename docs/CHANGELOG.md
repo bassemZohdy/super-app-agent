@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 25 October 2026 — the worker applies an authority's kill-switch state (AUTO-15, step 3b-i)
+
+The worker now reads an optional desired kill-switch state from its gateway and applies it to its own store. The worker stays the only writer of that store. A desired engaged state stops new claims; a desired released state lets work resume; an unreadable or absent state changes nothing, so a switch is never released on a failed read. The HTTP gateway does not call an authority yet, so nothing changes in a running system until the broker side (3b-ii) exists. Evidence: `services/test/auto15-kill-switch.test.ts`.
+
 ## 25 October 2026 — operator kill switch over the application route (AUTO-15, step 3a)
 
 `POST /api/payments/automation-kill-switch` engages or releases the worker's kill switch for a signed-in account listed in `AUTOMATION_OPERATOR_SUBS`. Engaging needs a reason; any other account is refused and nothing changes; a missing job store is an error, never a new file; the route accepts only its named fields. Evidence: `services/test/auto15-admin-kill-switch.test.ts`. Still open in AUTO-15: 3b, a broker-scoped admin client and scope with its panel control.
