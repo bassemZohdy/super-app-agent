@@ -1,6 +1,6 @@
 # Documentation index
 
-Reviewed **24 October 2026**, after application checkpoint `cd3c7d5`. [Current status](STATUS.md) is the implementation/verification summary; [TODO.md](../TODO.md) owns remaining acceptance criteria. Dated reports and recordings preserve their own checkpoint facts.
+Reviewed **25 October 2026**, after application checkpoint `cd3c7d5` and the later P1/AUTO-03 slices ([evidence](reports/2026-10-25-p1-parity-automation-preparation.md)). [Current status](STATUS.md) is the implementation/verification summary; [TODO.md](../TODO.md) owns remaining acceptance criteria. Dated reports and recordings preserve their own checkpoint facts.
 
 ## Reading order
 

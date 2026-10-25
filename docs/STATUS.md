@@ -1,6 +1,6 @@
 # Current implementation and verification status
 
-Reviewed **24 October 2026**, against application checkpoint **`cd3c7d5`**. Documentation maintenance after this checkpoint does not add runtime capabilities. [Run the app](development/local-development.md) · [Full backlog](../TODO.md) · [Evidence register](reports/README.md).
+Reviewed **25 October 2026**, against application checkpoint **`cd3c7d5`** and the later P1/AUTO-03 slices. The `cd3c7d5` full qualification is not relabeled as rerun; later slices carry their own focused evidence. [Run the app](development/local-development.md) · [Full backlog](../TODO.md) · [Evidence register](reports/README.md).
 
 ## Delivered demo
 
@@ -36,6 +36,8 @@ The selected payment extension has **50 tasks: 24 checked, 26 open**. PAY-08 is 
 AUTO-03 is a proposed implementation contract with an archived unfinished prototype, not active application code. Later platform work did not enable recurring payments. Do not resume that prototype or treat mandate approval as execution authority without its existing acceptance gates.
 
 ## Latest executed application checks
+
+Later slices (25 October 2026) add focused verified behavior: multi-group surface dispatch with per-group approval (P1-12), explicit `ACTION_DISABLED` rejection (P1-12), fail-closed explicit resource selection in conversational dispatch (P1-13), choice-group option/preselection semantics (P1-14) and the AUTO-03 isolated-run preparation checkpoint with shared budget/occurrence/payable reservations and no credential issuance or effects. Ten focused tests cover these; the offline suite totals 562 tests with environment-bound failures identical to `cd3c7d5` in the same sandbox. [Evidence](reports/2026-10-25-p1-parity-automation-preparation.md).
 
 At `cd3c7d5`, `npm run check` passed **533 offline Node tests**, **18 workspace builds**, ESLint, E2E TypeScript, Markdown links and source-secret checks. The actual Node 24.21.0 Compose image passed 17 targeted operations tests. The [operations report](reports/2026-10-24-operations.md) records signed partial-journey checks, 10-second load, 60-second soak, encrypted restore and copied Keycloak/Redis boot/login. Signed payment-obligation browser/HTTP recovery also passed. Earlier full browser, Flutter and local-AI checks retain their separately dated evidence; they are not relabeled as rerun by documentation maintenance.
 

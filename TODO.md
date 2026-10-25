@@ -2,7 +2,7 @@
 
 > **Delivery target:** the local synthetic demo in [ADR-0011](docs/adr/ADR-0011-local-demo-target.md). Production criteria remain open where unfulfilled. No real money, agency credentials or hosted deployment is implied.
 
-**Reviewed 24 October 2026 against application checkpoint `cd3c7d5`.** [Current status](docs/STATUS.md) consolidates delivered capabilities and verification; [evidence](docs/reports/README.md) retains dated command results. Latest application qualification: **533 offline Node tests and 18 workspace builds**, plus signed operating/payment recovery checks. This documentation cleanup adds no runtime feature.
+**Reviewed 25 October 2026 against application checkpoint `cd3c7d5` and the later P1/AUTO-03 slices.** [Current status](docs/STATUS.md) consolidates delivered capabilities and verification; [evidence](docs/reports/README.md) retains dated command results. Latest executed full qualification: **533 offline Node tests and 18 workspace builds** at `cd3c7d5`, plus signed operating/payment recovery checks. The later P1-12/P1-13/P1-14 and AUTO-03 checkpoint-1 slices carry ten focused tests (562 offline tests total; [evidence](docs/reports/2026-10-25-p1-parity-automation-preparation.md)).
 
 The reference stack uses six authenticated application APIs, seven independently persisted providers, Keycloak, Redis, a bounded RFC 7523 broker and internal open-source text/voice. React is primary; Angular/Flutter parity, production authority/storage and autonomous execution retain their explicit gates. VoiceStudio integration and cloud inference are unnecessary for the selected local modules. [AI setup/licences](docs/development/local-ai.md).
 

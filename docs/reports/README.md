@@ -1,6 +1,6 @@
 # Execution evidence register
 
-[Current implementation status](../STATUS.md) separates delivered behavior from open acceptance gates. Application checkpoint **`cd3c7d5`**, 24 October 2026, is the latest executed full qualification: **533 Node tests and 18 workspace builds**. Documentation maintenance does not rerun or extend that application evidence.
+[Current implementation status](../STATUS.md) separates delivered behavior from open acceptance gates. The latest dated evidence is [P1 parity slices and the AUTO-03 preparation checkpoint](2026-10-25-p1-parity-automation-preparation.md) (25 October 2026, focused tests only). Application checkpoint **`cd3c7d5`**, 24 October 2026, is the latest executed full qualification: **533 Node tests and 18 workspace builds**. Documentation maintenance does not rerun or extend that application evidence.
 
 ## Latest operating qualification
 
