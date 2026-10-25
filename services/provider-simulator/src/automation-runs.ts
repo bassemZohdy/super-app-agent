@@ -7,6 +7,8 @@ import { realpathSync } from 'node:fs';
 import { relative,isAbsolute } from 'node:path';
 import { createHash,randomUUID } from 'node:crypto';
 import type { AccountDatabase } from './database.ts';
+import type { PaymentOrders } from './payment-orders.ts';
+import type { Actor } from '../../../packages/backend-kit/src/context.ts';
 import type { Payable } from '../../../packages/protocol-core/src/payments.ts';
 import type { PaymentMandate } from '../../../packages/protocol-core/src/payment-mandates.ts';
 import { paymentObject } from '../../../packages/protocol-core/src/payments.ts';
@@ -23,7 +25,7 @@ export type AutomationRunIo={
 export type AutomationPreparation={
   id:string;runId:string;accountId:string;mandateId:string;policyVersion:number;occurrenceKey:string;
   state:'PREPARED';provider:string;payableId:string;payableRevision:string;amountMinor:number;currency:'AED';
-  sourceId:string;sourceVersion:number;purpose:string;boundDigest:string;periodKey:string;
+  sourceId:string;sourceVersion:number;purpose:string;boundDigest:string;periodKey:string;orderId?:string;
   reservedPeriodMinor:number;reservedPeriodCount:number;reservedLifetimeMinor:number;reservedLifetimeCount:number;
   preparedAt:string;admissionExpiresAt:string;
 };
@@ -86,6 +88,9 @@ export class AutomationRuns{
       if(!prior)store.db.prepare('INSERT INTO automation_runs VALUES(1,?,?,?,?)').run(context.runId,context.operatorSub,context.workerSub,root);
     });
   }
+  private orders?:PaymentOrders;
+  /** The gateway order store, bound once by the engine after it exists; preparation cannot run without it. */
+  attachOrders(orders:PaymentOrders){this.orders=orders;}
   private worker(subject:string){if(subject!==this.context.workerSub)deny('AUTOMATION_WORKER_REQUIRED','Preparation belongs to this run\'s exact workload identity.',403);}
   private operator(subject:string){if(subject!==this.context.operatorSub)deny('AUTOMATION_OPERATOR_REQUIRED','This isolated run belongs to another operator.',403);}
   private mandate(mandateId:string):{m:PaymentMandate;accountId:string}{
@@ -170,6 +175,14 @@ export class AutomationRuns{
       if(claimAutomationPayable(providerStore,accountId,payable.id,preparation.id)!=='CLAIMED')
         return deny('AUTOMATION_PAYABLE_RESERVED','This payable is already reserved by another execution or order.');
       try{
+        if(!this.orders)return deny('AUTOMATION_ORDERS_UNAVAILABLE','The gateway order store is not attached; nothing was prepared.',503);
+        const owner=this.store.db.prepare('SELECT owner FROM accounts WHERE id=?').get(accountId);
+        if(!owner)return deny('AUTOMATION_EXECUTION_NOT_FOUND','The prepared execution has no workspace owner.',404);
+        const actor:Actor={sub:String(owner!.owner),username:String(owner!.owner),name:'Automation owner',accountId,requestId:''};
+        // The real gateway order is created inside the same transaction; ordinary APIs refuse to decide it.
+        const order=this.orders.createAutomatic(actor,{provider:payable.provider,payableId:payable.id,expectedPayableRevision:payable.revision,methodId:current.id,expectedMethodVersion:current.version},payable,
+          {executionId:preparation.id,mandateId:m.id,boundDigest:preparation.boundDigest});
+        preparation.orderId=order.id;
         this.store.db.prepare('INSERT INTO automation_executions VALUES(?,?,?,?,?)').run(preparation.id,accountId,m.id,preparation.state,JSON.stringify(preparation));
         this.store.db.prepare('INSERT INTO automation_occurrences VALUES(?,?,?)').run(m.id,input.occurrenceKey,preparation.id);
         this.store.db.prepare('INSERT INTO automation_payable_claims VALUES(?,?,?)').run(accountId,payable.id,preparation.id);

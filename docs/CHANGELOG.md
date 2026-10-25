@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 25 October 2026 — preparation creates the gateway order (AUTO-03 step 3a)
+
+Preparing an automatic execution now also creates the real payment order for the exact payable, source and biller in the same transaction, using the existing order rules (eligibility, freshness, one active order per obligation). The order carries an `automation` marker bound to the execution, mandate and bound digest, and the preparation records its `orderId`; a retry returns the same order. Ordinary approve, challenge, capture and cancel refuse a marked order with `ORDER_AUTOMATIC`, so nothing but the dedicated execution route (step 3, still open) can move it. No credential, hold or capture exists yet and mandates still return `executionEnabled:false`. Evidence: `services/test/automation-runs.test.ts`.
+
 ## 25 October 2026 — execution credential exchange qualified (AUTO-03 step 2b-ii)
 
 Against the Compose stack on the pinned Keycloak image, the `automation-worker` client credentials token (audiences `delegation-api`, `provider-api` and the verifier, scope `automation.execute`, a mapped `preferred_username`) now authenticates at the broker, and the broker's permit assertion mints a 60-second owner token with no refresh token and no realm roles. The delegation runner token is refused on the new endpoint, and a normal database without an armed run answers 404 so no credential is issued. The end-to-end path with a real prepared execution is tracked as TODO step 3b.
