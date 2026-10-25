@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 25 October 2026 — execution credential exchange qualified (AUTO-03 step 2b-ii)
+
+Against the Compose stack on the pinned Keycloak image, the `automation-worker` client credentials token (audiences `delegation-api`, `provider-api` and the verifier, scope `automation.execute`, a mapped `preferred_username`) now authenticates at the broker, and the broker's permit assertion mints a 60-second owner token with no refresh token and no realm roles. The delegation runner token is refused on the new endpoint, and a normal database without an armed run answers 404 so no credential is issued. The end-to-end path with a real prepared execution is tracked as TODO step 3b.
+
 ## 25 October 2026 — execution credential endpoint (AUTO-03 step 2b-ii, offline part)
 
 The broker accepts `POST /api/delegation/automation/executions/{id}/credential` from the `automation-worker` service account only (`automation.execute` scope, no actor chain). It reads the prepared execution from the provider with the worker's own token, issues the single permit, re-checks owner eligibility, performs the exchange and binds the minted token's fingerprint to the permit (`services/delegation/src/automation.ts`, tests in `services/test/automation-credential.test.ts`). A proven refusal or lost eligibility closes the permit so one replacement is possible; an unknown exchange leaves it open, and a second token can never be bound. The provider now lets that service account, and no other machine identity, read a prepared execution, and the realm reconciler creates the `automation-worker` client and scope. The Keycloak exchange itself is not yet qualified against the pinned image, and mandates still return `executionEnabled:false`.
