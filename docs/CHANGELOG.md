@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 25 October 2026 — operator kill switch over the application route (AUTO-15, step 3a)
+
+`POST /api/payments/automation-kill-switch` engages or releases the worker's kill switch for a signed-in account listed in `AUTOMATION_OPERATOR_SUBS`. Engaging needs a reason; any other account is refused and nothing changes; a missing job store is an error, never a new file; the route accepts only its named fields. Evidence: `services/test/auto15-admin-kill-switch.test.ts`. Still open in AUTO-15: 3b, a broker-scoped admin client and scope with its panel control.
+
 ## 25 October 2026 — pause and revoke races stop an in-flight run before money moves (AUTO-15, step 4)
 
 A limit reduction and a card disable made after preparation each stop the in-flight execution at admission: it closes with its order cancelled and nothing moved (`services/test/automation-runs.test.ts`). Revoke before admission, an authority denial and a restart keeping a pause were already covered and are cited in the tracker. The worker guide now explains that signing out does not stop a rule, while a pause or revoke takes effect at admission and never reverses a committed payment. Still open in AUTO-15: step 3, the authenticated admin route.
