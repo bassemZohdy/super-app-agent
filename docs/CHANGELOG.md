@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 26 October 2026 — AUTO-04 delivered: consent for create, expand and source change
+
+Every change to a rule's terms is a new review. The panel raises an approved rule's cap or changes its funding source through the revise route; the rule then waits for the owner's approval of the new terms, shown with trigger, target, funding (including fallback), caps, expiry and revocation. Lowering through the expand control is refused without a request. Lowering through narrowing needs no model call. Draft chat or voice text cannot activate a rule (guard test). Expanding keeps the budgets ordered, so the cap never exceeds its period or lifetime budget. Evidence: `scripts/e2e/mandate-create.ts`, `scripts/e2e/mandate-narrowing.ts`, `scripts/e2e/mandate-change.ts` (each passes on the Compose stack), `services/test/mandate-narrow.test.ts`, `services/test/bill-rule-policy.test.ts`, `services/test/auto04-consent-guard.test.ts`. The next run appears in the rule preview, not in the approval review.
+
 ## 26 October 2026 — create a bill rule in the panel with explicit consent (AUTO-04, step 3)
 
 The rules panel can create an automatic bill rule for a linked biller and a chosen source, capped by the amount the owner types. Reviewing it creates a draft that is not active; only approving the reviewed terms consents to the rule. The browser journey `npm run demo:verify:mandate-create` runs this on the Compose stack. The rule policy is built by a shared function (`packages/protocol-core/src/bill-rule.ts`) whose output passes the same request validation as the route. AUTO-04 stays open for the expand and source-change consent flows.

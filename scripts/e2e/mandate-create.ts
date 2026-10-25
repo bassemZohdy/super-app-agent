@@ -47,8 +47,9 @@ try {
   const reviewed = page.waitForResponse(res => new URL(res.url()).pathname === '/api/payments/mandates' && res.request().method() === 'POST');
   await page.getByRole('button', { name: 'Review rule', exact: true }).click();
   assert.equal((await reviewed).status(), 200);
-  await page.getByText('never more than AED 150.00 per payment', { exact: false }).waitFor();
+  await page.getByText('Up to AED 150.00 per payment', { exact: false }).waitFor();
   await page.getByText('Nothing is consented until you approve these terms.', { exact: false }).waitFor();
+  await page.getByText('Revocation', { exact: true }).waitFor();
 
   // Reviewing created a draft that is not active yet.
   const drafts = (await api('mandates')).data.mandates.filter((m: any) => !before.includes(m.id));

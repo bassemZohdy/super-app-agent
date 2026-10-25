@@ -28,3 +28,30 @@ test('AUTO-04: owner amounts in AED become whole fils, with at most two decimals
   assert.equal(aedToMinor('-3'), undefined);
   assert.equal(aedToMinor('abc'), undefined);
 });
+
+test('AUTO-04: expanding raises the cap and refuses to lower or keep it', async () => {
+  const { expandPerPayment, changeSource } = await import('../../packages/protocol-core/src/mandate-narrow.ts');
+  const out = expandPerPayment(policy, 60000);
+  assert.equal(out.ok, true);
+  assert.equal((out as any).policy.limits.perPaymentMinor, 60000);
+  assert.equal(expandPerPayment(policy, 50000).ok, false, 'keeping the cap is not an expansion');
+  assert.equal(expandPerPayment(policy, 40000).ok, false, 'lowering is narrowing, not expanding');
+});
+
+test('AUTO-04: a source change names the new source and refuses a no-op change', async () => {
+  const { changeSource } = await import('../../packages/protocol-core/src/mandate-narrow.ts');
+  const withWallet = { ...policy, sources: [{ methodId: 'wallet', expectedVersion: 1 }] };
+  const out = changeSource(withWallet, { methodId: 'card_1', version: 3 });
+  assert.equal(out.ok, true);
+  assert.deepEqual((out as any).policy.sources, [{ methodId: 'card_1', expectedVersion: 3 }]);
+  assert.equal(changeSource(withWallet, { methodId: 'wallet', version: 1 }).ok, false);
+});
+
+test('AUTO-04: expanding keeps the budgets ordered: the cap never exceeds the period or lifetime budget', async () => {
+  const { expandPerPayment } = await import('../../packages/protocol-core/src/mandate-narrow.ts');
+  const out = expandPerPayment(policy, 300000) as any;
+  assert.equal(out.ok, true);
+  assert.ok(out.policy.limits.perPaymentMinor <= out.policy.limits.periodMinor, 'per-payment fits the period budget');
+  assert.ok(out.policy.limits.periodMinor <= out.policy.limits.lifetimeMinor, 'period fits the lifetime budget');
+  assert.equal(out.policy.limits.lifetimeMinor, 300000, 'the lifetime budget grew to the new cap');
+});
