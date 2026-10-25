@@ -1,8 +1,9 @@
+import { removeTemp } from '../../test/support/temp-cleanup.ts';
 import { MANDATE_ACTOR } from '../../packages/protocol-core/src/payment-mandates.ts';
 /** AUTO-02: executable negatives at the existing authority boundary; no scheduled-money lane is enabled. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync,rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { GrantStore } from '../delegation/src/store.ts';
@@ -51,12 +52,12 @@ test('AUTO-T07 stolen or substituted bearer context cannot change actor, owner, 
   assert.equal(s.get(g.id).used,0);assert.equal(s.jobs(g.id,owner)[0].state,'pending');
 });
 test('AUTO-T08 an exact bound bearer can win one admission; binding is not sender-constrained authentication',t=>{
-  const dir=mkdtempSync(join(tmpdir(),'authority-race-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));const a=store(t,join(dir,'grants.sqlite')),b=store(t,join(dir,'grants.sqlite')),g=a.create(owner,write()),v=bound(a,g);
+  const dir=mkdtempSync(join(tmpdir(),'authority-race-'));t.after(()=>removeTemp(dir));const a=store(t,join(dir,'grants.sqlite')),b=store(t,join(dir,'grants.sqlite')),g=a.create(owner,write()),v=bound(a,g);
   // Anyone holding this exact bound bearer can race the intended request. Only one admission wins.
   b.authorize(v.fingerprint,owner,brokerClient,g.accountId,operation(g));assert.throws(()=>a.authorize(v.fingerprint,owner,brokerClient,g.accountId,operation(g)));assert.equal(a.get(g.id).used,1);
 });
 test('AUTO-T09 revocation before admission denies; revocation after admission retains the in-flight identity',t=>{
-  const dir=mkdtempSync(join(tmpdir(),'revoke-admission-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));const a=store(t,join(dir,'grants.sqlite')),b=store(t,join(dir,'grants.sqlite'));
+  const dir=mkdtempSync(join(tmpdir(),'revoke-admission-'));t.after(()=>removeTemp(dir));const a=store(t,join(dir,'grants.sqlite')),b=store(t,join(dir,'grants.sqlite'));
   const first=a.create(owner,write()),x=bound(a,first);b.revoke(first.id,owner);assert.throws(()=>a.authorize(x.fingerprint,owner,brokerClient,first.accountId,operation(first)));assert.equal(a.get(first.id).used,0);
   const second=a.create(owner,write()),y=bound(a,second);a.authorize(y.fingerprint,owner,brokerClient,second.accountId,operation(second));b.revoke(second.id,owner);a.finish(y.job,{success:true,syntheticEffectId:'original-effect'},true);assert.equal(a.jobs(second.id,owner)[0].state,'completed');assert.equal(a.get(second.id).used,1);assert.throws(()=>a.start(second.id,'replacement-request'));
 });
@@ -65,7 +66,7 @@ test('AUTO-T10 stale completion cannot overwrite a retained completed effect or 
   assert.throws(()=>s.finish(b.job,{success:false,effect:'substituted'},false));assert.equal((s.jobs(g.id,owner)[0].result as any).effect,'original');
 });
 test('AUTO-T11 unknown execution retains its original reservation across reopen and cannot switch to fallback',t=>{
-  const dir=mkdtempSync(join(tmpdir(),'unknown-authority-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));const path=join(dir,'grants.sqlite'),a=store(t,path),g=a.create(owner,write()),b=bound(a,g);a.authorize(b.fingerprint,owner,brokerClient,g.accountId,operation(g));a.finish(b.job,{code:'UNKNOWN'},false);
+  const dir=mkdtempSync(join(tmpdir(),'unknown-authority-'));t.after(()=>removeTemp(dir));const path=join(dir,'grants.sqlite'),a=store(t,path),g=a.create(owner,write()),b=bound(a,g);a.authorize(b.fingerprint,owner,brokerClient,g.accountId,operation(g));a.finish(b.job,{code:'UNKNOWN'},false);
   const reopened=store(t,path);assert.equal(reopened.start(g.id,'security-request').job.id,b.job.id);assert.throws(()=>reopened.start(g.id,'replacement-key'));assert.throws(()=>reopened.authorize(b.fingerprint,owner,brokerClient,g.accountId,{...operation(g),body:{amountMinor:100,source:'wallet'}}));assert.equal(reopened.get(g.id).used,1);
 });
 test('AUTO-T12 approved mandates remain consent records and cannot become legacy grants or self-approved automation',t=>{

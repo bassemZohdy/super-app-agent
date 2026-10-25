@@ -1,6 +1,7 @@
+import { removeTemp } from '../../test/support/temp-cleanup.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { JobStore } from '../automation-worker/src/jobs.ts';
@@ -11,7 +12,7 @@ import { validateRequest } from '../../packages/protocol-core/src/request-valida
 // request's correlation id. Polling replaces streaming for the demo; a missing job store is an empty inbox.
 const owner = { sub: 'owner_1', username: 'owner_1', name: 'Owner', accountId: 'acct_1', requestId: 'req_feed_1' } as any;
 const rule = (mandateId: string, occurrenceKey = 'occ_2026_11') => ({ mandateId, policyVersion: 1, occurrenceKey, target: 'dewa:home' });
-const cleanup = (dir: string) => { try { rmSync(dir, { recursive: true, force: true }); } catch { /* Windows may briefly hold the directory */ } };
+const cleanup = (dir: string) => { try { removeTemp(dir); } catch { /* Windows may briefly hold the directory */ } };
 const provider = (mandates: string[]) => async (_p: string, _a: unknown, _m: string, path: string) => {
   assert.equal(path, '/payment-mandates', 'the owned set comes from the owner-scoped mandate list');
   return { mandates: mandates.map(id => ({ id })) };

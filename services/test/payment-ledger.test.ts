@@ -1,6 +1,7 @@
+import { removeTemp } from '../../test/support/temp-cleanup.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, existsSync, copyFileSync, readFileSync } from 'node:fs';
+import { mkdtempSync, existsSync, copyFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { AccountDatabase } from '../provider-simulator/src/database.ts';
@@ -15,7 +16,7 @@ function setup(t:test.TestContext) {
 const count=(db:AccountDatabase)=>Number((db.db.prepare('SELECT count(*) AS count FROM payment_journal_entries').get() as {count:number}).count);
 
 test('ledger migration preserves legacy balances/charges/idempotency, backs up once and never reseeds', t=>{
-  const dir=mkdtempSync(join(tmpdir(),'cityside-ledger-migration-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));const path=join(dir,'payments.sqlite');
+  const dir=mkdtempSync(join(tmpdir(),'cityside-ledger-migration-'));t.after(()=>removeTemp(dir));const path=join(dir,'payments.sqlite');
   let db=new AccountDatabase(path);db.accounts(actor.sub);db.put(actor.accountId,'wallet',{balanceMinor:123456,currency:'AED'});
   db.put(actor.accountId,'charge',{id:'old_charge',amountMinor:100,source:'wallet',status:'CAPTURED'},'old_charge');
   db.db.prepare('INSERT INTO idempotency VALUES(?,?,?,?,?)').run(actor.accountId,'legacy-key','legacy-hash',200,'{"success":true,"old":true}');db.close();
@@ -80,13 +81,13 @@ test('SQL guards seal balanced entries; projection corruption and invalid amount
 });
 
 test('migration failure rolls back its schema and preserves the original backup for repair',t=>{
-  const dir=mkdtempSync(join(tmpdir(),'cityside-ledger-invalid-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));const path=join(dir,'invalid.sqlite');const db=new AccountDatabase(path);t.after(()=>db.close());db.accounts(actor.sub);db.put(actor.accountId,'wallet',{balanceMinor:-1,currency:'AED'});
+  const dir=mkdtempSync(join(tmpdir(),'cityside-ledger-invalid-'));t.after(()=>removeTemp(dir));const path=join(dir,'invalid.sqlite');const db=new AccountDatabase(path);t.after(()=>db.close());db.accounts(actor.sub);db.put(actor.accountId,'wallet',{balanceMinor:-1,currency:'AED'});
   assert.throws(()=>new PaymentLedger(db),/integer/);assert.equal(db.db.prepare("SELECT name FROM sqlite_master WHERE name='payment_migrations'").get(),undefined);
   const original=readFileSync(path+'.before-ledger-v1.sqlite');db.put(actor.accountId,'wallet',{balanceMinor:500,currency:'AED'});const ledger=new PaymentLedger(db);assert.equal(ledger.summary(actor.accountId).balanceMinor,500);assert.deepEqual(readFileSync(path+'.before-ledger-v1.sqlite'),original);
 });
 
 test('two database connections enforce shared available funds and retain holds on reopen',t=>{
-  const dir=mkdtempSync(join(tmpdir(),'cityside-ledger-holds-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));const path=join(dir,'holds.sqlite');const first=new AccountDatabase(path);first.accounts(actor.sub);const engine=new ProviderEngine('payments',first);engine.seed(actor);const second=new AccountDatabase(path);const other=new PaymentLedger(second);const expiry=Date.now()+60000;
+  const dir=mkdtempSync(join(tmpdir(),'cityside-ledger-holds-'));t.after(()=>removeTemp(dir));const path=join(dir,'holds.sqlite');const first=new AccountDatabase(path);first.accounts(actor.sub);const engine=new ProviderEngine('payments',first);engine.seed(actor);const second=new AccountDatabase(path);const other=new PaymentLedger(second);const expiry=Date.now()+60000;
   engine.ledger!.reserve(actor.accountId,'first',100000,expiry);assert.throws(()=>other.reserve(actor.accountId,'second',50001,expiry),/Insufficient/);assert.equal(other.reserve(actor.accountId,'second',50000,expiry).availableMinor,0);second.close();first.close();
   const reopened=new AccountDatabase(path);const restored=new PaymentLedger(reopened);assert.equal(restored.summary(actor.accountId).heldMinor,150000);assert.equal(count(reopened),1);reopened.close();
 });

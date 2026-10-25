@@ -1,6 +1,7 @@
+import { removeTemp } from '../../test/support/temp-cleanup.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, readFileSync, readdirSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { JobStore, StaleWorkerError, jobIdentity } from '../automation-worker/src/jobs.ts';
@@ -9,7 +10,7 @@ import { AutomationWorker, type ExecutionGateway, type GatewayFailure, type Prep
 const rule = { mandateId: 'mandate_1', policyVersion: 1, occurrenceKey: 'occ_2026_11', target: 'dewa:home' };
 const fail = (status: number | undefined, code: string) => Object.assign(new Error(code), { status, code }) as GatewayFailure;
 const SECRET = 'secret-bearer-do-not-store';
-const cleanup = (dir: string) => { try { rmSync(dir, { recursive: true, force: true }); } catch { /* Windows may briefly hold the directory */ } };
+const cleanup = (dir: string) => { try { removeTemp(dir); } catch { /* Windows may briefly hold the directory */ } };
 
 function gateway(overrides: Partial<ExecutionGateway> = {}) {
   const calls = { prepare: 0, credential: 0, execute: 0, requestKeys: [] as string[], tokens: [] as string[] };

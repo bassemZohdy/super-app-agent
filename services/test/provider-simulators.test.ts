@@ -1,6 +1,7 @@
+import { removeTemp } from '../../test/support/temp-cleanup.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { generateKeyPairSync, sign, randomUUID } from 'node:crypto';
@@ -29,7 +30,7 @@ test('all seven checked-in OpenAPI 3.1 contracts are valid and match the runtime
 });
 
 test('provider databases persist independently and scope every wallet by account', t => {
-  const folder = mkdtempSync(join(tmpdir(), 'cityside-provider-')); t.after(() => rmSync(folder, { recursive: true, force: true }));
+  const folder = mkdtempSync(join(tmpdir(), 'cityside-provider-')); t.after(() => removeTemp(folder));
   const path = join(folder, 'payments.sqlite'); let store = new AccountDatabase(path), engine = new ProviderEngine('payments', store);
   const alice = actorFor({ sub: 'alice' }), bob = actorFor({ sub: 'bob' });
   for (const actor of [alice,bob]) { store.accounts(actor.sub); engine.seed(actor); }

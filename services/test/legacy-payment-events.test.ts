@@ -1,7 +1,8 @@
+import { removeTemp } from '../../test/support/temp-cleanup.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash,randomUUID } from 'node:crypto';
-import { mkdtempSync,rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Ajv } from 'ajv';
@@ -59,7 +60,7 @@ test('source rejection emits a release hint; delayed release after an authorized
   const f=fixture(t),c=f.charge();await f.provider.execute(f.actor,'reject',createHash('sha256').update('reject').digest('hex'),c,()=>{const e=new Error('Wrong owned resource') as Error&{status:number;code:string};e.status=409;e.code='RESOURCE_CHANGED';throw e;});const e=f.rows(f.rtaDb)[0];assert.equal(e.state,'RELEASED');assert.equal(f.gateway.claims!.get(f.actor.accountId,c.id)!.state,'RELEASED');f.gateway.execute(f.actor,'POST',`/charges/${c.id}/refunds`,{reason:'Confirmed non-application'});assert.equal(f.receive(e).disposition,'STALE');assert.equal(f.gateway.ledger!.summary(f.actor.accountId).balanceMinor,150000);
 });
 test('legacy delivery survives database reopen and stale lease acknowledgements while keeping original event identity',t=>{
-  const dir=mkdtempSync(join(tmpdir(),'legacy-event-reopen-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));const f=fixture(t,join(dir,'payments.sqlite'));f.charge();let now=Date.now()+10;const one=new PaymentEvents(f.db,'payments',()=>now),first=one.claim(1)[0],other=new AccountDatabase(f.db.path);t.after(()=>other.close());const two=new PaymentEvents(other,'payments',()=>now);now+=15001;const retry=two.claim(1)[0];assert.equal(retry.event.id,first.event.id);assert.equal(one.finish(first,true),false);assert.equal(two.finish(retry,true),true);assert.equal(f.gateway.ledger!.summary(f.actor.accountId).balanceMinor,149200);
+  const dir=mkdtempSync(join(tmpdir(),'legacy-event-reopen-'));t.after(()=>removeTemp(dir));const f=fixture(t,join(dir,'payments.sqlite'));f.charge();let now=Date.now()+10;const one=new PaymentEvents(f.db,'payments',()=>now),first=one.claim(1)[0],other=new AccountDatabase(f.db.path);t.after(()=>other.close());const two=new PaymentEvents(other,'payments',()=>now);now+=15001;const retry=two.claim(1)[0];assert.equal(retry.event.id,first.event.id);assert.equal(one.finish(first,true),false);assert.equal(two.finish(retry,true),true);assert.equal(f.gateway.ledger!.summary(f.actor.accountId).balanceMinor,149200);
 });
 test('upgrading pre-event legacy records creates no event history or version backfill and leaves business rows unchanged',t=>{
   const f=fixture(t),c=f.charge();f.db.db.exec('DELETE FROM payment_event_outbox;DELETE FROM payment_legacy_event_versions;');const before=JSON.stringify(f.db.db.prepare('SELECT * FROM resources ORDER BY account_id,kind,id').all());new PaymentEvents(f.db,'payments');assert.equal(f.rows().length,0);assert.equal(f.db.db.prepare('SELECT count(*) n FROM payment_legacy_event_versions').get()!.n,0);assert.equal(JSON.stringify(f.db.db.prepare('SELECT * FROM resources ORDER BY account_id,kind,id').all()),before);assert.equal(f.db.get(f.actor.accountId,'charge',c.id).status,'CAPTURED');

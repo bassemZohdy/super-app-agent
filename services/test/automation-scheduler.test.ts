@@ -1,6 +1,7 @@
+import { removeTemp } from '../../test/support/temp-cleanup.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { JobStore } from '../automation-worker/src/jobs.ts';
@@ -85,7 +86,7 @@ test('AUTO-06: two schedulers over one database produce one job per occurrence',
     assert.deepEqual(keys(a), ['CAL:2026-10']);
     await Promise.all([new Scheduler(a, source([invoice()], { invoices: ['2026-11-15'] })).tick(utc('2026-11-12T05:00:00Z')), new Scheduler(b, source([invoice()], { invoices: ['2026-11-15'] })).tick(utc('2026-11-12T05:00:00Z'))]);
     assert.deepEqual(keys(a), ['CAL:2026-10', 'INV:2026-11-15']);
-  } finally { a.close(); b.close(); try { rmSync(dir, { recursive: true, force: true }); } catch { /* Windows may briefly hold the directory */ } }
+  } finally { a.close(); b.close(); try { removeTemp(dir); } catch { /* Windows may briefly hold the directory */ } }
 });
 
 test('AUTO-06: invoice-due runs fire three local days before the due date and catch up as one pending run', async () => {
@@ -126,7 +127,7 @@ test('AUTO-06: a balance threshold fires once per dip, re-arms only after recove
     // A revised rule starts from its own armed state under its own version.
     balance = 100;
     assert.equal((await new Scheduler(a, source([threshold({ policyVersion: 2 })], { balance: () => balance })).tick(now + 9 * HOUR)).enqueued.length, 1);
-  } finally { a.close(); b.close(); try { rmSync(dir, { recursive: true, force: true }); } catch { /* Windows may briefly hold the directory */ } }
+  } finally { a.close(); b.close(); try { removeTemp(dir); } catch { /* Windows may briefly hold the directory */ } }
 });
 
 test('AUTO-06: event-driven triggers schedule nothing here', async () => {

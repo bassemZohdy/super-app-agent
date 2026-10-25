@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 // MCP_ENDPOINT is read once at module load, so each case runs the catalog in a fresh child process.
-const catalogModule = fileURLToPath(new URL('../service-catalog/src/index.ts', import.meta.url));
+// The child imports a file URL: a bare Windows path such as C:\... is not a valid ESM specifier.
+const catalogModule = pathToFileURL(fileURLToPath(new URL('../service-catalog/src/index.ts', import.meta.url))).href;
 const DEFAULT_MCP_ENDPOINT = 'http://localhost:4000/mcp';
 const OVERRIDE_MCP_ENDPOINT = 'https://mcp.example.test/superapp';
 

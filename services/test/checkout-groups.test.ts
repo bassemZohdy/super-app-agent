@@ -1,7 +1,8 @@
+import { removeTemp } from '../../test/support/temp-cleanup.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtempSync,rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AccountDatabase } from '../provider-simulator/src/database.ts';
@@ -95,7 +96,7 @@ test('cancel fences an in-flight preflight before authorization and leaves no ne
   const f=fixture(t),g=f.approve(f.create());let release!:()=>void,entered!:()=>void;const held=new Promise<void>(r=>{release=r;}),started=new Promise<void>(r=>{entered=r;});f.gate(async()=>{entered();await held;});const running=f.run(g);await started;await f.groups.cancel(f.actor,g.id,g.version,f.checkout);release();const cancelled=await running;assert.equal(cancelled.state,'CANCELLED');assert.ok(cancelled.orders.every(o=>o.state==='CANCELLED'));assert.equal(f.db.list(f.actor.accountId,'charge').length,0);
 });
 test('reopened group retains partial receipts and original captured child recovery references',async t=>{
-  const dir=mkdtempSync(join(tmpdir(),'group-reopen-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));const f=fixture(t,'wallet',join(dir,'payments.sqlite')),g=f.approve(f.create());f.fail('etisalat','after');const pending=await f.run(g);
+  const dir=mkdtempSync(join(tmpdir(),'group-reopen-'));t.after(()=>removeTemp(dir));const f=fixture(t,'wallet',join(dir,'payments.sqlite')),g=f.approve(f.create());f.fail('etisalat','after');const pending=await f.run(g);
   const reopened=new AccountDatabase(f.db.path);t.after(()=>reopened.close());const restored=new ProviderEngine('payments',reopened).groups!.get(f.actor,g.id);assert.equal(restored.state,'RECONCILIATION_REQUIRED');assert.deepEqual(restored.orders.map(o=>o.paymentId),pending.orders.map(o=>o.paymentId));assert.equal(restored.orders[0].receipt!.receiptNumber,pending.orders[0].paymentId);assert.equal((await f.run(restored)).state,'COMPLETED');
 });
 test('group contracts reject price overrides, mixed sources, duplicate item shapes and unbounded selection',()=>{

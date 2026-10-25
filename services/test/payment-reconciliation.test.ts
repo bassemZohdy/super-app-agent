@@ -1,7 +1,8 @@
+import { removeTemp } from '../../test/support/temp-cleanup.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Ajv } from 'ajv';
@@ -76,7 +77,7 @@ test('concurrent recovery is fenced and an unknown dispatch retains its original
   const results=await Promise.allSettled([f.act(i),f.act(i)]);assert.ok(results.some(r=>r.status==='fulfilled'));assert.equal(f.db.list(f.actor.accountId,'charge').length,1);assert.equal(f.recovery.get(f.actor,i.id).status,'COMPLETED');
 });
 test('reopen retains evidence and append-only audit while finishing the original payment',async t=>{
-  const dir=mkdtempSync(join(tmpdir(),'recovery-reopen-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));const f=fixture(t,join(dir,'payments.sqlite')),o=f.create();f.fail('after');await f.checkout.execute(f.actor,o.id,decision(o));const i=await f.inspect(o.id);
+  const dir=mkdtempSync(join(tmpdir(),'recovery-reopen-'));t.after(()=>removeTemp(dir));const f=fixture(t,join(dir,'payments.sqlite')),o=f.create();f.fail('after');await f.checkout.execute(f.actor,o.id,decision(o));const i=await f.inspect(o.id);
   const reopened=new AccountDatabase(f.db.path);t.after(()=>reopened.close());const engine=new ProviderEngine('payments',reopened);assert.equal(engine.reconciliation!.get(f.actor,i.id).decisionDigest,i.decisionDigest);
   assert.equal((await engine.reconciliation!.act(f.actor,i.id,{decisionDigest:i.decisionDigest,action:'RECOVER_ORIGINAL'},f.client,()=>{})).resultState,'SETTLED');
   assert.throws(()=>reopened.db.exec('DELETE FROM payment_recovery_audit'),/immutable/);assert.throws(()=>reopened.db.exec("UPDATE payment_recovery_audit SET kind='LEGACY'"),/immutable/);

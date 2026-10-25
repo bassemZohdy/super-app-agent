@@ -1,6 +1,7 @@
+import { removeTemp } from '../../test/support/temp-cleanup.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync,rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Ajv } from 'ajv';
@@ -27,7 +28,7 @@ function fixture(t:any,preset='approved'){
   const eligibility=db.eligibility!,change=(enabled:boolean,kind:'OWNER'|'MEMBERSHIP'='MEMBERSHIP')=>{const s=eligibility.snapshot(actor.accountId);return eligibility.change(actor.accountId,{kind,enabled,expectedVersion:kind==='OWNER'?s.ownerVersion:s.membershipVersion,reason:'Explicit test operator decision'},'operator-sub',crypto.randomUUID());};
   const create=()=>engine.orders!.create(actor,{provider:'dewa',payableId:payable.id,expectedPayableRevision:payable.revision,methodId:card.id,expectedMethodVersion:1},payable);
   const policy=():MandatePolicy=>({actorClientId:MANDATE_ACTOR,audience:'provider-api',operation:'BILL_PAYMENT',purpose:'Pay the exact owned home bill',currency:'AED',target:{kind:'BILLER',billingAccountId:link.id,expectedVersion:1,provider:'dewa',reference:link.reference},sources:[{methodId:card.id,expectedVersion:1}],fallback:{mode:'NONE'},trigger:{type:'INVOICE_DUE',daysBefore:1},timezone:'Asia/Dubai',startsAt:new Date().toISOString(),expiresAt:new Date(Date.now()+86400000).toISOString(),limits:{perPaymentMinor:50000,periodMinor:100000,lifetimeMinor:300000,period:'MONTH',perPeriodCount:3,lifetimeCount:9,cooldownSeconds:3600}});
-  t.after(()=>{db.close();source.close();rmSync(root,{recursive:true,force:true});});
+  t.after(()=>{db.close();source.close();removeTemp(root);});
   return {db,path,actor,household,engine,provider,card,payable,link,eligibility,post,change,create,policy};
 }
 test('eligibility defaults are additive and read-only; strict contracts reject supplied owner or epoch authority',t=>{

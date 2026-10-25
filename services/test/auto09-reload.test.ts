@@ -1,7 +1,8 @@
+import { removeTemp } from '../../test/support/temp-cleanup.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AccountDatabase } from '../provider-simulator/src/database.ts';
@@ -26,7 +27,7 @@ function fixture(t: { after(fn: () => void): void }, preset = 'approved') {
   const db = new AccountDatabase(path), actor = actorFor({ sub: 'auto-owner' }, undefined, 'Bearer owner');
   const payments = new ProviderEngine('payments', db, { automationRun: context, automationIo: { readPayables: () => [], providerStore: () => { throw new Error('A reload has no source provider.'); } } });
   db.accounts(actor.sub); payments.seed(actor);
-  t.after(() => { db.close(); try { rmSync(root, { recursive: true, force: true }); } catch { /* Windows may briefly hold the directory */ } });
+  t.after(() => { db.close(); try { removeTemp(root); } catch { /* Windows may briefly hold the directory */ } });
   const account = actor.accountId, card = payments.execute(actor, 'POST', '/payment-methods', { preset, nickname: `Reload ${preset}` }).data.method as { id: string; version: number };
   let spendN = 0;
   const wallet = () => payments.ledger!.summary(account).balanceMinor;

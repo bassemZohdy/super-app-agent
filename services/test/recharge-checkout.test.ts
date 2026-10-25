@@ -1,7 +1,8 @@
+import { removeTemp } from '../../test/support/temp-cleanup.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtempSync,rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { AccountDatabase } from '../provider-simulator/src/database.ts';
@@ -86,7 +87,7 @@ test('source credit and receipt roll back together on persistence failure and re
   const paid=await f.checkout.recover(f.actor,o.id);assert.equal(paid.state,'SETTLED');assert.equal(paid.paymentId,pending.paymentId);assert.equal(f.db.list(f.actor.accountId,'charge').length,1);
 });
 test('source reopen preserves an applied but unconfirmed target fence and immutable quote intent',async t=>{
-  const dir=mkdtempSync(join(tmpdir(),'cityside-recharge-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));const f=fixture(t,'rta','wallet',join(dir,'rta.sqlite')),p=f.quote(),o=f.approve(p);f.fail('finish');await f.checkout.execute(f.actor,o.id,input(o));
+  const dir=mkdtempSync(join(tmpdir(),'cityside-recharge-'));t.after(()=>removeTemp(dir));const f=fixture(t,'rta','wallet',join(dir,'rta.sqlite')),p=f.quote(),o=f.approve(p);f.fail('finish');await f.checkout.execute(f.actor,o.id,input(o));
   const other=new AccountDatabase(f.source.path);t.after(()=>other.close());const restored=new ProviderEngine('rta',other);assert.equal(restored.recharges!.get(f.actor.accountId,p.id).status,'PAID');assert.throws(()=>restored.recharges!.quote(f.actor.accountId,{targetReference:f.target.reference,amountMinor:5000,expectedTargetVersion:2,intentId:'another-intent'}),(e:any)=>e.code==='PAYABLE_RESERVED');
   await f.checkout.recover(f.actor,o.id);assert.doesNotThrow(()=>restored.recharges!.quote(f.actor.accountId,{targetReference:f.target.reference,amountMinor:5000,expectedTargetVersion:2,intentId:'another-intent'}));
 });

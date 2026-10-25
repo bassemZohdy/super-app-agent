@@ -1,13 +1,14 @@
+import { removeTemp } from '../../test/support/temp-cleanup.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp,rm } from 'node:fs/promises';
+import { mkdtemp } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { integratedRequest } from '../../packages/backend-kit/src/application.ts';
 import { ProviderClient,UpstreamError } from '../../packages/backend-kit/src/provider-client.ts';
 import { actorFor } from '../../packages/backend-kit/src/context.ts';
 test('legacy unified checkout persists one group plan and resumes original children after lost response, with one chosen source',async t=>{
-  const dir=await mkdtemp(join(tmpdir(),'group-application-')),previous=process.env.APP_DATA_DIR;process.env.APP_DATA_DIR=dir;t.after(async()=>{if(previous===undefined)delete process.env.APP_DATA_DIR;else process.env.APP_DATA_DIR=previous;await rm(dir,{recursive:true,force:true});});
+  const dir=await mkdtemp(join(tmpdir(),'group-application-')),previous=process.env.APP_DATA_DIR;process.env.APP_DATA_DIR=dir;t.after(async()=>{if(previous===undefined)delete process.env.APP_DATA_DIR;else process.env.APP_DATA_DIR=previous;removeTemp(dir);});
   const actor=actorFor({sub:'group-application-owner'}),p={id:'rta:recharge:original',provider:'rta',reference:'tag',revision:'a'.repeat(64)},source={id:'card-owned',version:1};let intent=false,groupCreated=0,runs=0,group:any;
   t.mock.method(ProviderClient.prototype,'call',async(provider,_actor,method,path,body)=>{
     if(path==='/payables')return{payables:[]};

@@ -1,6 +1,7 @@
+import { removeTemp } from '../../test/support/temp-cleanup.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync,rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AccountDatabase } from '../provider-simulator/src/database.ts';
@@ -48,7 +49,7 @@ test('dependency binding enforces account/version, idempotency and final release
 });
 
 test('guard state persists and a second connection cannot archive then admit a stale use',t=>{
-  const dir=mkdtempSync(join(tmpdir(),'cityside-related-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));const path=join(dir,'payments.sqlite'),f=setup(t,path);
+  const dir=mkdtempSync(join(tmpdir(),'cityside-related-'));t.after(()=>removeTemp(dir));const path=join(dir,'payments.sqlite'),f=setup(t,path);
   f.uses.bind(f.alice.accountId,{resourceType:'BILLER',resourceId:f.link.id,resourceVersion:1,dependentKind:'MANDATE',dependentId:'rule-1'});
   const second=new AccountDatabase(path);t.after(()=>second.close());const uses=new PaymentResourceUses(second);
   assert.equal(uses.list(f.alice.accountId).length,1);assert.throws(()=>uses.assertRemovable(f.alice.accountId,'BILLER',f.link.id),/active payment/);

@@ -1,7 +1,8 @@
+import { removeTemp } from '../../test/support/temp-cleanup.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash,randomUUID } from 'node:crypto';
-import { mkdtempSync,rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AccountDatabase } from '../provider-simulator/src/database.ts';
@@ -72,7 +73,7 @@ test('source notification cannot assert application before an original capture o
   const f=fixture(t),o=f.create(),e:PaymentEvent={id:`evt_${randomUUID()}`,schemaVersion:1,producer:'dewa',accountId:f.actor.accountId,subject:{kind:'PAYMENT',id:o.id,version:1},type:'PROVIDER_APPLIED',state:'APPLIED',occurredAt:new Date().toISOString(),binding:{approvalDigest:o.approvalDigest,amountMinor:o.quote.totalMinor,currency:'AED',paymentId:'invented',admissionId:'invented',provider:'dewa'}};assert.throws(()=>f.receive(e),(error:any)=>error.code==='EVENT_BINDING_MISMATCH');assert.equal(f.gateway.orders!.get(f.actor,o.id).state,'AWAITING_APPROVAL');assert.equal(f.gateway.ledger!.summary(f.actor.accountId).balanceMinor,150000);
 });
 test('two connections fence delivery leases and stale acknowledgements; crash/reopen reclaims the original event',t=>{
-  const dir=mkdtempSync(join(tmpdir(),'event-lease-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));const f=fixture(t,join(dir,'payments.sqlite'));f.create();let now=Date.now()+100;const one=new PaymentEvents(f.db,'payments',()=>now),otherDb=new AccountDatabase(f.db.path);t.after(()=>otherDb.close());const two=new PaymentEvents(otherDb,'payments',()=>now),first=one.claim(1)[0];assert.equal(two.claim(1).length,0);now+=15001;assert.equal(one.finish(first,true),false,'Expired leases cannot acknowledge even before another worker reclaims them.');const second=two.claim(1)[0];assert.equal(second.event.id,first.event.id);assert.equal(one.finish(first,true),false);assert.equal(two.finish(second,true),true);assert.equal(one.status(f.actor.accountId).pending,0);
+  const dir=mkdtempSync(join(tmpdir(),'event-lease-'));t.after(()=>removeTemp(dir));const f=fixture(t,join(dir,'payments.sqlite'));f.create();let now=Date.now()+100;const one=new PaymentEvents(f.db,'payments',()=>now),otherDb=new AccountDatabase(f.db.path);t.after(()=>otherDb.close());const two=new PaymentEvents(otherDb,'payments',()=>now),first=one.claim(1)[0];assert.equal(two.claim(1).length,0);now+=15001;assert.equal(one.finish(first,true),false,'Expired leases cannot acknowledge even before another worker reclaims them.');const second=two.claim(1)[0];assert.equal(second.event.id,first.event.id);assert.equal(one.finish(first,true),false);assert.equal(two.finish(second,true),true);assert.equal(one.status(f.actor.accountId).pending,0);
 });
 test('lost callback response retries with a fresh signature and the same event ID after persisted backoff',async t=>{
   const f=fixture(t);await f.pay(true);let now=Date.now()+100;const sender=new PaymentEvents(f.source,'dewa',()=>now),first=sender.claim(1)[0];f.receive(first.event);sender.finish(first,false);assert.equal(sender.claim(1).length,0);now+=1001;const retry=sender.claim(1)[0];assert.equal(retry.event.id,first.event.id);assert.equal(f.receive(retry.event).disposition,'DUPLICATE');sender.finish(retry,true);assert.equal(sender.status(f.actor.accountId).pending,0);assert.equal(f.events.status(f.actor.accountId).received,1);

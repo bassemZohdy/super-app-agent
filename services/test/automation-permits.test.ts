@@ -1,6 +1,7 @@
+import { removeTemp } from '../../test/support/temp-cleanup.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -186,7 +187,7 @@ test('AUTO-03 2b: two connections issue one permit, state survives restart and t
     assert.ok(audit.every(row => !/Bearer|access_token|eyJ/.test(row.body)), 'no token material reaches the audit');
     assert.throws(() => a.db.exec('UPDATE permit_audit SET event=\'x\''), /immutable/);
     assert.throws(() => a.db.exec('DELETE FROM permit_audit'), /immutable/);
-  } finally { a.db.close(); b.db.close(); rmSync(dir, { recursive: true, force: true }); }
+  } finally { a.db.close(); b.db.close(); removeTemp(dir); }
 });
 
 test('AUTO-03 3b: only an admitted, unexpired token keeps a session, and it names its one operation', () => {
@@ -216,5 +217,5 @@ test('AUTO-03 step 4: two connections racing to consume one bound token admit ex
     const results = [a, b].map(store => { try { return store.authorize(fingerprint, owner, brokerClient, op, NOW).state; } catch (e) { return (e as DelegationError).code; } });
     assert.deepEqual([...results].sort(), ['CONSUMED', 'PERMIT_ALREADY_CONSUMED']);
     assert.equal(b.get(permit.id).state, 'CONSUMED');
-  } finally { a.db.close(); b.db.close(); try { rmSync(dir, { recursive: true, force: true }); } catch { /* Windows may briefly hold the directory */ } }
+  } finally { a.db.close(); b.db.close(); try { removeTemp(dir); } catch { /* Windows may briefly hold the directory */ } }
 });

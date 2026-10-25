@@ -1,6 +1,7 @@
+import { removeTemp } from '../../test/support/temp-cleanup.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync,rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { actorFor } from '../../packages/backend-kit/src/context.ts';
@@ -18,7 +19,7 @@ function fixture(t:any,provider:'dewa'|'police'|'rta'='dewa'){
   const payable=quote(),link=post('/billing-accounts',{provider,reference:payable.reference,nickname:'Reserved owned target'}).billingAccount;
   const create=(p=payable)=>gateway.orders!.create(actor,{provider,payableId:p.id,expectedPayableRevision:p.revision,methodId:method.id,expectedMethodVersion:1},p);
   const prepare=(o:PaymentAuthorizationReview,p=payable)=>{const approved=gateway.orders!.approve(actor,o.id,terms(o),p),pending=gateway.orders!.beginCapture(actor,o.id,terms(approved),p),prepared=business.admissions!.prepare(actor.accountId,p.id,{orderId:o.id,expectedRevision:p.revision,approvalDigest:o.approvalDigest,sourceId:method.id,sourceVersion:1,expiresAt:pending.authorization!.expiresAt}),attached=gateway.orders!.attachAdmission(actor,o.id,prepared),admitted=business.admissions!.admit(actor.accountId,prepared.id,attached);return {pending,admitted};};
-  t.after(()=>{db.close();source.close();rmSync(root,{recursive:true,force:true});});return {db,source,path,actor,gateway,business,method,link,payable,quote,create,prepare,advance:(ms:number)=>now+=ms};
+  t.after(()=>{db.close();source.close();removeTemp(root);});return {db,source,path,actor,gateway,business,method,link,payable,quote,create,prepare,advance:(ms:number)=>now+=ms};
 }
 test('canonical business identity prevents quote aliases and revisions from reserving the same unpaid obligation',t=>{
   const f=fixture(t),o=f.create();for(const p of [{...f.payable,id:'dewa:bill:new-alias'},{...f.payable,id:'dewa:bill:another-alias',revision:'b'.repeat(64)}])assert.throws(()=>f.create(p),code('PAYABLE_RESERVED'));

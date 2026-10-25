@@ -1,6 +1,7 @@
+import { removeTemp } from '../../test/support/temp-cleanup.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Ajv } from 'ajv';
@@ -88,7 +89,7 @@ test('discounted paid history retains captured value after discount expiration; 
 });
 
 test('provider lifecycle changes persist and competing connections reject a stale reviewer',t=>{
-  const dir=mkdtempSync(join(tmpdir(),'cityside-payables-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+  const dir=mkdtempSync(join(tmpdir(),'cityside-payables-'));t.after(()=>removeTemp(dir));
   const path=join(dir,'dewa.sqlite'),a=new AccountDatabase(path),b=new AccountDatabase(path);t.after(()=>{a.close();b.close();});
   const actor=actorFor({sub:'durable-payables'});a.accounts(actor.sub);const engine=new ProviderEngine('dewa',a);engine.seed(actor);
   const first=engine.payables!,second=new ProviderPayables(b,'dewa'),p=first.list(actor.accountId)[0];

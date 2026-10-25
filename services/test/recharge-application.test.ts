@@ -1,13 +1,14 @@
+import { removeTemp } from '../../test/support/temp-cleanup.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp,rm } from 'node:fs/promises';
+import { mkdtemp } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { integratedRequest } from '../../packages/backend-kit/src/application.ts';
 import { ProviderClient,UpstreamError } from '../../packages/backend-kit/src/provider-client.ts';
 import { actorFor } from '../../packages/backend-kit/src/context.ts';
 test('legacy Salik resume uses its original recharge intent after a lost provider response, without creating another quote or capture',async t=>{
-  const dir=await mkdtemp(join(tmpdir(),'cityside-recharge-application-')),previous=process.env.APP_DATA_DIR;process.env.APP_DATA_DIR=dir;t.after(async()=>{if(previous===undefined)delete process.env.APP_DATA_DIR;else process.env.APP_DATA_DIR=previous;await rm(dir,{recursive:true,force:true});});
+  const dir=await mkdtemp(join(tmpdir(),'cityside-recharge-application-')),previous=process.env.APP_DATA_DIR;process.env.APP_DATA_DIR=dir;t.after(async()=>{if(previous===undefined)delete process.env.APP_DATA_DIR;else process.env.APP_DATA_DIR=previous;removeTemp(dir);});
   const actor=actorFor({sub:'recharge-application-owner'}),p={id:'rta:recharge:existing',obligationId:'rta:recharge:existing',kind:'RECHARGE',provider:'rta',reference:'owned-tag',amountMinor:10000,revision:'a'.repeat(64),recharge:{targetVersion:1,balanceBeforeMinor:1400}};
   let created=false,state='AWAITING_APPROVAL',quoteCount=0,captures=0,recoveries=0;const order=()=>({id:'stored-recharge',state,version:2,approvalDigest:'b'.repeat(64),quote:{totalMinor:10000},fundsCaptured:state==='RECONCILIATION_REQUIRED'||state==='SETTLED',paymentId:captures?'paid-recharge':undefined,receipt:state==='SETTLED'?{receiptNumber:'paid-recharge',amountMinor:10000,providerBalanceMinor:11400}:undefined});
   t.mock.method(ProviderClient.prototype,'call',async(provider,_actor,method,path,body)=>{

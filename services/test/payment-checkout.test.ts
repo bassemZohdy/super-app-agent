@@ -1,3 +1,4 @@
+import { removeTemp } from '../../test/support/temp-cleanup.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { AccountDatabase } from '../provider-simulator/src/database.ts';
@@ -7,7 +8,7 @@ import { ProviderSettlements } from '../provider-simulator/src/provider-settleme
 import { actorFor } from '../../packages/backend-kit/src/context.ts';
 import { UpstreamError,type ProviderClient } from '../../packages/backend-kit/src/provider-client.ts';
 import { createHash } from 'node:crypto';
-import { mkdtempSync,rmSync,existsSync } from 'node:fs';
+import { mkdtempSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { PaymentOrders } from '../provider-simulator/src/payment-orders.ts';
@@ -78,7 +79,7 @@ test('an admitted capture still rejects an expired funding hold before any journ
 });
 
 test('order capture schema migration preserves old review IDs, snapshots and financial resources on reopen',t=>{
-  const dir=mkdtempSync(join(tmpdir(),'cityside-order-v2-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));const path=join(dir,'payments.sqlite'),db=new AccountDatabase(path);t.after(()=>db.close());const actor=actorFor({sub:'order-migration'});db.accounts(actor.sub);db.put(actor.accountId,'wallet',{balanceMinor:150000,currency:'AED'});
+  const dir=mkdtempSync(join(tmpdir(),'cityside-order-v2-'));t.after(()=>removeTemp(dir));const path=join(dir,'payments.sqlite'),db=new AccountDatabase(path);t.after(()=>db.close());const actor=actorFor({sub:'order-migration'});db.accounts(actor.sub);db.put(actor.accountId,'wallet',{balanceMinor:150000,currency:'AED'});
   const legacy={id:'old-review',ownerSub:actor.sub,accountId:actor.accountId,version:1,state:'AWAITING_APPROVAL',fundsCaptured:false,expiresAt:new Date(Date.now()+300000).toISOString(),quote:{immutable:'retained'},approvalDigest:'a'.repeat(64)};
   db.db.exec("CREATE TABLE payment_authorization_orders(id TEXT PRIMARY KEY,account_id TEXT NOT NULL,provider TEXT NOT NULL,payable_id TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('AWAITING_APPROVAL','REQUIRES_ACTION','AUTHORIZED','FAILED','CANCELLED')),expires_at INTEGER NOT NULL,body TEXT NOT NULL)");db.db.prepare('INSERT INTO payment_authorization_orders VALUES(?,?,?,?,?,?,?)').run(legacy.id,actor.accountId,'dewa','dewa:bill:retained',legacy.state,Date.parse(legacy.expiresAt),JSON.stringify(legacy));
   const ledger=new PaymentLedger(db),issuer=new PaymentIssuer(db),uses=new PaymentResourceUses(db),orders=new PaymentOrders(db,issuer,ledger,uses);assert.deepEqual(orders.get(actor,legacy.id),legacy);assert.ok(existsSync(path+'.before-order-capture-v2.sqlite'));assert.equal(ledger.summary(actor.accountId).balanceMinor,150000);

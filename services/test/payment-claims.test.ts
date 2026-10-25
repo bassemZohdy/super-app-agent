@@ -1,6 +1,7 @@
+import { removeTemp } from '../../test/support/temp-cleanup.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync,rmSync,existsSync } from 'node:fs';
+import { mkdtempSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -52,7 +53,7 @@ test('lost claim response retains the original pending attempt and blocks refund
 });
 
 test('lost acknowledgement and reopen preserve a paid obligation with refund blocked; current status retries ACK',async t=>{
-  const dir=mkdtempSync(join(tmpdir(),'cityside-claim-ack-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+  const dir=mkdtempSync(join(tmpdir(),'cityside-claim-ack-'));t.after(()=>removeTemp(dir));
   const f=fixture(t,{source:join(dir,'dewa.sqlite')});let lose=true;
   const transport:ClaimTransport={call:async(...args)=>{if(args[2]==='ack'&&lose)throw new SettlementError(503,'SETTLEMENT_OUTCOME_UNKNOWN','ACK unavailable');return f.transport.call(...args);}};
   const source=new ProviderSettlements(f.source,'dewa',transport);await source.execute(f.actor,'request',fp('ack'),f.charge,f.apply);
@@ -71,7 +72,7 @@ test('definitive provider rejection fences non-application before release; a ref
 });
 
 test('release-versus-late-application across two source connections cannot produce both paid and refunded',async t=>{
-  const dir=mkdtempSync(join(tmpdir(),'cityside-claim-race-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));const path=join(dir,'dewa.sqlite'),f=fixture(t,{source:path});
+  const dir=mkdtempSync(join(tmpdir(),'cityside-claim-race-'));t.after(()=>removeTemp(dir));const path=join(dir,'dewa.sqlite'),f=fixture(t,{source:path});
   let resume:()=>void=()=>{},admitted:()=>void=()=>{};const reached=new Promise<void>(resolve=>{admitted=resolve;});const gate=new Promise<void>(resolve=>{resume=resolve;});let first=true;
   const transport:ClaimTransport={call:async(...args)=>{const result=await f.transport.call(...args);if(args[2]==='claim'&&first){first=false;admitted();await gate;}return result;}};
   const slow=new ProviderSettlements(f.source,'dewa',transport);let effects=0;
@@ -103,7 +104,7 @@ test('gateway denies another provider, substituted attempts/terms/receipts, appl
 });
 
 test('legacy captures gain conservative unknown claims and backup without altering financial resources; old paid effects reconcile as applied',async t=>{
-  const dir=mkdtempSync(join(tmpdir(),'cityside-claim-migration-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));const path=join(dir,'payments.sqlite'),db=new AccountDatabase(path);t.after(()=>db.close());
+  const dir=mkdtempSync(join(tmpdir(),'cityside-claim-migration-'));t.after(()=>removeTemp(dir));const path=join(dir,'payments.sqlite'),db=new AccountDatabase(path);t.after(()=>db.close());
   const actor=actorFor({sub:'legacy-claim'});db.accounts(actor.sub);db.put(actor.accountId,'wallet',{balanceMinor:150000,currency:'AED'});const ledger=new PaymentLedger(db);ledger.record(actor.accountId,'PAYMENT','legacy-capture',42040,'wallet');
   const charge={id:'legacy-paid',accountId:actor.accountId,amountMinor:42040,merchant:'dewa',reference:'bill:legacy-bill',source:'wallet',status:'CAPTURED',currency:'AED',refunded:false};db.put(actor.accountId,'charge',charge,charge.id);
   const before=fp(db.db.prepare('SELECT * FROM resources ORDER BY account_id,kind,id').all()),claims=new PaymentClaims(db);assert.equal(fp(db.db.prepare('SELECT * FROM resources ORDER BY account_id,kind,id').all()),before);assert.ok(existsSync(path+'.before-settlement-claims-v1.sqlite'));assert.equal(claims.get(actor.accountId,charge.id)!.state,'LEGACY_UNKNOWN');assert.throws(()=>claims.assertRefundable(actor.accountId,charge.id),code('SETTLEMENT_STATUS_UNKNOWN'));

@@ -1,8 +1,9 @@
+import { removeTemp } from '../../test/support/temp-cleanup.ts';
 import { Ajv } from 'ajv';
 import { paymentMethodSchema, paymentOrderSchema } from '../../packages/protocol-core/src/payments.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { AccountDatabase } from '../provider-simulator/src/database.ts';
@@ -24,7 +25,7 @@ test('payment contracts reject raw card data, extra price/source overrides, inva
 });
 
 test('saved cards/defaults persist, use account-bound tokens and never move wallet funds', t => {
-  const dir = mkdtempSync(join(tmpdir(),'cityside-methods-')); t.after(() => rmSync(dir,{recursive:true,force:true}));
+  const dir = mkdtempSync(join(tmpdir(),'cityside-methods-')); t.after(() => removeTemp(dir));
   const path = join(dir,'payments.sqlite'); let db = new AccountDatabase(path), engine = new ProviderEngine('payments',db);
   t.after(() => db.close());
   const alice = actorFor({sub:'method-alice'}), bob = actorFor({sub:'method-bob'});

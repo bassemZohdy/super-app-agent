@@ -1,6 +1,7 @@
+import { removeTemp } from '../../test/support/temp-cleanup.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { JobStore } from '../automation-worker/src/jobs.ts';
@@ -9,7 +10,7 @@ import { AutomationWorker, type ExecutionGateway, type ExecutedOrder } from '../
 // AUTO-15: the operator's kill switch admits no new step. It stops claims, stops a job between steps and holds (never
 // replays) a job whose credential was issued while it engaged. It survives a restart and is released explicitly.
 const rule = { mandateId: 'mandate_1', policyVersion: 1, occurrenceKey: 'occ_2026_11', target: 'dewa:home' };
-const cleanup = (dir: string) => { try { rmSync(dir, { recursive: true, force: true }); } catch { /* Windows may briefly hold the directory */ } };
+const cleanup = (dir: string) => { try { removeTemp(dir); } catch { /* Windows may briefly hold the directory */ } };
 
 function harness(store: JobStore, hooks: { onPrepare?: () => void; onCredential?: () => void } = {}) {
   const calls = { prepare: 0, credential: 0, execute: 0 };

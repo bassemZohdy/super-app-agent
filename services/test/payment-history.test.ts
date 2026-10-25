@@ -1,7 +1,8 @@
+import { removeTemp } from '../../test/support/temp-cleanup.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtempSync,rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Ajv } from 'ajv';
@@ -74,7 +75,7 @@ test('pure receipt guard rejects pending final acknowledgement and forged/absent
   const f=fixture(t),o=await f.pay();assert.equal(paymentReceiptReady(o),true);for(const altered of [{...o,sourceFinalizationPending:true},{...o,state:'CAPTURED'},{...o,receipt:undefined},{...o,receipt:{...o.receipt,amountMinor:1}},{...o,receipt:{...o.receipt,receiptNumber:'another'}}])assert.equal(paymentReceiptReady(altered as any),false);
 });
 test('history is read-only and journal cursor/detail results survive database reopen',async t=>{
-  const dir=mkdtempSync(join(tmpdir(),'statement-reopen-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));const f=fixture(t,join(dir,'payments.sqlite')),o=await f.pay();
+  const dir=mkdtempSync(join(tmpdir(),'statement-reopen-'));t.after(()=>removeTemp(dir));const f=fixture(t,join(dir,'payments.sqlite')),o=await f.pay();
   const snapshot=()=>JSON.stringify(f.db.db.prepare('SELECT * FROM resources ORDER BY account_id,kind,id').all());const before=snapshot(),statement=f.history.statement(f.actor),detail=f.history.detail(f.actor,'PAYMENT',o.id);f.history.activity(f.actor);assert.equal(snapshot(),before);
   const db=new AccountDatabase(f.db.path);t.after(()=>db.close());const restored=new ProviderEngine('payments',db);assert.deepEqual(restored.history!.statement(f.actor),statement);assert.deepEqual(restored.history!.detail(f.actor,'PAYMENT',o.id),detail);
 });

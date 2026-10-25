@@ -1,7 +1,8 @@
+import { removeTemp } from '../../test/support/temp-cleanup.ts';
 import test, { after, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, sign } from 'node:crypto';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
@@ -34,7 +35,7 @@ after(() => {
   for (const [key, value] of previousEnv) {
     if (value === undefined) delete process.env[key]; else process.env[key] = value;
   }
-  rmSync(dataDir, { recursive: true, force: true });
+  removeTemp(dataDir);
 });
 
 type Claims = Record<string, unknown>;

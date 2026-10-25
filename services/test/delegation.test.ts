@@ -1,6 +1,7 @@
+import { removeTemp } from '../../test/support/temp-cleanup.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { GrantStore } from '../delegation/src/store.ts';
@@ -59,7 +60,7 @@ test('delegation: two database connections serialize limits and retain consent/i
     assert.equal(a.start(g.id, 'request-0001').job.state, 'completed');
     assert.throws(() => b.start(g.id, 'over-limit'));
     b.revoke(g.id, owner); assert.ok(a.get(g.id).revokedAt);
-  } finally { a.close(); b.close(); rmSync(dir, { recursive: true, force: true }); }
+  } finally { a.close(); b.close(); removeTemp(dir); }
 });
 test('delegation: narrowing advances the grant version and never expands authority', () => {
   const s = new GrantStore(':memory:');

@@ -1,7 +1,8 @@
+import { removeTemp } from '../../test/support/temp-cleanup.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AccountDatabase } from '../provider-simulator/src/database.ts';
@@ -36,7 +37,7 @@ function fixture(t: { after(fn: () => void): void }, opts: { maximumHours?: numb
     providerStore: (p: string) => { if (p !== 'rta') throw new Error('No isolated store for this provider.'); return sourceDb; },
   } });
   db.accounts(actor.sub); sourceDb.accounts(actor.sub); payments.seed(actor); rta.seed(actor);
-  t.after(() => { db.close(); sourceDb.close(); try { rmSync(root, { recursive: true, force: true }); } catch { /* Windows may briefly hold the directory */ } });
+  t.after(() => { db.close(); sourceDb.close(); try { removeTemp(root); } catch { /* Windows may briefly hold the directory */ } });
   const account = actor.accountId, ticketId = 'ticket-auto-1', plate = 'DXB A-1234';
   const now = Date.now();
   const meter = { ticketId, zoneId: zone.id, zoneCode: zone.code, zoneName: zone.name, plateNumber: plate, durationHours: opts.sessionHours ?? 1, totalFee: zone.tariffPerHour, startTime: now - HOUR / 2, expiresAt: now + (opts.endsInMinutes ?? 5) * 60000, status: 'ACTIVE' };

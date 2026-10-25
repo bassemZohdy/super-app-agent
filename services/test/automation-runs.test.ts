@@ -1,7 +1,8 @@
+import { removeTemp } from '../../test/support/temp-cleanup.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { mkdtempSync,rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AccountDatabase } from '../provider-simulator/src/database.ts';
@@ -39,7 +40,7 @@ function fixture(t:unknown){
   }});
   db.accounts(actor.sub);dewaDb.accounts(actor.sub);
   payments.seed(actor);dewa.seed(actor);
-  t.after(()=>{db.close();dewaDb.close();try{rmSync(root,{recursive:true,force:true});}catch{/* Windows may briefly hold the directory */}});
+  t.after(()=>{db.close();dewaDb.close();try{removeTemp(root);}catch{/* Windows may briefly hold the directory */}});
   const bill=(billId:string,amountAED:number,dueOffsetDays:number,status:'UNPAID'|'PAID'='UNPAID')=>{
     const due=new Date(Date.now()+dueOffsetDays*86400000).toISOString().slice(0,10);
     dewaDb.put(actor.accountId,'bill',{billId,accountNumber:'auto-home',totalAmount:amountAED,status,dueDate:due},billId);
@@ -176,12 +177,12 @@ test('AUTO-03: the isolated run cannot arm on normal or copied data, rebind iden
   assert.throws(()=>new ProviderEngine('payments',other),/original isolated run context/);
   assert.throws(()=>new ProviderEngine('payments',other,{automationRun:{...f.context,operatorSub:'another-operator'},automationIo:{readPayables:()=>[],providerStore:()=>other}}));
   const outside=mkdtempSync(join(tmpdir(),'normal-payments-'));
-  t.after(()=>{try{rmSync(outside,{recursive:true,force:true});}catch{}});
+  t.after(()=>{try{removeTemp(outside);}catch{}});
   const plain=new AccountDatabase(join(outside,'payments.sqlite'));
   t.after(()=>plain.close());
   assert.throws(()=>new ProviderEngine('payments',plain,{automationRun:f.context,automationIo:{readPayables:()=>[],providerStore:()=>plain}}));
   const copyRoot=mkdtempSync(join(tmpdir(),'cityside-auto-copy-'));
-  t.after(()=>{try{rmSync(copyRoot,{recursive:true,force:true});}catch{}});
+  t.after(()=>{try{removeTemp(copyRoot);}catch{}});
   const copied=new AccountDatabase(join(copyRoot,'payments.sqlite'));
   t.after(()=>copied.close());
   copied.accounts(f.actor.sub);

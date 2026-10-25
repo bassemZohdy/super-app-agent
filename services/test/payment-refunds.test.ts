@@ -1,7 +1,8 @@
+import { removeTemp } from '../../test/support/temp-cleanup.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtempSync,rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { AccountDatabase } from '../provider-simulator/src/database.ts';
@@ -81,7 +82,7 @@ test('spent or held wallet funding cannot be refunded into an overdraft or retur
   const f=fixture(t,'dewa','approved');let o=f.gateway.funding!.create(f.actor,{amountMinor:5000,methodId:f.method.id,expectedMethodVersion:1});o=f.gateway.funding!.approve(f.actor,o.id,decision(o));o=f.gateway.funding!.execute(f.actor,o.id,decision(o));f.gateway.ledger!.record(f.actor.accountId,'PAYMENT','spend-wallet',154000,'wallet');f.gateway.ledger!.reserve(f.actor.accountId,'another-review',1000,Date.now()+60000);const r=f.review(o.id,2000,'WALLET_FUNDING'),done=await f.run(r);assert.equal(done.state,'FAILED');assert.equal(done.failureCode,'INSUFFICIENT_AVAILABLE_FUNDS');assert.equal(f.gateway.ledger!.summary(f.actor.accountId).balanceMinor,1000);assert.equal(f.gateway.issuer!.summary(f.actor.accountId,f.method.id).refundedMinor,0);
 });
 test('refund source and gateway reopen preserve unknown identity and original cumulative settlement',async t=>{
-  const dir=mkdtempSync(join(tmpdir(),'refund-reopen-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));const f=fixture(t,'dewa','wallet',dir),o=await f.pay(),r=f.review(o.id,o.quote.totalMinor);f.fail('after');await f.run(r);const db=new AccountDatabase(f.db.path),source=new AccountDatabase(f.source.path);t.after(()=>{db.close();source.close();});const restored=new ProviderEngine('payments',db),business=new ProviderEngine('dewa',source);assert.equal(restored.refunds!.get(f.actor,r.id).state,'RECONCILIATION_REQUIRED');assert.equal(business.reversals!.get(f.actor.accountId,r.id).state,'APPLIED');assert.equal((await f.refunds.recover(f.actor,r.id,f.client)).state,'REFUNDED');assert.equal(restored.orders!.get(f.actor,o.id).refundedMinor,42040);
+  const dir=mkdtempSync(join(tmpdir(),'refund-reopen-'));t.after(()=>removeTemp(dir));const f=fixture(t,'dewa','wallet',dir),o=await f.pay(),r=f.review(o.id,o.quote.totalMinor);f.fail('after');await f.run(r);const db=new AccountDatabase(f.db.path),source=new AccountDatabase(f.source.path);t.after(()=>{db.close();source.close();});const restored=new ProviderEngine('payments',db),business=new ProviderEngine('dewa',source);assert.equal(restored.refunds!.get(f.actor,r.id).state,'RECONCILIATION_REQUIRED');assert.equal(business.reversals!.get(f.actor.accountId,r.id).state,'APPLIED');assert.equal((await f.refunds.recover(f.actor,r.id,f.client)).state,'REFUNDED');assert.equal(restored.orders!.get(f.actor,o.id).refundedMinor,42040);
 });
 test('partial bills/fines, invalid money, source overrides, unapproved and expired refunds deny',async t=>{
   const f=fixture(t),o=await f.pay();for(const amount of [0,-1,1.5,NaN,Infinity,42041,1])assert.throws(()=>f.review(o.id,amount));const r=f.review(o.id,42040);await assert.rejects(f.refunds.recover(f.actor,r.id,f.client),(e:any)=>e.code==='REFUND_APPROVAL_REQUIRED');t.mock.method(f.gateway.orders!,'clock',()=>Date.parse(r.expiresAt)+1);await assert.rejects(f.run(r),(e:any)=>e.code==='REFUND_CLOSED');assert.equal(f.gateway.ledger!.summary(f.actor.accountId).balanceMinor,107960);
@@ -89,7 +90,7 @@ test('partial bills/fines, invalid money, source overrides, unapproved and expir
 });
 
 test('payment request keys are durably reserved before asynchronous refund effects and deny changed terms across reopen',async t=>{
-  const dir=mkdtempSync(join(tmpdir(),'refund-request-key-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));const f=fixture(t,'dewa','wallet',dir),o=await f.pay(),r=f.review(o.id,42040);
+  const dir=mkdtempSync(join(tmpdir(),'refund-request-key-'));t.after(()=>removeTemp(dir));const f=fixture(t,'dewa','wallet',dir),o=await f.pay(),r=f.review(o.id,42040);
   f.refunds.reserveRequest(f.actor.accountId,'one-owner-action','a'.repeat(64));f.refunds.reserveRequest(f.actor.accountId,'one-owner-action','a'.repeat(64));assert.throws(()=>f.refunds.reserveRequest(f.actor.accountId,'one-owner-action','b'.repeat(64)),(e:any)=>e.code==='IDEMPOTENCY_CONFLICT');
   const db=new AccountDatabase(f.db.path);t.after(()=>db.close());const restored=new ProviderEngine('payments',db);assert.throws(()=>restored.refunds!.reserveRequest(f.actor.accountId,'one-owner-action','b'.repeat(64)),(e:any)=>e.code==='IDEMPOTENCY_CONFLICT');assert.equal(f.gateway.ledger!.summary(f.actor.accountId).balanceMinor,107960);assert.equal((await f.run(r)).state,'REFUNDED');
 });

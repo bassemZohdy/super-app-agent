@@ -1,6 +1,7 @@
+import { removeTemp } from '../../test/support/temp-cleanup.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { integratedRequest } from '../../packages/backend-kit/src/application.ts';
@@ -12,7 +13,7 @@ import { restaurants } from '../service-food/src/index.ts';
 test('integrated receipt mappings preserve utility premise, owned fine plate/discount and dining delivery fields', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'cityside-receipt-'));
   const previous = process.env.APP_DATA_DIR; process.env.APP_DATA_DIR = dir;
-  t.after(async () => { if (previous === undefined) delete process.env.APP_DATA_DIR; else process.env.APP_DATA_DIR = previous; await rm(dir, { recursive: true, force: true }); });
+  t.after(async () => { if (previous === undefined) delete process.env.APP_DATA_DIR; else process.env.APP_DATA_DIR = previous; removeTemp(dir); });
   let status = 'UNPAID'; let captures = 0;
   const bill = { billId: 'dewa_contract_bill', premiseId: 'DEWA-CONTRACT-PREMISE', status, totalAmount: 420.4 };
   let orderState='AWAITING_APPROVAL';

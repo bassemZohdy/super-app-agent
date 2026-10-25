@@ -1,7 +1,8 @@
+import { removeTemp } from '../../test/support/temp-cleanup.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AccountDatabase } from '../provider-simulator/src/database.ts';
@@ -28,7 +29,7 @@ function held(t: { after(fn: () => void): void }) {
     providerStore: (p: string) => { if (p !== 'dewa') throw new Error('No isolated store for this provider.'); return sourceDb; },
   } });
   db.accounts(actor.sub); sourceDb.accounts(actor.sub); payments.seed(actor); source.seed(actor);
-  t.after(() => { db.close(); sourceDb.close(); try { rmSync(root, { recursive: true, force: true }); } catch { /* Windows may briefly hold the directory */ } });
+  t.after(() => { db.close(); sourceDb.close(); try { removeTemp(root); } catch { /* Windows may briefly hold the directory */ } });
   const account = actor.accountId, reference = String(sourceDb.get(account, 'consumption')!.accountNumber);
   const card = payments.execute(actor, 'POST', '/payment-methods', { preset: 'challenge', nickname: 'Challenge card' }).data.method as { id: string; version: number };
   const billing = db.transaction(() => payments.execute(actor, 'POST', '/billing-accounts', { provider: 'dewa', reference, nickname: 'Home' })).data.billingAccount;

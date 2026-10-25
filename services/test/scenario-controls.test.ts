@@ -1,7 +1,8 @@
+import { removeTemp } from '../../test/support/temp-cleanup.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { mkdtempSync,rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AccountDatabase } from '../provider-simulator/src/database.ts';
@@ -23,7 +24,7 @@ function fixture(t:unknown){
   const actor=actorFor({sub:'scenario-customer'},undefined,'Bearer customer');
   const engine=new ProviderEngine('payments',db,{issuerScenario:context});
   db.accounts(actor.sub);engine.seed(actor);
-  t.after(()=>{db.close();try{rmSync(root,{recursive:true,force:true});}catch{}});
+  t.after(()=>{db.close();try{removeTemp(root);}catch{}});
   const controls=db.scenarioControls!;
   const arm=(subject:string,name:string,times?:number,requestKey?:string)=>controls.arm(subject,{name,times,requestKey:requestKey??`req_${randomUUID()}`});
   const checkout=async(methodId='wallet')=>{
@@ -95,7 +96,7 @@ test('SIM-05: an armed failpoint loses the checkout response and recovery keeps 
 test('SIM-05: controls exist only inside an isolated run',t=>{
   const root=mkdtempSync(join(tmpdir(),'normal-payments-'));
   const db=new AccountDatabase(join(root,'payments.sqlite'));
-  t.after(()=>{db.close();try{rmSync(root,{recursive:true,force:true});}catch{}});
+  t.after(()=>{db.close();try{removeTemp(root);}catch{}});
   const actor=actorFor({sub:'plain-owner'},undefined,'Bearer x');
   const engine=new ProviderEngine('payments',db);
   db.accounts(actor.sub);engine.seed(actor);

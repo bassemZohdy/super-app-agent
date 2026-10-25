@@ -1,6 +1,7 @@
+import { removeTemp } from '../../test/support/temp-cleanup.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync,rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Ajv } from 'ajv';
@@ -98,7 +99,7 @@ test('wallet authorizations hold available funds, reject competing spend and voi
 });
 
 test('reopen and competing database connections preserve stored approval, exclusive obligation and issuer hold',t=>{
-  const dir=mkdtempSync(join(tmpdir(),'cityside-authorization-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+  const dir=mkdtempSync(join(tmpdir(),'cityside-authorization-'));t.after(()=>removeTemp(dir));
   const path=join(dir,'payments.sqlite'),f=setup(t,path),order=f.create(),approved=f.orders.approve(f.actor,order.id,decision(order),f.payable);
   const other=new AccountDatabase(path);t.after(()=>other.close());const issuer=new PaymentIssuer(other),uses=new PaymentResourceUses(other),orders=new PaymentOrders(other,issuer,new PaymentLedger(other),uses);
   assert.equal(orders.get(f.actor,order.id).approvalDigest,order.approvalDigest);assert.equal(issuer.summary(f.actor.accountId,order.quote.source.id).heldMinor,42040);

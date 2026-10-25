@@ -1,6 +1,7 @@
+import { removeTemp } from '../../test/support/temp-cleanup.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync,rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { actorFor } from '../../packages/backend-kit/src/context.ts';
@@ -59,12 +60,12 @@ test('a persistence failure after local issuer capture rolls back card spend, jo
   assert.equal(f.funding.execute(f.actor,o.id,input(authorized)).state,'SETTLED');assert.equal(f.db.list(f.actor.accountId,'transaction').length,1);
 });
 test('reopen and a lost post-commit response restore the original receipt without another issuer charge or wallet credit',t=>{
-  const dir=mkdtempSync(join(tmpdir(),'cityside-funding-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));const f=fixture(t,'approved',join(dir,'payments.sqlite')),o=f.create(),authorized=f.funding.approve(f.actor,o.id,input(o));
+  const dir=mkdtempSync(join(tmpdir(),'cityside-funding-'));t.after(()=>removeTemp(dir));const f=fixture(t,'approved',join(dir,'payments.sqlite')),o=f.create(),authorized=f.funding.approve(f.actor,o.id,input(o));
   const reopened=new AccountDatabase(f.db.path);t.after(()=>reopened.close());const e=new ProviderEngine('payments',reopened),settled=e.funding!.execute(f.actor,o.id,input(authorized));
   const last=new AccountDatabase(f.db.path);t.after(()=>last.close());const final=new ProviderEngine('payments',last);assert.deepEqual(final.funding!.execute(f.actor,o.id,input(authorized)),settled);assert.equal(final.ledger!.summary(f.actor.accountId).balanceMinor,155000);assert.equal(final.issuer!.summary(f.actor.accountId,f.card.id).spentMinor,5000);assert.equal(last.list(f.actor.accountId,'transaction').length,1);
 });
 test('separate connections serialize open funding reviews and share the finite issuer limit',t=>{
-  const dir=mkdtempSync(join(tmpdir(),'cityside-funding-race-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));const f=fixture(t,'approved',join(dir,'payments.sqlite')),other=new AccountDatabase(f.db.path);t.after(()=>other.close());const e=new ProviderEngine('payments',other),o=f.create();
+  const dir=mkdtempSync(join(tmpdir(),'cityside-funding-race-'));t.after(()=>removeTemp(dir));const f=fixture(t,'approved',join(dir,'payments.sqlite')),other=new AccountDatabase(f.db.path);t.after(()=>other.close());const e=new ProviderEngine('payments',other),o=f.create();
   assert.throws(()=>e.funding!.create(f.actor,{amountMinor:5000,methodId:f.card.id,expectedMethodVersion:1}),(error:any)=>error.code==='FUNDING_IN_PROGRESS');
   const authorized=e.funding!.approve(f.actor,o.id,input(o));f.funding.execute(f.actor,o.id,input(authorized));assert.equal(e.ledger!.summary(f.actor.accountId).balanceMinor,155000);assert.equal(e.issuer!.summary(f.actor.accountId,f.card.id).spentMinor,5000);
 });

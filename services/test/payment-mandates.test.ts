@@ -1,6 +1,7 @@
+import { removeTemp } from '../../test/support/temp-cleanup.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Ajv } from 'ajv';
@@ -24,7 +25,7 @@ function fixture(t:any){
     target:{kind:'BILLER',billingAccountId:link.id,expectedVersion:link.version,provider:'dewa',reference:link.reference},sources:[{methodId:card.id,expectedVersion:card.version}],fallback:{mode:'NONE'},
     trigger:{type:'INVOICE_DUE',daysBefore:1},timezone:'Asia/Dubai',startsAt:new Date(now).toISOString(),expiresAt:new Date(now+30*86400000).toISOString(),
     limits:{perPaymentMinor:50000,periodMinor:100000,lifetimeMinor:300000,period:'MONTH',perPeriodCount:3,lifetimeCount:9,cooldownSeconds:3600}});
-  t.after(()=>{db.close();rmSync(root,{recursive:true,force:true});});
+  t.after(()=>{db.close();removeTemp(root);});
   return {db,engine,actor,mandates,card,link,policy,post,path,advance:(ms:number)=>now+=ms};
 }
 const code=(value:string)=>(e:any)=>e.code===value;

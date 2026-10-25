@@ -1,6 +1,7 @@
+import { removeTemp } from '../../test/support/temp-cleanup.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { generateKeyPairSync, sign } from 'node:crypto';
@@ -11,7 +12,7 @@ const start=Date.parse('2026-10-24T00:00:00.000Z'),owner='trusted-owner';
 function memory(t:test.TestContext){const store=new SimulationRuns(':memory:');t.after(()=>store.close());return store;}
 
 test('preview runs persist deterministic seeded fixtures and an injectable instance clock across reopen',t=>{
-  const dir=mkdtempSync(join(tmpdir(),'cityside-scenario-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));const path=join(dir,'preview.sqlite');
+  const dir=mkdtempSync(join(tmpdir(),'cityside-scenario-'));t.after(()=>removeTemp(dir));const path=join(dir,'preview.sqlite');
   let store=new SimulationRuns(path);const first=store.create(owner,'commute',start,'create_key');const another=store.create(owner,'commute',start,'create_two');assert.deepEqual(first.fixtures,another.fixtures);assert.notEqual(first.id,another.id);
   const clock=store.clock(owner,first.id);assert.equal(clock(),start);store.advance(owner,first.id,1,120,'advance_key');assert.equal(clock(),start+120000);store.close();
   store=new SimulationRuns(path);const restored=store.snapshot(owner,first.id);assert.equal(restored.revision,2);assert.equal(restored.events.length,2);assert.equal(restored.businessAt,new Date(start+120000).toISOString());store.close();
@@ -45,13 +46,13 @@ test('owner/version/key/bounds reject cross-run modification and excessive or ba
 });
 
 test('two connections observe one committed revision and reject a stale duplicate advance',t=>{
-  const dir=mkdtempSync(join(tmpdir(),'cityside-scenario-race-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));const path=join(dir,'preview.sqlite');const first=new SimulationRuns(path),second=new SimulationRuns(path);
+  const dir=mkdtempSync(join(tmpdir(),'cityside-scenario-race-'));t.after(()=>removeTemp(dir));const path=join(dir,'preview.sqlite');const first=new SimulationRuns(path),second=new SimulationRuns(path);
   const run=first.create(owner,'race',start,'create_key');first.advance(owner,run.id,1,180,'advance_one');assert.throws(()=>second.advance(owner,run.id,1,180,'advance_two'),/changed/);
   const result=second.snapshot(owner,run.id);assert.equal(result.revision,2);assert.equal(result.events.length,3);second.close();first.close();
 });
 
 test('preview reset never edits normal provider resource/idempotency records, even in the same database file',t=>{
-  const dir=mkdtempSync(join(tmpdir(),'cityside-scenario-containment-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));const path=join(dir,'shared.sqlite');const provider=new AccountDatabase(path);provider.accounts(owner);const account=provider.accounts(owner)[0].id;provider.put(account,'wallet',{balanceMinor:3456,currency:'AED'});
+  const dir=mkdtempSync(join(tmpdir(),'cityside-scenario-containment-'));t.after(()=>removeTemp(dir));const path=join(dir,'shared.sqlite');const provider=new AccountDatabase(path);provider.accounts(owner);const account=provider.accounts(owner)[0].id;provider.put(account,'wallet',{balanceMinor:3456,currency:'AED'});
   provider.db.prepare('INSERT INTO idempotency VALUES(?,?,?,?,?)').run(account,'real-key','fingerprint',200,'{"success":true}');const before=provider.db.prepare('SELECT * FROM resources').all();
   const store=new SimulationRuns(path),run=store.create(owner,'containment',start,'create_key');store.advance(owner,run.id,1,180,'advance_key');store.reset(owner,run.id,2,'reset_key');
   assert.deepEqual(provider.db.prepare('SELECT * FROM resources').all(),before);assert.ok(provider.db.prepare('SELECT key FROM idempotency WHERE key=?').get('real-key'));store.close();provider.close();
