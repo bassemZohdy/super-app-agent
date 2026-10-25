@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 26 October 2026 — ledger invariant sequence test (QA-02, partial)
+
+A sequence test holds, captures and voids funds and asserts that available equals posted minus held at every step, that a refused hold changes nothing, and that a capture moves exactly its amount (`services/test/qa02-ledger-invariants.test.ts`). QA-02 stays open: its tracker entry names the clearing-account reconciliation and the general per-period budget invariants that remain.
+
 ## 26 October 2026 — AUTO-15 delivered: the kill-switch panel control
 
 The payments panel shows the worker's kill switch and lets an allowlisted automation operator stop automation (a reason is required) or let it run again. The worker's store records each change, and runs already paid are not reversed, as the panel says. Other accounts are refused. The browser journey `npm run demo:verify:kill-switch-panel` passes on the Compose stack. The broker-scoped admin route (3b-ii) remains a service path: a browser cannot hold the admin client's secret, so the panel uses the allowlisted operator sign-in. The rest of AUTO-15 was delivered earlier: pause-all, the operator route, the worker's applied state, and the in-flight race and outage tests. Its tracker entry is removed.
