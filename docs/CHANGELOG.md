@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 25 October 2026 — answer a held challenge from the inbox; restart keeps a pause (AUTO-14 step 4, AUTO-15 step 4 in part)
+
+A held card challenge entry in the owner inbox now names its order and offers approve or reject, using the same order challenge action as the payments list; the worker never answers. A pause on a rule survives a provider restart and still refuses preparation (`services/test/automation-runs.test.ts`). Still open: AUTO-14's `Done when` checks for notifications and the paused outcome on the stack, and AUTO-15 steps 3 and 4 (the admin route, and the revoke, limit and card-disable races against an in-flight execution plus the authority outage). Evidence: `services/test/auto14-inbox-feed.test.ts`, `services/test/automation-runs.test.ts`; the React shell type-checks.
+
 ## 25 October 2026 — operator kill switch and owner pause-all (AUTO-15, steps 1–2)
 
 The automation worker honours a persisted global kill switch, engaged and released with `scripts/automation-kill-switch.ts`. Engaged, it claims no job and starts no step. A credential already issued is held as `KILL_SWITCH_ENGAGED` and never presented. The state survives a restart. The owner can pause every approved rule at once through `POST /api/payments/mandates/pause-all`, which reports the rules it could not pause and retries under stable keys; the React rules panel has the button. Still open in AUTO-15: the authenticated broker-scoped admin route and panel control, and the race and outage tests in its `Done when`. Evidence: `services/test/auto15-kill-switch.test.ts`, `services/test/auto15-pause-all.test.ts`.

@@ -514,3 +514,17 @@ test('AUTO-07: the preview does not authorize anything; execution re-reads curre
   assert.equal(skipped(f.prepare(m.id,'occ_after_preview')).reason,'NO_DUE_INVOICE');
   assert.equal(f.db.automationRuns!.status('automation-operator').executionCount,0);
 });
+
+test('AUTO-15: a pause survives a provider restart and still refuses preparation after it',t=>{
+  const f=fixture(t),m=f.mandate();f.bill('auto-bill-restart',150,1);
+  f.payments.mandates!.pause(f.actor,m.id,m.version);
+  // A second connection to the same file stands in for a restarted provider: nothing in memory carries the pause across.
+  const restarted=new AccountDatabase(f.path);
+  const engine=new ProviderEngine('payments',restarted,{automationRun:f.context,automationIo:{
+    readPayables:(accountId:string,provider:string)=>provider==='dewa'&&f.dewa.payables?f.dewa.payables.list(accountId):[],
+    providerStore:(provider:string)=>{if(provider!=='dewa')throw new Error('No isolated store for this provider.');return f.dewaDb;},
+  }});
+  assert.equal(engine.mandates!.get(f.actor,m.id).state,'PAUSED');
+  assert.equal(skipped(restarted.automationRuns!.prepare('auto-worker',{mandateId:m.id,occurrenceKey:'occ_restart',requestKey:`req_${randomUUID()}`})).reason,'MANDATE_NOT_ACTIVE');
+  restarted.close();
+});

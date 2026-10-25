@@ -9,7 +9,7 @@ import type { JobStore, Job } from './jobs.ts';
 export type InboxKind = 'UPCOMING_RUN' | 'PREPARED' | 'SETTLED' | 'SKIPPED' | 'FAILED' | 'HELD' | 'REQUIRES_ACTION' | 'CHALLENGE_ANSWERED';
 export type InboxEntry = {
   id: string; kind: InboxKind; mandateId: string; policyVersion: number; occurrenceKey: string;
-  reason?: string; effect: string; at: number;
+  reason?: string; orderId?: string; effect: string; at: number;
 };
 export type RunRecord = { mandateId: string; policyVersion: number; occurrenceKey: string; state: Job['state']; reason?: string; effect: string; updatedAt: number };
 
@@ -30,7 +30,8 @@ export function inboxFor(store: JobStore, ownedMandateIds: ReadonlySet<string>):
     if (seen.has(id)) continue;
     seen.add(id);
     out.push({ id, kind: event.kind as InboxKind, mandateId: job.mandateId, policyVersion: job.policyVersion, occurrenceKey: job.occurrenceKey,
-      reason: typeof event.body.reason === 'string' ? event.body.reason : job.reason, effect: effectOf(job.state), at: event.at });
+      reason: typeof event.body.reason === 'string' ? event.body.reason : job.reason,
+      orderId: typeof event.body.orderId === 'string' ? event.body.orderId : undefined, effect: effectOf(job.state), at: event.at });
   }
   for (const notice of store.notices().filter(n => ownedMandateIds.has(n.mandateId))) {
     const id = `notice:${notice.mandateId}:${notice.occurrenceKey}:${notice.kind}`;

@@ -59,3 +59,17 @@ test('AUTO-14: the inbox route accepts only the account query and rejects anythi
   assert.equal(validateRequest('agent-core', 'GET', '/api/payments/automation-inbox', { accountId: 'acct_1' }, {}), undefined);
   assert.equal(validateRequest('agent-core', 'GET', '/api/payments/automation-inbox', { accountId: 'acct_1', mandateId: 'x' }, {})?.status, 400);
 });
+
+test('AUTO-14: a held challenge entry names its order, so the owner can answer it from the inbox', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'cityside-inbox-order-')), path = join(dir, 'jobs.sqlite');
+  try {
+    const store = new JobStore(path);
+    store.enqueue(rule('mandate_mine'));
+    const claim = store.claim('worker-a', 30_000)!;
+    store.transition(claim, 'HELD', { reason: 'REQUIRES_ACTION' }, { kind: 'REQUIRES_ACTION', body: { reason: 'REQUIRES_ACTION', orderId: 'order_held_1' } });
+    store.close();
+    const [entry] = (await automationInbox(owner, provider(['mandate_mine']), path)).entries;
+    assert.equal(entry.kind, 'REQUIRES_ACTION');
+    assert.equal(entry.orderId, 'order_held_1');
+  } finally { cleanup(dir); }
+});
