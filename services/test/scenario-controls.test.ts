@@ -173,3 +173,15 @@ test('SIM-05: the HTTP arm schema is derived from the failpoint registry, so eve
   for(const bad of [{name:'checkout.unknown',requestKey:'req_registry_1'},{name:FAILPOINTS[0],requestKey:'short'},{name:FAILPOINTS[0],requestKey:'req_registry_1',times:101},{name:FAILPOINTS[0],requestKey:'req_registry_1',url:'http://elsewhere'}])
     assert.equal(ajv.validate(scenarioArmSchema,bad),false,JSON.stringify(bad));
 });
+
+test('SIM-05: the run export is operator-only, reads only, and carries no bearer tokens or card numbers', t=>{
+  const f=fixture(t);
+  assert.throws(()=>f.controls.export('scenario-customer',{}),(e:any)=>e.code==='SCENARIO_OPERATOR_REQUIRED');
+  const before=JSON.stringify(f.controls.status('scenario-operator').armed);
+  const out=f.controls.export('scenario-operator',{accounts:[{id:'acc_1',authorization:'Bearer abc.def.ghi',card:'4111111111111111',note:'kept'}]});
+  const text=JSON.stringify(out);
+  assert.equal(out.runId,f.controls.status('scenario-operator').runId);
+  assert.ok(!text.includes('Bearer abc'), 'bearer tokens are redacted from the export');
+  assert.ok(!text.includes('4111111111111111'), 'card numbers are redacted from the export');
+  assert.equal(JSON.stringify(f.controls.status('scenario-operator').armed),before,'exporting changes nothing in the run');
+});

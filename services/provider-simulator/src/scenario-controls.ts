@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 import type { AccountDatabase } from './database.ts';
 import { FAILPOINTS, armFailpoint, clearFailpoints, failpointFirings, type FailpointName } from './failpoints.ts';
 import type { IssuerScenarios } from './issuer-scenarios.ts';
+import { redact } from '../../../packages/backend-kit/src/redact.ts';
 
 export type ScenarioArmInput = { name: string; times?: number; requestKey: string };
 
@@ -61,6 +62,11 @@ export class ScenarioControls{
     });
   }
   /** Redacted counters for the run: which boundaries are armed and how often they fired. */
+  /** The run's inspection for the operator to keep, with secrets redacted. It reads only: nothing here changes the run. */
+  export(subject:string,inspection:Record<string,unknown>){
+    this.operator(subject);
+    return {runId:this.run.context.runId,exported:redact({...inspection,runId:this.run.context.runId})};
+  }
   status(subject:string){
     this.operator(subject);
     return {runId:this.run.context.runId,

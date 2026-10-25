@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 26 October 2026 — run export through the scenario controls (SIM-05, step)
+
+`GET /internal/scenario-controls/{run}/export` returns the run's inspection for the operator, with secrets redacted by the shared redaction helper. It is operator-only and read-only: the test confirms that exporting changes no armed failpoint. Evidence: `services/test/scenario-controls.test.ts`; the provider type-checks. The route is not yet exercised on the Compose stack. Still open in SIM-05: the control-panel UI, the run-scoped reset, and network time-advance.
+
 ## 26 October 2026 — AUTO-04 delivered: consent for create, expand and source change
 
 Every change to a rule's terms is a new review. The panel raises an approved rule's cap or changes its funding source through the revise route; the rule then waits for the owner's approval of the new terms, shown with trigger, target, funding (including fallback), caps, expiry and revocation. Lowering through the expand control is refused without a request. Lowering through narrowing needs no model call. Draft chat or voice text cannot activate a rule (guard test). Expanding keeps the budgets ordered, so the cap never exceeds its period or lifetime budget. Evidence: `scripts/e2e/mandate-create.ts`, `scripts/e2e/mandate-narrowing.ts`, `scripts/e2e/mandate-change.ts` (each passes on the Compose stack), `services/test/mandate-narrow.test.ts`, `services/test/bill-rule-policy.test.ts`, `services/test/auto04-consent-guard.test.ts`. The next run appears in the rule preview, not in the approval review.
