@@ -5,7 +5,7 @@ import http, { type Server } from 'node:http';
 import { spawn } from 'node:child_process';
 import { mkdtemp, mkdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve, extname } from 'node:path';
+import { join, resolve, extname, sep } from 'node:path';
 
 export async function startEnvironment(options:{authorizationClock?:()=>number;issuerOperatorSub?:string;automation?:{operatorSub:string;workerSub:string}}={}) {
   const appPort = Number(process.env.E2E_APP_PORT || 3002);
@@ -123,7 +123,8 @@ export async function startEnvironment(options:{authorizationClock?:()=>number;i
       try {
         const pathname = decodeURIComponent(new URL(request.url || '/', appUrl).pathname);
         const candidate = resolve(web, `.${pathname}`);
-        if (candidate !== web && !candidate.startsWith(`${web}/`)) { response.writeHead(400).end(); return; }
+        // resolve() yields platform separators, so the containment check uses the platform separator too (Windows paths use backslashes).
+        if (candidate !== web && !candidate.startsWith(`${web}${sep}`)) { response.writeHead(400).end(); return; }
         let file = candidate;
         let content: Buffer;
         try { content = await readFile(file); } catch { file = join(web, 'index.html'); content = await readFile(file); }

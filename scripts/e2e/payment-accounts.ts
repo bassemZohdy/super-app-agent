@@ -20,6 +20,9 @@ try {
   }
   browser=await chromium.launch({channel:process.env.E2E_BROWSER_CHANNEL || 'chrome',headless:true});
   const context=await browser.newContext({viewport:{width:1440,height:1000}});page=await context.newPage();page.setDefaultTimeout(45000);
+  // Page errors are printed so a blank page can be traced to the failing script or request.
+  page.on('pageerror',error=>console.error(`PAGE ERROR: ${error.message}`));page.on('console',message=>{if(message.type()==='error')console.error(`PAGE CONSOLE: ${message.text()}`);});
+  page.on('requestfailed',request=>console.error(`REQUEST FAILED: ${request.url()} ${request.failure()?.errorText??''}`));
   await page.goto(environment.appUrl);await page.getByRole('button',{name:'Sign in with Keycloak',exact:true}).click();
   await page.locator('#username').fill('demo-commuter');await page.locator('#password').fill('demo123');await page.locator('#kc-login').click();
   const accounts=page.getByRole('combobox',{name:'Current account',exact:true});await accounts.waitFor();
