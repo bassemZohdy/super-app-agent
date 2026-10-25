@@ -2,7 +2,7 @@
 
 ## 26 October 2026 — narrow a rule's cap without a model call (AUTO-04, step 2)
 
-The React rules panel can lower an approved rule's per-payment cap. The change goes through the existing revise route, is refused if it would raise or keep the cap, and leaves the rule waiting for the owner to approve its reviewed terms before it runs again. Evidence: `services/test/mandate-narrow.test.ts`; the React shell type-checks; the stack mandate check passes. The browser journey for this control is not yet recorded. AUTO-04 stays open for the create, expand and source-change consent flows.
+The React rules panel can lower an approved rule's per-payment cap. The change goes through the existing revise route, is refused if it would raise or keep the cap, and leaves the rule waiting for the owner to approve its reviewed terms before it runs again. Evidence: `services/test/mandate-narrow.test.ts`; the React shell type-checks; the stack mandate check passes. A browser journey (`npm run demo:verify:mandate-narrowing`) drives the control on the Compose stack: a raise is refused with no request sent, a real narrowing waits for approval, and the approved review takes effect. AUTO-04 stays open for the create, expand and source-change consent flows.
 
 ## 26 October 2026 — draft text cannot activate a rule (AUTO-04, step 1)
 
