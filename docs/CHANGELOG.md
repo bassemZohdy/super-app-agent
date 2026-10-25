@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 25 October 2026 — test suite cleanup on Windows (no feature change)
+
+The offline suite went from 45 failing tests to none on Windows (734 pass, 3 skip for platform reasons, 0 fail). Temporary-directory removal goes through one helper that tolerates Windows file locks. The catalog endpoint test imports a file URL; the SBOM generator and the isolated React build run `npm` through the Windows shim; the shutdown tests skip where `SIGTERM` cannot be delivered; the symlink check probes and skips when symlinks are not permitted; and the POSIX file-mode assertion runs only where modes are enforced. The owner inbox real-stack check now also covers card challenges (approve pays once, reject pays nothing). Rules and reasons are in [the testing guide](development/testing.md#windows-test-notes).
+
 ## 25 October 2026 — owner inbox verified on the real stack (AUTO-14, step 5)
 
 `scripts/e2e/automation-execution.ts` now reads the owner inbox through the core route after the worker has run. A settled run, a paused run (`MANDATE_NOT_ACTIVE`) and a declined card (`CARD_DECLINED`) each appear once with their reason, rule version and effect; re-reading adds no entries; another owner sees none of them. The check passes on the Compose stack. Still open in AUTO-14: challenged and unknown outcomes on the stack. Also fixed: the issuer-scenario harness retries a GET once after a stale keep-alive reset, and the journey top-up is within the funding limit.

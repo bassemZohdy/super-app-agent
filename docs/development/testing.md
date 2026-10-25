@@ -129,3 +129,15 @@ Eight checkout regressions cover both funding sources, exact one-payment recover
 `npm run ops:verify` exercises signed, isolated HTTP journeys, rejects unauthorized diagnostic access, joins a failed composite journey across service/tool/provider spans, checks all 14 application/provider/core probes, runs an eight-worker 10-second read load and a paced 60-second soak. Inference is disabled and no normal payment database is changed. `npm run ops:verify:recovery` starts dedicated Redis containers, fences the original writer, restores an encrypted checkpoint and verifies actual financial/broker tables, revocation, original replay/pending fences, approvals, graph pending writes, TTL and signing identity. Passing an extracted full-stack cold checkpoint also boots its Keycloak H2 realm and Redis copy on isolated ports. Private summaries go to `.data/operations/`.
 
 Offline tests cover trace isolation/parent links/redaction, protected operations routes, readiness failure, bounded retention/stuck work/backpressure, encrypted integrity/overwrite/link protection and successful/failed SIGTERM drain. Container shutdown uses init plus a bounded request drain; cold backup refuses unclean exits. [Runbook and targets](operations.md) · [Execution evidence](../reports/2026-10-24-operations.md).
+
+## Windows test notes
+
+The offline suite runs on Windows, with these platform rules:
+
+- Temporary directories are removed with `removeTemp` (`test/support/temp-cleanup.ts`). Windows keeps a SQLite file locked for a moment after its connection closes, so a refused removal is retried briefly and then left for the OS to clear. Cleanup never fails a test.
+- Tests that need POSIX behaviour skip on Windows, with the reason printed: graceful `SIGTERM` drains (Windows cannot deliver `SIGTERM` to a child process), and POSIX owner-only file modes (Windows does not enforce them).
+- The symlink check probes once. If the account cannot create symlinks (developer mode or elevation is needed), it skips with that reason; otherwise it runs in full.
+- Tools launched from Node use the platform shim: `npm.cmd` through a shell on Windows (the SBOM generator and the isolated React build).
+- The SBOM generator needs the workspace links in `node_modules`. If `npm sbom` reports a missing `@superapp/*` package, run `npm install` once to link the workspaces.
+
+`npm test` on Windows reports the platform skips as skipped, not as passed. A run with no failures and only those skips is the expected result.
