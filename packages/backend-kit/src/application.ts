@@ -1,5 +1,5 @@
 import { Telemetry,correlation } from './observability.ts';
-import { HttpPolicy, HttpError, readJsonBody } from './http-policy.ts';
+import { HttpPolicy, HttpError, readJsonBody, isPlainJsonObject } from './http-policy.ts';
 import { EligibilityClient,EligibilityReadError,eligibilityEnforced } from './eligibility-client.ts';
 import http from 'node:http';
 import { join } from 'node:path';
@@ -245,8 +245,11 @@ export function createApplicationServer(service: string, legacy: Legacy) {
         actor = actorFor({ sub: user.sub, preferred_username: user.preferred_username, name: user.name }, typeof account === 'string' ? account : undefined, req.headers.authorization);
         actor.requestId = requestId;
       }
-      const body = (await readJsonBody(req)) as RequestBody;
-      if (integrated && url.pathname !== '/accounts' && service !== 'service-telecom') {
+      const parsed = await readJsonBody(req);
+      // A request body is always a JSON object in every mode; arrays and scalars are rejected before routing.
+      if (!isPlainJsonObject(parsed)) return send(400, { success: false, code: 'VALIDATION_ERROR', error: 'Invalid request input' });
+      const body = parsed as RequestBody;
+      if (integrated) {
         const invalid = validateRequest(service, req.method || 'GET', url.pathname, query, body);
         if (invalid) return send(invalid.status, invalid.data);
       }

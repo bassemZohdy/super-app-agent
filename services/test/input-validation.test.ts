@@ -7,6 +7,8 @@ import { executeProfileRequest as profile, currentPreferences, server as profile
 import { executeCatalogRequest as catalog, server as catalogServer } from '../service-catalog/src/index.ts';
 import { getOrCreateSession, executeCoreRequest as core, sessions, server as coreServer } from '../agent-core/src/index.ts';
 import { MAX_MONEY, toMinor, fromMinor } from '../../packages/protocol-core/src/request-validation.ts';
+import { validateRequest } from '../../packages/protocol-core/src/request-validation.ts';
+import { isPlainJsonObject } from '../../packages/backend-kit/src/http-policy.ts';
 
 const snapshot = () => JSON.stringify({ balance, transactions, policeFines, meters: [...activeParkingMeters],
   rides: [...activeRides], salikBalance, bill: activeUtilityBill, orders: [...activeOrders],
@@ -159,4 +161,19 @@ test('P0-09: real HTTP handlers reject invalid JSON bodies, nested inputs and co
       assert.equal(snapshot(), before);
     }
   }
+});
+
+test('P2-05: telecom application routes validate their registered schemas like every other service', () => {
+  const valid = { lineId: 'line_1', amountMinor: 5000, expectedTargetVersion: 1 };
+  assert.equal(validateRequest('service-telecom', 'POST', '/telecom/etisalat/prepaid/recharges', {}, valid), undefined);
+  assert.equal(validateRequest('service-telecom', 'GET', '/telecom/du/prepaid', {}, {}), undefined);
+  for (const body of [{}, { lineId: 'line_1', amountMinor: 5000 }, { ...valid, expectedTargetVersion: '1' },
+    { ...valid, extra: true }, { lineId: 'line_1', amountMinor: -1, expectedTargetVersion: 1 }]) {
+    assert.ok(validateRequest('service-telecom', 'POST', '/telecom/etisalat/prepaid/recharges', {}, body), JSON.stringify(body));
+  }
+});
+
+test('P2-05: request bodies must be plain JSON objects in every mode', () => {
+  for (const value of [{}, { accountId: 'a' }, { nested: { ok: true } }]) assert.equal(isPlainJsonObject(value), true);
+  for (const value of [null, [], ['array'], 'text', 5, true]) assert.equal(isPlainJsonObject(value), false, JSON.stringify(value));
 });

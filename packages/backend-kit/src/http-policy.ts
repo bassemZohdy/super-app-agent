@@ -40,6 +40,9 @@ export class HttpPolicy {
   }
 }
 
+/** Every retained JSON route reads an object; arrays and scalars are never valid request bodies. */
+export const isPlainJsonObject = (value: unknown): boolean => value !== null && typeof value === 'object' && !Array.isArray(value);
+
 export function readJsonBody(req: IncomingMessage): Promise<unknown> {
   const limit = setting('HTTP_BODY_LIMIT_BYTES', 65536, 1048576);
   const timeout = setting('HTTP_BODY_TIMEOUT_MS', 10000, 30000);

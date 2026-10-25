@@ -1,5 +1,10 @@
 # Documentation changelog
 
+## 25 October 2026 — request-body validation across application services (P2-05)
+
+Every application-server request body must now be a plain JSON object in integrated and legacy modes, rejected with the established `VALIDATION_ERROR` contract before routing. The telecom service and the `/accounts` route run the same per-route validation gate as every other service; the telecom prepaid/recharge schemas were registered but never enforced. Schema-level tests cover the telecom gate and the plain-object rule offline.
+
+
 ## 25 October 2026 — P1 parity slices and the AUTO-03 preparation checkpoint
 
 P1-12: dispatches whose action is advertised only by disabled buttons are rejected explicitly with `ACTION_DISABLED` instead of a generic denial. P1-13: conversational parking/ride/food dispatches no longer fall back to hardcoded demo resources; a missing selection fails closed with a visible rejection, and controlled `HttpError` rejections now keep their status and message at the gateway boundary. P1-14: choice-group validation enforces non-empty option ids/titles and coherent `selectedId` preselections, covered by the fuzz suite. AUTO-03 first checkpoint: run-scoped automatic execution preparation and owned inspection in a pristine, persisted isolated run — exact worker/operator identities, server-owned due-invoice resolution, one-transaction shared budget/count/cooldown/occurrence and payable exclusion, immutable preparation records with bounded admission windows and recorded skip reasons. No credential is issued, no order is created and no funds move; mandates keep `executionEnabled:false` and credential issuance, admission and qualification remain later checkpoints.
