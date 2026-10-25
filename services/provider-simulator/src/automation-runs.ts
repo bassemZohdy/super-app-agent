@@ -18,6 +18,7 @@ import type { Payable } from '../../../packages/protocol-core/src/payments.ts';
 import type { PaymentMandate } from '../../../packages/protocol-core/src/payment-mandates.ts';
 import { paymentObject } from '../../../packages/protocol-core/src/payments.ts';
 import { automationOperation } from '../../../packages/protocol-core/src/automation-operation.ts';
+import { renewalEligibility } from '../../../packages/protocol-core/src/automation-eligibility.ts';
 
 export type AutomationRunContext={runId:string;operatorSub:string;workerSub:string;root:string};
 export type AutomationRunIo={
@@ -37,7 +38,7 @@ export type AutomationRunIo={
 export type AutomationPreparation={
   id:string;runId:string;accountId:string;mandateId:string;policyVersion:number;occurrenceKey:string;
   state:'PREPARED';provider:string;payableId:string;payableRevision:string;amountMinor:number;currency:'AED';
-  sourceId:string;sourceVersion:number;purpose:string;boundDigest:string;periodKey:string;orderId?:string;kind?:'BILL_PAYMENT'|'WALLET_RELOAD'|'RECHARGE'|'PARKING_EXTENSION';
+  sourceId:string;sourceVersion:number;purpose:string;boundDigest:string;periodKey:string;orderId?:string;kind?:'BILL_PAYMENT'|'WALLET_RELOAD'|'RECHARGE'|'PARKING_EXTENSION'|'SUBSCRIPTION_RENEWAL';
   reservedPeriodMinor:number;reservedPeriodCount:number;reservedLifetimeMinor:number;reservedLifetimeCount:number;
   preparedAt:string;admissionExpiresAt:string;
 };
@@ -171,9 +172,10 @@ export class AutomationRuns{
       const bill=policy.operation==='BILL_PAYMENT'&&policy.target.kind==='BILLER'&&['dewa','etisalat','du'].includes(policy.target.provider)&&policy.trigger.type==='INVOICE_DUE';
       const fine=policy.operation==='FINE_PAYMENT'&&policy.target.kind==='BILLER'&&policy.target.provider==='police'&&policy.trigger.type==='NEW_FINE'&&Array.isArray(policy.fineTypes);
       const recharge=policy.operation==='RECHARGE'&&policy.target.kind==='BILLER'&&['rta','etisalat','du'].includes(policy.target.provider)&&policy.trigger.type==='LOW_BALANCE';
+      const renewal=policy.operation==='SUBSCRIPTION_RENEWAL'&&policy.target.kind==='BILLER'&&['etisalat','du'].includes(policy.target.provider)&&policy.trigger.type==='CALENDAR';
       const parking=policy.operation==='PARKING_EXTENSION'&&policy.target.kind==='PARKING'&&policy.trigger.type==='PARKING_ENDING';
-      if(!reload&&!bill&&!recharge&&!fine&&!parking)
-        return deny('AUTOMATION_UNSUPPORTED','This checkpoint prepares due DEWA/Etisalat/du invoices, low-balance wallet reloads, low-balance toll or prepaid recharges, approved fines and bounded parking extensions only; other operations fail closed until their own tasks.',409);
+      if(!reload&&!bill&&!recharge&&!fine&&!parking&&!renewal)
+        return deny('AUTOMATION_UNSUPPORTED','This checkpoint prepares due DEWA/Etisalat/du invoices, low-balance wallet reloads, low-balance toll or prepaid recharges, approved fines, bounded parking extensions and one-period subscription renewals only; other operations fail closed until their own tasks.',409);
       const source=policy.sources[0],current=source.methodId==='wallet'
         ?{id:'wallet',kind:'wallet' as const,status:'ACTIVE' as const,version:1}
         :this.store.get<{id:string;status:string;version:number;kind:string;expiresMonth?:number;expiresYear?:number}>(accountId,'payment-method',source.methodId);
@@ -199,6 +201,20 @@ export class AutomationRuns{
         if(amount>policy.limits.perPaymentMinor)return skip('OVER_PER_PAYMENT_CAP');
         if(balance+amount>WALLET_FUNDING_LIMITS.balanceMaxMinor)return skip('WALLET_BALANCE_LIMIT');
         item={provider:'wallet',id:`wallet-reload:${m.id}:${input.occurrenceKey}`,revision:createHash('sha256').update(JSON.stringify(['wallet-reload',accountId,m.id,input.occurrenceKey,amount])).digest('hex'),amountMinor:amount};
+      }else if(renewal){
+        // One occurrence per billing period: `CAL:YYYY-MM`. The renewal is judged on the subscription, its invoice for exactly that period and the current plan price.
+        const target=policy.target as Extract<typeof policy.target,{kind:'BILLER'}>,named=/^CAL:(\d{4}-(?:0[1-9]|1[0-2]))$/.exec(input.occurrenceKey);
+        if(!named)return deny('AUTOMATION_OCCURRENCE_INVALID','A renewal rule runs once per period: use CAL:<YYYY-MM> as the occurrence.',400);
+        const sub=this.io.providerStore(target.provider).get<{status:string;monthlyAmount:number}>(accountId,'subscription',target.reference);
+        const invoices=this.io.readPayables(accountId,target.provider).filter(p=>p.reference===target.reference);
+        const verdict=renewalEligibility({period:named[1],subscription:sub?{status:sub.status,monthlyAmountMinor:Math.round(sub.monthlyAmount*100)}:undefined,
+          invoices:invoices.map(p=>({id:p.id,period:p.period,status:p.status,amountMinor:p.amountMinor,paymentRestricted:p.paymentRestricted}))});
+        if(!verdict.eligible)return skip(verdict.reason);
+        const payable=invoices.find(p=>p.id===verdict.invoiceId)!;
+        if(payable.amountMinor>policy.limits.perPaymentMinor)return skip('OVER_PER_PAYMENT_CAP');
+        if(this.store.db.prepare("SELECT order_id FROM payment_order_obligations WHERE account_id=? AND provider=? AND state IN ('RESERVED','COMMITTED') AND json_extract(body,'$.resourceId') IN (?,?) LIMIT 1").get(accountId,payable.provider,payable.id,String(payable.obligationId??payable.id)))
+          return deny('AUTOMATION_PAYABLE_RESERVED','This obligation is reserved by an original payment review. Inspect that order first.');
+        item={provider:payable.provider,id:payable.id,revision:payable.revision,amountMinor:payable.amountMinor};
       }else if(parking){
         // Only the one session the owner bound, only while it is still running, and never past the rule's own hours or end time.
         const trigger=policy.trigger as Extract<typeof policy.trigger,{type:'PARKING_ENDING'}>,target=policy.target as Extract<typeof policy.target,{kind:'PARKING'}>;
@@ -277,7 +293,7 @@ export class AutomationRuns{
       }
       const providerStore=reload?undefined:this.io.providerStore(policy.target.kind==='BILLER'?policy.target.provider:parking?'rta':'');
       const preparation:AutomationPreparation={id:`autoexec_${randomUUID()}`,runId:this.context.runId,accountId,mandateId:m.id,policyVersion:m.policyVersion,
-        occurrenceKey:input.occurrenceKey,state:'PREPARED',kind:reload?'WALLET_RELOAD':recharge?'RECHARGE':parking?'PARKING_EXTENSION':'BILL_PAYMENT',provider:item.provider,payableId:item.id,payableRevision:item.revision,
+        occurrenceKey:input.occurrenceKey,state:'PREPARED',kind:reload?'WALLET_RELOAD':recharge?'RECHARGE':parking?'PARKING_EXTENSION':renewal?'SUBSCRIPTION_RENEWAL':'BILL_PAYMENT',provider:item.provider,payableId:item.id,payableRevision:item.revision,
         amountMinor:item.amountMinor,currency:'AED',sourceId:current.id,sourceVersion:current.version,purpose:policy.purpose,
         boundDigest:createHash('sha256').update(JSON.stringify({mandateId:m.id,policyVersion:m.policyVersion,occurrenceKey:input.occurrenceKey,payableId:item.id,payableRevision:item.revision,amountMinor:item.amountMinor,sourceId:current.id,sourceVersion:current.version,purpose:policy.purpose})).digest('hex'),
         periodKey:key,reservedPeriodMinor:reservedPeriodMinor+item.amountMinor,reservedPeriodCount:reservedPeriodCount+1,

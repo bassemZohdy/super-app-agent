@@ -51,6 +51,7 @@ export class ProviderEngine {
     const runs=this.store.automationRuns,eligibility=this.store.eligibility!.snapshot(actor.accountId);
     return forecast({mandate:m,now,eligibility:{active:eligibility.active,epoch:eligibility.epoch},source:source??undefined,biller:biller??undefined,payables,
       claimedPayableIds:runs?.claimedPayables(actor.accountId),
+      subscription:policy.operation==='SUBSCRIPTION_RENEWAL'&&target.kind==='BILLER'?(()=>{try{const sub=runs?.io.providerStore(target.provider).get<{status:string;monthlyAmount:number}>(actor.accountId,'subscription',target.reference);return sub?{status:sub.status,monthlyAmountMinor:Math.round(sub.monthlyAmount*100)}:undefined;}catch{return undefined;}})():undefined,
       parkingSession:policy.operation==='PARKING_EXTENSION'&&target.kind==='PARKING'?(()=>{const book=runs?.io.parkingExtensions?.('rta'),m=book?.session(actor.accountId,target.ticketId);return m&&book?{status:m.status,plateNumber:m.plateNumber,zoneId:m.zoneId,durationHours:m.durationHours,expiresAt:m.expiresAt,tariffMinor:book.tariffMinor(m.zoneId)}:undefined;})():undefined,
       rechargeTarget:policy.operation==='RECHARGE'&&target.kind==='BILLER'?runs?.io.recharges?.(target.provider)?.targets(actor.accountId).find(t=>t.reference===target.reference):undefined,
       usage:runs?runs.usage(mandateId,now):{periodMinor:0,periodCount:0,lifetimeMinor:0,lifetimeCount:0},

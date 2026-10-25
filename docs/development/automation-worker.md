@@ -68,6 +68,10 @@ A `PARKING_EXTENSION` rule binds one session (ticket, plate and zone) with a max
 
 The source provider issues a quote for exactly that session state, and the extension is paid by an automatic order that only the dedicated execution route can admit, like any other payment. The order is bound to the session instead of a linked biller, and a manual order cannot take such a quote. The session only grows when an admitted, captured and settled order applies the quote while the session is exactly as quoted: departure, expiry or any other change after preparation makes the quote stale, admission refuses it, and nothing is charged. A rule has one unfinished extension at a time, an extension cannot be refunded, and the legacy manual extension still needs its own proof of payment.
 
+## Subscription renewals
+
+A `SUBSCRIPTION_RENEWAL` rule renews one billing period at a time (`CAL:YYYY-MM`). `renewalEligibility` (`packages/protocol-core/src/automation-eligibility.ts`) allows it only for an active subscription, from the one unpaid invoice issued for exactly that period, at exactly the current plan price and inside the cap. A plan change or repricing (`TARIFF_CHANGED`), a lapsed subscription, an uninvoiced or ambiguous period and a restricted invoice are skipped with a reason and recorded as requiring action; an already-paid period is never paid again. The paid order carries the receipt. `automationEligibility` is a default-deny map from catalog capabilities to mandate operations: plan changes, tenancy and utility activation, rides, dining, parking activation and the rest stay review-required and inherit no financial mandate authority.
+
 ## What the owner is told
 
 - **Before a run:** when a rule's next run is inside the lead time (24 hours by default), the scheduler records one `UPCOMING_RUN` notice per rule and occurrence in `job_notices` (a reminder, not a job; it moves nothing and a paused or expired rule announces nothing).

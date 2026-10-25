@@ -5,7 +5,8 @@
  *  trusts it: authority, source, biller and invoice are read again when the work is prepared. */
 import type { PaymentMandate } from '../../../packages/protocol-core/src/payment-mandates.ts';
 import { WALLET_FUNDING_LIMITS, type BillingAccount, type Payable, type PaymentMethod } from '../../../packages/protocol-core/src/payments.ts';
-import { invoiceRun, nextCalendarRun, periodKey } from '../../../packages/protocol-core/src/mandate-schedule.ts';
+import { calendarOccurrence, invoiceRun, localParts, nextCalendarRun, periodKey } from '../../../packages/protocol-core/src/mandate-schedule.ts';
+import { renewalEligibility } from '../../../packages/protocol-core/src/automation-eligibility.ts';
 
 export type PreviewUsage = { periodMinor: number; periodCount: number; lifetimeMinor: number; lifetimeCount: number; lastPreparedAt?: number };
 export type PreviewFacts = {
@@ -14,6 +15,8 @@ export type PreviewFacts = {
   source?: Pick<PaymentMethod, 'id' | 'kind' | 'status' | 'version' | 'expiresMonth' | 'expiresYear'> & { nickname?: string };
   biller?: Pick<BillingAccount, 'status' | 'version'>;
   payables: Payable[]; claimedPayableIds?: ReadonlySet<string>;
+  /** The subscription a renewal rule is bound to, when the source provider's store is readable. */
+  subscription?: { status: string; monthlyAmountMinor: number };
   /** The parking session a rule is bound to, when the source provider's book is readable. */
   parkingSession?: { status: string; plateNumber: string; zoneId: string; durationHours: number; expiresAt: number; tariffMinor: number };
   /** The exact toll tag or prepaid number a recharge rule watches, when the source provider's book is readable. */
@@ -61,9 +64,10 @@ export function forecast(f: PreviewFacts): Forecast {
   const supported = policy.operation === 'BILL_PAYMENT' && target.kind === 'BILLER' && ['dewa', 'etisalat', 'du'].includes(target.provider) && policy.trigger.type === 'INVOICE_DUE';
   const reload = policy.operation === 'WALLET_RELOAD' && target.kind === 'WALLET' && policy.trigger.type === 'LOW_BALANCE';
   const recharge = policy.operation === 'RECHARGE' && target.kind === 'BILLER' && ['rta', 'etisalat', 'du'].includes(target.provider) && policy.trigger.type === 'LOW_BALANCE' && !!f.rechargeTarget;
+  const renewal = policy.operation === 'SUBSCRIPTION_RENEWAL' && target.kind === 'BILLER' && ['etisalat', 'du'].includes(target.provider) && policy.trigger.type === 'CALENDAR' && !!f.subscription;
   const parking = policy.operation === 'PARKING_EXTENSION' && target.kind === 'PARKING' && policy.trigger.type === 'PARKING_ENDING' && !!f.parkingSession;
   const fines = policy.operation === 'FINE_PAYMENT' && target.kind === 'BILLER' && target.provider === 'police' && policy.trigger.type === 'NEW_FINE' && Array.isArray(policy.fineTypes);
-  if (!supported && !reload && !recharge && !fines && !parking) blockers.push('EXECUTION_NOT_SUPPORTED_YET');
+  if (!supported && !reload && !recharge && !fines && !parking && !renewal) blockers.push('EXECUTION_NOT_SUPPORTED_YET');
 
   let nextRun: Forecast['nextRun'] = null;
   const candidates: Candidate[] = [];
@@ -76,6 +80,24 @@ export function forecast(f: PreviewFacts): Forecast {
   if (policy.trigger.type === 'CALENDAR') {
     const run = nextCalendarRun(policy.trigger, tz, now, startsAt, expiresAt);
     if (run) nextRun = { key: run.key, runAt: iso(run.runAtUtc) };
+    if (renewal && target.kind === 'BILLER') {
+      // One approved billing period renews, at the current plan price, from an issued invoice; anything else asks the owner.
+      const local = localParts(now, tz), period = `${local.year}-${String(local.month).padStart(2, '0')}`;
+      const mine = f.payables.filter(p => p.reference === target.reference);
+      const verdict = renewalEligibility({ period, subscription: f.subscription, invoices: mine.map(p => ({ id: p.id, period: p.period, status: p.status, amountMinor: p.amountMinor, paymentRestricted: p.paymentRestricted })) });
+      const invoice = verdict.eligible ? mine.find(p => p.id === verdict.invoiceId)! : mine.find(p => p.period === period);
+      const reasons: string[] = verdict.eligible ? [] : [verdict.reason], amount = invoice?.amountMinor ?? 0;
+      if (verdict.eligible) {
+        if (f.claimedPayableIds?.has(invoice!.id)) reasons.push('ALREADY_RESERVED');
+        if (amount > limits.perPaymentMinor) reasons.push('OVER_PER_PAYMENT_CAP');
+        if (periodMinor + amount > limits.periodMinor || periodCount + 1 > limits.perPeriodCount) reasons.push('OVER_PERIOD_BUDGET');
+        if (lifetimeMinor + amount > limits.lifetimeMinor || lifetimeCount + 1 > limits.lifetimeCount) reasons.push('OVER_LIFETIME_BUDGET');
+        if (cooling) reasons.push('COOLDOWN');
+      }
+      const occurrence = calendarOccurrence(policy.trigger, tz, local.year, local.month);
+      candidates.push({ payableId: invoice?.id ?? `renewal:${period}`, label: `Renew ${target.reference} for ${period}`, amountMinor: amount, dueDate: invoice?.dueDate ?? iso(now).slice(0, 10), scheduledRunAt: iso(occurrence?.runAtUtc ?? now), reasons, warnings: [],
+        decision: reasons.length || blockers.length ? 'SKIP' : occurrence && occurrence.runAtUtc > now ? 'SCHEDULED' : 'DUE_NOW' });
+    }
   } else if (parking && target.kind === 'PARKING' && policy.trigger.type === 'PARKING_ENDING') {
     // One more hour on exactly the bound session, only while it runs and inside the rule's hours and end time.
     const trigger = policy.trigger, s = f.parkingSession!, reasons: string[] = [];

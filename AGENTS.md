@@ -5,7 +5,7 @@ Cityside is a local, synthetic city-services demo (ADR-0011). Nothing here touch
 ## The loop
 
 1. Read [TODO.md](TODO.md) only. It is the single tracker of open work and is short on purpose. Do not load the changelog, reports or ADRs unless the task needs them.
-2. Take the first unfinished step on the **critical path** (`AUTO-13` → `AUTO-14` → …). Work off the path only when it is blocked, and say why in the commit message.
+2. Take the first unfinished step on the **critical path** (`AUTO-14` → `AUTO-15` → …). Work off the path only when it is blocked, and say why in the commit message.
 3. Make the smallest change that completes one sub-step. Write the test first for security and money behavior.
 4. Run the narrowest test while iterating, then the checks below before you stop.
 5. In the **same commit**: tick the sub-step in `TODO.md` (or delete the task when its `Done when` holds) and run `npm run progress`, add one entry to `docs/CHANGELOG.md`, and update the guide you changed.
