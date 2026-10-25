@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 26 October 2026 — create a bill rule in the panel with explicit consent (AUTO-04, step 3)
+
+The rules panel can create an automatic bill rule for a linked biller and a chosen source, capped by the amount the owner types. Reviewing it creates a draft that is not active; only approving the reviewed terms consents to the rule. The browser journey `npm run demo:verify:mandate-create` runs this on the Compose stack. The rule policy is built by a shared function (`packages/protocol-core/src/bill-rule.ts`) whose output passes the same request validation as the route. AUTO-04 stays open for the expand and source-change consent flows.
+
 ## 26 October 2026 — narrow a rule's cap without a model call (AUTO-04, step 2)
 
 The React rules panel can lower an approved rule's per-payment cap. The change goes through the existing revise route, is refused if it would raise or keep the cap, and leaves the rule waiting for the owner to approve its reviewed terms before it runs again. Evidence: `services/test/mandate-narrow.test.ts`; the React shell type-checks; the stack mandate check passes. A browser journey (`npm run demo:verify:mandate-narrowing`) drives the control on the Compose stack: a raise is refused with no request sent, a real narrowing waits for approval, and the approved review takes effect. AUTO-04 stays open for the create, expand and source-change consent flows.

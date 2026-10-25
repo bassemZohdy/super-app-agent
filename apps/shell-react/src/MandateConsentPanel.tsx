@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { describeMandateConsent, type MandateConsent } from '../../../packages/protocol-core/src/mandate-consent.ts';
 import { describeForecast, type ForecastView } from '../../../packages/protocol-core/src/mandate-forecast-view.ts';
 import { narrowPerPayment, aedToMinor } from '../../../packages/protocol-core/src/mandate-narrow.ts';
+import { billRulePolicy } from '../../../packages/protocol-core/src/bill-rule.ts';
 type Props={busy:boolean;read(path:string,query?:Record<string,string>):Promise<any>;
   mutate(path:string,body:Record<string,unknown>):Promise<any>;work(fn:()=>Promise<void>):Promise<void>};
 type ConsentView={id:string;view:MandateConsent;state:string;version:number;skipNext:boolean;policy:any;approvalDigest:string};
@@ -10,6 +11,10 @@ export function MandateConsentPanel({busy,read,mutate,work}:Props){
   const [notice,setNotice]=useState<string>();
   const [previews,setPreviews]=useState<Record<string,ForecastView>>({});
   const [narrowAmounts,setNarrowAmounts]=useState<Record<string,string>>({});
+  // A new rule is drafted, reviewed and then approved separately: nothing is consented until the owner approves the reviewed terms.
+  const [draft,setDraft]=useState<{open:boolean;billingId:string;sourceId:string;amount:string}>({open:false,billingId:'',sourceId:'',amount:''});
+  const [draftOptions,setDraftOptions]=useState<{billing:any[];methods:any[]}>({billing:[],methods:[]});
+  const [draftReview,setDraftReview]=useState<any>();
   const preview=(id:string)=>void work(async()=>{
     const result=await read('mandates/preview',{mandateId:id});
     setPreviews(current=>({...current,[id]:describeForecast(result?.forecast)}));
@@ -19,6 +24,29 @@ export function MandateConsentPanel({busy,read,mutate,work}:Props){
     const records=Array.isArray(result?.mandates)?result.mandates:[];
     setViews(records.map((record:Record<string,unknown>)=>({id:String(record?.id??''),view:describeMandateConsent(record),
       state:String(record?.state??''),version:Number(record?.version??0),skipNext:record?.skipNext===true,policy:record?.policy,approvalDigest:String(record?.approvalDigest??'')})));
+  });
+  const startDraft=()=>void work(async()=>{
+    const overview=await read('overview');
+    setDraftOptions({billing:(overview?.billingAccounts??[]).filter((b:any)=>b.status==='ACTIVE'),methods:(overview?.methods??[]).filter((m:any)=>m.status==='ACTIVE')});
+    setDraftReview(undefined);setDraft({open:true,billingId:'',sourceId:'wallet',amount:''});
+  });
+  const reviewDraft=()=>void work(async()=>{
+    const billing=draftOptions.billing.find((b:any)=>b.id===draft.billingId);
+    const source=draftOptions.methods.find((m:any)=>m.id===draft.sourceId)??(draft.sourceId==='wallet'?{id:'wallet',version:1}:undefined);
+    const perPaymentMinor=aedToMinor(draft.amount);
+    if(!billing){setNotice('Choose the linked biller to pay.');return;}
+    if(!source){setNotice('Choose the funding source.');return;}
+    if(perPaymentMinor===undefined||perPaymentMinor<1){setNotice('Enter the most one payment may take, in AED, up to two decimals.');return;}
+    const policy=billRulePolicy({billing:{id:billing.id,version:billing.version,provider:billing.provider,reference:billing.reference},source:{methodId:source.id,version:source.version},perPaymentMinor,now:Date.now()});
+    const created=await mutate('mandates',{policy,requestKey:`create-${billing.id}-${perPaymentMinor}-${Date.now()}`});
+    setDraftReview(created?.mandate);
+    setNotice('Review the terms below. Nothing runs until you approve them.');
+  });
+  const approveDraft=()=>void work(async()=>{
+    const rule=draftReview;
+    await mutate('mandates/approve',{mandateId:rule.id,expectedVersion:rule.version,approvalDigest:rule.approvalDigest,requestKey:`approve-new-${rule.id}-${rule.version}`});
+    setDraft({open:false,billingId:'',sourceId:'',amount:''});setDraftReview(undefined);
+    setNotice('Rule approved. It runs when its invoice falls due, within the cap you reviewed.');await new Promise(resolve=>setTimeout(resolve,0));await load();
   });
   // Narrowing goes through the revise route; the narrowed rule then waits for the owner's approval of its new review.
   const narrow=(id:string,version:number,policy:any)=>void work(async()=>{
@@ -45,7 +73,21 @@ export function MandateConsentPanel({busy,read,mutate,work}:Props){
         const paused=Array.isArray(result?.paused)?result.paused.length:0;const failed=Array.isArray(result?.notPaused)?result.notPaused.length:0;
         setNotice(`Paused ${paused} rule${paused===1?'':'s'}${failed?`; ${failed} could not be paused and are unchanged`:''}. Pausing stops new runs only; a payment already made is not reversed.`);
         await new Promise(resolve=>setTimeout(resolve,0));load();
-      })}>Pause all rules</button></div>
+      })}>Pause all rules</button>
+      <button disabled={busy} onClick={startDraft}>Start a new rule</button></div>
+    {draft.open&&<section aria-label="New automation rule" className="payment-review">
+      <h4>New automation rule</h4>
+      {!draftReview&&<>
+        <label>Pay this linked biller<select value={draft.billingId} onChange={e=>setDraft(d=>({...d,billingId:e.target.value}))}><option value="">Choose a biller</option>{draftOptions.billing.map((b:any)=><option key={b.id} value={b.id}>{b.provider.toUpperCase()} · {b.nickname||b.reference}</option>)}</select></label>
+        <label>Pay from<select value={draft.sourceId} onChange={e=>setDraft(d=>({...d,sourceId:e.target.value}))}><option value="wallet">Wallet</option>{draftOptions.methods.filter((m:any)=>m.kind==='card').map((m:any)=><option key={m.id} value={m.id}>Card · {m.nickname}</option>)}</select></label>
+        <label>Most one payment may take, in AED<input type="text" inputMode="decimal" value={draft.amount} onChange={e=>setDraft(d=>({...d,amount:e.target.value}))} /></label>
+        <div className="payment-actions"><button disabled={busy} onClick={reviewDraft}>Review rule</button><button disabled={busy} onClick={()=>setDraft({open:false,billingId:'',sourceId:'',amount:''})}>Cancel</button></div>
+      </>}
+      {draftReview&&<div>
+        <p>Pays {draftReview.policy.target.provider.toUpperCase()} invoices from {draftReview.policy.sources[0].methodId==='wallet'?'your wallet':'your card'}, when due, never more than AED {(draftReview.policy.limits.perPaymentMinor/100).toFixed(2)} per payment, AED {(draftReview.policy.limits.periodMinor/100).toFixed(2)} per month, and AED {(draftReview.policy.limits.lifetimeMinor/100).toFixed(2)} in total. Nothing is consented until you approve these terms.</p>
+        <div className="payment-actions"><button disabled={busy} onClick={approveDraft}>Approve these terms</button><button disabled={busy} onClick={()=>{setDraftReview(undefined);setNotice('Draft discarded. Nothing was consented.');}}>Discard</button></div>
+      </div>}
+    </section>}
     {views&&(views.length===0?<p>No automation rules yet.</p>:<ol aria-label="Automation rule consent">{views.map(({id,view,state,version,skipNext,policy,approvalDigest})=><li key={id}>
       <h4>{view.title}</h4>
       <p>Rule {id} · {view.status}{skipNext?' · next occurrence will be skipped':''}</p>

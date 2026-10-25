@@ -76,6 +76,7 @@
     "demo:verify:automation-execution": "node --experimental-strip-types scripts/e2e/automation-execution.ts",
     "demo:verify:automation-kill-switch": "node --experimental-strip-types scripts/e2e/automation-kill-switch-broker.ts",
     "demo:verify:mandate-narrowing": "node --experimental-strip-types scripts/e2e/mandate-narrowing.ts",
+    "demo:verify:mandate-create": "node --experimental-strip-types scripts/e2e/mandate-create.ts",
     "demo:verify:mandates": "node --experimental-strip-types scripts/e2e/payment-mandates.ts",
     "demo:verify:payment-surfaces": "node --experimental-strip-types scripts/e2e/payment-surfaces.ts",
     "record:payment-surfaces": "node --experimental-strip-types scripts/e2e/payment-surfaces.ts --record",
