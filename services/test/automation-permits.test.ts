@@ -188,3 +188,20 @@ test('AUTO-03 2b: two connections issue one permit, state survives restart and t
     assert.throws(() => a.db.exec('DELETE FROM permit_audit'), /immutable/);
   } finally { a.db.close(); b.db.close(); rmSync(dir, { recursive: true, force: true }); }
 });
+
+test('AUTO-03 3b: only an admitted, unexpired token keeps a session, and it names its one operation', () => {
+  const store = fresh();
+  const permit = store.issue(worker, view(), NOW);
+  const token = { sub: owner, azp: brokerClient, exp: exp(60_000) };
+  const fingerprint = tokenHash('session-token');
+  store.bind(permit.id, fingerprint, token, NOW);
+  assert.throws(() => store.session(fingerprint, owner, brokerClient, NOW), code('PERMIT_NOT_ACTIVE'), 'a bound but unconsumed token has no session');
+  store.authorize(fingerprint, owner, brokerClient, permitOperation(view()), NOW);
+  const session = store.session(fingerprint, owner, brokerClient, NOW);
+  assert.equal(session.operation!.payableId, 'bill_1');
+  assert.equal(session.operation!.executionId, 'autoexec_0001');
+  assert.throws(() => store.session(fingerprint, 'someone-else', brokerClient, NOW), code('PERMIT_EXPIRED'));
+  assert.throws(() => store.session(fingerprint, owner, 'delegation-runner', NOW), code('PERMIT_EXPIRED'));
+  assert.throws(() => store.session(fingerprint, owner, brokerClient, NOW + 61_000), code('PERMIT_EXPIRED'));
+  assert.throws(() => store.session(tokenHash('unknown'), owner, brokerClient, NOW), code('TOKEN_NOT_BOUND'));
+});

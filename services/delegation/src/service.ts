@@ -143,6 +143,14 @@ export async function authorizeExecutionPermit(authorization: string | undefined
   const consumed = permitStore().authorize(fingerprint, c.sub, c.azp, operation);
   return { permitId: consumed.id, executionId: consumed.executionId };
 }
+/** What an admitted per-execution token may still do while the provider chain finishes its own order. */
+export async function automationSession(authorization: string | undefined) {
+  const c = await verifyJwt(authorization, 'provider-api');
+  if (c.azp !== brokerClient || c.act !== undefined || !String(c.scope || '').split(' ').includes('delegation.write')) deny('INVALID_DELEGATED_PRINCIPAL');
+  const permit = permitStore().session(tokenHash(authorization!.slice(7)), c.sub, c.azp);
+  await currentEligibility(permit.owner, permit.accountId);
+  return { permitId: permit.id, executionId: permit.executionId, operation: permit.operation };
+}
 async function automationCredential(path: string, body: any, authorization?: string): Promise<Reply> {
   const route = /^\/api\/delegation\/automation\/executions\/([A-Za-z0-9_-]{1,200})\/credential$/.exec(path);
   if (!route) return { status: 404, data: { success: false, code: 'NOT_FOUND' } };
@@ -158,6 +166,7 @@ export async function handleDelegation(method: string, path: string, body: any, 
   try {
     if (method === 'GET' && ['/api/delegation/jwks', '/api/delegation/client-jwks'].includes(path)) return { status: 200, data: { keys: [keyMaterial(path.endsWith('/client-jwks') ? 'client' : 'issuer').jwk] } };
     if (path === '/api/delegation/authorize' && method === 'POST') { const claims = await delegatedAuthorization(authorization, body); return { status: 200, data: { success: true, sub: claims.sub, actor: claims.azp } }; }
+    if (path === '/api/delegation/automation/session' && method === 'POST') return { status: 200, data: { success: true, ...await automationSession(authorization) } };
     if (path === '/api/delegation/automation/authorize' && method === 'POST') { const out = await authorizeExecutionPermit(authorization, body?.operation); return { status: 200, data: { success: true, ...out } }; }
     if (path.startsWith('/api/delegation/automation/')) return method === 'POST' ? await automationCredential(path, body, authorization) : { status: 404, data: { success: false, code: 'NOT_FOUND' } };
     const executePath = /^\/api\/delegation\/grants\/([a-f0-9-]{36})\/execute$/.exec(path);

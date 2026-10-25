@@ -33,6 +33,8 @@ import { Ajv } from 'ajv';
 import { verifyJwt } from '../../../packages/backend-kit/src/jwt.ts';
 import { ProviderClient, UpstreamError } from '../../../packages/backend-kit/src/provider-client.ts';
 import { authorizeAutomationPermit } from '../../../packages/backend-kit/src/delegation.ts';
+import { readAutomationSession, type AutomationSession } from '../../../packages/backend-kit/src/delegation.ts';
+import { sessionAllows } from './automation-session.ts';
 import { executeAutomaticOrder, type PermitAuthority } from './automation-execution.ts';
 import { authorizeDelegatedProvider } from '../../../packages/backend-kit/src/delegation.ts';
 import type { Actor } from '../../../packages/backend-kit/src/context.ts';
@@ -41,7 +43,7 @@ import { ProviderEngine, ApiError, type ApiResult } from './engine.ts';
 import { operations, openApi, providerIds, type ProviderId } from './contracts.ts';
 export const callers: Record<ProviderId, string[]> = { rta: ['service-ride','service-catalog','service-wallet'], dewa: ['service-food','service-wallet','service-catalog'], etisalat: ['service-telecom'], du: ['service-telecom'], police: ['service-wallet'], dld: ['service-catalog'], payments: ['service-wallet','service-food','service-ride','service-telecom','provider-settlements'] };
 const canonical = (value: any): any => Array.isArray(value) ? value.map(canonical) : value && typeof value === 'object' ? Object.fromEntries(Object.keys(value).sort().map(k => [k, canonical(value[k])])) : value;
-export function createProviderServer(provider: ProviderId, path: string, options:{authorizationClock?:()=>number;settlementTransport?:ClaimTransport;paymentClient?:ProviderClient;issuerScenario?:IssuerScenarioContext;permitAuthority?:PermitAuthority}={}) {
+export function createProviderServer(provider: ProviderId, path: string, options:{authorizationClock?:()=>number;settlementTransport?:ClaimTransport;paymentClient?:ProviderClient;issuerScenario?:IssuerScenarioContext;permitAuthority?:PermitAuthority;sessionReader?:(authorization:string|undefined)=>Promise<AutomationSession>}={}) {
   const store = new AccountDatabase(path), engine = new ProviderEngine(provider, store,options);
   const ajv = new Ajv({ strict: false, allErrors: true });
   const routes = operations[provider].map(operation => ({ ...operation, regex: new RegExp(`^${operation.path.replace(/\{\w+\}/g, '[^/]+')}$`), validate: operation.body ? ajv.compile(operation.body) : undefined }));
@@ -153,10 +155,19 @@ export function createProviderServer(provider: ProviderId, path: string, options
       const [, accountId, operationPath] = match;
       if (!store.owns(subject, accountId)) throw new ApiError(403, 'ACCOUNT_FORBIDDEN', 'This account does not belong to the user.');
       const operation = routes.find(route => route.method === req.method && route.regex.test(operationPath));
+      // An admitted per-execution token may only finish its own order's chain; it is checked before any interactive-only gate.
+      let session:AutomationSession|undefined;
+      if(delegated&&process.env.DELEGATION_ENABLED==='true'&&operation){
+        session=await (options.sessionReader||readAutomationSession)(req.headers.authorization).catch(()=>undefined);
+        if(session){
+          const runs=store.automationRuns,gateway=provider==='payments'&&runs?()=>{try{const t=runs.target(session!.operation.executionId);const o=engine.orders!.get({sub:t.ownerSub,username:t.ownerSub,name:'Automation owner',accountId:t.preparation.accountId,requestId:''},t.orderId);return {orderId:o.id,paymentId:o.paymentId};}catch{return undefined;}}:undefined;
+          if(!sessionAllows(provider,accountId,req.method||'GET',operationPath,session.operation,gateway))throw new ApiError(403,'AUTOMATION_OPERATION_DENIED','This execution credential does not cover that operation.');
+        }
+      }
       if (!operation || url.search) throw new ApiError(404, 'NOT_FOUND', 'Operation not found.');
       if(claimRoute&&!claimant)throw new ApiError(403,'CLAIM_CLIENT_REQUIRED','Only the exact provider settlement workload can change a claim.');
-      if(provider==='payments'&&(operationPath==='/payment-lifecycle'||operationPath.startsWith('/payment-history')||operationPath.startsWith('/payment-statement')||operationPath.startsWith('/payment-reconciliation')||operationPath.startsWith('/payment-mandates')||operationPath.startsWith('/payment-orders')||operationPath.startsWith('/wallet-funding-orders')||operationPath.startsWith('/checkout-groups')||operationPath.startsWith('/payment-refunds')||operationPath==='/payment-events')&&!interactive)throw new ApiError(403,'INTERACTIVE_REVIEW_REQUIRED','Stored authorization reviews require the signed-in owner. Unattended actors cannot approve or answer challenges.');
-      if((operationPath.includes('/admissions')||operationPath==='/fine-selections'||operationPath==='/recharge-quotes'||operationPath.startsWith('/payment-reversals/'))&&!interactive)throw new ApiError(403,'INTERACTIVE_ADMISSION_REQUIRED','Payable admission requires the current signed-in owner.');
+      if(provider==='payments'&&(operationPath==='/payment-lifecycle'||operationPath.startsWith('/payment-history')||operationPath.startsWith('/payment-statement')||operationPath.startsWith('/payment-reconciliation')||operationPath.startsWith('/payment-mandates')||operationPath.startsWith('/payment-orders')||operationPath.startsWith('/wallet-funding-orders')||operationPath.startsWith('/checkout-groups')||operationPath.startsWith('/payment-refunds')||operationPath==='/payment-events')&&!interactive&&!session)throw new ApiError(403,'INTERACTIVE_REVIEW_REQUIRED','Stored authorization reviews require the signed-in owner. Unattended actors cannot approve or answer challenges.');
+      if((operationPath.includes('/admissions')||operationPath==='/fine-selections'||operationPath==='/recharge-quotes'||operationPath.startsWith('/payment-reversals/'))&&!interactive&&!session)throw new ApiError(403,'INTERACTIVE_ADMISSION_REQUIRED','Payable admission requires the current signed-in owner.');
       const actor: Actor = { sub: subject, username: subject, name: typeof req.headers['x-user-name'] === 'string' ? Buffer.from(req.headers['x-user-name'], 'base64url').toString('utf8').slice(0, 200) : 'Demo citizen', accountId, requestId: '', authorization: interactive ? req.headers.authorization : undefined };
       if(provider==='payments'&&req.method==='GET'&&operationPath==='/account-eligibility'&&interactive)return send({status:200,data:{success:true,eligibility:store.eligibility!.snapshot(accountId)}});
       // Settlement claim/proof lanes retain original captured identities; they cannot admit a new charge.
@@ -172,7 +183,7 @@ export function createProviderServer(provider: ProviderId, path: string, options
         body = await readJsonBody(req);
         if (!operation.validate?.(body)) throw new ApiError(400, 'VALIDATION_ERROR', 'The request does not match the OpenAPI schema.');
       }
-      if (delegated) {
+      if (delegated&&!session) {
         if (process.env.DELEGATION_ENABLED !== 'true') throw new ApiError(403, 'DELEGATION_DISABLED', 'Delegated requests are disabled.');
         try { await authorizeDelegatedProvider(req.headers.authorization, provider, accountId, req.method || 'GET', operationPath, body); }
         catch { throw new ApiError(403, 'DELEGATION_DENIED', 'The current grant does not permit this exact operation.'); }
@@ -189,7 +200,7 @@ export function createProviderServer(provider: ProviderId, path: string, options
         if (existing) { if (existing.fingerprint !== fingerprint) throw new ApiError(409, 'IDEMPOTENCY_CONFLICT', 'This key was used with a different request.');if(!claimant){if(body.paymentId&&settlements)await settlements.retryConfirmation(accountId,body.paymentId);return send({ status: existing.status, data: JSON.parse(existing.body) });} }
       }
       // A delegated write with external payment proof is outside the initial bounded write profile.
-      if (delegated && body.paymentId) throw new ApiError(403, 'WRITE_NOT_APPROVED', 'Delegated settlement is not enabled.');
+      if (delegated && !session && body.paymentId) throw new ApiError(403, 'WRITE_NOT_APPROVED', 'Delegated settlement is not enabled.');
       if(provider==='payments'&&operationPath==='/charges'&&(['dewa','etisalat','du'].includes(body.merchant)&&/^(bill|prepaid|recharge|payable|admission):/.test(body.reference)||body.merchant==='police'&&/^(fines|payable|admission):/.test(body.reference)||body.merchant==='rta'&&/^(salik|payable|admission):/.test(body.reference)))throw new ApiError(409,'STORED_BILL_ORDER_REQUIRED','Bill/fine captures now require an approved stored order; use the payment-order execution API.');
       if(engine.reconciliation&&req.method==='POST'&&(operationPath==='/payment-reconciliation/inspect'||/^\/payment-reconciliation\/inspections\/[^/]+\/act$/.test(operationPath))){
         const inspection=operationPath.endsWith('/inspect')?await engine.reconciliation.inspect(actor,body.kind,body.operationId,payments):await engine.reconciliation.act(actor,operationPath.split('/')[3],body,payments,(a,id)=>engine.execute(a,'POST',`/charges/${id}/refunds`,{reason:'Recovery of provider-confirmed non-application'}));

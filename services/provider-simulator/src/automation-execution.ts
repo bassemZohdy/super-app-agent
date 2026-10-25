@@ -15,7 +15,7 @@ export async function executeAutomaticOrder(deps:{runs:AutomationRuns;orders:Pay
   caller:{sub:string;authorization:string},executionId:string){
   const target=deps.runs.target(executionId);
   if(caller.sub!==target.ownerSub)throw new AutomationRunError(403,'AUTOMATION_OWNER_MISMATCH','The credential does not belong to this execution\'s owner.');
-  const actor:Actor={sub:target.ownerSub,username:target.ownerSub,name:'Automation owner',accountId:target.preparation.accountId,requestId:`automation:${executionId}`};
+  const actor:Actor={sub:target.ownerSub,username:target.ownerSub,name:'Automation owner',accountId:target.preparation.accountId,requestId:`automation:${executionId}`,authorization:caller.authorization};
   const order=deps.orders.get(actor,target.orderId);
   // A read-only snapshot is taken before the permit is spent so an outage here costs nothing.
   const snapshot=(await deps.client.call(order.quote.payable.provider,actor,'GET',`/payables/${encodeURIComponent(order.quote.payable.id)}`)).payable;
