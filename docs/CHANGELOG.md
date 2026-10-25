@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 26 October 2026 — draft text cannot activate a rule (AUTO-04, step 1)
+
+A guard test scans the agent core: the approve action is reachable only from the authenticated mandate route, never from conversational code, so a draft in chat or voice cannot activate a rule. Approval also needs the reviewed digest and version, which the request validator enforces. Evidence: `services/test/auto04-consent-guard.test.ts`. AUTO-04 stays open for the consent flows (create, expand, source change) and the rule editor with narrowing in the React panel.
+
 ## 26 October 2026 — AUTO-14 delivered: owner inbox explains every run on the real stack
 
 AUTO-14 meets its `Done when`. The owner inbox shows, with reason, rule version and effect, each outcome the stack produces: scheduled (once, before the run is due), settled, paused (`MANDATE_NOT_ACTIVE`), declined (`CARD_DECLINED`), challenged (approve pays once, reject pays nothing) and unknown (held, not retried, shown as possibly moved). Re-reading adds no entries, and another owner sees none of them. Evidence: `npm run demo:verify:automation-execution` (20 checks, including the scheduled notice), with unit coverage in `services/test/auto14-*.test.ts` and `services/test/automation-inbox.test.ts`. Notifications are in-app: the inbox is the delivery surface, and no push channel exists.
