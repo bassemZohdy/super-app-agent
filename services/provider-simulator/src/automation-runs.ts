@@ -22,6 +22,8 @@ export type AutomationRunIo={
   providerStore:(provider:string)=>AccountDatabase;
   /** Consumes the owner's one-shot skip-next consent marker before preparing. */
   consumeMandateSkip?:(mandateId:string)=>boolean;
+  /** Current wallet balance in integer fils, for the scheduler's threshold read. */
+  walletBalanceMinor?:(accountId:string)=>number;
 };
 export type AutomationPreparation={
   id:string;runId:string;accountId:string;mandateId:string;policyVersion:number;occurrenceKey:string;
@@ -225,6 +227,29 @@ export class AutomationRuns{
       payable:{id:preparation.payableId,revision:preparation.payableRevision,amountMinor:preparation.amountMinor,current:payableCurrent},
       boundDigest:preparation.boundDigest,preparedAt:preparation.preparedAt,admissionExpiresAt:preparation.admissionExpiresAt,
       expired:Date.now()>Date.parse(preparation.admissionExpiresAt)};
+  }
+  /** The scheduler's worker-scoped view of every mandate in this run: what to run, when, and against which target. Reads only. */
+  rules(worker:string){
+    this.worker(worker);
+    return this.store.db.prepare('SELECT id FROM payment_mandates ORDER BY rowid').all().map(r=>{
+      const {m}=this.mandate(String(r.id)),target=m.policy.target;
+      return {mandateId:m.id,policyVersion:m.policyVersion,state:m.state,trigger:m.policy.trigger,timezone:m.policy.timezone,startsAt:m.policy.startsAt,expiresAt:m.policy.expiresAt,
+        target:target.kind==='BILLER'?`${target.provider}-${target.billingAccountId}`:target.kind.toLowerCase()};
+    });
+  }
+  /** Unpaid, unclaimed invoices of the rule's biller by due date; a read, nothing is reserved. */
+  dueInvoices(worker:string,mandateId:string){
+    this.worker(worker);
+    const {m,accountId}=this.mandate(mandateId),target=m.policy.target;
+    if(target.kind!=='BILLER')return [];
+    const claimed=new Set(this.store.db.prepare('SELECT payable_key FROM automation_payable_claims WHERE account_id=?').all(accountId).map(r=>String(r!.payable_key)));
+    return this.io.readPayables(accountId,target.provider).filter(p=>p.reference===target.reference&&p.status==='UNPAID'&&typeof p.dueDate==='string'&&!claimed.has(p.id)).map(p=>({dueDate:String(p.dueDate)}));
+  }
+  balanceMinor(worker:string,mandateId:string){
+    this.worker(worker);
+    const {accountId}=this.mandate(mandateId);
+    if(!this.io.walletBalanceMinor)return deny('AUTOMATION_BALANCE_UNAVAILABLE','This run exposes no wallet balance.',503);
+    return this.io.walletBalanceMinor(accountId);
   }
   /** The stored preparation, its owner and the exact operation a permit must authorize; nothing here comes from a caller. */
   target(executionId:string){

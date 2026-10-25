@@ -420,3 +420,23 @@ test(`AUTO-03 step 5: a crash at ${point} holds the automatic order and recovery
   assert.equal(x.effects(),1);
   assert.equal(f.payments.ledger!.summary(f.actor.accountId).balanceMinor,before-15000);
 });
+
+test('AUTO-06: the worker-scoped scheduling view lists rules, unclaimed due invoices and the wallet balance, and nothing else may read it',t=>{
+  const f=fixture(t),m=f.mandate();f.bill('auto-bill-1',150,1);f.bill('auto-bill-2',90,40,'PAID');
+  f.db.automationRuns!.io.walletBalanceMinor=accountId=>f.payments.ledger!.summary(accountId).balanceMinor;
+  const rules=f.db.automationRuns!.rules('auto-worker');
+  assert.equal(rules.length,1);
+  assert.equal(rules[0]!.mandateId,m.id);
+  assert.equal(rules[0]!.state,'APPROVED');
+  assert.equal(rules[0]!.trigger.type,'INVOICE_DUE');
+  assert.match(rules[0]!.target,/^dewa-/);
+  assert.deepEqual(f.db.automationRuns!.dueInvoices('auto-worker',m.id).map(i=>i.dueDate.length),[10],'only the unpaid bill is a due invoice');
+  assert.equal(f.db.automationRuns!.balanceMinor('auto-worker',m.id),f.payments.ledger!.summary(f.actor.accountId).balanceMinor);
+  for(const who of ['automation-operator','auto-owner','someone-else']){
+    assert.throws(()=>f.db.automationRuns!.rules(who),(e:any)=>e.code==='AUTOMATION_WORKER_REQUIRED');
+    assert.throws(()=>f.db.automationRuns!.dueInvoices(who,m.id),(e:any)=>e.code==='AUTOMATION_WORKER_REQUIRED');
+  }
+  // Once an execution holds the invoice, it is no longer offered to the scheduler.
+  prepared(f.prepare(m.id,'occ_view'));
+  assert.deepEqual(f.db.automationRuns!.dueInvoices('auto-worker',m.id),[]);
+});

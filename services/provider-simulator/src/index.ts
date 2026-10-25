@@ -101,11 +101,18 @@ export function createProviderServer(provider: ProviderId, path: string, options
         throw new ApiError(404,'SCENARIO_CONTROLS_NOT_FOUND','Unknown scenario control operation.');
       }
       const automationRoute=/^\/internal\/automation-runs\/(autorn_[a-f0-9-]{36})(?:\/(prepare)|\/(execution)\/([A-Za-z0-9_-]+)(?:\/(execute))?)?$/.exec(url.pathname);
+      const rulesRoute=/^\/internal\/automation-runs\/(autorn_[a-f0-9-]{36})\/rules(?:\/([A-Za-z0-9_.:-]{1,160})\/(invoices|balance))?$/.exec(url.pathname);
       if(url.pathname.startsWith('/internal/automation-runs/')){
         const runs=store.automationRuns;
-        if(!runs||!automationRoute||url.search||automationRoute[1]!==runs.context.runId)throw new ApiError(404,'AUTOMATION_RUN_NOT_FOUND','No automatic execution run is installed here.');
+        if(!runs||(!automationRoute&&!rulesRoute)||url.search||(automationRoute??rulesRoute)![1]!==runs.context.runId)throw new ApiError(404,'AUTOMATION_RUN_NOT_FOUND','No automatic execution run is installed here.');
         // The dedicated worker service account may only read a prepared execution; everything else needs the signed-in run operator.
         const worker=!interactive&&!delegated&&claims.act===undefined&&claims.azp==='automation-worker'&&String(claims.preferred_username||'').startsWith('service-account-')&&String(claims.scope||'').split(' ').includes('automation.execute');
+        if(rulesRoute){
+          if(!worker||req.method!=='GET')throw new ApiError(403,'AUTOMATION_ROLE_REQUIRED','Only the automation worker reads the scheduling view.');
+          if(!rulesRoute[2])return send({status:200,data:{success:true,rules:runs.rules(claims.sub)}});
+          return send({status:200,data:{success:true,...(rulesRoute[3]==='invoices'?{invoices:runs.dueInvoices(claims.sub,rulesRoute[2])}:{balanceMinor:runs.balanceMinor(claims.sub,rulesRoute[2])})}});
+        }
+        if(!automationRoute)throw new ApiError(404,'AUTOMATION_RUN_NOT_FOUND','Unknown automation run operation.');
         if(worker&&req.method==='GET'&&automationRoute[3]==='execution'&&!automationRoute[5])return send({status:200,data:{success:true,execution:runs.readExecution(claims.sub,automationRoute[4] as string)}});
         // Only the broker-bound per-execution token reaches this route; the permit is consumed before anything moves.
         if(req.method==='POST'&&automationRoute[5]==='execute'){

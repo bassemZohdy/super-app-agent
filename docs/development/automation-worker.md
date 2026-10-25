@@ -1,6 +1,6 @@
 # Automation worker
 
-A local, off-by-default worker (`services/automation-worker`) that drives one leased job at a time through the authority path built under AUTO-03: prepare the execution, obtain its one credential from the broker, and present it to the dedicated execution route. It holds no authority of its own. Nothing enqueues jobs yet; schedules arrive with AUTO-06.
+A local, off-by-default worker (`services/automation-worker`) that drives one leased job at a time through the authority path built under AUTO-03: prepare the execution, obtain its one credential from the broker, and present it to the dedicated execution route. It holds no authority of its own. Jobs are enqueued by the scheduler below, or by hand in tests.
 
 ## Enabling it
 
@@ -24,6 +24,19 @@ The state and an append-only attempt row are written before the step they descri
 - **Credential** is requested once per job. A definitive refusal fails the job. A transient failure is retried only because a retry can only replay or be refused. An already-issued credential, or an outage that exhausts the retries, holds the job.
 - **Execute** retries only the same credential while it is alive. A provider rejection before funds fails the job (the provider has released the reservation); a captured-but-unsettled order, a challenge or a lost response holds it.
 - **Restart** while a credential was in flight or in use holds the job (`CREDENTIAL_LOST_AFTER_RESTART`). The credential is never written to the database, the outbox, the attempt log or the logs, so it cannot be recovered, and a fresh one is never requested.
+
+## Scheduling
+
+`Scheduler.tick(now)` (`scheduler.ts`) turns approved rules, the clock and the calendar calculator in `packages/protocol-core/src/mandate-schedule.ts` into jobs. It reads the rules from the worker-scoped view of the run (`GET /internal/automation-runs/{runId}/rules`, plus `/rules/{mandateId}/invoices` and `/balance`), which only the `automation-worker` identity may call and which reserves nothing.
+
+- A rule schedules only while it is approved and inside its start and expiry window; time never revives consent.
+- Calendar rules produce one occurrence per local month (`CAL:YYYY-MM`) with the rule's `LAST_DAY` or `SKIP` month-end behaviour in its own time zone. Invoice-due rules produce one occurrence per due date (`INV:YYYY-MM-DD`) three local days, or the rule's `daysBefore`, ahead at 09:00.
+- `tick` is a function of the rules, the occurrence keys already recorded for the rule under any version, and `now`. Repeating it, running it from two processes or advancing time in small or large steps gives the same jobs, and a revised rule never repeats an occurrence an earlier version handled.
+- After downtime only the latest missed occurrence stays pending; earlier ones are recorded as final `SKIPPED` jobs with reason `MISSED_CATCH_UP`, so nothing becomes a burst of charges and every skip is visible.
+- A balance threshold (`LOW_BALANCE`) fires one job per dip. Firing, the sequence number (`THR:n`) and the job are one transaction, the trigger stays disarmed while the balance stays below the threshold, and it re-arms when the balance recovers. Requiring a qualifying external debit before re-arming belongs to AUTO-09.
+- Event-driven triggers (new fine, parking ending) schedule nothing here.
+
+The loop runs the scheduler only when `AUTOMATION_SCHEDULE_ENABLED=true` in addition to `AUTOMATION_WORKER_ENABLED`; both are off by default. The business clock stays separate from security time: the scheduler takes `now` as a parameter, so a simulator clock can drive it without touching token expiry.
 
 ## Outbox
 

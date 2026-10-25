@@ -50,6 +50,7 @@ export class JobStore {
         attempts INTEGER NOT NULL DEFAULT 0,created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL,UNIQUE(mandate_id,policy_version,occurrence_key,target));
       CREATE TABLE IF NOT EXISTS job_attempts(seq INTEGER PRIMARY KEY AUTOINCREMENT,job_id TEXT NOT NULL REFERENCES jobs(id),fence INTEGER NOT NULL,worker_id TEXT NOT NULL,step TEXT NOT NULL,at INTEGER NOT NULL,outcome TEXT);
       CREATE TABLE IF NOT EXISTS job_outbox(seq INTEGER PRIMARY KEY AUTOINCREMENT,job_id TEXT NOT NULL REFERENCES jobs(id),kind TEXT NOT NULL,body TEXT NOT NULL,at INTEGER NOT NULL,delivered_at INTEGER,UNIQUE(job_id,kind));
+      CREATE TABLE IF NOT EXISTS threshold_state(mandate_id TEXT NOT NULL,policy_version INTEGER NOT NULL,armed INTEGER NOT NULL DEFAULT 1 CHECK(armed IN (0,1)),seq INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(mandate_id,policy_version));
       CREATE TRIGGER IF NOT EXISTS job_attempts_no_update BEFORE UPDATE OF job_id,fence,worker_id,step,at ON job_attempts BEGIN SELECT RAISE(ABORT,'Attempts are append-only');END;
       CREATE TRIGGER IF NOT EXISTS job_attempts_no_delete BEFORE DELETE ON job_attempts BEGIN SELECT RAISE(ABORT,'Attempts are append-only');END;`);
   }
@@ -72,6 +73,45 @@ export class JobStore {
     return this.atomic(() => {
       this.db.prepare("INSERT OR IGNORE INTO jobs(id,mandate_id,policy_version,occurrence_key,target,state,created_at,updated_at) VALUES(?,?,?,?,?,'QUEUED',?,?)").run(id, input.mandateId, input.policyVersion, input.occurrenceKey, input.target, now, now);
       return this.get(id)!;
+    });
+  }
+
+  /** Occurrence keys already turned into a job for this rule under any of its versions, so a revision never repeats an occurrence. */
+  handledKeys(mandateId: string): Set<string> {
+    return new Set(this.db.prepare('SELECT occurrence_key FROM jobs WHERE mandate_id=?').all(mandateId).map(r => String(r.occurrence_key)));
+  }
+  /** A missed occurrence that is deliberately not run: recorded as a final SKIPPED job so it is visible and never caught up later. */
+  enqueueSkipped(input: { mandateId: string; policyVersion: number; occurrenceKey: string; target: string }, reason: string, now = Date.now()): Job {
+    const job = this.enqueue(input, now);
+    return this.atomic(() => {
+      this.db.prepare("UPDATE jobs SET state='SKIPPED',reason=?,updated_at=? WHERE id=? AND state='QUEUED' AND fence=0").run(reason.slice(0, 80), now, job.id);
+      const current = this.get(job.id)!;
+      // Only a job that is actually recorded as skipped gets the event; an occurrence that already ran is left alone.
+      if (current.state === 'SKIPPED') this.db.prepare('INSERT OR IGNORE INTO job_outbox(job_id,kind,body,at) VALUES(?,?,?,?)').run(job.id, 'SKIPPED', JSON.stringify({ reason }), now);
+      return current;
+    });
+  }
+  thresholdState(mandateId: string, policyVersion: number) {
+    const r = this.db.prepare('SELECT armed,seq FROM threshold_state WHERE mandate_id=? AND policy_version=?').get(mandateId, policyVersion);
+    return { armed: r ? Number(r.armed) === 1 : true, seq: r ? Number(r.seq) : 0 };
+  }
+  /** Fire once: disarm, advance the sequence and enqueue the job in one transaction, or do nothing when already disarmed. */
+  fireThreshold(rule: { mandateId: string; policyVersion: number; target: string }, now = Date.now()): Job | undefined {
+    return this.atomic(() => {
+      this.db.prepare('INSERT OR IGNORE INTO threshold_state(mandate_id,policy_version) VALUES(?,?)').run(rule.mandateId, rule.policyVersion);
+      const moved = this.db.prepare('UPDATE threshold_state SET armed=0,seq=seq+1 WHERE mandate_id=? AND policy_version=? AND armed=1').run(rule.mandateId, rule.policyVersion);
+      if (!moved.changes) return undefined;
+      const seq = this.thresholdState(rule.mandateId, rule.policyVersion).seq;
+      const { id } = jobIdentity({ ...rule, occurrenceKey: `THR:${seq}` });
+      this.db.prepare("INSERT OR IGNORE INTO jobs(id,mandate_id,policy_version,occurrence_key,target,state,created_at,updated_at) VALUES(?,?,?,?,?,'QUEUED',?,?)").run(id, rule.mandateId, rule.policyVersion, `THR:${seq}`, rule.target, now, now);
+      return this.get(id)!;
+    });
+  }
+  /** The balance recovered above the threshold, so the next dip may fire again. */
+  rearmThreshold(mandateId: string, policyVersion: number) {
+    this.atomic(() => {
+      this.db.prepare('INSERT OR IGNORE INTO threshold_state(mandate_id,policy_version) VALUES(?,?)').run(mandateId, policyVersion);
+      this.db.prepare('UPDATE threshold_state SET armed=1 WHERE mandate_id=? AND policy_version=?').run(mandateId, policyVersion);
     });
   }
 

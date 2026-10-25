@@ -10,6 +10,8 @@ import { randomUUID } from 'node:crypto';
 import { startEnvironment } from './environment.ts';
 import { JobStore } from '../../services/automation-worker/src/jobs.ts';
 import { AutomationWorker } from '../../services/automation-worker/src/worker.ts';
+import { HttpRuleSource } from '../../services/automation-worker/src/http-rules.ts';
+import { Scheduler } from '../../services/automation-worker/src/scheduler.ts';
 import { HttpExecutionGateway } from '../../services/automation-worker/src/http-gateway.ts';
 import { MANDATE_ACTOR, type MandatePolicy } from '../../packages/protocol-core/src/payment-mandates.ts';
 
@@ -238,6 +240,30 @@ try {
   assert.equal(paid(stoppedBill), false);
   storeA.close(); storeB.close();
   console.log('PASS: the persistent worker settles a leased job once under a two-worker race, never reruns it, and skips a paused rule without moving money.');
+  // ---- The scheduler reads the run over HTTP, enqueues the due invoice once, and the worker settles it. ----
+  const schedulerStore = new JobStore(join(scratch, 'scheduled.sqlite'));
+  const scheduled = await newMandate();
+  n++;
+  const scheduledBill = `e2e-auto-bill-${n}`;
+  env.providerStores.get('dewa')!.put(accountId, 'bill', { billId: scheduledBill, accountNumber: dewa.reference, totalAmount: 150, status: 'UNPAID', dueDate: due }, scheduledBill);
+  const rules = new HttpRuleSource(gatewayConfig), scheduler = new Scheduler(schedulerStore, rules);
+  assert.ok((await rules.rules()).some(r => r.mandateId === scheduled.id && r.state === 'APPROVED'));
+  assert.deepEqual((await new HttpRuleSource({ ...gatewayConfig, clientSecret: 'wrong' }).rules().then(() => 'read', () => 'denied')), 'denied', 'only the worker identity reads the scheduling view');
+  const beforeScheduled = await wallet();
+  const ticked = await Promise.all([scheduler.tick(Date.now()), scheduler.tick(Date.now())]);
+  const mine = (r: { enqueued: string[] }) => r.enqueued.filter(k => k.startsWith(`${scheduled.id}:`));
+  assert.ok(ticked.flatMap(mine).length >= 1);
+  const scheduledJobs = schedulerStore.list().filter(j => j.mandateId === scheduled.id);
+  assert.equal(scheduledJobs.length, 1, 'duplicate ticks produced one job for the due invoice');
+  assert.match(scheduledJobs[0]!.occurrenceKey, /^INV:/);
+  assert.equal(await wallet(), beforeScheduled, 'scheduling alone moves no money');
+  await new AutomationWorker(schedulerStore, new HttpExecutionGateway(gatewayConfig), { workerId: 'worker-sched' }).drain();
+  assert.equal(schedulerStore.get(scheduledJobs[0]!.id)!.state, 'SETTLED', JSON.stringify(schedulerStore.list().map(j => [j.mandateId === scheduled.id, j.state, j.reason])));
+  assert.equal(await wallet(), beforeScheduled - 15000, 'exactly one invoice was paid');
+  await scheduler.tick(Date.now());
+  assert.equal(schedulerStore.list().filter(j => j.mandateId === scheduled.id).length, 1, 'a settled occurrence is never scheduled again');
+  schedulerStore.close();
+  console.log('PASS: the scheduler reads rules over HTTP, enqueues the due invoice once under duplicate ticks, and the worker settles it once.');
 } finally {
   if (restoreBroker) execFileSync('docker', ['compose', '-f', 'docker-compose.demo.yml', 'up', '-d', '--force-recreate', '--wait', 'delegation-broker'], { stdio: 'ignore' });
   try { await env?.cleanup(); } catch { /* Windows may briefly hold SQLite files */ }
