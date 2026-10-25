@@ -577,7 +577,7 @@ try {
   // ---- AUTO-14 step 6: a lost response the worker cannot resolve is held as unknown, captures nothing, is never retried under a new identity, and says so in the owner inbox. ----
   const unknownRule = await newMandate(), unknownBill = addBill('unknown');
   const unknownStore = new JobStore(join(scratch, 'unknown.sqlite'));
-  const unknownJob = unknownStore.enqueue({ mandateId: unknownRule.id, policyVersion: unknownRule.policyVersion, occurrenceKey: 'occ-unknown', target: `dewa-${billing.id}` });
+  unknownStore.enqueue({ mandateId: unknownRule.id, policyVersion: unknownRule.policyVersion, occurrenceKey: 'occ-unknown', target: `dewa-${billing.id}` });
   const unknownWorker = new AutomationWorker(unknownStore, new HttpExecutionGateway(gatewayConfig), { workerId: 'worker-unknown', retryDelayMs: 1, sleep: async () => {} });
   const beforeUnknown = await wallet();
   // The provider loses its response after the admission is created and before any capture. Recovery marks the order unresolved,
