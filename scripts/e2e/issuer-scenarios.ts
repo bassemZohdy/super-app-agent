@@ -1,3 +1,5 @@
+// A provider restart leaves keep-alive sockets from the old server in the pool. A GET is safe to retry once after such a reset; a POST is never retried.
+const nativeFetch=globalThis.fetch;globalThis.fetch=(async(input:any,init?:any)=>{try{return await nativeFetch(input,init);}catch(error){const reset=(error as {cause?:{code?:string}}).cause?.code==='ECONNRESET';if(!reset||(init?.method??'GET')!=='GET')throw error;return nativeFetch(input,init);}}) as typeof fetch;
 import { keycloakIssuerUrl, providerPaymentsUrl } from '../endpoints.ts';
 /** Authenticated operator configures an isolated issuer run; ordinary customer requests cannot choose outcomes. */
 import assert from 'node:assert/strict';
