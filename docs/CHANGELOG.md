@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 26 October 2026 — AUTO-15 delivered: the kill-switch panel control
+
+The payments panel shows the worker's kill switch and lets an allowlisted automation operator stop automation (a reason is required) or let it run again. The worker's store records each change, and runs already paid are not reversed, as the panel says. Other accounts are refused. The browser journey `npm run demo:verify:kill-switch-panel` passes on the Compose stack. The broker-scoped admin route (3b-ii) remains a service path: a browser cannot hold the admin client's secret, so the panel uses the allowlisted operator sign-in. The rest of AUTO-15 was delivered earlier: pause-all, the operator route, the worker's applied state, and the in-flight race and outage tests. Its tracker entry is removed.
+
 ## 26 October 2026 — run export through the scenario controls (SIM-05, step)
 
 `GET /internal/scenario-controls/{run}/export` returns the run's inspection for the operator, with secrets redacted by the shared redaction helper. It is operator-only and read-only: the test confirms that exporting changes no armed failpoint. Evidence: `services/test/scenario-controls.test.ts`; the provider type-checks. The route is not yet exercised on the Compose stack. Still open in SIM-05: the control-panel UI, the run-scoped reset, and network time-advance.

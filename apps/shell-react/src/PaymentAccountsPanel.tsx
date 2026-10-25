@@ -2,6 +2,7 @@ import { PaymentReservations } from './PaymentReservations';
 import { PaymentHistoryPanel } from './PaymentHistoryPanel';
 import { MandateConsentPanel } from './MandateConsentPanel';
 import { AutomationInboxPanel } from './AutomationInboxPanel';
+import { KillSwitchPanel } from './KillSwitchPanel';
 import type { AccountEligibility,PaymentLifecycle } from '../../../packages/protocol-core/src/account-eligibility.ts';
 import { PaymentReceiptFacts } from './PaymentReceiptFacts';
 import { paymentReceiptReady } from '../../../packages/protocol-core/src/payment-history.ts';
@@ -127,6 +128,7 @@ export function PaymentAccountsPanel({ gateway, accountId, getToken, onClose }: 
       {legacyInspection&&<section aria-label="Original capture inspection" className="payment-review"><h3>Original capture inspection</h3><p>{legacyInspection.merchant.toUpperCase()} · {formatAED(legacyInspection.amountMinor)} · Funding {legacyInspection.source}</p><p>Payment {legacyInspection.paymentId} · Reference {legacyInspection.reference}</p><p>Current capture state: {legacyInspection.state}</p><p>Gateway claim: {legacyInspection.gatewayClaim} · Provider attempt: {legacyInspection.sourceState} · Gateway confirmation: {legacyInspection.gatewayConfirmed?'confirmed':'not confirmed'}</p><p>These are current original-operation reads. They do not create a payment or a new service receipt.</p></section>}
       <PaymentHistoryPanel key={`history:${accountId}`} busy={busy} read={(path,query)=>api(path,undefined,controller.current?.signal,query)} work={work} />
       <AutomationInboxPanel key={`inbox:${accountId}`} busy={busy} read={(path,query)=>api(path,undefined,controller.current?.signal,query)} work={work} orders={data.orders||[]} answer={(order,decision)=>void reviewAction(order as PaymentAuthorizationReview,'challenge',{challengeId:(order as PaymentAuthorizationReview).authorization?.challengeId,decision})} />
+      <KillSwitchPanel key={`kill-switch:${accountId}`} busy={busy} read={(path,query)=>api(path,undefined,controller.current?.signal,query)} mutate={mutate} work={work} />
       <MandateConsentPanel key={`mandates:${accountId}`} busy={busy} read={(path,query)=>api(path,undefined,controller.current?.signal,query)} mutate={mutate} work={work} />
       <PaymentRecoveryPanel key={accountId} busy={busy} read={(path,query)=>api(path,undefined,controller.current?.signal,query)} mutate={mutate} work={work} />
       <WalletFundingPanel methods={data.methods} orders={data.fundingOrders||[]} busy={busy}

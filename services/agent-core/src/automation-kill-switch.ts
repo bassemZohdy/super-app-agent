@@ -26,3 +26,11 @@ export function setKillSwitch(actor: Actor, input: { engaged: boolean; reason?: 
     return { status: 200, data: { success: true, requestId: String(actor.requestId ?? ''), killSwitch: store.killSwitch() } };
   } finally { store.close(); }
 }
+
+/** The current state for an allowlisted operator, so the panel can show what it will change. Reads only. */
+export function readKillSwitch(actor: Actor, jobsPath = defaultJobsPath(), env: NodeJS.ProcessEnv = process.env): KillSwitchResult {
+  if (!operatorSubs(env).has(actor.sub)) return { status: 403, data: { success: false, code: 'OPERATOR_REQUIRED', error: 'Only an allowlisted automation operator can read the kill switch.' } };
+  if (!existsSync(jobsPath)) return { status: 404, data: { success: false, code: 'JOB_STORE_NOT_FOUND', error: 'No automation job store exists yet.' } };
+  const store = new JobStore(jobsPath);
+  try { return { status: 200, data: { success: true, killSwitch: store.killSwitch() } }; } finally { store.close(); }
+}
