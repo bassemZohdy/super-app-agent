@@ -1,6 +1,6 @@
 # Payment accounts, funding and automation — demo plan
 
-**Status: implementation in progress.** Manual payment setup, journal, stored wallet/card review/capture, bills/fines/recharges, wallet funding, grouped checkout, original-source refunds, events, recovery, statements and owner/source lifecycle are implemented. Finite consent records and the authority threat-model contract are implemented; automatic execution, shared automatic reservations, worker/scheduler, most simulator controls and final parity/QA gates remain open. [Current evidence](../reports/README.md) and [the backlog](../../TODO.md#payment-accounts-and-automation-demo--planned-backlog) distinguish delivered behavior from the intended full extension. Quote previews alone do not approve or capture funds.
+Design and acceptance reference for the payments and automation extension. What is implemented is described in the [README](../../README.md#what-exists-today), what was verified in the [evidence register](../reports/README.md), and open work only in [TODO.md](../../TODO.md). Quote previews alone do not approve or capture funds.
 
 ## Scope and starting point
 
@@ -107,6 +107,27 @@ Provide named, reproducible card presets for approve, insufficient limit, hard d
 
 Seed multiple bills/cycles and owned service resources; simulate invoice changes/withdrawal, fine discounts/expiry, toll/mobile consumption, parking departure and subscription renewal. Persist scenario traces with correlation IDs and masked method metadata, excluding bearer tokens and raw secrets. A run inspector explains order/attempt/mandate/budget/ledger/provider state and routes unknown outcomes to reconciliation rather than offering “try again” with a fresh charge.
 
+## Reviewable demo scenarios
+
+Each scenario names the tasks that deliver it (see [TODO.md](../../TODO.md) for what is still open) and the failure or recovery case it must demonstrate.
+
+| Reviewable demo scenario | Implementation tasks | Required failure/recovery case |
+| --- | --- | --- |
+| Manage personal/household billers and cards | PAY-03, PAY-04, PAY-21 | Wrong owner, disabled source, dependent order/rule blocks removal |
+| Pay DEWA/Etisalat/du bills with wallet or card | PAY-05–PAY-12, PAY-20 | Insufficient funds/limit, decline, challenge, stale or already-paid bill |
+| Add wallet funds from a synthetic card | PAY-13, PAY-17, PAY-20 | No self-funding/free-credit bypass; duplicate and failed capture do not credit |
+| Recharge a toll tag or prepaid mobile | PAY-15, PAY-20 | Exact owned target/denomination; another target cannot reuse proof |
+| Pay selected fines with wallet or card | PAY-14, PAY-20 | Changed discount, duplicate selection, paid/restricted fine |
+| Group payments, inspect history and recover | PAY-16–PAY-20 | Partial checkout, lost response, original-source refund and unknown settlement |
+| Approve, preview, pause and revoke a rule | AUTO-01–AUTO-07, AUTO-14, AUTO-15 | No effect from a draft; current consent/caps/expiry enforced at admission |
+| Autopay linked bills | AUTO-08 | Over-cap, withdrawn/paid invoice, unattended challenge |
+| Auto-reload wallet, toll or mobile | AUTO-09, AUTO-10 | No credit loop, duplicate occurrence or implicit fallback chain |
+| Optional automatic fine payment | AUTO-11 | Separate opt-in vehicle/type/amount/count policy; default remains manual |
+| Automatic parking extension and renewal | AUTO-12, AUTO-13 | Departure/end time stops parking; unsupported service requires review |
+| Operate an isolated scenario and explain outcomes | SIM-01–SIM-06, QA-01–QA-08 | Restart, duplicates, revocation, failpoints and scoped reset preserve funds/authority |
+
+All scenarios require persisted owned state, truthful pending/unknown outcomes and observable provider/journal effects. QA-07 records asserted states with at least six-second reviews and eight-second receipts. No new bank, PSP, hosted model, external notification service or real card input is needed.
+
 ## Release gates and sequence
 
 1. Accounts/methods, migrations, order/ledger and manual wallet/card payments pass before automation spends money.
@@ -115,7 +136,7 @@ Seed multiple bills/cycles and owned service resources; simulate invoice changes
 4. All supported shells show truthful source, challenge, partial/unknown and revocation states. Existing twelve E2E journeys stay green.
 5. New paced recordings wait for asserted state, then retain six-second reviews/eight-second receipts. Simulated time and scenario failures are clearly labelled.
 
-[TODO](../../TODO.md) contains independently verifiable slices, dependencies and acceptance criteria. Production PSP/agency contracts, real cards/banks, compliance certification, public hosting, native-platform delivery and disabled CI activation remain separate existing release requirements.
+[TODO.md](../../TODO.md) contains the open, independently verifiable tasks with dependencies and acceptance criteria. Production PSP/agency contracts, real cards/banks, compliance certification, public hosting, native-platform delivery and disabled CI activation remain separate existing release requirements.
 
 ## Design references
 

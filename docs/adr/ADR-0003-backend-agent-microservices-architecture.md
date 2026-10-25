@@ -1,6 +1,6 @@
 # ADR-0003 — Backend domain boundaries and Concierge API
 
-> Implementation review, 24 October 2026: [current status](../STATUS.md), [delivery target](ADR-0011-local-demo-target.md) and [bounded delegation amendment](ADR-0012-secure-delegation-demo.md) identify the implemented demo. This decision does not establish production approval.
+> Implementation review, 24 October 2026: [what exists today](../../README.md#what-exists-today), [delivery target](ADR-0011-local-demo-target.md) and [bounded delegation amendment](ADR-0012-secure-delegation-demo.md) identify the implemented demo. This decision does not establish production approval.
 
 **Status:** **Authenticated REST application/provider boundaries implemented for the demo; production delegation remains open.**
 **Reviewed:** 2026-10-24.

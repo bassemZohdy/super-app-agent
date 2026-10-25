@@ -33,7 +33,7 @@ Each run advances by at most 31 days per command, spans at most 366 days, and su
 
 ## Evidence
 
-Seven unit/integration tests cover persistence/reopen, deterministic fixtures, ordered/idempotent events, owner/revision/bounds, scoped reset, two connections, provider-data containment even when sharing a test database, and real-time JWT behavior after a 31-day business jump. `simulator:verify` executes separate CLI processes and checks create/advance/status/replay/reset, invalid backward advance and exact fixture restoration. [Current evidence](../reports/2026-10-24-lifecycle-simulator.md) · [Full backlog](../../TODO.md#payment-accounts-and-automation-demo--planned-backlog).
+Seven unit/integration tests cover persistence/reopen, deterministic fixtures, ordered/idempotent events, owner/revision/bounds, scoped reset, two connections, provider-data containment even when sharing a test database, and real-time JWT behavior after a 31-day business jump. `simulator:verify` executes separate CLI processes and checks create/advance/status/replay/reset, invalid backward advance and exact fixture restoration. [Current evidence](../reports/2026-10-24-lifecycle-simulator.md) · [Full backlog](../../TODO.md).
 
 ## Authenticated issuer outcomes
 

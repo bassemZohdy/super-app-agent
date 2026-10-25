@@ -1,6 +1,6 @@
 # ADR-0002 — UI and agent-interaction protocol strategy
 
-> Implementation review, 24 October 2026: [current status](../STATUS.md), [delivery target](ADR-0011-local-demo-target.md) and [bounded delegation amendment](ADR-0012-secure-delegation-demo.md) identify the implemented demo. This decision does not establish production approval.
+> Implementation review, 24 October 2026: [what exists today](../../README.md#what-exists-today), [delivery target](ADR-0011-local-demo-target.md) and [bounded delegation amendment](ADR-0012-secure-delegation-demo.md) identify the implemented demo. This decision does not establish production approval.
 
 **Status:** **Legacy demo contract implemented; standards-aligned target proposed.**
 **Reviewed:** 2026-10-24. The original naming in this repository does **not** correspond to public specifications.

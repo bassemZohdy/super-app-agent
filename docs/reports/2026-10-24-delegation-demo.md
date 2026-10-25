@@ -1,6 +1,6 @@
 # Secure delegation demo — execution evidence
 
-**Date:** 24 October 2026. **Target:** local synthetic demo only. **Source:** working tree based on `efee3a9`, with earlier E2E changes preserved; these results do not describe an independently approved production release. [Decision](../adr/ADR-0012-secure-delegation-demo.md) · [Runbook](../development/delegation.md) · [Task dispositions](../../TODO.md#proposed-secure-identity-delegation--obo).
+**Date:** 24 October 2026. **Target:** local synthetic demo only. **Source:** working tree based on `efee3a9`, with earlier E2E changes preserved; these results do not describe an independently approved production release. [Decision](../adr/ADR-0012-secure-delegation-demo.md) · [Runbook](../development/delegation.md) · [Task dispositions](../../TODO.md#production-gate-separate-from-the-demo).
 
 ## Implemented boundary
 

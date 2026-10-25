@@ -1,6 +1,6 @@
 # Execution evidence register
 
-[Current implementation status](../STATUS.md) separates delivered behavior from open acceptance gates. The latest dated evidence is [P1 parity slices and the AUTO-03 preparation checkpoint](2026-10-25-p1-parity-automation-preparation.md) (25 October 2026, focused tests only). Application checkpoint **`cd3c7d5`**, 24 October 2026, is the latest executed full qualification: **533 Node tests and 18 workspace builds**. Documentation maintenance does not rerun or extend that application evidence.
+This register records what was verified, when, against which revision and with which limits. It does not track tasks (open work is only in [TODO.md](../../TODO.md)) and does not describe the system (see the [README](../../README.md#what-exists-today)). The latest dated evidence is [P1 parity slices and the AUTO-03 preparation checkpoint](2026-10-25-p1-parity-automation-preparation.md) (25 October 2026, focused tests only). Application checkpoint **`cd3c7d5`**, 24 October 2026, is the latest executed full qualification: **533 Node tests and 18 workspace builds**, ESLint, E2E TypeScript, Markdown links and source-secret checks. Documentation maintenance does not rerun or extend that application evidence; later slices carry their own focused evidence.
 
 ## Latest operating qualification
 
@@ -8,9 +8,17 @@
 | --- | --- | --- |
 | [P2-02 operations and recovery](2026-10-24-operations.md) | Private correlation/metrics, signed partial journey, 10-second read load, 60-second soak, shutdown, encrypted financial/Redis/issuer restore and copied Keycloak/Redis boot/login; 533 tests/18 builds | Local single-writer demo; six pre-existing pending broker jobs retained for reconciliation. No production HA or inference-capacity claim |
 
+### Recorded operating measurements (at `cd3c7d5`)
+
+The actual Node 24.21.0 Compose image passed 17 targeted operations tests. Read load of 10 seconds: 273.7 requests/s, p95 28.2 ms, zero errors. Paced 60-second soak: p95 12.9 ms, zero errors, 1.2 MiB RSS growth after warm-up. These exclude inference capacity. Isolated durable-state recovery took 554 ms; copied Keycloak/Redis boot and login took 24.1 seconds, excluding operator investigation and full application promotion. Signed payment-obligation browser and HTTP recovery also passed.
+
+The last operations inspection identified **six existing pending broker jobs** and `STUCK_DURABLE_WORK`; they were retained for original-operation reconciliation, and readiness passed. An alert is not permission to retry, discard history or synthesize a completed result. See the [operator runbook](../development/operations.md).
+
+Dated reports and recordings state what was true at their own checkpoint. Their test counts, earlier hosted-model observations and then-open features are historical facts. ADR amendments and target documents state which decisions were superseded or remain proposed. GitHub Actions remain disabled until explicitly authorized.
+
 ## Earlier feature checkpoints — historical
 
-Each row below states what its dated report verified and what remained open **then**. Counts and earlier missing features are not current release totals; use STATUS.md/TODO.md for the latest disposition. Foundational snapshots include `283521a`, `65fec3c` and `58dc0dd`. Production certification is not implied.
+Each row below states what its dated report verified and what remained open **then**. Counts and earlier missing features are not current release totals; use the README and TODO.md for the current state. Foundational snapshots include `283521a`, `65fec3c` and `58dc0dd`. Production certification is not implied.
 
 | Evidence | Verified scope | Interpretation at that checkpoint |
 | --- | --- | --- |
@@ -45,6 +53,6 @@ Each row below states what its dated report verified and what remained open **th
 
 ## Setup and planning records
 
-[Local development](../development/local-development.md) · [Local AI](../development/local-ai.md) · [Delegation](../development/delegation.md) · [Operations](../development/operations.md) · [Status](../STATUS.md).
+[Local development](../development/local-development.md) · [Local AI](../development/local-ai.md) · [Delegation](../development/delegation.md) · [Operations](../development/operations.md) · [what exists today](../../README.md#what-exists-today).
 
 [Payment/automation planning and cleanup](2026-10-24-payment-planning.md) preserves the original 50-task plan and its earlier 5-checked/45-open review. The delivered ledger moved to the changelog; 24 items remain open, finite consent records are delivered and recurring execution remains disabled. [TODO](../../TODO.md) retains the remaining acceptance criteria; the superseded checkpoint handoffs were removed with their delivered record kept in the [changelog](../CHANGELOG.md).

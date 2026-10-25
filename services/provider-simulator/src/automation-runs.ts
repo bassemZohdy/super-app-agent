@@ -120,7 +120,7 @@ export class AutomationRuns{
       if(prior){if(prior.fingerprint!==fingerprint)return deny('AUTOMATION_REQUEST_CONFLICT','This workload request key already has different terms.');
         return JSON.parse(String(prior.body)) as AutomationPreparation|AutomationSkip;}
       const {m,accountId}=this.mandate(input.mandateId),now=Date.now();
-      const record=(body:AutomationPreparation|AutomationSkip)=>{this.store.db.prepare('INSERT OR IGNORE INTO automation_requests VALUES(?,?,?)').run(input.requestKey,fingerprint,JSON.stringify(body));return body;};
+      const record=<T extends AutomationPreparation|AutomationSkip>(body:T):T=>{this.store.db.prepare('INSERT OR IGNORE INTO automation_requests VALUES(?,?,?)').run(input.requestKey,fingerprint,JSON.stringify(body));return body;};
       const skip=(reason:string):AutomationSkip=>{
         const result=record({mandateId:m.id,occurrenceKey:input.occurrenceKey,skipped:true,reason});
         this.store.db.prepare('INSERT INTO automation_audit(body) VALUES(?)').run(JSON.stringify({at:new Date(now).toISOString(),runId:this.context.runId,workerSub:subject,mandateId:m.id,occurrenceKey:input.occurrenceKey,event:'SKIPPED',reason}));
@@ -186,6 +186,8 @@ export class AutomationRuns{
     const preparation=JSON.parse(String(row!.body)) as AutomationPreparation;
     if(preparation.runId!==this.context.runId)return deny('AUTOMATION_EXECUTION_NOT_FOUND','No such prepared execution exists in this run.',404);
     const mandate=this.mandate(preparation.mandateId).m;
+    const owner=this.store.db.prepare('SELECT owner FROM accounts WHERE id=?').get(preparation.accountId);
+    if(!owner)return deny('AUTOMATION_EXECUTION_NOT_FOUND','The prepared execution has no workspace owner.',404);
     const source=mandate.policy.sources[0],current=source.methodId==='wallet'
       ?{status:'ACTIVE' as const,version:1}
       :this.store.get<{status:string;version:number}>(preparation.accountId,'payment-method',source.methodId);
@@ -194,7 +196,7 @@ export class AutomationRuns{
       :undefined;
     const payableCurrent=this.io.readPayables(preparation.accountId,preparation.provider)
       .some(payable=>payable.id===preparation.payableId&&payable.revision===preparation.payableRevision&&payable.status==='UNPAID');
-    return {executionId:preparation.id,runId:this.context.runId,accountId:preparation.accountId,
+    return {executionId:preparation.id,runId:this.context.runId,accountId:preparation.accountId,ownerSub:String(owner!.owner),
       mandate:{id:mandate.id,state:mandate.state,policyVersion:mandate.policyVersion,skipNext:mandate.skipNext===true},
       source:{id:preparation.sourceId,version:preparation.sourceVersion,current:current?.status==='ACTIVE'&&current?.version===source.expectedVersion},
       biller:mandate.policy.target.kind==='BILLER'?{id:mandate.policy.target.billingAccountId,current:biller?.status==='ACTIVE'&&biller?.version===mandate.policy.target.expectedVersion}:undefined,

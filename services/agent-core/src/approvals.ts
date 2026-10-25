@@ -63,12 +63,12 @@ export function actionIsApproved(state: SuperAppAgentState, action: string, payl
     if (groups.length === 1) {
       return payload.selectedChoices === undefined && typeof payload.selectedChoice === 'string' && groups[0].options.includes(payload.selectedChoice);
     }
-    const selected = payload.selectedChoices;
+    const selected = payload.selectedChoices as Record<string, unknown> | undefined;
     if (payload.selectedChoice !== undefined || !selected || typeof selected !== 'object' || Array.isArray(selected)) return false;
     const expected = groups.map(group => group.id).sort();
     const keys = Object.keys(selected).sort();
     return keys.length === expected.length && keys.every((key, index) => key === expected[index]
-      && typeof selected[key] === 'string' && groups.find(group => group.id === key)!.options.includes(selected[key]));
+      && typeof selected[key] === 'string' && groups.find(group => group.id === key)!.options.includes(selected[key] as string));
   });
 }
 
