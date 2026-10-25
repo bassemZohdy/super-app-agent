@@ -359,6 +359,37 @@ try {
   assert.equal(await wallet(), beforeReload + 5000);
   reloadStore.close();
   console.log('PASS: a low balance reloads once from the approved card, never loops while it stays low, and the automatic funding order is closed to ordinary APIs.');
+  // ---- AUTO-10: usage on the exact prepaid line triggers one recharge; another line's usage and a settled recharge do not. ----
+  const rechargeStore = new JobStore(join(scratch, 'recharge.sqlite'));
+  const prepaid = telecom.recharges!.targets(accountId)[0]!;
+  const prepaidLink = await api('billing-accounts', { provider: 'etisalat', reference: prepaid.reference, nickname: 'Prepaid line' });
+  assert.equal(prepaidLink.status, 200, JSON.stringify(prepaidLink.data));
+  const rechargePolicy = { ...policy, operation: 'RECHARGE', purpose: 'Keep my prepaid line recharged',
+    target: { kind: 'BILLER', billingAccountId: prepaidLink.data.billingAccount.id, expectedVersion: prepaidLink.data.billingAccount.version, provider: 'etisalat', reference: prepaid.reference },
+    trigger: { type: 'LOW_BALANCE', belowMinor: 1000, reloadMinor: prepaid.denominationsMinor[0], targetBalanceMinor: 100000 } };
+  const rechargeMade = await api('mandates', { policy: rechargePolicy });
+  assert.equal(rechargeMade.status, 200, JSON.stringify(rechargeMade.data));
+  const rechargeRule = (await api('mandates/approve', { mandateId: rechargeMade.data.mandate.id, expectedVersion: rechargeMade.data.mandate.version, approvalDigest: rechargeMade.data.mandate.approvalDigest })).data.mandate;
+  const rechargeRules = new HttpRuleSource(gatewayConfig);
+  const rechargeOnly: typeof rechargeRules = Object.assign(Object.create(rechargeRules), { rules: async () => (await rechargeRules.rules()).filter(r => r.mandateId === rechargeRule.id) });
+  const rechargeScheduler = new Scheduler(rechargeStore, rechargeOnly);
+  const lineBalance = () => telecom.recharges!.targets(accountId).find(x => x.reference === prepaid.reference)!.balanceMinor;
+  await rechargeScheduler.tick(Date.now());
+  assert.equal(rechargeStore.list().length, 0, 'a healthy prepaid line schedules nothing');
+  telecom.lifecycle!.ingest(accountId, { kind: 'USAGE_RECORDED', eventId: `e2e-use-${n}`, targetReference: prepaid.reference, usageMinor: lineBalance() - 500 });
+  assert.equal(lineBalance(), 500);
+  const beforeRecharge = { wallet: await wallet(), line: lineBalance() };
+  const rechargeTicks = await Promise.all([rechargeScheduler.tick(Date.now()), rechargeScheduler.tick(Date.now())]);
+  assert.equal(rechargeTicks.flatMap(r => r.enqueued).length, 1, 'concurrent evaluations of one dip fire once');
+  await new AutomationWorker(rechargeStore, new HttpExecutionGateway(gatewayConfig), { workerId: 'worker-recharge' }).drain();
+  const rechargeJob = rechargeStore.list()[0]!;
+  assert.equal(rechargeJob.state, 'SETTLED', JSON.stringify(rechargeJob));
+  assert.equal(lineBalance(), beforeRecharge.line + prepaid.denominationsMinor[0], 'the exact line was recharged once');
+  assert.equal(await wallet(), beforeRecharge.wallet - prepaid.denominationsMinor[0], 'the wallet paid for it exactly once');
+  for (let i = 0; i < 2; i++) { await rechargeScheduler.tick(Date.now()); await new AutomationWorker(rechargeStore, new HttpExecutionGateway(gatewayConfig), { workerId: 'worker-recharge' }).drain(); }
+  assert.equal(rechargeStore.list().length, 1, 'the recharge never triggers another');
+  rechargeStore.close();
+  console.log('PASS: usage on the exact prepaid line triggers one recharge from the wallet, and the settled recharge triggers nothing more.');
 } finally {
   if (restoreBroker) execFileSync('docker', ['compose', '-f', 'docker-compose.demo.yml', 'up', '-d', '--force-recreate', '--wait', 'delegation-broker'], { stdio: 'ignore' });
   try { await env?.cleanup(); } catch { /* Windows may briefly hold SQLite files */ }

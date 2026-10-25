@@ -50,6 +50,7 @@ export class ProviderEngine {
     const runs=this.store.automationRuns,eligibility=this.store.eligibility!.snapshot(actor.accountId);
     return forecast({mandate:m,now,eligibility:{active:eligibility.active,epoch:eligibility.epoch},source:source??undefined,biller:biller??undefined,payables,
       claimedPayableIds:runs?.claimedPayables(actor.accountId),
+      rechargeTarget:policy.operation==='RECHARGE'&&target.kind==='BILLER'?runs?.io.recharges?.(target.provider)?.targets(actor.accountId).find(t=>t.reference===target.reference):undefined,
       usage:runs?runs.usage(mandateId,now):{periodMinor:0,periodCount:0,lifetimeMinor:0,lifetimeCount:0},
       walletBalanceMinor:this.ledger!.summary(actor.accountId).balanceMinor});
   }

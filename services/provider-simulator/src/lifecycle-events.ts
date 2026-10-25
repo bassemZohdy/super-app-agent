@@ -102,7 +102,7 @@ export class LifecycleEvents {
       }
       case 'USAGE_RECORDED': {
         if (!this.recharges) return deny(400, 'EVENT_UNSUPPORTED', 'This provider has no consumable balance.');
-        return { ...this.recharges.recordUsage(account, event.targetReference, event.usageMinor) };
+        return { targetReference: event.targetReference, ...this.recharges.recordUsage(account, event.targetReference, event.usageMinor) };
       }
       case 'PARKING_DEPARTED': {
         if (this.provider !== 'rta') return deny(400, 'EVENT_UNSUPPORTED', 'Only parking sessions depart.');

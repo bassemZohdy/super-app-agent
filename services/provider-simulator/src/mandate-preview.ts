@@ -14,6 +14,8 @@ export type PreviewFacts = {
   source?: Pick<PaymentMethod, 'id' | 'kind' | 'status' | 'version' | 'expiresMonth' | 'expiresYear'> & { nickname?: string };
   biller?: Pick<BillingAccount, 'status' | 'version'>;
   payables: Payable[]; claimedPayableIds?: ReadonlySet<string>;
+  /** The exact toll tag or prepaid number a recharge rule watches, when the source provider's book is readable. */
+  rechargeTarget?: { status: string; balanceMinor: number; denominationsMinor: number[] };
   usage: PreviewUsage; walletBalanceMinor: number;
 };
 export type Candidate = {
@@ -56,7 +58,8 @@ export function forecast(f: PreviewFacts): Forecast {
   if (target.kind === 'BILLER' && (!f.biller || f.biller.status !== 'ACTIVE' || f.biller.version !== target.expectedVersion)) blockers.push('BILLER_CHANGED');
   const supported = policy.operation === 'BILL_PAYMENT' && target.kind === 'BILLER' && ['dewa', 'etisalat', 'du'].includes(target.provider) && policy.trigger.type === 'INVOICE_DUE';
   const reload = policy.operation === 'WALLET_RELOAD' && target.kind === 'WALLET' && policy.trigger.type === 'LOW_BALANCE';
-  if (!supported && !reload) blockers.push('EXECUTION_NOT_SUPPORTED_YET');
+  const recharge = policy.operation === 'RECHARGE' && target.kind === 'BILLER' && ['rta', 'etisalat', 'du'].includes(target.provider) && policy.trigger.type === 'LOW_BALANCE' && !!f.rechargeTarget;
+  if (!supported && !reload && !recharge) blockers.push('EXECUTION_NOT_SUPPORTED_YET');
 
   let nextRun: Forecast['nextRun'] = null;
   const candidates: Candidate[] = [];
@@ -69,6 +72,19 @@ export function forecast(f: PreviewFacts): Forecast {
   if (policy.trigger.type === 'CALENDAR') {
     const run = nextCalendarRun(policy.trigger, tz, now, startsAt, expiresAt);
     if (run) nextRun = { key: run.key, runAt: iso(run.runAtUtc) };
+  } else if (recharge && policy.trigger.type === 'LOW_BALANCE') {
+    // A recharge is driven by usage on exactly this target: it would run now only if that balance is below the threshold and the approved amount fits the target ceiling.
+    const trigger = policy.trigger, found = f.rechargeTarget!, reasons: string[] = [];
+    if (found.status !== 'ACTIVE') reasons.push('TARGET_UNAVAILABLE');
+    else if (found.balanceMinor >= trigger.belowMinor) reasons.push('BALANCE_ABOVE_THRESHOLD');
+    else if (!found.denominationsMinor.includes(trigger.reloadMinor)) reasons.push('DENOMINATION_UNAVAILABLE');
+    else if (found.balanceMinor + trigger.reloadMinor > trigger.targetBalanceMinor) reasons.push('WOULD_EXCEED_TARGET_BALANCE');
+    if (trigger.reloadMinor > limits.perPaymentMinor) reasons.push('OVER_PER_PAYMENT_CAP');
+    if (periodMinor + trigger.reloadMinor > limits.periodMinor || periodCount + 1 > limits.perPeriodCount) reasons.push('OVER_PERIOD_BUDGET');
+    if (lifetimeMinor + trigger.reloadMinor > limits.lifetimeMinor || lifetimeCount + 1 > limits.lifetimeCount) reasons.push('OVER_LIFETIME_BUDGET');
+    if (cooling) reasons.push('COOLDOWN');
+    candidates.push({ payableId: `recharge:${target.kind === 'BILLER' ? target.reference : ''}`, label: `Recharge ${target.kind === 'BILLER' ? target.reference : ''}`, amountMinor: trigger.reloadMinor, dueDate: iso(now).slice(0, 10), scheduledRunAt: iso(now), reasons, warnings: [],
+      decision: reasons.length || blockers.length ? 'SKIP' : 'DUE_NOW' });
   } else if (reload && policy.trigger.type === 'LOW_BALANCE') {
     // A reload is event-driven: it would run now only if the balance is below the threshold, for the finite amount that stays within the target.
     const trigger = policy.trigger, balance = f.walletBalanceMinor;

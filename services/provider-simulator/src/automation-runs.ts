@@ -9,6 +9,8 @@ import { createHash,randomUUID } from 'node:crypto';
 import type { AccountDatabase } from './database.ts';
 import type { PaymentOrders } from './payment-orders.ts';
 import type { WalletFunding } from './wallet-funding.ts';
+import type { ProviderRecharges } from './recharges.ts';
+import { PayableError } from './payables.ts';
 import { WALLET_FUNDING_LIMITS } from '../../../packages/protocol-core/src/payments.ts';
 import type { Actor } from '../../../packages/backend-kit/src/context.ts';
 import type { Payable } from '../../../packages/protocol-core/src/payments.ts';
@@ -26,11 +28,13 @@ export type AutomationRunIo={
   consumeMandateSkip?:(mandateId:string)=>boolean;
   /** Current wallet balance in integer fils, for the scheduler's threshold read. */
   walletBalanceMinor?:(accountId:string)=>number;
+  /** The source provider's recharge book (tolls and prepaid), for exact-target balance reads and on-demand recharge quotes. */
+  recharges?:(provider:string)=>ProviderRecharges|undefined;
 };
 export type AutomationPreparation={
   id:string;runId:string;accountId:string;mandateId:string;policyVersion:number;occurrenceKey:string;
   state:'PREPARED';provider:string;payableId:string;payableRevision:string;amountMinor:number;currency:'AED';
-  sourceId:string;sourceVersion:number;purpose:string;boundDigest:string;periodKey:string;orderId?:string;kind?:'BILL_PAYMENT'|'WALLET_RELOAD';
+  sourceId:string;sourceVersion:number;purpose:string;boundDigest:string;periodKey:string;orderId?:string;kind?:'BILL_PAYMENT'|'WALLET_RELOAD'|'RECHARGE';
   reservedPeriodMinor:number;reservedPeriodCount:number;reservedLifetimeMinor:number;reservedLifetimeCount:number;
   preparedAt:string;admissionExpiresAt:string;
 };
@@ -98,6 +102,19 @@ export class AutomationRuns{
   private orders?:PaymentOrders;private funding?:WalletFunding;
   /** The gateway order stores, bound once by the engine after they exist; preparation cannot run without them. */
   attachOrders(orders:PaymentOrders,funding?:WalletFunding){this.orders=orders;this.funding=funding;}
+  /** An execution of this rule whose order has not reached a final state and has not been released. */
+  private activeExecution(mandateId:string):boolean{
+    if(!this.orders||!this.funding)return false;
+    const live=['AWAITING_APPROVAL','AUTHORIZATION_PENDING','REQUIRES_ACTION','AUTHORIZED','CAPTURING','CAPTURED','RECONCILIATION_REQUIRED'];
+    for(const row of this.store.db.prepare('SELECT id,account_id,body FROM automation_executions WHERE mandate_id=? AND id NOT IN (SELECT execution_id FROM automation_released)').all(mandateId)){
+      const p=JSON.parse(String(row.body)) as AutomationPreparation;if(!p.orderId)continue;
+      const owner=this.store.db.prepare('SELECT owner FROM accounts WHERE id=?').get(p.accountId);if(!owner)continue;
+      const actor:Actor={sub:String(owner.owner),username:String(owner.owner),name:'Automation owner',accountId:p.accountId,requestId:''};
+      const order=p.kind==='WALLET_RELOAD'?this.funding.get(actor,p.orderId):this.orders.get(actor,p.orderId);
+      if(live.includes(order.state))return true;
+    }
+    return false;
+  }
   /** Finite reload: the configured amount, never past the target balance. */
   private reloadAmount(t:{reloadMinor:number;targetBalanceMinor:number},balance:number){return Math.max(0,Math.min(t.reloadMinor,t.targetBalanceMinor-balance,WALLET_FUNDING_LIMITS.maxMinor));}
   private worker(subject:string){if(subject!==this.context.workerSub)deny('AUTOMATION_WORKER_REQUIRED','Preparation belongs to this run\'s exact workload identity.',403);}
@@ -149,8 +166,9 @@ export class AutomationRuns{
       const policy=m.policy;
       const reload=policy.operation==='WALLET_RELOAD'&&policy.target.kind==='WALLET'&&policy.trigger.type==='LOW_BALANCE';
       const bill=policy.operation==='BILL_PAYMENT'&&policy.target.kind==='BILLER'&&['dewa','etisalat','du'].includes(policy.target.provider)&&policy.trigger.type==='INVOICE_DUE';
-      if(!reload&&!bill)
-        return deny('AUTOMATION_UNSUPPORTED','This checkpoint prepares due DEWA/Etisalat/du invoices and low-balance wallet reloads only; other operations fail closed until their own tasks.',409);
+      const recharge=policy.operation==='RECHARGE'&&policy.target.kind==='BILLER'&&['rta','etisalat','du'].includes(policy.target.provider)&&policy.trigger.type==='LOW_BALANCE';
+      if(!reload&&!bill&&!recharge)
+        return deny('AUTOMATION_UNSUPPORTED','This checkpoint prepares due DEWA/Etisalat/du invoices, low-balance wallet reloads and low-balance toll or prepaid recharges only; other operations fail closed until their own tasks.',409);
       const source=policy.sources[0],current=source.methodId==='wallet'
         ?{id:'wallet',kind:'wallet' as const,status:'ACTIVE' as const,version:1}
         :this.store.get<{id:string;status:string;version:number;kind:string;expiresMonth?:number;expiresYear?:number}>(accountId,'payment-method',source.methodId);
@@ -176,6 +194,20 @@ export class AutomationRuns{
         if(amount>policy.limits.perPaymentMinor)return skip('OVER_PER_PAYMENT_CAP');
         if(balance+amount>WALLET_FUNDING_LIMITS.balanceMaxMinor)return skip('WALLET_BALANCE_LIMIT');
         item={provider:'wallet',id:`wallet-reload:${m.id}:${input.occurrenceKey}`,revision:createHash('sha256').update(JSON.stringify(['wallet-reload',accountId,m.id,input.occurrenceKey,amount])).digest('hex'),amountMinor:amount};
+      }else if(recharge){
+        const trigger=policy.trigger as Extract<typeof policy.trigger,{type:'LOW_BALANCE'}>,target=policy.target as Extract<typeof policy.target,{kind:'BILLER'}>;
+        const book=this.io.recharges?.(target.provider);
+        if(!book)return deny('AUTOMATION_RECHARGE_UNAVAILABLE','This run exposes no recharge book for the target provider.',503);
+        // Only the exact approved tag or number is read; another target or provider can never trigger this rule.
+        const found=book.targets(accountId).find(x=>x.reference===target.reference);
+        if(!found||found.status!=='ACTIVE')return skip('TARGET_UNAVAILABLE');
+        if(found.balanceMinor>=trigger.belowMinor)return skip('BALANCE_ABOVE_THRESHOLD');
+        if(!found.denominationsMinor.includes(trigger.reloadMinor))return skip('DENOMINATION_UNAVAILABLE');
+        if(found.balanceMinor+trigger.reloadMinor>trigger.targetBalanceMinor)return skip('WOULD_EXCEED_TARGET_BALANCE');
+        if(trigger.reloadMinor>policy.limits.perPaymentMinor)return skip('OVER_PER_PAYMENT_CAP');
+        if(this.activeExecution(m.id))return deny('AUTOMATION_RECHARGE_IN_PROGRESS','An earlier recharge for this rule has not finished or been released. Inspect it first.');
+        // The quote is created after the budget checks below; this placeholder carries only the amount until then.
+        item={provider:target.provider,id:'',revision:'',amountMinor:trigger.reloadMinor};
       }else{
         const due=this.eligibleInvoices(m,accountId);
         if(!due.length)return skip('NO_DUE_INVOICE');
@@ -194,14 +226,21 @@ export class AutomationRuns{
       const reservedLifetimeMinor=rows.reduce((n,r)=>n+r.amountMinor,0),reservedLifetimeCount=rows.length;
       if(reservedPeriodMinor+item.amountMinor>policy.limits.periodMinor||reservedPeriodCount+1>policy.limits.perPeriodCount)return skip('OVER_PERIOD_BUDGET');
       if(reservedLifetimeMinor+item.amountMinor>policy.limits.lifetimeMinor||reservedLifetimeCount+1>policy.limits.lifetimeCount)return skip('OVER_LIFETIME_BUDGET');
+      let quoted:Payable|undefined;
+      if(recharge){
+        const target=policy.target as Extract<typeof policy.target,{kind:'BILLER'}>,found=this.io.recharges!(target.provider)!.targets(accountId).find(x=>x.reference===target.reference)!;
+        try{quoted=this.io.recharges!(target.provider)!.quote(accountId,{targetReference:target.reference,amountMinor:item.amountMinor,expectedTargetVersion:found.version,intentId:`auto-${randomUUID()}`});}
+        catch(error){if(error instanceof PayableError)return skip(error.code);throw error;}
+        item={provider:target.provider,id:quoted.id,revision:quoted.revision,amountMinor:quoted.amountMinor};
+      }
       const providerStore=reload?undefined:this.io.providerStore(policy.target.kind==='BILLER'?policy.target.provider:'');
       const preparation:AutomationPreparation={id:`autoexec_${randomUUID()}`,runId:this.context.runId,accountId,mandateId:m.id,policyVersion:m.policyVersion,
-        occurrenceKey:input.occurrenceKey,state:'PREPARED',kind:reload?'WALLET_RELOAD':'BILL_PAYMENT',provider:item.provider,payableId:item.id,payableRevision:item.revision,
+        occurrenceKey:input.occurrenceKey,state:'PREPARED',kind:reload?'WALLET_RELOAD':recharge?'RECHARGE':'BILL_PAYMENT',provider:item.provider,payableId:item.id,payableRevision:item.revision,
         amountMinor:item.amountMinor,currency:'AED',sourceId:current.id,sourceVersion:current.version,purpose:policy.purpose,
         boundDigest:createHash('sha256').update(JSON.stringify({mandateId:m.id,policyVersion:m.policyVersion,occurrenceKey:input.occurrenceKey,payableId:item.id,payableRevision:item.revision,amountMinor:item.amountMinor,sourceId:current.id,sourceVersion:current.version,purpose:policy.purpose})).digest('hex'),
         periodKey:key,reservedPeriodMinor:reservedPeriodMinor+item.amountMinor,reservedPeriodCount:reservedPeriodCount+1,
         reservedLifetimeMinor:reservedLifetimeMinor+item.amountMinor,reservedLifetimeCount:reservedLifetimeCount+1,
-        preparedAt:new Date(now).toISOString(),admissionExpiresAt:new Date(now+ADMISSION_WINDOW_MS).toISOString()};
+        preparedAt:new Date(now).toISOString(),admissionExpiresAt:new Date(Math.min(now+ADMISSION_WINDOW_MS,quoted?.expiresAt?Date.parse(quoted.expiresAt)-5000:Infinity)).toISOString()};
       // The provider-side claim runs first; a gateway failure releases it so no claim outlives its execution. A reload has no provider obligation to claim.
       if(providerStore&&claimAutomationPayable(providerStore,accountId,item.id,preparation.id)!=='CLAIMED')
         return deny('AUTOMATION_PAYABLE_RESERVED','This payable is already reserved by another execution or order.');
@@ -216,7 +255,7 @@ export class AutomationRuns{
           const funding=this.funding.createAutomatic(actor,{amountMinor:item.amountMinor,methodId:current.id,expectedMethodVersion:current.version},automation);
           preparation.orderId=funding.id;
         }else{
-          const payable=this.io.readPayables(accountId,item.provider).find(p=>p.id===item.id)!;
+          const payable=quoted??this.io.readPayables(accountId,item.provider).find(p=>p.id===item.id)!;
           const order=this.orders.createAutomatic(actor,{provider:payable.provider,payableId:payable.id,expectedPayableRevision:payable.revision,methodId:current.id,expectedMethodVersion:current.version},payable,automation);
           preparation.orderId=order.id;
         }
@@ -249,7 +288,9 @@ export class AutomationRuns{
       ?this.store.get<{status:string;version:number}>(preparation.accountId,'billing-account',mandate.policy.target.billingAccountId)
       :undefined;
     // A bill is current while it is the same unpaid revision; a reload is current while the balance is still below the threshold and would reload the same amount.
-    const trigger=mandate.policy.trigger,payableCurrent=preparation.kind==='WALLET_RELOAD'
+    const trigger=mandate.policy.trigger,payableCurrent=preparation.kind==='RECHARGE'
+      ?(()=>{try{const q=this.io.recharges?.(preparation.provider)?.get(preparation.accountId,preparation.payableId);return !!q&&q.revision===preparation.payableRevision&&q.status==='UNPAID';}catch{return false;}})()
+      :preparation.kind==='WALLET_RELOAD'
       ?trigger.type==='LOW_BALANCE'&&!!this.io.walletBalanceMinor&&this.io.walletBalanceMinor(preparation.accountId)<trigger.belowMinor&&this.reloadAmount(trigger,this.io.walletBalanceMinor(preparation.accountId))===preparation.amountMinor
       :this.io.readPayables(preparation.accountId,preparation.provider)
         .some(payable=>payable.id===preparation.payableId&&payable.revision===preparation.payableRevision&&payable.status==='UNPAID');
@@ -292,7 +333,16 @@ export class AutomationRuns{
   /** The balance and how many wallet payments have ever debited it. Reloads, top-ups and refunds are not payments, so only a new payment re-arms a threshold. */
   balanceMinor(worker:string,mandateId:string){
     this.worker(worker);
-    const {accountId}=this.mandate(mandateId);
+    const {m,accountId}=this.mandate(mandateId);
+    if(m.policy.operation==='RECHARGE'&&m.policy.target.kind==='BILLER'){
+      // A recharge rule watches only its own tag or number; the qualifying event is usage recorded on exactly that target.
+      const target=m.policy.target,book=this.io.recharges?.(target.provider);
+      if(!book)return deny('AUTOMATION_RECHARGE_UNAVAILABLE','This run exposes no recharge book for the target provider.',503);
+      const found=book.targets(accountId).find(x=>x.reference===target.reference);
+      if(!found)return deny('AUTOMATION_TARGET_NOT_FOUND','The rule\'s target does not exist in this workspace.',404);
+      const usage=this.io.providerStore(target.provider).db.prepare("SELECT count(*) n FROM provider_lifecycle_events WHERE account_id=? AND kind='USAGE_RECORDED' AND outcome='APPLIED' AND json_extract(result,'$.detail.targetReference')=?").get(accountId,target.reference);
+      return {balanceMinor:found.balanceMinor,qualifyingDebits:Number(usage!.n)};
+    }
     if(!this.io.walletBalanceMinor)return deny('AUTOMATION_BALANCE_UNAVAILABLE','This run exposes no wallet balance.',503);
     const debits=this.store.db.prepare("SELECT count(*) n FROM payment_journal_entries WHERE account_id=? AND kind='PAYMENT' AND wallet_delta<0").get(accountId);
     return {balanceMinor:this.io.walletBalanceMinor(accountId),qualifyingDebits:Number(debits!.n)};

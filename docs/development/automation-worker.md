@@ -44,6 +44,12 @@ A `WALLET_RELOAD` rule keeps a wallet funded from an approved card. When the bal
 
 Capture and wallet credit share one local transaction, so there is no provider chain. Only one funding order can be open for a wallet at a time, so two threshold events cannot open two reloads; a second occurrence is refused while one is active. At admission the rule must still be approved and the balance must still be below the threshold for the same amount, so an owner top-up or a revoked rule stops it. A decline fails the job as requiring action, a challenge holds it, and neither is retried or switched to another source; because the trigger stays disarmed until the balance recovers, a card that keeps failing is not charged repeatedly.
 
+## Toll and prepaid recharges
+
+A `RECHARGE` rule keeps one toll tag or prepaid number topped up. The scheduler reads the balance of exactly that target at its own provider and fires when it is below the rule's threshold; the only event that can fire it again is usage recorded on that same target (a recharge, a refund or usage on another line, tag or provider cannot). Preparation checks the target is active, the approved amount is still one of its denominations and would not carry the balance past the rule's target, then asks the source provider for a recharge quote and reserves it with an automatic payment order that only the dedicated execution route can admit, exactly like a bill. The quote is the payable: if the balance moves before admission (more usage, or the owner recharging by hand) it no longer matches, admission refuses it and the reservation is released.
+
+Cost, count and cooldown caps are shared with every other rule, and a rule has at most one unfinished recharge, so two low-balance events cannot open two. Funding is the rule's own wallet or approved card and nothing else: short funds or a decline fail the job as requiring action and charge nothing, and no job starts another, so a failed recharge never causes a wallet reload or any other charge (chains of one automatic payment funding another stay off).
+
 ## What the owner is told
 
 - **Before a run:** when a rule's next run is inside the lead time (24 hours by default), the scheduler records one `UPCOMING_RUN` notice per rule and occurrence in `job_notices` (a reminder, not a job; it moves nothing and a paused or expired rule announces nothing).
