@@ -4,6 +4,8 @@ import { verifyJwt, type JwtClaims } from '../../../packages/backend-kit/src/jwt
 import { logEvent } from '../../../packages/backend-kit/src/redact.ts';
 import { brokerClient, runnerClient, DelegationError, deny, digest, tokenHash,grantInput } from './policy.ts';
 import { GrantStore } from './store.ts';
+import { PermitStore, type ExecutionView, type Permit } from './permits.ts';
+import { issueExecutionCredential, MintRefused, type AutomationDeps } from './automation.ts';
 import { assertionTimes, keyMaterial, signedJwt } from './keys.ts';
 import { EligibilityClient,EligibilityReadError,eligibilityEnforced } from '../../../packages/backend-kit/src/eligibility-client.ts';
 import { actorFor } from '../../../packages/backend-kit/src/context.ts';
@@ -94,6 +96,51 @@ async function execute(id: string, requestKey: unknown, authorization?: string):
     throw e;
   }
 }
+
+let permitSingleton: PermitStore | undefined;
+const permitStore = () => permitSingleton ||= new PermitStore(grantStore().db);
+/** The provider read is made with the worker's own token, so the provider authenticates the exact workload. */
+async function readExecutionView(runId: string, executionId: string, authorization: string): Promise<ExecutionView> {
+  const base = checkedEndpoint(process.env.PROVIDER_PAYMENTS_URL || 'http://localhost:4107');
+  const response = await fetch(new URL(`/internal/automation-runs/${runId}/execution/${encodeURIComponent(executionId)}`, base), { redirect: 'error', signal: AbortSignal.timeout(5000), headers: { Authorization: authorization } });
+  if (!response.ok) throw new DelegationError(response.status === 404 ? 404 : response.status === 403 ? 403 : 503, 'AUTOMATION_EXECUTION_UNAVAILABLE', 'The prepared execution could not be read; no credential is issued.');
+  const data = await response.json() as { execution?: ExecutionView };
+  if (!data.execution) throw new DelegationError(503, 'AUTOMATION_EXECUTION_UNAVAILABLE', 'The prepared execution could not be read; no credential is issued.');
+  return data.execution;
+}
+async function mintExecutionToken(permit: Permit) {
+  const issuer = process.env.KEYCLOAK_ISSUER;
+  if (!issuer) throw new Error('Keycloak issuer required');
+  const time = assertionTimes(permit.expiresAt), scope = 'delegation.write';
+  const assertion = signedJwt('issuer', { ...time, iss: issuerName(), sub: `cityside:${permit.owner}`, aud: issuer, scope, automation_permit_id: permit.id, intended_client: brokerClient });
+  const clientAssertion = signedJwt('client', { ...assertionTimes(Date.now() + 60000), iss: brokerClient, sub: brokerClient, aud: issuer });
+  const response = await fetch(checkedEndpoint(process.env.KEYCLOAK_TOKEN_URL || `${issuer}/protocol/openid-connect/token`), {
+    method: 'POST', redirect: 'error', signal: AbortSignal.timeout(5000), headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', client_id: brokerClient, assertion, scope, client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer', client_assertion: clientAssertion }),
+  });
+  if (!response.ok) {
+    logEvent('error', 'Automation credential exchange rejected', { status: response.status });
+    if (response.status >= 400 && response.status < 500) throw new MintRefused(`rejected ${response.status}`);
+    throw new Error(`exchange failed ${response.status}`);
+  }
+  const data = await response.json() as { access_token: string; refresh_token?: string };
+  if (data.refresh_token || typeof data.access_token !== 'string') throw new Error('Unexpected delegated response');
+  const c = await verifyJwt(`Bearer ${data.access_token}`, 'provider-api');
+  if (c.act !== undefined || (c.realm_access?.roles?.length || 0) > 0) deny('ISSUED_TOKEN_MISMATCH');
+  return { accessToken: data.access_token, sub: c.sub, azp: String(c.azp), exp: c.exp, fingerprint: tokenHash(data.access_token) };
+}
+const automationDeps = (): AutomationDeps => ({
+  permits: permitStore(), readView: readExecutionView, mint: mintExecutionToken,
+  eligible: async view => { await currentEligibility(view.ownerSub, view.accountId); },
+});
+async function automationCredential(path: string, body: any, authorization?: string): Promise<Reply> {
+  const route = /^\/api\/delegation\/automation\/executions\/([A-Za-z0-9_-]{1,200})\/credential$/.exec(path);
+  if (!route) return { status: 404, data: { success: false, code: 'NOT_FOUND' } };
+  let claims: JwtClaims;
+  try { claims = await verifyJwt(authorization, 'delegation-api'); } catch { throw new DelegationError(401, 'AUTOMATION_WORKER_REQUIRED', 'A valid automation workload token is required.'); }
+  const out = await issueExecutionCredential(automationDeps(), { ...claims, azp: String(claims.azp) }, authorization!, { runId: body?.runId, executionId: route[1] });
+  return { status: 200, data: { success: true, ...out } };
+}
 export async function handleDelegation(method: string, path: string, body: any, authorization?: string): Promise<Reply | undefined> {
   if (!path.startsWith('/api/delegation')) return undefined;
   if (!delegationEnabled()) return { status: 404, data: { success: false, code: 'DELEGATION_DISABLED' } };
@@ -101,6 +148,7 @@ export async function handleDelegation(method: string, path: string, body: any, 
   try {
     if (method === 'GET' && ['/api/delegation/jwks', '/api/delegation/client-jwks'].includes(path)) return { status: 200, data: { keys: [keyMaterial(path.endsWith('/client-jwks') ? 'client' : 'issuer').jwk] } };
     if (path === '/api/delegation/authorize' && method === 'POST') { const claims = await delegatedAuthorization(authorization, body); return { status: 200, data: { success: true, sub: claims.sub, actor: claims.azp } }; }
+    if (path.startsWith('/api/delegation/automation/')) return method === 'POST' ? await automationCredential(path, body, authorization) : { status: 404, data: { success: false, code: 'NOT_FOUND' } };
     const executePath = /^\/api\/delegation\/grants\/([a-f0-9-]{36})\/execute$/.exec(path);
     if (executePath && method === 'POST') return await execute(executePath[1], body.requestKey, authorization);
     const c = await user(authorization), store = grantStore();

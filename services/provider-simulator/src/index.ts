@@ -10,7 +10,7 @@ import { verifyMandateTarget } from './mandate-targets.ts';
 import { issuerScenarioSchemas } from '../../../packages/protocol-core/src/issuer-scenarios.ts';
 import { IssuerScenarioError,type IssuerScenarioContext } from './issuer-scenarios.ts';
 import { AutomationRunError,automationRunSchemas } from './automation-runs.ts';
-import { ScenarioControlError } from './scenario-controls.ts';
+import { ScenarioControlError, scenarioArmSchema } from './scenario-controls.ts';
 import { inspectRun } from './run-inspector.ts';
 import { startPaymentEventDelivery } from './payment-events.ts';
 import type { PaymentEvent } from '../../../packages/protocol-core/src/payment-events.ts';
@@ -90,7 +90,7 @@ export function createProviderServer(provider: ProviderId, path: string, options
         }
         if(req.method==='POST'&&controlRoute[2]==='arm'){
           const input=await readJsonBody(req);
-          if(!ajv.validate({type:'object',properties:{name:{type:'string',enum:['checkout.after-admission','checkout.after-capture-commit','checkout.after-settlement-request']},times:{type:'integer',minimum:1,maximum:100},requestKey:{type:'string',pattern:'^[A-Za-z0-9_-]{8,100}$',minLength:8,maxLength:100}},required:['name','requestKey'],additionalProperties:false},input))throw new ApiError(400,'VALIDATION_ERROR','Arm a named failpoint with a bounded count and operator key.');
+          if(!ajv.validate(scenarioArmSchema,input))throw new ApiError(400,'VALIDATION_ERROR','Arm a named failpoint with a bounded count and operator key.');
           return send({status:200,data:{success:true,...controls.arm(claims.sub,input as {name:string;times?:number;requestKey:string})}});
         }
         if(req.method==='POST'&&controlRoute[2]==='clear')return send({status:200,data:{success:true,...controls.clear(claims.sub)}});
@@ -100,9 +100,11 @@ export function createProviderServer(provider: ProviderId, path: string, options
       if(url.pathname.startsWith('/internal/automation-runs/')){
         const runs=store.automationRuns;
         if(!runs||!automationRoute||url.search||automationRoute[1]!==runs.context.runId)throw new ApiError(404,'AUTOMATION_RUN_NOT_FOUND','No automatic execution run is installed here.');
+        // The dedicated worker service account may only read a prepared execution; everything else needs the signed-in run operator.
+        const worker=!interactive&&!delegated&&claims.act===undefined&&claims.azp==='automation-worker'&&String(claims.preferred_username||'').startsWith('service-account-')&&String(claims.scope||'').split(' ').includes('automation.execute');
+        if(worker&&req.method==='GET'&&automationRoute[2]==='execution')return send({status:200,data:{success:true,execution:runs.readExecution(claims.sub,automationRoute[3] as string)}});
         if(!interactive||claims.act!==undefined)throw new ApiError(403,'AUTOMATION_ROLE_REQUIRED','A signed interactive run identity is required.');
         if(req.method==='GET'&&!automationRoute[2]){return send({status:200,data:{success:true,...runs.status(claims.sub)}});}
-        if(req.method==='GET'&&automationRoute[2]==='execution')return send({status:200,data:{success:true,execution:runs.readExecution(claims.sub,automationRoute[3] as string)}});
         if(req.method==='POST'&&automationRoute[2]==='prepare'){
           const input=await readJsonBody(req);
           if(!ajv.validate(automationRunSchemas.prepare,input))throw new ApiError(400,'VALIDATION_ERROR','The preparation request has invalid or unsupported fields.');
