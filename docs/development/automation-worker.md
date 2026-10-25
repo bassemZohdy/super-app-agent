@@ -85,6 +85,8 @@ An invoice is chosen at preparation: the earliest-due unpaid, unreserved invoice
 
 `job_outbox` has at most one row per job and kind (`PREPARED`, `SKIPPED`, `SETTLED`, `FAILED`, `HELD`, `REQUIRES_ACTION`, `CHALLENGE_ANSWERED`), written in the same transaction as the state change. The owner inbox turns these into entries (`services/automation-worker/src/inbox.ts`).
 
+The inbox is served by `GET /api/payments/automation-inbox` (`services/agent-core/src/automation-inbox.ts`) and shown in the React payments panel. The owned rule set comes from the provider's owner-scoped mandate list, so only the signed-in owner's entries are returned, and switching account re-reads them. The response carries the request's `requestId`; each entry's `id` is the source key the worker derived (`job:<job>:<kind>` or `notice:<rule>:<occurrence>:<kind>`), so polling never duplicates an entry. The feed is polled rather than streamed. The worker's job store is read per request and closed again, and a missing store is an empty inbox rather than a new file. The panel has no answer buttons yet: approving or rejecting a held challenge still goes through the existing challenge route.
+
 ## Evidence
 
 `services/test/automation-worker.test.ts` covers identity, fencing, a two-connection race, restart at each persisted step, retry rules, final states and the absence of the credential from every database file. The real-stack scenario is in `scripts/e2e/automation-execution.ts`.

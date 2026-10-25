@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 25 October 2026 — owner inbox feed and panel (AUTO-14, step 3)
+
+`GET /api/payments/automation-inbox` returns the worker's inbox entries for the signed-in owner's rules only. The owned set comes from the provider's owner-scoped mandate list, the response carries the request's `requestId`, and a missing job store reads as empty without being created. The React payments panel loads it on demand under the same per-account key as the rules panel, so an account switch re-reads it. Polling replaces streaming for the demo. Still open in AUTO-14: answering a held challenge from the inbox, and the notification and "paused" outcome checks in its `Done when`. Evidence: `services/test/auto14-inbox-feed.test.ts`; the React shell type-checks; the Compose stack was not run.
+
 ## 25 October 2026 — worker resumes an approved card challenge (AUTO-14, step 2b)
 
 A job held on an automation order's card challenge is now parked for a minute and polled. The broker's new `resume-credential` route issues one resumed credential only after the provider reports the owner approved the challenge; a pending or rejected answer is refused before anything is issued. The replaced permit is closed so its token stops being a session, and a resumed permit is never resumed again. Approve resumes the same order once and records `CHALLENGE_ANSWERED` (`APPROVE`); reject fails the job with the answer recorded and nothing moves. An unconfirmed or refused resume holds the job and is not asked again. This is the one documented exception to the one-credential rule in the permit contract. Evidence: `services/test/auto14-resume.test.ts`, `services/test/auto14-resume-permits.test.ts`, `services/test/auto14-challenge.test.ts`. Not run here: the Compose stack, so the resumed execution against the real provider and Keycloak is unverified. Still open in AUTO-14: the authenticated feed and the React panel (step 3).
