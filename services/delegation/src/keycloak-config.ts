@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { brokerClient, runnerClient, idpAlias } from './policy.ts';
+import { brokerClient, runnerClient, automationWorkerClient, idpAlias } from './policy.ts';
 
 /** Local demo reconciliation only; never deletes/recreates a human user. */
 export async function configureDelegation(api: (path: string, method?: string, body?: any) => Promise<any>) {
@@ -50,5 +50,18 @@ export async function configureDelegation(api: (path: string, method?: string, b
   await api(`/clients/${r.id}/scope-mappings/realm`, 'POST', [role]);
   const serviceUser = await api(`/clients/${r.id}/service-account-user`);
   await api(`/users/${serviceUser.id}/role-mappings/realm`, 'POST', [role]);
+  // Per-execution automation worker: a service account that can only ask the broker for one execution credential.
+  const workerScope = { name: 'automation.execute', protocol: 'openid-connect', attributes: { 'include.in.token.scope': 'true', 'display.on.consent.screen': 'false' } };
+  const foundScope = (await api('/client-scopes')).find((s: any) => s.name === workerScope.name);
+  await api(foundScope ? `/client-scopes/${foundScope.id}` : '/client-scopes', foundScope ? 'PUT' : 'POST', workerScope);
+  const workerSecretPath = '.data/delegation/automation-worker-secret';
+  if (!existsSync(workerSecretPath)) writeFileSync(workerSecretPath, randomBytes(32).toString('base64url'), { mode: 0o600, flag: 'wx' });
+  const worker = { clientId: automationWorkerClient, enabled: true, protocol: 'openid-connect', publicClient: false, clientAuthenticatorType: 'client-secret', secret: readFileSync(workerSecretPath, 'utf8'), standardFlowEnabled: false, directAccessGrantsEnabled: false, serviceAccountsEnabled: true, fullScopeAllowed: false, defaultClientScopes: [], optionalClientScopes: ['automation.execute'], protocolMappers: [audience('delegation-api'), audience('provider-api')], attributes: { 'use.refresh.tokens': 'false', 'access.token.lifespan': '300' } };
+  let [w] = await api(`/clients?clientId=${automationWorkerClient}`);
+  await api(w ? `/clients/${w.id}` : '/clients', w ? 'PUT' : 'POST', worker);
+  [w] = await api(`/clients?clientId=${automationWorkerClient}`);
+  for (const kind of ['default', 'optional']) for (const scope of await api(`/clients/${w.id}/${kind}-client-scopes`)) if (scope.name !== 'automation.execute' || kind === 'default') await api(`/clients/${w.id}/${kind}-client-scopes/${scope.id}`, 'DELETE');
+  const executeScope = (await api('/client-scopes')).find((s: any) => s.name === workerScope.name);
+  await api(`/clients/${w.id}/optional-client-scopes/${executeScope.id}`, 'PUT');
   console.log('Demo JWT-grant IdP, private-key broker, scope policy, runner and existing-user links reconciled. No preview features enabled.');
 }
