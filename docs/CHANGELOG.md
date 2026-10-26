@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 26 October 2026 — P2-01 (step): the Connections view in Arabic
+
+The Connections panel's text is in the catalogs in English and Arabic (title, status, counts, table headers, call lines) and formats its times for the language; its status is kept as an outcome and worded when shown. A first Arabic wording for Connections duplicated the Telecom button's name, which the journey caught, so Connections is "روابط الخدمات". Tests: the catalog parity test and a phone and desktop Arabic journey for the view.
+
 ## 26 October 2026 — P2-06 (step): voice, conversation and CORS defaults and the port tables in one place
 
 `packages/backend-kit/src/local-endpoints.ts` now also holds the local voice and conversation service addresses, the default CORS origins and the application-service and provider port tables, which the gateway, the voice and conversation clients, the domain transport and the provider client read from it; the test that forbids repeating a default covers them. Test: `services/test/p206-local-endpoints.test.ts`.

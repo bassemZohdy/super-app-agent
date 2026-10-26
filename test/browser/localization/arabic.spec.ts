@@ -48,3 +48,19 @@ test.describe('a browser that asks for Arabic first', () => {
     await expect(resident.getByPlaceholder('اسأل راشد أي شيء عن مدينتك…')).toBeVisible();
   });
 });
+
+test('the Connections view is in Arabic when the language is Arabic, and its times and counts follow', async ({ resident }) => {
+  await resident.getByRole('button', { name: 'Conversation settings', exact: true }).click();
+  await resident.getByRole('region', { name: 'Conversation settings', exact: true }).getByLabel('Language', { exact: true }).selectOption('ar');
+  await resident.getByRole('button', { name: 'إغلاق الإعدادات', exact: true }).click();
+  await resident.getByRole('button', { name: 'روابط الخدمات', exact: true }).click();
+  const view = resident.getByRole('region', { name: 'روابط الخدمات', exact: true });
+  await expect(view.getByRole('status').filter({ hasText: 'جميع الروابط (7) متاحة.' })).toBeVisible();
+  await expect(view.getByRole('button', { name: 'فحص الروابط', exact: true })).toBeVisible();
+  await expect(view.getByRole('article', { name: 'رابط Payments' })).toContainText('متاح');
+  await view.getByRole('article', { name: 'رابط Payments' }).getByText('عرض عمليات Payments').click();
+  await expect(view.getByRole('columnheader', { name: 'العملية' })).toBeVisible();
+  await expect(view.getByText('لم تُجرَ أي استدعاءات لك بعد.').or(view.getByRole('list', { name: 'استدعاءات الجهات الأخيرة' }))).toBeVisible();
+  expect(await controlsBelowTarget(resident)).toEqual([]);
+  expect(await sideways(resident)).toBe(false);
+});
