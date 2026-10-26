@@ -39,6 +39,12 @@ Design brief: retain Cityside's Avenir/system type, primary teal, white backgrou
 
 Transitions consume named SSE `progress`, `result` and `error` frames. The authoritative result replaces the panel/transcript. Approval dispatch must match the displayed approval ID; repeated clicks are locked while pending. A connection failure blocks replacement messages and payments until **Recover saved operation** has checked the original operation. **Inspect saved conversation** is read-only; **Cancel conversation** closes a settled/reviewing thread and is unavailable during an unknown outcome. After a process restart, inspection restores the exact saved review. Cancellation never implies a dispatched payment was undone.
 
+### Existing LiteLLM server
+
+The main concierge supports `CONVERSATION_PROVIDER=litellm` with exported `LITELLM_BASE_URL`/`LITELLM_URL` and `LITELLM_API_KEY`. Set `LITELLM_MODEL=glm-5.3` or another advertised identifier such as `MiMo-V2.6-Flash-RL`; [conversation setup](development/local-ai.md#select-a-conversation-provider) describes limits and the local/OpenRouter alternatives. Server keys and internal correlation/approval headers never enter hosted request bodies or the browser.
+
+The focused fines planner uses `AGENT_LLM_PROVIDER=litellm` in private `.env.agent`. Leave `AGENT_LLM_BASE_URL` empty to reuse the existing LiteLLM base, and select `AGENT_LLM_MODEL=glm-5.3`. An explicit base must exactly match the configured gateway before its key can be reused. It defaults to 512 output tokens and 45 seconds for LiteLLM; `AGENT_LLM_MAX_TOKENS` (64–1024) and `AGENT_LLM_TIMEOUT_MS` (100–60000) set bounded overrides. `AGENT_LLM_RESPONSE_FORMAT=prompt` requests plain JSON and still strictly validates the returned plan; `json_object` is available for compatible servers supporting that API parameter. Local/OpenRouter retain their existing defaults. Restart the agent after changing configuration; a model reply never grants approval or execution authority.
+
 ## Configuration
 
 `npm run agent:init` creates private `.env.agent` once, with random local test credentials. The test identity lasts seven days; regenerating configuration is an explicit local operation. `npm start` reads that file. Defaults are loopback port 4300 and `.data/agent.sqlite`. Set `AGENT_PORT`, `AGENT_HOST`, `AGENT_DB_PATH` and `AGENT_SIMULATOR_URL` together when changing addressing. The simulator URL is trusted deployment configuration, never user or model output.

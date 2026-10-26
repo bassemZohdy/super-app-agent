@@ -43,3 +43,13 @@ test('OpenRouter requests enforce zero-price routing and never follow redirects 
   t.mock.method(globalThis, 'fetch', async () => new Response('private provider failure', { status: 401 }));
   await assert.rejects(planner.plan([{ role: 'user', content: 'show fines' }], []), error => error instanceof Error && error.message === 'MODEL_UNAVAILABLE_OR_INVALID_PLAN');
 });
+
+test('the focused planner reuses the LiteLLM environment only for its explicitly selected endpoint', () => {
+  const env = { AGENT_WORKLOAD_KEY: base.AGENT_WORKLOAD_KEY, AGENT_LLM_PROVIDER: 'litellm', LITELLM_BASE_URL: 'https://gateway.example.invalid/v1', LITELLM_MODEL: 'glm-5.3', LITELLM_API_KEY: 'synthetic-litellm-credential', OPENROUTER_API_KEY: base.OPENROUTER_API_KEY };
+  const selected = config(env);
+  assert.equal(selected.AGENT_LLM_BASE_URL?.href, 'https://gateway.example.invalid/v1/');
+  assert.equal(selected.AGENT_LLM_MODEL, 'glm-5.3');
+  assert.ok(selected.AGENT_LLM_KEY === env.LITELLM_API_KEY);
+  assert.throws(() => config({ ...env, AGENT_LLM_BASE_URL: 'https://other.example.invalid/v1/' }), /LITELLM_ENDPOINT_REQUIRED/);
+  assert.throws(() => config({ ...env, LITELLM_API_KEY: '' }), /LITELLM_KEY_REQUIRED/);
+});

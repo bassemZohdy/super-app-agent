@@ -32,3 +32,11 @@ test('model token budgets cap cumulative input per citizen before the call count
   });
   actorContext.run(actorFor({ sub: 'model-token-other-user' }), () => acquireModelBudget(large)());
 });
+
+test('the selected output limit is reserved against the per-actor token budget', () => {
+  const messages = Array.from({ length: 4 }, () => ({ role: 'user', content: 'x'.repeat(4000) }));
+  actorContext.run(actorFor({ sub: 'model-output-reservation-user' }), () => {
+    for (let i = 0; i < 6; i++) acquireModelBudget(messages, 512)();
+    assert.throws(() => acquireModelBudget(messages, 512), /token budget/);
+  });
+});

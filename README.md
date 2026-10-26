@@ -33,6 +33,8 @@ Start `npm run dev:react` in another terminal and open [the fines conversation](
 
 [What exists today](#what-exists-today) · [Documentation index](docs/INDEX.md) · [Open work](TODO.md) · [Verification evidence](docs/reports/README.md)
 
+The main concierge can use the existing LiteLLM server with **GLM 5.3** or **MiMo**, or explicitly select local/free OpenRouter inference. Provider keys stay server-side. See [provider configuration](docs/development/local-ai.md#select-a-conversation-provider).
+
 ## What exists today
 
 | Area | Implemented in the local demo | Not claimed |

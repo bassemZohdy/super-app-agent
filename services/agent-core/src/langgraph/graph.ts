@@ -15,7 +15,7 @@ import { minimiseSurface, minimiseText, modelConsentFor } from '../model-input.t
 import type { AGUISurfacePayload, UIComponentNode } from '../../../../packages/protocol-core/src/index.ts';
 import type { SuperAppAgentState } from './state.ts';
 import { analyzeIntent, hasTerm } from '../domain-router.ts';
-import { invokeLocalConversation, isLocalModelEnabled, LocalConversationError } from '../local-conversation.ts';
+import { invokeConversationModel, isConversationModelEnabled, ConversationModelError, getModelStatus } from '../conversation-model.ts';
 
 import { callDomainAsync } from '../domain-operations.ts';
 import type { UserProfile, UserPreferences } from '../../../service-profile/src/index.ts';
@@ -85,16 +85,16 @@ export class SuperAppAgentGraph {
     const previousSurface = state.currentSurface;
     const historyLength = state.messages.length;
     await this.prepareIntent(state, prompt, onProgress);
-    if (!isLocalModelEnabled()) return state;
+    if (!isConversationModelEnabled()) return state;
 
     // General questions keep the current proposal available for follow-up questions.
     if (state.activeDomain === 'concierge' && previousSurface &&
         !/catalog|all services|available services|cancel|never ?mind|stop/i.test(prompt)) {
       state.currentSurface = { ...previousSurface };
     }
-    onProgress?.('Rashid is thinking with OpenRouter…');
+    onProgress?.(`Rashid is thinking with ${getModelStatus().provider === 'llama.cpp' ? 'the local model' : getModelStatus().provider === 'openrouter' ? 'OpenRouter' : 'LiteLLM'}…`);
     try {
-      const reply = await invokeLocalConversation([
+      const reply = await invokeConversationModel([
         { role: 'system', content: `You are Rashid, a helpful city concierge for Dubai.
 Answer the user's actual question naturally, in their language. Remember prior turns.
 Use one to three short, natural sentences. Avoid markdown, long lists, jargon and repeated greetings. Ask at most one useful follow-up question. You can answer general questions as well as explain city services.
@@ -115,14 +115,14 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
             { type: 'Text', id: 'conversation_text', properties: { text: reply } },
           ] } };
       }
-      state.metadata = { ...state.metadata, inference: { status: 'connected', provider: 'llama.cpp' } };
+      state.metadata = { ...state.metadata, inference: { status: 'connected', provider: getModelStatus().provider } };
     } catch (error) {
-      const message = error instanceof LocalConversationError ? error.message
-        : 'Could not get a reply from the local model. Try a shorter question.';
+      const message = error instanceof ConversationModelError ? error.message
+        : 'Could not get a reply from the selected model. Try a shorter question.';
       // Retain the useful service surface but never present a template as an LLM reply.
       state.messages[state.messages.length - 1].content = message;
-      state.metadata = { ...state.metadata, inference: { status: 'error', provider: 'llama.cpp',
-        code: error instanceof LocalConversationError ? error.code : 'LOCAL_MODEL_UNAVAILABLE' } };
+      state.metadata = { ...state.metadata, inference: { status: 'error', provider: getModelStatus().provider,
+        code: error instanceof ConversationModelError ? error.code : 'LOCAL_MODEL_UNAVAILABLE' } };
     }
     return state;
   }

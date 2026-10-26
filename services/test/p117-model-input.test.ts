@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { minimiseSurface, minimiseText, modelConsentFor, scrubText, REDACTED, WITHHELD } from '../agent-core/src/model-input.ts';
-import { invokeLocalConversation } from '../agent-core/src/local-conversation.ts';
+import { invokeConversationModel } from '../agent-core/src/conversation-model.ts';
 
 // One value per excluded class. Each is built from parts so no real-looking literal sits in the source.
 const RAW = {
@@ -92,7 +92,7 @@ test('P1-17: the model request body carries no raw identifier whatever the calle
   const bodies: string[] = [];
   t.mock.method(globalThis, 'fetch', async (_url: unknown, init: { body: string }) => { bodies.push(init.body); return Response.json({ choices: [{ message: { content: 'ok' } }] }); });
   const everything = Object.values(RAW).join(' | ');
-  await invokeLocalConversation([{ role: 'system', content: `Context: ${everything}` }, { role: 'user', content: `My details: ${everything}` }, { role: 'assistant', content: `Noted ${everything}` }, { role: 'user', content: 'Thanks' }]);
+  await invokeConversationModel([{ role: 'system', content: `Context: ${everything}` }, { role: 'user', content: `My details: ${everything}` }, { role: 'assistant', content: `Noted ${everything}` }, { role: 'user', content: 'Thanks' }]);
   assert.equal(bodies.length, 1);
   for (const [name, value] of Object.entries(RAW)) assert.equal(bodies[0].includes(value), false, `${name} reached the model request`);
   assert.match(bodies[0], new RegExp(REDACTED.replace(/[[\]]/g, '\\$&')));

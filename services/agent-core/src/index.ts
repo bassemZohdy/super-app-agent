@@ -24,7 +24,7 @@ import type { SuperAppAgentState } from './langgraph/state.ts';
 import { executeRuntimeIntent, executeRuntimeAction, discardRuntime } from './langgraph/runtime.ts';
 import { sessionLimitsFromEnv } from './session-limits.ts';
 import { verifyKeycloakToken, isDemoAuthEnabled } from './auth.ts';
-import { localModelStatus } from './local-conversation.ts';
+import { conversationModelStatus } from './conversation-model.ts';
 import { voiceConfig, localSpeech, localTranscription } from './local-voice.ts';
 
 // In-Memory Session and SSE Subscriber Registry
@@ -98,7 +98,7 @@ async function handleGatewayRequest(
 
   // 1. Healthcheck (public, no auth required)
   if (normMethod === 'GET' && pathname === '/health') {
-    const [model, speech] = await Promise.all([localModelStatus(), voiceConfig()]);
+    const [model, speech] = await Promise.all([conversationModelStatus(), voiceConfig()]);
     return {
       status: 200,
       data: {

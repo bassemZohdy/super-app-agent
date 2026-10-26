@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { VoiceClient, type VoiceEnvironment } from '../../packages/protocol-core/src/voice-client.ts';
 import { speechText } from '../../packages/protocol-core/src/voice-text.ts';
 import { localSpeech, localTranscription } from '../agent-core/src/local-voice.ts';
-import { invokeLocalConversation } from '../agent-core/src/local-conversation.ts';
+import { invokeConversationModel } from '../agent-core/src/conversation-model.ts';
 const tick = () => new Promise(resolve => setTimeout(resolve, 10));
 
 function capture() {
@@ -62,7 +62,7 @@ test('local audio and conversation use allowlisted loopback services only, with 
   process.env.VOICE_SERVICE_URL = 'https://external.invalid/'; process.env.CONVERSATION_SERVICE_URL = 'https://external.invalid/';
   let requests = 0; t.mock.method(globalThis, 'fetch', async () => { requests++; throw new Error('Must not fetch'); });
   await assert.rejects(localSpeech('voice-ssrf-test', { text: 'Hello' }), /endpoint/);
-  await assert.rejects(invokeLocalConversation([{ role: 'user', content: 'Hello' }]), /endpoint/);
+  await assert.rejects(invokeConversationModel([{ role: 'user', content: 'Hello' }]), /endpoint/);
   assert.equal(requests, 0);
   process.env.VOICE_SERVICE_URL = 'http://localhost:4200';
   t.mock.method(globalThis, 'fetch', async (_url: unknown, init?: RequestInit) => {

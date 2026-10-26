@@ -53,7 +53,11 @@ npm run demo:down  # preserves named volumes
 
 | Variable | Purpose |
 | --- | --- |
-| ENABLE_LOCAL_LLM | true in Compose; false for deterministic text |
+| ENABLE_LOCAL_LLM | enables the explicitly selected text provider; false for deterministic text |
+| CONVERSATION_PROVIDER | local (default), openrouter or litellm; no automatic fallback |
+| LITELLM_BASE_URL / LITELLM_URL / LITELLM_API_KEY | existing server endpoint and provider-specific key, used only when selected |
+| LITELLM_MODEL / LITELLM_MAX_TOKENS | advertised text model and bounded output limit; defaults glm-5.3 / 512 |
+| OPENROUTER_MODEL / OPENROUTER_API_KEY | explicit free-model inference at the official HTTPS endpoint |
 | CONVERSATION_SERVICE_URL | private llama.cpp endpoint; fixed local hosts only |
 | VOICE_SERVICE_URL | private internal speech endpoint; fixed local hosts only |
 | KEYCLOAK_INTROSPECTION_TIMEOUT_MS | limit for the active-token check, 1000–12000 ms (default 8000); past it the request is refused |

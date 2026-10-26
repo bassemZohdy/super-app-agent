@@ -1,6 +1,25 @@
-# Local open-source text and voice
+# Conversation models and local voice
 
 The current demo uses internal modules. VoiceStudio is unnecessary for its four preset voices, short dictation and conversational replies. No VoiceStudio code, voice cloning, commercial speech API, music or third-party recordings are included.
+
+## Select a conversation provider
+
+Text inference is explicitly selected with `CONVERSATION_PROVIDER=local|openrouter|litellm`; `ENABLE_LOCAL_LLM=true` enables the selected provider (the variable name is retained for compatibility). Provider failures stay visible and never silently switch providers or models.
+
+For an existing LiteLLM server, export `LITELLM_BASE_URL` (or its `LITELLM_URL` alias) and `LITELLM_API_KEY` in the server environment. In private `.env`, set:
+
+```dotenv
+CONVERSATION_PROVIDER=litellm
+ENABLE_LOCAL_LLM=true
+LITELLM_MODEL=glm-5.3
+LITELLM_MAX_TOKENS=512
+```
+
+`MiMo-V2.6-Flash-RL` is an alternative model identifier when advertised by the configured server. The gateway model list is available through its authenticated `models` endpoint. HTTP is allowed only for explicitly configured loopback/Docker-local endpoints; remote endpoints require HTTPS, embedded credentials/query strings are rejected, redirects are refused, and only the LiteLLM key goes to that endpoint. The browser sees the selected provider and model, never its credentials or server URL. Recreate only core after changing its selection: `docker compose -f docker-compose.demo.yml up -d --no-deps --force-recreate agent-core`.
+
+For direct OpenRouter, select `CONVERSATION_PROVIDER=openrouter`, export `OPENROUTER_API_KEY`, and use `OPENROUTER_MODEL=openrouter/free` or a `:free` model. Requests go only to the official HTTPS endpoint and cap prompt/completion prices at zero. The local provider never receives either hosted key. Health distinguishes configuration from a recent actual reply; it does not probe remote services with credentials on every refresh.
+
+Voice is optional for text chat and has a separate local service configuration. A gateway may advertise audio-transcription/audio-speech models through `model/info`; that does not establish microphone, language or playback quality. Selecting a text provider does not transmit microphone recordings to it. Existing voice capture remains gesture-bound and produces an editable draft before Send.
 
 ## Start and verify
 
@@ -43,11 +62,11 @@ Every model request goes through `services/agent-core/src/model-input.ts`. Raw i
 
 ## Configuration, bounds and failures
 
-Compose sets `ENABLE_LOCAL_LLM=true`, `CONVERSATION_SERVICE_URL=http://conversation:4201` and `VOICE_SERVICE_URL=http://voice:4200`. Set `ENABLE_LOCAL_LLM=false` and recreate core for deterministic text. The setup readiness gate accepts explicitly disabled text inference and still requires speech readiness. The `.env.example` loopback endpoints are host-runner defaults; Compose supplies private DNS endpoints. The retained OpenRouter helper/diagnostic is explicit legacy tooling and is not imported by the active graph or core. Compose does not forward the key.
+Compose sets `ENABLE_LOCAL_LLM=true`, `CONVERSATION_SERVICE_URL=http://conversation:4201` and `VOICE_SERVICE_URL=http://voice:4200`. Set `ENABLE_LOCAL_LLM=false` and recreate core for deterministic text. The setup readiness gate accepts explicitly disabled text inference and still requires speech readiness. The `.env.example` loopback endpoints are host-runner defaults; Compose supplies private DNS endpoints. Compose forwards the explicitly selected text provider configuration only to core; provider keys remain server-side.
 
-Core accepts only fixed local inference hosts and paths. Callers cannot choose model URLs or files. Authenticated speech requests allow installed presets, English TTS, bounded text/audio and one active request per actor (20/minute, two process-wide). CPU speech work is serial. Uploaded audio must have a matching media signature; FFmpeg is restricted to pipe input, forced demuxers, duration/output/time bounds. Text and audio stay in RAM and are not logged or written by inference. The local verification scripts deliberately write their synthetic fixture and the original public sample. Submitted transcripts/replies follow normal Redis chat retention (100 turns and configured session TTL).
+The local provider accepts only fixed local inference hosts and paths. Explicitly selected hosted providers use their separate validated server configuration. Callers cannot choose model URLs or files. Authenticated speech requests allow installed presets, English TTS, bounded text/audio and one active request per actor (20/minute, two process-wide). CPU speech work is serial. Uploaded audio must have a matching media signature; FFmpeg is restricted to pipe input, forced demuxers, duration/output/time bounds. Text and audio stay in RAM and are not logged or written by inference. The local verification scripts deliberately write their synthetic fixture and the original public sample. Submitted transcripts/replies follow normal Redis chat retention (100 turns and configured session TTL).
 
-Model requests use at most the latest 12 messages, a 24 KiB content budget, 192 output tokens, 45 seconds and 30 calls/hour per actor/account. Model prose never grants tool authority or bypasses confirmed service actions. Failures are visible; text/manual service controls remain available. Cancellation stops browser capture/upload/playback; an already-running server inference may finish within its bounded deadline.
+Model requests use at most the latest 12 messages, a 24 KiB content budget, 192 output tokens for local/OpenRouter or a validated 64–1024 LiteLLM output limit (512 by default), 45 seconds and 30 calls/hour per actor/account. Model prose never grants tool authority or bypasses confirmed service actions. Failures are visible; text/manual service controls remain available. Cancellation stops browser capture/upload/playback; an already-running server inference may finish within its bounded deadline.
 
 The conversation container explicitly probes `http://127.0.0.1:4201/health`; the pinned upstream image defaults to port 8080, which does not match this private service. A green container check confirms readiness, while `local-ai:verify` additionally proves real inference.
 
