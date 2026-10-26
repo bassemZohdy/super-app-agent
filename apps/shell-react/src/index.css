@@ -178,9 +178,9 @@ h1 { font-size: clamp(var(--font-size-2xl), 3.2vw, calc(var(--font-size-2xl) * 1
 .payment-fine-selection legend { padding: 0 6px; font-weight: 600; }
 .payment-accounts .payment-fine-selection label { flex-direction: row; align-items: center; gap: 10px; padding: 8px 0; margin: 4px 0; overflow-wrap: anywhere; }
 .payment-accounts .payment-fine-selection input[type="checkbox"] { width: 18px; height: 18px; padding: 0; flex: 0 0 18px; accent-color: var(--color-text-muted); }
-.payment-accounts input, .payment-accounts select { border: 1px solid var(--color-surface-border); border-radius: 7px; padding: 9px; color: var(--color-text-muted); background: white; max-width: 100%; font: inherit; }
-.payment-accounts button { cursor: pointer; border: 1px solid var(--color-text-muted); border-radius: 6px; background: var(--color-text-muted); color: var(--color-text-muted); padding: 8px 11px; font: inherit; }
-.payment-accounts button:disabled { opacity: .55; cursor: default; } .payment-accounts :focus-visible { outline: 3px solid var(--color-text-muted); outline-offset: 3px; }
+.payment-accounts input, .payment-accounts select { border: 1px solid var(--color-surface-border); border-radius: 7px; padding: 9px; color: var(--color-text-muted); background: var(--input-background); max-width: 100%; font: inherit; }
+.payment-accounts button { cursor: pointer; border: 1px solid var(--button-background); border-radius: 6px; background: var(--button-background); color: var(--button-text); padding: 8px 11px; font: inherit; }
+.payment-accounts button:disabled { opacity: .55; cursor: default; } .payment-accounts :focus-visible { outline: 3px solid var(--color-focus-ring); outline-offset: 3px; }
 .payment-accounts ul { padding: 0; list-style: none; } .payment-accounts li { padding: 16px 0; border-bottom: 1px solid var(--color-surface-border); overflow-wrap: anywhere; }
 .payment-actions { display: flex; gap: 8px; flex-wrap: wrap; } .payment-summary { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; padding: 20px 0; }
 .payment-summary strong { font-size: 25px; } .payment-notice { color: var(--color-warning-text); }
