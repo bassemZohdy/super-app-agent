@@ -182,6 +182,20 @@ const en = {
   'payments.n.pending': 'Simulated issuer decision pending. Card capacity is reserved; no payment captured.',
   'payments.n.action': 'Complete the bound demo card challenge to continue.',
   'payments.n.cancelled': 'Authorization review cancelled. Holds released.',
+  'receipt.recharge': 'Confirmed recharge receipt',
+  'receipt.bill': 'Confirmed bill receipt',
+  'receipt.fine': 'Confirmed fine receipt',
+  'receipt.rechargeApplied': 'Recharge applied',
+  'receipt.billPaid': 'Bill paid',
+  'receipt.finesPaid': 'Fines paid',
+  'receipt.number': 'Receipt {number}',
+  'receipt.paidFrom': 'Paid from {source} · Provider confirmed',
+  'receipt.rechargeTarget': 'Target {reference} · Provider balance after {balance}',
+  'receipt.originalFunding': 'Original funding {source}',
+  'receipt.linkedTarget': 'Linked target {target}',
+  'receipt.amounts': 'Amount {amount} · Fees {fees} · Total {total}',
+  'receipt.correlation': 'Correlation {reference} · Refunded {refunded}',
+  'receipt.refundState': 'Original payment {state} · Returned {amount} to {source}. The receipt below records the original capture.',
 } as const;
 
 export type CatalogKey = keyof typeof en;
@@ -362,6 +376,20 @@ const ar: Record<CatalogKey, string> = {
   'payments.n.pending': 'قرار المُصدر التجريبي معلق. سعة البطاقة محجوزة ولم يُسجَّل أي دفع.',
   'payments.n.action': 'أكمل تحدي البطاقة التجريبية المرتبط للمتابعة.',
   'payments.n.cancelled': 'أُلغيت مراجعة التفويض. تم تحرير الحجوزات.',
+  'receipt.recharge': 'إيصال شحن مؤكد',
+  'receipt.bill': 'إيصال فاتورة مؤكد',
+  'receipt.fine': 'إيصال مخالفة مؤكد',
+  'receipt.rechargeApplied': 'تم الشحن',
+  'receipt.billPaid': 'تم دفع الفاتورة',
+  'receipt.finesPaid': 'تم دفع المخالفات',
+  'receipt.number': 'الإيصال {number}',
+  'receipt.paidFrom': 'المدفوع من {source} · أكده المزود',
+  'receipt.rechargeTarget': 'الهدف {reference} · رصيد المزود بعد العملية {balance}',
+  'receipt.originalFunding': 'مصدر التمويل الأصلي {source}',
+  'receipt.linkedTarget': 'الهدف المرتبط {target}',
+  'receipt.amounts': 'المبلغ {amount} · الرسوم {fees} · الإجمالي {total}',
+  'receipt.correlation': 'مرجع الربط {reference} · المسترد {refunded}',
+  'receipt.refundState': 'الدفعة الأصلية {state} · أُعيد {amount} إلى {source}. يسجل الإيصال أدناه عملية التسجيل الأصلية.',
 };
 
 export const CATALOGS: Readonly<Record<Locale, Readonly<Record<CatalogKey, string>>>> = { en, ar };

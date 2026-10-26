@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 26 October 2026 — P2-01 (step): authorization receipts in Arabic
+
+The receipt of a paid authorization review (title, number, original funding, linked target, amounts, correlation and refund note) follows the shell language through `receipt.*` catalog keys; the shared receipt facts component takes a `locale`, English by default, so the wallet top-up, refund and checkout panels are unchanged until they pass it.
+
 ## 26 October 2026 — P2-01 (step): quote preview and authorization reviews in Arabic
 
 The quote preview and the Authorization reviews section (amounts, state, approve, challenge, pay, inspect, cancel) and the notices after each action follow the shell language, with times from the locale formatter. Receipts and the panels below stay English for now. The English payment, failure and automation journeys and the Arabic spec pass unchanged.
