@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 26 October 2026 — P2-01 (step): quote preview and authorization reviews in Arabic
+
+The quote preview and the Authorization reviews section (amounts, state, approve, challenge, pay, inspect, cancel) and the notices after each action follow the shell language, with times from the locale formatter. Receipts and the panels below stay English for now. The English payment, failure and automation journeys and the Arabic spec pass unchanged.
+
 ## 26 October 2026 — P2-01 (step): bills, fines and the payment review form in Arabic
 
 The Bills & fines list (due dates, cycles, discounts, restricted and seeded notes) and the Review a payment form (obligation and source pickers, fine selection, quote button) follow the shell language. Amounts and discount times use the locale formatters; provider statuses stay as the provider names them. The English payment, failure and automation journeys and the Arabic spec pass unchanged.

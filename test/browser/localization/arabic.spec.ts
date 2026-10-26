@@ -77,6 +77,7 @@ test('amounts on the payment screen follow the language: AED in English, د.إ i
   await expect(accounts.getByRole('region', { name: 'طرق التمويل المحفوظة' }).getByRole('button', { name: 'إضافة بطاقة تجريبية', exact: true })).toBeVisible();
   await expect(accounts.getByRole('region', { name: 'حسابات الفواتير المرتبطة' }).getByRole('heading', { name: 'حسابات فواتيرك' })).toBeVisible();
   await expect(accounts.getByRole('region', { name: 'الفواتير والمخالفات', exact: true })).toBeVisible();
+  await expect(accounts.getByRole('region', { name: 'مراجعات التفويض', exact: true }).getByText('لا توجد مراجعات تفويض محفوظة بعد.')).toBeVisible();
   await expect(accounts.getByRole('region', { name: 'مراجعة الدفع', exact: true }).getByRole('button', { name: 'مراجعة عرض الدفع', exact: true })).toBeVisible();
   await expect(resident.getByText('1500٫00 د.إ').first()).toBeVisible();
   await expect(resident.getByText('AED 1500.00')).toHaveCount(0);
