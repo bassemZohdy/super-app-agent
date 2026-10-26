@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 26 October 2026 — P2-01 (step): the Delegated access panel in Arabic
+
+The panel's own text (heading, scope notice, buttons, status line, empty state, revoke notice) and its amounts and times come from the catalogs and formatters; the grant purpose and run result are the gateway's English text. Test: a phone and desktop Arabic journey; the English journeys are unchanged.
+
 ## 26 October 2026 — P2-01 (step): every amount follows the language
 
 `formatAED` now takes the language from `setAmountLocale`, which the React shell sets when the resident chooses one, so the 63 places that show an amount show `1500٫00 د.إ` in Arabic and keep `AED 1500.00` in English (neither groups thousands, so widths do not change). Tests: the formatter in `services/test/p201-i18n.test.ts` and a phone and desktop journey on the payment screen.

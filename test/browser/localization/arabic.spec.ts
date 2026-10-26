@@ -74,3 +74,15 @@ test('amounts on the payment screen follow the language: AED in English, د.إ i
   await expect(resident.getByText('AED 1500.00')).toHaveCount(0);
   expect(await sideways(resident)).toBe(false);
 });
+
+test('the delegated access panel is in Arabic, with the same controls and no sideways scroll', async ({ resident }) => {
+  await resident.getByRole('button', { name: 'Conversation settings', exact: true }).click();
+  await resident.getByRole('region', { name: 'Conversation settings', exact: true }).getByLabel('Language', { exact: true }).selectOption('ar');
+  await resident.getByRole('button', { name: 'إغلاق الإعدادات', exact: true }).click();
+  await resident.getByRole('button', { name: 'الوصول المفوّض', exact: true }).click();
+  const panel = resident.getByRole('region', { name: 'الوصول المفوّض', exact: true });
+  for (const name of ['السماح بما يصل إلى 3 عمليات للاطلاع على رصيد المحفظة', 'الموافقة على إضافة درهم واحد تجريبي إلى المحفظة', 'تحديث التفويضات']) await expect(panel.getByRole('button', { name, exact: true })).toBeVisible();
+  await expect(panel.getByText('لا توجد تفويضات لهذا الحساب.')).toBeVisible();
+  expect(await controlsBelowTarget(resident)).toEqual([]);
+  expect(await sideways(resident)).toBe(false);
+});
