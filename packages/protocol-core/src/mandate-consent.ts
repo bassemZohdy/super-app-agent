@@ -30,6 +30,7 @@ type Loose = Record<string, unknown>;
 
 const STATE_LABELS: Record<string, string> = {
   APPROVED: 'Approved',
+  PAUSED: 'Paused',
   AWAITING_APPROVAL: 'Awaiting your approval',
   REVOKED: 'Revoked',
   EXPIRED: 'Expired',
@@ -126,6 +127,9 @@ function describeExpiry(state: unknown, policy: Loose, record: Loose): string {
 function describeRevocation(state: unknown): string {
   if (state === 'REVOKED') {
     return 'Revoked: no new runs are admitted under this rule. Captured payments are not reversed by revocation.';
+  }
+  if (state === 'PAUSED') {
+    return 'Paused: no new runs are admitted while paused. Your consent is kept; resuming revalidates the current sources and target. Captured payments are not reversed.';
   }
   if (state === 'EXPIRED') {
     return 'Expired: no new runs are admitted after the window ends. Payments already captured are not reversed.';

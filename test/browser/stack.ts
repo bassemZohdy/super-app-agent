@@ -9,6 +9,7 @@ import { keycloakIssuerUrl } from '../../scripts/endpoints.ts';
 import { startEnvironment } from '../../scripts/e2e/environment.ts';
 import type { AccountDatabase } from '../../services/provider-simulator/src/database.ts';
 import type { PayableProvider, ProviderPayables } from '../../services/provider-simulator/src/payables.ts';
+import { clearFailpoints } from '../../services/provider-simulator/src/failpoints.ts';
 import { providerRunControls, refreshingToken } from '../../scripts/operator-console/provider-controls.ts';
 import type { RunControls } from '../../scripts/operator-console/console.ts';
 import { expect, test as base } from './fixtures.ts';
@@ -60,7 +61,9 @@ async function startStack(options: { isolatedRun?: boolean } = {}): Promise<{ st
       },
     };
   }
-  return { stack, scenario, stop: () => environment.cleanup() };
+  // Failpoints live in the provider module of this worker, not in a run: clear them so one journey's armed point or fired count never reaches the next.
+  clearFailpoints();
+  return { stack, scenario, stop: async () => { try { await environment.cleanup(); } finally { clearFailpoints(); } } };
 }
 
 async function signIn(page: Page, stack: Stack) {

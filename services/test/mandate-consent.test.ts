@@ -62,6 +62,13 @@ test('expired mandate is labelled expired and states that no new runs are admitt
   assert.match(view.revocation, /no new runs/i);
 });
 
+test('QA-06: a paused rule is labelled paused and says its consent is kept, not an unknown state', () => {
+  const view = describeMandateConsent(record({ state: 'PAUSED' }));
+  assert.match(view.status, /^Paused/);
+  assert.doesNotMatch(view.status, /Unknown/);
+  assert.match(view.revocation, /Paused: no new runs/);
+});
+
 test('revoked mandate states that future runs are stopped and does not claim reversal', () => {
   const view = describeMandateConsent(record({ state: 'REVOKED' }));
   assert.match(view.status, /^Revoked/);
