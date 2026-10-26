@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 26 October 2026 — P2-01 (step): bills, fines and the payment review form in Arabic
+
+The Bills & fines list (due dates, cycles, discounts, restricted and seeded notes) and the Review a payment form (obligation and source pickers, fine selection, quote button) follow the shell language. Amounts and discount times use the locale formatters; provider statuses stay as the provider names them. The English payment, failure and automation journeys and the Arabic spec pass unchanged.
+
 ## 26 October 2026 — P2-01 (step): demo cards and biller accounts in Arabic
 
 The Payment accounts sections for demo cards (add, default, enable, disable, remove) and linked biller accounts (link, archive, balances) are translated, with the card statuses and presets still as the provider names them. The English payment, failure and automation journeys and the Arabic spec pass unchanged.
