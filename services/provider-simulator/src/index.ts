@@ -10,7 +10,7 @@ import { verifyMandateTarget } from './mandate-targets.ts';
 import { issuerScenarioSchemas } from '../../../packages/protocol-core/src/issuer-scenarios.ts';
 import { IssuerScenarioError,type IssuerScenarioContext } from './issuer-scenarios.ts';
 import { AutomationRunError,automationRunSchemas } from './automation-runs.ts';
-import { ScenarioControlError, scenarioArmSchema } from './scenario-controls.ts';
+import { ScenarioControlError, scenarioArmSchema, scenarioResetSchema } from './scenario-controls.ts';
 import { inspectRun } from './run-inspector.ts';
 import { startPaymentEventDelivery } from './payment-events.ts';
 import type { PaymentEvent } from '../../../packages/protocol-core/src/payment-events.ts';
@@ -43,7 +43,7 @@ import { ProviderEngine, ApiError, type ApiResult } from './engine.ts';
 import { operations, openApi, providerIds, type ProviderId } from './contracts.ts';
 export const callers: Record<ProviderId, string[]> = { rta: ['service-ride','service-catalog','service-wallet'], dewa: ['service-food','service-wallet','service-catalog'], etisalat: ['service-telecom'], du: ['service-telecom'], police: ['service-wallet'], dld: ['service-catalog'], payments: ['service-wallet','service-food','service-ride','service-telecom','provider-settlements'] };
 const canonical = (value: any): any => Array.isArray(value) ? value.map(canonical) : value && typeof value === 'object' ? Object.fromEntries(Object.keys(value).sort().map(k => [k, canonical(value[k])])) : value;
-export function createProviderServer(provider: ProviderId, path: string, options:{authorizationClock?:()=>number;settlementTransport?:ClaimTransport;paymentClient?:ProviderClient;issuerScenario?:IssuerScenarioContext;automationRun?:import('./automation-runs.ts').AutomationRunContext;automationIo?:import('./automation-runs.ts').AutomationRunIo;permitAuthority?:PermitAuthority;sessionReader?:(authorization:string|undefined)=>Promise<AutomationSession>}={}) {
+export function createProviderServer(provider: ProviderId, path: string, options:{authorizationClock?:()=>number;settlementTransport?:ClaimTransport;paymentClient?:ProviderClient;issuerScenario?:IssuerScenarioContext;resetRun?:(request:{runId:string;operatorSub:string})=>void;automationRun?:import('./automation-runs.ts').AutomationRunContext;automationIo?:import('./automation-runs.ts').AutomationRunIo;permitAuthority?:PermitAuthority;sessionReader?:(authorization:string|undefined)=>Promise<AutomationSession>}={}) {
   const store = new AccountDatabase(path), engine = new ProviderEngine(provider, store,options);
   const ajv = new Ajv({ strict: false, allErrors: true });
   const routes = operations[provider].map(operation => ({ ...operation, regex: new RegExp(`^${operation.path.replace(/\{\w+\}/g, '[^/]+')}$`), validate: operation.body ? ajv.compile(operation.body) : undefined }));
@@ -81,7 +81,7 @@ export function createProviderServer(provider: ProviderId, path: string, options
         if(req.method==='POST'&&kind==='account-eligibility'&&operator){const input=await readJsonBody(req);if(!validateEligibility(input))throw new ApiError(400,'VALIDATION_ERROR','Use the exact versioned eligibility decision.');const key=req.headers['idempotency-key'];if(typeof key!=='string')throw new ApiError(400,'IDEMPOTENCY_REQUIRED','An operator request key is required.');return send({status:200,data:{success:true,eligibility:store.eligibility!.change(account,input,claims.sub,key)}});}
         throw new ApiError(403,'ELIGIBILITY_OPERATION_DENIED','This workload cannot change or inspect this eligibility operation.');
       }
-      const controlRoute=/^\/internal\/scenario-controls\/(simrun_[a-f0-9-]{36})(?:\/(arm|clear|inspect|export))?$/.exec(url.pathname);
+      const controlRoute=/^\/internal\/scenario-controls\/(simrun_[a-f0-9-]{36})(?:\/(arm|clear|inspect|export|reset))?$/.exec(url.pathname);
       if(url.pathname.startsWith('/internal/scenario-controls/')){
         const controls=store.scenarioControls;
         if(!controls||!controlRoute||url.search||controlRoute[1]!==controls.run.context.runId)throw new ApiError(404,'SCENARIO_CONTROLS_NOT_FOUND','No scenario controls are installed for this run.');
@@ -101,6 +101,14 @@ export function createProviderServer(provider: ProviderId, path: string, options
           const input=await readJsonBody(req);
           if(!ajv.validate(scenarioArmSchema,input))throw new ApiError(400,'VALIDATION_ERROR','Arm a named failpoint with a bounded count and operator key.');
           return send({status:200,data:{success:true,...controls.arm(claims.sub,input as {name:string;times?:number;requestKey:string})}});
+        }
+        if(req.method==='POST'&&controlRoute[2]==='reset'){
+          if(!options.resetRun)throw new ApiError(409,'SCENARIO_RESET_UNAVAILABLE','This run has no host that can replace its database.');
+          const input=await readJsonBody(req);
+          if(!ajv.validate(scenarioResetSchema,input))throw new ApiError(400,'VALIDATION_ERROR','Reset needs a bounded operator request key.');
+          const {fresh,...outcome}=controls.reset(claims.sub,(input as {requestKey:string}).requestKey);
+          if(fresh){const request={runId:controls.run.context.runId,operatorSub:claims.sub};setImmediate(()=>options.resetRun!(request));}
+          return send({status:200,data:{success:true,...outcome}});
         }
         if(req.method==='POST'&&controlRoute[2]==='clear')return send({status:200,data:{success:true,...controls.clear(claims.sub)}});
         throw new ApiError(404,'SCENARIO_CONTROLS_NOT_FOUND','Unknown scenario control operation.');

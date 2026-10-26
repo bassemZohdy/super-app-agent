@@ -11,6 +11,9 @@ import { redact } from '../../../packages/backend-kit/src/redact.ts';
 
 export type ScenarioArmInput = { name: string; times?: number; requestKey: string };
 
+/** Request schema for asking the host to reset the run; only a bounded operator key is accepted. */
+export const scenarioResetSchema={type:'object',properties:{requestKey:{type:'string',pattern:'^[A-Za-z0-9_-]{8,100}$',minLength:8,maxLength:100}},required:['requestKey'],additionalProperties:false};
+
 export class ScenarioControlError extends Error { readonly status:number; readonly code:string;
   constructor(status:number,code:string,message:string){super(message);this.status=status;this.code=code;} }
 const deny=(code:string,message:string,status=409):never=>{throw new ScenarioControlError(status,code,message);};
@@ -59,6 +62,22 @@ export class ScenarioControls{
       clearFailpoints();
       this.audit(subject,'CLEARED',{fired:before});
       return {cleared:true};
+    });
+  }
+  /** Ask the host to replace this run's database with a fresh, reseeded one. The server cannot swap its own store, so this only
+   *  validates the operator, drops armed failpoints and records the request; `fresh` is true once per request key and the
+   *  caller hands that to the host. Sealed journals block an in-place restore, so nothing here deletes rows. */
+  reset(subject:string,requestKey:string){
+    this.operator(subject);
+    if(!/^[A-Za-z0-9_-]{8,100}$/.test(requestKey))return deny('SCENARIO_CONTROL_INVALID','Use a bounded operator request key.',400);
+    return this.store.transaction(()=>{
+      const prior=this.store.db.prepare('SELECT fingerprint,body FROM scenario_control_requests WHERE key=?').get(requestKey);
+      if(prior){if(prior.fingerprint!==JSON.stringify(['reset']))return deny('SCENARIO_CONTROL_CONFLICT','This operator request key already has different terms.');return {...JSON.parse(String(prior.body)),fresh:false};}
+      clearFailpoints();
+      const result={resetRequested:true,runId:this.run.context.runId};
+      this.audit(subject,'RESET_REQUESTED',{});
+      this.store.db.prepare('INSERT OR IGNORE INTO scenario_control_requests VALUES(?,?,?)').run(requestKey,JSON.stringify(['reset']),JSON.stringify(result));
+      return {...result,fresh:true};
     });
   }
   /** Redacted counters for the run: which boundaries are armed and how often they fired. */

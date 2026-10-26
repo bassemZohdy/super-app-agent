@@ -93,7 +93,7 @@ export async function startEnvironment(options:{authorizationClock?:()=>number;i
     for (const [index, name] of providerIds.entries()) {
       const settlementTransport=name!=='payments'&&name!=='dld'?new SettlementClient(name):undefined;
       if(settlementTransport){const send=settlementTransport.call.bind(settlementTransport);settlementTransport.call=async(...args:Parameters<typeof send>)=>{if(args[2]==='ack'&&heldAcknowledgements.has(name))throw new Error('Isolated test holds original provider acknowledgement.');return send(...args);};}
-      const provider = createProviderServer(name, join(dir, `${name}.sqlite`),name==='payments'?{authorizationClock:options.authorizationClock,paymentClient,issuerScenario,automationRun,automationIo}:{settlementTransport});
+      const provider = createProviderServer(name, join(dir, `${name}.sqlite`),name==='payments'?{authorizationClock:options.authorizationClock,paymentClient,issuerScenario,resetRun:request=>void restartPayments(request),automationRun,automationIo}:{settlementTransport});
       providerServers.set(name,provider.server);providerStores.set(name, provider.store);if(name==='payments')paymentInstance=provider;
       databases.push(provider.store.db); await listen(provider.server, corePort + 101 + index);
     }
@@ -134,9 +134,9 @@ export async function startEnvironment(options:{authorizationClock?:()=>number;i
     }
     const { PaymentResourceUses } = await import('../../services/provider-simulator/src/payment-resource-uses.ts');
     const { ProviderPayables } = await import('../../services/provider-simulator/src/payables.ts');
-    const restartPayments=async()=>{
-      assert.ok(paymentInstance);const old=paymentInstance;await new Promise<void>(done=>{old.server.closeAllConnections();old.server.close(()=>done());});old.store.close();servers.splice(servers.indexOf(old.server),1);databases.splice(databases.indexOf(old.store.db),1);
-      const next=createProviderServer('payments',join(dir,'payments.sqlite'),{authorizationClock:options.authorizationClock,paymentClient,issuerScenario,automationRun,automationIo});paymentInstance=next;providerStores.set('payments',next.store);databases.push(next.store.db);await listen(next.server,corePort+107);
+    const restartPayments=async(reset?:{runId:string;operatorSub:string})=>{
+      assert.ok(paymentInstance);const old=paymentInstance;await new Promise<void>(done=>{old.server.closeAllConnections();old.server.close(()=>done());});old.store.close();servers.splice(servers.indexOf(old.server),1);databases.splice(databases.indexOf(old.store.db),1);if(reset){const {resetRunDatabase}=await import('../../services/provider-simulator/src/run-reset.ts');resetRunDatabase(dir,reset.runId,reset.operatorSub);}
+      const next=createProviderServer('payments',join(dir,'payments.sqlite'),{authorizationClock:options.authorizationClock,paymentClient,issuerScenario,resetRun:request=>void restartPayments(request),automationRun,automationIo});paymentInstance=next;providerStores.set('payments',next.store);databases.push(next.store.db);await listen(next.server,corePort+107);
     };
     const assertPaymentSource=(provider:string)=>assert.ok(['dewa','etisalat','du','police','rta'].includes(provider));
     return { appUrl, coreUrl, corePort, cleanup,

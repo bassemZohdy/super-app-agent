@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 26 October 2026 — run-scoped reset through the scenario controls (SIM-05, step)
+
+`POST /internal/scenario-controls/{run}/reset` lets the run's operator ask the host to replace the isolated run's database with a fresh, reseeded one. Sealed journals block an in-place restore, so the server only validates, audits and drops armed failpoints; the host deletes `payments.sqlite` and its WAL files inside the dedicated run directory and reopens the store on the same run context. A normal demo directory is refused, and each reset is logged outside the erased database. Evidence: `services/test/sim05-reset.test.ts` (7 tests); not yet run on the stack. SIM-05 stays open for the control-panel UI and that stack run. Guide: [issuer scenarios](development/issuer-scenarios.md#verified-boundary-and-remaining-work).
+
 ## 26 October 2026 — ledger invariant sequence test (QA-02, partial)
 
 A sequence test holds, captures and voids funds and asserts that available equals posted minus held at every step, that a refused hold changes nothing, and that a capture moves exactly its amount (`services/test/qa02-ledger-invariants.test.ts`). QA-02 stays open: its tracker entry names the clearing-account reconciliation and the general per-period budget invariants that remain.
