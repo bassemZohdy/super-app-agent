@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 27 October 2026 — P2-01 (step): wallet top-up in Arabic
+
+The wallet top-up panel (form, review cards, challenge and cancel actions, receipt and refund note) and the notices after each action follow the shell language through `wallet.*` catalog keys; its receipt facts now take the language too. English text is unchanged. Refund and checkout panels stay English for now. Taken ahead of the critical path because P1-04 is blocked here: the SQLite binding is not built (npm blocks its install script), so no agent-core test can run.
+
 ## 26 October 2026 — P2-01 (step): authorization receipts in Arabic
 
 The receipt of a paid authorization review (title, number, original funding, linked target, amounts, correlation and refund note) follows the shell language through `receipt.*` catalog keys; the shared receipt facts component takes a `locale`, English by default, so the wallet top-up, refund and checkout panels are unchanged until they pass it.
