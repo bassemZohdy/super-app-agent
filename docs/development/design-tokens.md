@@ -22,6 +22,7 @@ A fill and a text color are separate roles. `success`, `warning` and `danger` ar
 | --- | --- |
 | `packages/ui-tokens/src/theme.css` | React and Angular. Keeps every variable the shells already used (`--color-primary`, `--spacing-small`, …) with the same values, and adds `--primitive-color-*` and component variables such as `--button-background`. |
 | `packages/ui-tokens/src/tokens.json` | the `UI_TOKENS` import. Keeps its original keys and adds `colorsDark` and `components`. |
+| `packages/ui-tokens/src/a11y.css` | Hand-written, not generated. The shared reduced-motion rule, loaded as a global stylesheet by React (`@import` in `index.css`) and Angular (`angular.json` `styles`, with `theme.css`). It must be global: Angular's component-scoped `*` rule never reaches `html`, `body` or the app host. |
 | `apps/shell-flutter/lib/theme/tokens.g.dart` | Flutter: `CitysideTokens` colors (light and `dark…`), spacing and radii. It is generated text and is not compiled by any check here because there is no Dart toolchain in this environment. |
 
 Do not edit these three files; change the source.

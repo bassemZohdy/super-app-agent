@@ -17,6 +17,10 @@
             "tsConfig": "tsconfig.json",
             "index": "src/index.html",
             "outputPath": "dist",
+            "styles": [
+              "../../packages/ui-tokens/src/theme.css",
+              "../../packages/ui-tokens/src/a11y.css"
+            ],
             "polyfills": [
               "zone.js"
             ],

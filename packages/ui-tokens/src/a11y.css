@@ -1,0 +1,5 @@
+/* Shared accessibility floor for every web shell (P2-14). Hand-written, not generated: load it as a global stylesheet, because a
+   component-scoped `*` rule (Angular's emulated encapsulation) never reaches html, body or the app host. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}

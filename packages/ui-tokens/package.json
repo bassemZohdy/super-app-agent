@@ -8,6 +8,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./theme.css": "./src/theme.css",
+    "./a11y.css": "./src/a11y.css",
     "./tokens.json": "./src/tokens.json"
   },
   "scripts": {
