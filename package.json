@@ -33,6 +33,7 @@
     "test:keycloak": "node --experimental-strip-types scripts/test-keycloak.ts",
     "demo:up": "docker compose -f docker-compose.demo.yml up -d && npm run demo:wait && npm run demo:delegation:realm && npm run local-ai:up",
     "demo:wait": "node --experimental-strip-types scripts/wait-demo-stack.ts",
+    "qualify": "node --experimental-strip-types scripts/qualification-stack.ts",
     "demo:down": "docker compose -f docker-compose.demo.yml --profile local-ai down",
     "demo:logs": "docker compose -f docker-compose.demo.yml logs -f",
     "demo:verify:security": "node --experimental-strip-types scripts/verify-demo-security.ts",

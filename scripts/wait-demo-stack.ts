@@ -1,21 +1,22 @@
 /** Wait for local demo endpoints; never print credentials or response bodies. */
 import { setTimeout as delay } from 'node:timers/promises';
+import { demoPortOffset } from './endpoints.ts';
 
 const host = process.env.DEMO_HOST || 'localhost';
-const issuer = process.env.DEMO_KEYCLOAK_URL || `http://${host}:8085/realms/superapp`;
+const issuer = process.env.DEMO_KEYCLOAK_URL || `http://${host}:${8085 + demoPortOffset}/realms/superapp`;
 const checks = new Map<string, { url: string; accept: (data: any) => boolean }>([
-  ['Delegation broker', { url: `http://${host}:4010/health`, accept: data => data.status === 'ok' && data.service === 'delegation-broker' }],
+  ['Delegation broker', { url: `http://${host}:${4010 + demoPortOffset}/health`, accept: data => data.status === 'ok' && data.service === 'delegation-broker' }],
   ['Keycloak realm', { url: `${issuer}/.well-known/openid-configuration`,
     accept: data => data.issuer === issuer && typeof data.token_endpoint === 'string' }],
-  ['Concierge', { url: `${process.env.DEMO_GATEWAY_URL || `http://${host}:4000`}/health`,
+  ['Concierge', { url: `${process.env.DEMO_GATEWAY_URL || `http://${host}:${4000 + demoPortOffset}`}/health`,
     accept: data => data.status === 'ok' && data.integration === 'rest-providers' && data.sessions?.store === 'redis' }],
 ]);
 for (const [index, service] of ['ride', 'food', 'wallet', 'catalog', 'profile', 'telecom'].entries()) {
-  checks.set(`Application ${service}`, { url: `http://${host}:${4001 + index}/health`,
+  checks.set(`Application ${service}`, { url: `http://${host}:${4001 + index + demoPortOffset}/health`,
     accept: data => data.status === 'ok' && data.service === `service-${service}` && data.integration === 'rest-providers' });
 }
 for (const [index, provider] of ['rta', 'dewa', 'etisalat', 'du', 'police', 'dld', 'payments'].entries()) {
-  checks.set(`Provider ${provider}`, { url: `http://${host}:${4101 + index}/health`,
+  checks.set(`Provider ${provider}`, { url: `http://${host}:${4101 + index + demoPortOffset}/health`,
     accept: data => data.status === 'ok' && data.provider === provider && data.storage === 'sqlite' });
 }
 

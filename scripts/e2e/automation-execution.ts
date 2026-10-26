@@ -1,4 +1,4 @@
-import { keycloakIssuerUrl } from '../endpoints.ts';
+import { delegationAuthorityUrl, keycloakIssuerUrl } from '../endpoints.ts';
 /** Real Keycloak, real broker code and an armed isolated run: worker token → credential → execute → settled.
  *  The broker is the Compose container, recreated with its provider URL pointing at this run and restored afterwards. */
 import assert from 'node:assert/strict';
@@ -44,7 +44,7 @@ try {
 `);
   restoreBroker = true;
   execFileSync('docker', [...compose, '-f', override, 'up', '-d', '--force-recreate', '--wait', 'delegation-broker'], { stdio: 'ignore' });
-  process.env.DELEGATION_AUTHORITY_URL = 'http://127.0.0.1:4010';
+  process.env.DELEGATION_AUTHORITY_URL = delegationAuthorityUrl;
   const brokerUrl = process.env.DELEGATION_AUTHORITY_URL;
 
   const call = async (url: string, bearer: string, body?: unknown) => {

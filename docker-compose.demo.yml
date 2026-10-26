@@ -1,4 +1,4 @@
-name: cityside-demo
+name: ${COMPOSE_PROJECT_NAME:-cityside-demo}
 x-node: &node
   image: node:24-alpine
   init: true
@@ -26,7 +26,7 @@ x-identity: &identity
   HTTP_REQUESTS_PER_MINUTE: ${HTTP_REQUESTS_PER_MINUTE:-300}
   ELIGIBILITY_ENFORCEMENT: 'true'
   ELIGIBILITY_READER_SECRET: ${ELIGIBILITY_READER_SECRET:-demo-eligibility-reader-secret}
-  KEYCLOAK_ISSUER: http://localhost:8085/realms/superapp
+  KEYCLOAK_ISSUER: http://localhost:${PORT_KEYCLOAK:-8085}/realms/superapp
   KEYCLOAK_JWKS_URL: http://keycloak:8080/realms/superapp/protocol/openid-connect/certs
   KEYCLOAK_TOKEN_URL: http://keycloak:8080/realms/superapp/protocol/openid-connect/token
   KEYCLOAK_INTROSPECTION_URL: http://keycloak:8080/realms/superapp/protocol/openid-connect/token/introspect
@@ -82,7 +82,7 @@ services:
       PORT: '4010'
       DELEGATION_DB_PATH: /data/delegation/grants.sqlite
       DELEGATION_KEY_DIR: /data/delegation/keys
-    ports: ['127.0.0.1:4010:4010']
+    ports: ['127.0.0.1:${PORT_BROKER:-4010}:4010']
     volumes:
       - .:/app:ro
       - delegation-data:/data/delegation
@@ -90,7 +90,7 @@ services:
   redis:
     image: redis:8.2-alpine
     command: [redis-server, --appendonly, 'yes', --appendfsync, everysec]
-    ports: ['127.0.0.1:6379:6379']
+    ports: ['127.0.0.1:${PORT_REDIS:-6379}:6379']
     volumes: [redis-data:/data]
     healthcheck:
       test: [CMD, redis-cli, ping]
@@ -103,9 +103,9 @@ services:
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
-      KC_HOSTNAME: http://localhost:8085
+      KC_HOSTNAME: http://localhost:${PORT_KEYCLOAK:-8085}
       KC_HTTP_ENABLED: 'true'
-    ports: ['127.0.0.1:8085:8080']
+    ports: ['127.0.0.1:${PORT_KEYCLOAK:-8085}:8080']
     volumes:
       - ./services/keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
       - keycloak-data:/opt/keycloak/data
@@ -119,9 +119,9 @@ services:
       PAYMENT_EVENT_RTA_KEY_ID: ${PAYMENT_EVENT_RTA_KEY_ID:-v1}
       PORT: '4101'
       PROVIDER_DB_PATH: /data/rta.sqlite
-      PROVIDER_SETTLEMENT_SECRET: demo-settlements-secret
+      PROVIDER_SETTLEMENT_SECRET: ${PROVIDER_SETTLEMENT_SECRET:-demo-settlements-secret}
       PROVIDER_RTA_CLAIM_SECRET: ${PROVIDER_RTA_CLAIM_SECRET:-demo-rta-settlement-secret}
-    ports: ['127.0.0.1:4101:4101']
+    ports: ['127.0.0.1:${PORT_PROVIDER_RTA:-4101}:4101']
     volumes:
       - .:/app:ro
       - rta-data:/data
@@ -136,9 +136,9 @@ services:
       PAYMENT_EVENT_DEWA_KEY_ID: ${PAYMENT_EVENT_DEWA_KEY_ID:-v1}
       PORT: '4102'
       PROVIDER_DB_PATH: /data/dewa.sqlite
-      PROVIDER_SETTLEMENT_SECRET: demo-settlements-secret
+      PROVIDER_SETTLEMENT_SECRET: ${PROVIDER_SETTLEMENT_SECRET:-demo-settlements-secret}
       PROVIDER_DEWA_CLAIM_SECRET: ${PROVIDER_DEWA_CLAIM_SECRET:-demo-dewa-settlement-secret}
-    ports: ['127.0.0.1:4102:4102']
+    ports: ['127.0.0.1:${PORT_PROVIDER_DEWA:-4102}:4102']
     volumes:
       - .:/app:ro
       - dewa-data:/data
@@ -153,9 +153,9 @@ services:
       PAYMENT_EVENT_ETISALAT_KEY_ID: ${PAYMENT_EVENT_ETISALAT_KEY_ID:-v1}
       PORT: '4103'
       PROVIDER_DB_PATH: /data/etisalat.sqlite
-      PROVIDER_SETTLEMENT_SECRET: demo-settlements-secret
+      PROVIDER_SETTLEMENT_SECRET: ${PROVIDER_SETTLEMENT_SECRET:-demo-settlements-secret}
       PROVIDER_ETISALAT_CLAIM_SECRET: ${PROVIDER_ETISALAT_CLAIM_SECRET:-demo-etisalat-settlement-secret}
-    ports: ['127.0.0.1:4103:4103']
+    ports: ['127.0.0.1:${PORT_PROVIDER_ETISALAT:-4103}:4103']
     volumes:
       - .:/app:ro
       - etisalat-data:/data
@@ -170,9 +170,9 @@ services:
       PAYMENT_EVENT_DU_KEY_ID: ${PAYMENT_EVENT_DU_KEY_ID:-v1}
       PORT: '4104'
       PROVIDER_DB_PATH: /data/du.sqlite
-      PROVIDER_SETTLEMENT_SECRET: demo-settlements-secret
+      PROVIDER_SETTLEMENT_SECRET: ${PROVIDER_SETTLEMENT_SECRET:-demo-settlements-secret}
       PROVIDER_DU_CLAIM_SECRET: ${PROVIDER_DU_CLAIM_SECRET:-demo-du-settlement-secret}
-    ports: ['127.0.0.1:4104:4104']
+    ports: ['127.0.0.1:${PORT_PROVIDER_DU:-4104}:4104']
     volumes:
       - .:/app:ro
       - du-data:/data
@@ -187,9 +187,9 @@ services:
       PAYMENT_EVENT_POLICE_KEY_ID: ${PAYMENT_EVENT_POLICE_KEY_ID:-v1}
       PORT: '4105'
       PROVIDER_DB_PATH: /data/police.sqlite
-      PROVIDER_SETTLEMENT_SECRET: demo-settlements-secret
+      PROVIDER_SETTLEMENT_SECRET: ${PROVIDER_SETTLEMENT_SECRET:-demo-settlements-secret}
       PROVIDER_POLICE_CLAIM_SECRET: ${PROVIDER_POLICE_CLAIM_SECRET:-demo-police-settlement-secret}
-    ports: ['127.0.0.1:4105:4105']
+    ports: ['127.0.0.1:${PORT_PROVIDER_POLICE:-4105}:4105']
     volumes:
       - .:/app:ro
       - police-data:/data
@@ -202,8 +202,8 @@ services:
       PROVIDER_ID: dld
       PORT: '4106'
       PROVIDER_DB_PATH: /data/dld.sqlite
-      PROVIDER_SETTLEMENT_SECRET: demo-settlements-secret
-    ports: ['127.0.0.1:4106:4106']
+      PROVIDER_SETTLEMENT_SECRET: ${PROVIDER_SETTLEMENT_SECRET:-demo-settlements-secret}
+    ports: ['127.0.0.1:${PORT_PROVIDER_DLD:-4106}:4106']
     volumes:
       - .:/app:ro
       - dld-data:/data
@@ -240,8 +240,8 @@ services:
       PAYMENT_EVENT_PAYMENTS_PREVIOUS_KEY_ID: ${PAYMENT_EVENT_PAYMENTS_PREVIOUS_KEY_ID:-previous}
       PORT: '4107'
       PROVIDER_DB_PATH: /data/payments.sqlite
-      PROVIDER_SETTLEMENT_SECRET: demo-settlements-secret
-    ports: ['127.0.0.1:4107:4107']
+      PROVIDER_SETTLEMENT_SECRET: ${PROVIDER_SETTLEMENT_SECRET:-demo-settlements-secret}
+    ports: ['127.0.0.1:${PORT_PROVIDER_PAYMENTS:-4107}:4107']
     volumes:
       - .:/app:ro
       - payments-data:/data
@@ -255,7 +255,7 @@ services:
       PROVIDER_INTEGRATION: 'true'
       SERVICE_CLIENT_SECRET: demo-ride-secret
       APP_DATA_DIR: /data
-    ports: ['127.0.0.1:4001:4001']
+    ports: ['127.0.0.1:${PORT_SERVICE_RIDE:-4001}:4001']
     volumes:
       - .:/app:ro
       - app-ride-data:/data
@@ -269,7 +269,7 @@ services:
       PROVIDER_INTEGRATION: 'true'
       SERVICE_CLIENT_SECRET: demo-food-secret
       APP_DATA_DIR: /data
-    ports: ['127.0.0.1:4002:4002']
+    ports: ['127.0.0.1:${PORT_SERVICE_FOOD:-4002}:4002']
     volumes:
       - .:/app:ro
       - app-food-data:/data
@@ -283,7 +283,7 @@ services:
       PROVIDER_INTEGRATION: 'true'
       SERVICE_CLIENT_SECRET: demo-wallet-secret
       APP_DATA_DIR: /data
-    ports: ['127.0.0.1:4003:4003']
+    ports: ['127.0.0.1:${PORT_SERVICE_WALLET:-4003}:4003']
     volumes:
       - .:/app:ro
       - app-wallet-data:/data
@@ -297,7 +297,7 @@ services:
       PROVIDER_INTEGRATION: 'true'
       SERVICE_CLIENT_SECRET: demo-catalog-secret
       APP_DATA_DIR: /data
-    ports: ['127.0.0.1:4004:4004']
+    ports: ['127.0.0.1:${PORT_SERVICE_CATALOG:-4004}:4004']
     volumes:
       - .:/app:ro
       - app-catalog-data:/data
@@ -311,7 +311,7 @@ services:
       PROVIDER_INTEGRATION: 'true'
       SERVICE_CLIENT_SECRET: demo-profile-secret
       APP_DATA_DIR: /data
-    ports: ['127.0.0.1:4005:4005']
+    ports: ['127.0.0.1:${PORT_SERVICE_PROFILE:-4005}:4005']
     volumes:
       - .:/app:ro
       - app-profile-data:/data
@@ -325,7 +325,7 @@ services:
       PROVIDER_INTEGRATION: 'true'
       SERVICE_CLIENT_SECRET: demo-telecom-secret
       APP_DATA_DIR: /data
-    ports: ['127.0.0.1:4006:4006']
+    ports: ['127.0.0.1:${PORT_SERVICE_TELECOM:-4006}:4006']
     volumes:
       - .:/app:ro
       - app-telecom-data:/data
@@ -342,7 +342,7 @@ services:
       SESSION_STORE: redis
       REDIS_URL: redis://redis:6379
       SESSION_TTL_SECONDS: ${SESSION_TTL_SECONDS:-3600}
-      KEYCLOAK_PUBLIC_ISSUER: http://localhost:8085/realms/superapp
+      KEYCLOAK_PUBLIC_ISSUER: http://localhost:${PORT_KEYCLOAK:-8085}/realms/superapp
       VOICE_SERVICE_URL: http://voice:4200
       ENABLE_LOCAL_LLM: ${ENABLE_LOCAL_LLM:-true}
       CONVERSATION_SERVICE_URL: http://conversation:4201
@@ -359,7 +359,7 @@ services:
       PROVIDER_POLICE_URL: http://provider-police:4105
       PROVIDER_DLD_URL: http://provider-dld:4106
       PROVIDER_PAYMENTS_URL: http://provider-payments:4107
-    ports: ['127.0.0.1:4000:4000']
+    ports: ['127.0.0.1:${PORT_GATEWAY:-4000}:4000']
     depends_on:
       redis:
         condition: service_healthy

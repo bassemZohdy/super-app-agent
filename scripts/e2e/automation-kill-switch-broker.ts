@@ -2,10 +2,10 @@
  *  and every other caller is refused (AUTO-15 step 3b-ii). Leaves the desired state released when it finishes. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { keycloakIssuerUrl } from '../endpoints.ts';
+import { delegationAuthorityUrl, keycloakIssuerUrl, providerPaymentsUrl } from '../endpoints.ts';
 import { HttpExecutionGateway } from '../../services/automation-worker/src/http-gateway.ts';
 
-const broker = 'http://localhost:4010/api/delegation/automation/kill-switch';
+const broker = `${delegationAuthorityUrl.replace('127.0.0.1', 'localhost')}/api/delegation/automation/kill-switch`;
 
 const token = async (clientId: string, secretFile: string, scope: string) => {
   const r = await fetch(`${keycloakIssuerUrl}/protocol/openid-connect/token`, { method: 'POST', signal: AbortSignal.timeout(10000),
@@ -38,7 +38,7 @@ assert.equal((await call('GET', worker)).data.engaged, false, 'a released state 
 // The worker reads the same state through its own gateway client, the path the running worker uses. The client fetches its
 // token from the Keycloak issuer in the environment, as the e2e environment sets it.
 process.env.KEYCLOAK_ISSUER ??= keycloakIssuerUrl;
-const gateway = new HttpExecutionGateway({ runId: 'autorn_00000000-0000-4000-8000-000000000000', paymentsUrl: 'http://localhost:4107', brokerUrl: 'http://localhost:4010', clientSecret: readFileSync('.data/delegation/automation-worker-secret', 'utf8').trim() });
+const gateway = new HttpExecutionGateway({ runId: 'autorn_00000000-0000-4000-8000-000000000000', paymentsUrl: providerPaymentsUrl, brokerUrl: delegationAuthorityUrl, clientSecret: readFileSync('.data/delegation/automation-worker-secret', 'utf8').trim() });
 assert.equal(await gateway.killSwitch().then(d => d?.engaged), false, 'the gateway reads the released state');
 await call('POST', admin, { engaged: true, reason: 'gateway check' });
 const engagedRead = await gateway.killSwitch();
