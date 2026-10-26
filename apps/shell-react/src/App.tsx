@@ -70,9 +70,30 @@ function CompatibilityApp() {
   const revision = useRef<string>();
   const messagesEnd = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
+  const navigation = useRef<HTMLElement>(null);
+  const menuButton = useRef<HTMLButtonElement>(null);
   const paymentAccountsButton = useRef<HTMLButtonElement>(null);
   const sessionRef = useRef(sessionId);
   sessionRef.current = sessionId;
+  useEffect(() => {
+    if (!menuOpen) return;
+    const main = document.getElementById('main');
+    if (main) main.inert = true;
+    const controls = () => Array.from(navigation.current?.querySelectorAll<HTMLElement>('a[href], button:not(:disabled), select:not(:disabled)') || []).filter(node => node.getClientRects().length);
+    const desktop = window.matchMedia('(min-width: 801px)');
+    const closeOnDesktop = () => { if (desktop.matches) setMenuOpen(false); };
+    controls()[0]?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { event.preventDefault(); setMenuOpen(false); }
+      if (event.key !== 'Tab') return;
+      const items = controls(), first = items[0], last = items.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    desktop.addEventListener('change', closeOnDesktop);
+    return () => { document.removeEventListener('keydown', onKeyDown); desktop.removeEventListener('change', closeOnDesktop); if (main) main.inert = false; menuButton.current?.focus(); };
+  }, [menuOpen]);
   const append = (message: Omit<ChatMessage, 'id'>) => setMessages(prev => [...prev, { ...message, id: crypto.randomUUID() }]);
 
   const getToken = async () => auth.current ? auth.current.token() : 'demo-local';
@@ -208,7 +229,7 @@ function CompatibilityApp() {
     });
     return () => controller.abort();
   }, [sessionId, accountId, authReady, loginRequired]);
-  useEffect(() => { messagesEnd.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'end' }); }, [messages, pending]);
+  useEffect(() => { if (messages.length || pending) messagesEnd.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'end' }); }, [messages, pending]);
 
   const request = async (path: string, body: Record<string, unknown>, retry?: string, targetSession = sessionId) => {
     if (busy.current) return;
@@ -282,13 +303,14 @@ function CompatibilityApp() {
   if (!authReady) return <main className="login-screen"><p role="status">Preparing your city workspace…</p></main>;
   const initials = userName.split(' ').map(part => part[0]).slice(0,2).join('').toUpperCase();
   return (
-    <div className="city-app">
-      <aside id="city-navigation" className={`sidebar ${menuOpen ? 'is-open' : ''}`} aria-label="Main navigation">
+    <div className="city-app concierge-app">
+      <a className="skip-link" href="#main">Skip to workspace</a>
+      <aside ref={navigation} id="city-navigation" className={`sidebar ${menuOpen ? 'is-open' : ''}`} aria-label="Main navigation">
         <button className="icon-button close-sidebar" aria-label="Close navigation menu" onClick={() => setMenuOpen(false)}><X size={18} /></button>
         <a href="#main" className="brand"><span className="brand-mark"><Building2 size={24} strokeWidth={1.6} /></span><span>city<span className="brand-light">side</span><small>Your everyday, connected.</small></span></a>
         <button className="new-chat" onClick={newConversation} disabled={pending}><Plus size={17} /> New conversation </button>
         <div className="nav-label">Your space</div>
-        <button className="nav-item active" onClick={() => { setMenuOpen(false); input.current?.focus(); }}><Sparkles size={18} /> Your concierge <span className="nav-dot" /></button>
+        <button className="nav-item active" aria-current="page" onClick={() => { setMenuOpen(false); input.current?.focus(); }}><Sparkles size={18} /> Your concierge <span className="nav-dot" /></button>
         <button className="nav-item" disabled={pending} onClick={() => void loadHistory()}><MessageSquare size={18} /> Conversations</button>
         <div className="nav-label services-label">Explore services</div>
         <a className="nav-item" href="/services/fines"><ShieldCheck size={18} /> Fines</a>
@@ -302,9 +324,9 @@ function CompatibilityApp() {
         </div>
       </aside>
       {menuOpen && <button className="menu-scrim" aria-label="Close navigation" onClick={() => setMenuOpen(false)} />}
-      <main id="main" className="main-workspace">
+      <main id="main" className="main-workspace" tabIndex={-1}>
         <header className="topbar">
-          <div className="breadcrumb"><button className="icon-button mobile-menu" aria-label="Open navigation" aria-controls="city-navigation" aria-expanded={menuOpen} onClick={() => setMenuOpen(true)}><Menu size={20} /></button><span>Your space</span><span className="breadcrumb-slash">/</span><strong>{paymentAccountsOpen ? 'Payment accounts' : 'Concierge'}</strong></div>
+          <div className="breadcrumb"><button ref={menuButton} className="icon-button mobile-menu" aria-label="Open navigation" aria-controls="city-navigation" aria-expanded={menuOpen} onClick={() => setMenuOpen(true)}><Menu size={20} /></button><span>Your space</span><span className="breadcrumb-slash">/</span><strong>{paymentAccountsOpen ? 'Payment accounts' : 'Concierge'}</strong></div>
           <div className="topbar-actions"><span className={`connection-status ${connection === 'offline' || inference === 'error' ? 'is-error' : ''}`} role="status"><i />{statusLabel}</span><button className="icon-button" aria-label="Conversation settings" aria-expanded={settingsOpen} onClick={() => setSettingsOpen(!settingsOpen)}><Settings2 size={18} /></button></div>
         </header>
         <nav className="workspace-tools" aria-label="Workspace tools"><button className="text-button" aria-expanded={delegationOpen} onClick={() => { setPaymentAccountsOpen(false); setDelegationOpen(!delegationOpen); }}>Delegated access</button>
@@ -317,10 +339,11 @@ function CompatibilityApp() {
           <section className="conversation" aria-label="Concierge conversation">
             <div className="conversation-scroll">
               {messages.length === 0 ? <div className="welcome">
-                <div className="concierge-emblem"><Sparkles size={28} strokeWidth={1.4} /></div>
-                <p className="welcome-greeting">Marhaba, {userName.split(' ')[0]}</p>
+                <p className="welcome-greeting"><Sparkles size={18} aria-hidden="true" /> Marhaba, {userName.split(' ')[0]}</p>
                 <h1>A little help.<br />A lot more city.</h1>
-                <p className="welcome-description">I’m Rashid, your city concierge. From your morning commute to your next move, let’s take care of it.</p>
+                <p className="welcome-description">I’m Rashid, your city concierge. Check a bill, plan your commute, or settle into a new home. Where shall we start?</p>
+                <a className="fines-shortcut" href="/services/fines"><span className="suggestion-icon blue"><ShieldCheck size={22} aria-hidden="true" /></span><span><strong>Review your fines</strong><small>See what’s outstanding before you decide to pay.</small></span><ArrowUpRight size={20} aria-hidden="true" /></a>
+                <h2 className="suggestions-heading">Everyday tasks</h2>
                 <div className="suggestion-grid">
                   <button disabled={pending} onClick={() => send('Find parking in Downtown Dubai')}><span className="suggestion-icon blue"><CarFront size={20} /></span><span>Find a parking spot<small>A smoother arrival in Downtown</small></span><ArrowUpRight size={16} /></button>
                   <button disabled={pending} onClick={() => openService('utilities')}><span className="suggestion-icon amber"><Zap size={20} /></span><span>Take care of my bills<small>Your electricity & water, together</small></span><ArrowUpRight size={16} /></button>
@@ -335,7 +358,8 @@ function CompatibilityApp() {
             <div className="composer-area">
               {(voiceError || voiceState !== 'idle') && <div className="voice-status" role="status">{voiceError || (voiceState === 'listening' ? 'Listening… stop when you are done (up to 15 seconds).' : voiceState === 'transcribing' ? 'Transcribing locally… review the draft before sending.' : 'Reading the reply aloud.')}<button onClick={() => { voice.current?.cancel(); setVoiceError(''); }}>Dismiss</button></div>}
               <form className={`composer ${pending ? 'is-pending' : ''}`} onSubmit={e => { e.preventDefault(); send(); }}>
-                <textarea ref={input} aria-label="Message Rashid" placeholder="Ask Rashid anything about your city…" value={draft} maxLength={4000} rows={2} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }} />
+                <label className="composer-label" htmlFor="concierge-message">Message Rashid</label>
+                <textarea id="concierge-message" ref={input} placeholder="Ask Rashid anything about your city…" value={draft} maxLength={4000} rows={2} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }} />
                 <div className="composer-toolbar"><span><Sparkles size={13} /> Your city, simplified</span><div><button type="button" className={`icon-button ${voiceState === 'listening' ? 'recording' : ''}`} disabled={pending || !canListen || voiceState === 'transcribing'} title={canListen ? 'Dictate a message' : 'Voice input is unavailable in this browser'} aria-label={voiceState === 'listening' ? 'Stop microphone' : 'Use microphone'} onClick={() => { setVoiceError(''); voiceState === 'listening' ? voice.current?.stopListening() : voice.current?.startListening(language); }}>{voiceState === 'listening' ? <Square size={17} /> : <Mic size={18} />}</button>{voiceState === 'speaking' && <button type="button" className="icon-button" aria-label="Stop reading" onClick={() => voice.current?.cancel()}><Volume2 size={18} /></button>}<button type="submit" className="send-button" disabled={pending || !draft.trim()} aria-label="Send message">{pending ? <AudioLines size={18} /> : <ArrowUp size={19} />}</button></div></div>
               </form>
               <p className="composer-note"><ShieldCheck size={12} /> You’re in control. Review and confirm before any service action.</p>
@@ -345,9 +369,9 @@ function CompatibilityApp() {
             <div className="service-panel-heading"><span><Compass size={18} /> {surface ? 'Your service workspace' : 'A city within reach'}</span><span className="preview-pill">Demo</span>{surface?.revision && JSON.stringify(surface.view).includes('AGENT_ACTION_DISPATCH') && <button className="text-button" disabled={pending} onClick={() => void request('cancel', { surfaceRevision: surface.revision })}>Cancel approval</button>}</div>
             {surface ? <div className="surface-content"><div className="surface-context"><span className="context-dot" /> Prepared for you <span>Review the details below</span></div><A2UIRenderer key={surface.revision} node={surface.view} isPending={pending} onDispatchAction={dispatch} /><p className="demo-note">City services use simulated data. No real bookings or payments are made.</p></div> : <>
               <div className="city-scene" aria-hidden="true"><div className="scene-sun" /><div className="scene-cloud cloud-one" /><div className="scene-cloud cloud-two" /><div className="skyline"><div className="building b1" /><div className="building b2" /><div className="building b3" /><div className="burj"><i /><b /><span /></div><div className="building b4" /><div className="building b5" /><div className="frame-building" /></div><div className="scene-ground" /><div className="scene-caption"><MapPin size={13} /> Dubai, United Arab Emirates</div></div>
-              <div className="panel-intro"><h2>More living.<br />Less life admin.</h2><p>Everything you need for the everyday, in one place. Start with a conversation.</p></div>
+              <div className="panel-intro"><h2>Your city services</h2><p>Choose a service to get started. The details will appear here as we go.</p></div>
               <div className="service-directory">{services.map(service => <button key={service.id} disabled={pending} onClick={() => openService(service.id)}><span className={`directory-icon ${service.color}`}><service.icon size={19} /></span><span>{service.short}<small>{service.detail}</small></span><ArrowUpRight size={15} /></button>)}</div>
-              <div className="workspace-tip"><MessageSquare size={19} /><div>One request. A few things, sorted.<p>Try “Help me move in and set up my utilities.” I’ll bring the steps together.</p></div></div>
+              <div className="workspace-tip"><ShieldCheck size={20} aria-hidden="true" /><div><strong>You make the final call</strong><p>Review the service details and exact amount before confirming an action.</p></div></div>
               <p className="demo-note">A working preview with simulated city services.<br />{model?.enabled ? 'Local open-source conversations.' : 'Local demo conversations.'}</p>
             </>}
           </aside></>} />}

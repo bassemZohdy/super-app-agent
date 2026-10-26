@@ -32,7 +32,7 @@ export function WorkspacePanes({ conversation, details, revealDetailsKey }: { co
       <button type="button" className="pane-control" disabled={!maximized && !minimized.conversation && !minimized.details} onClick={restore}><Minimize2 size={17} aria-hidden="true" />Restore split view</button>
       <span role="status" className="pane-layout-status">{maximized ? `${maximized === 'details' ? 'Service details' : 'Conversation'} maximized` : first === 'conversation' ? 'Conversation first' : 'Service details first'}</span>
     </div>
-    <div className={`workspace-pane-grid${maximized ? ' has-maximized-pane' : ''}`} style={{ gridTemplateColumns: maximized ? 'minmax(0, 1fr)' : order.map(pane => minimized[pane] ? 'minmax(12rem, max-content)' : 'minmax(0, 1fr)').join(' ') }}>
+    <div className={`workspace-pane-grid${maximized ? ' has-maximized-pane' : ''}`} style={{ gridTemplateColumns: maximized ? 'minmax(0, 1fr)' : order.map(pane => minimized[pane] ? 'minmax(12rem, max-content)' : `minmax(0, var(--workspace-${pane}-width, 1fr))`).join(' ') }}>
       {order.map(pane => {
         const name = pane === 'conversation' ? 'conversation' : 'service details';
         const hidden = maximized !== null && maximized !== pane;

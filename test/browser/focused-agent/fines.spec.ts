@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { test, expect } from './fixtures.ts';
-import { controlsBelowTarget, focusIsVisible } from '../accessibility/measures.ts';
+import { controlsBelowTarget, focusIsVisible, injectMotionCanary, stillMoving } from '../accessibility/measures.ts';
 
 test('retrieve fines, resume the exact review after restart, pay once and reject duplicate/stale/cross-owner approvals', async ({ page, focused }, info) => {
   await page.goto(focused.url);
@@ -123,7 +123,8 @@ test('conversation and service panes swap, maximize, minimize and restore withou
   expect(focused.payments()).toBe(0);
 });
 
-test('the main concierge also exposes the shared pane layout controls', async ({ page, focused }) => {
+test('the main concierge also exposes the shared pane layout controls', async ({ page, focused }, info) => {
+  const originalViewport = page.viewportSize()!;
   await page.route('http://localhost:4000/**', route => {
     const path = new URL(route.request().url()).pathname;
     const headers = { 'access-control-allow-origin': new URL(focused.url).origin };
@@ -134,7 +135,41 @@ test('the main concierge also exposes the shared pane layout controls', async ({
     return route.fulfill({ status: 200, contentType: 'application/json', headers, body: JSON.stringify(value) });
   });
   await page.goto(new URL('/', focused.url).href);
-  await expect(page.getByRole('heading', { name: /A little help/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /A little help/ })).toBeInViewport();
+  const skip = page.getByRole('link', { name: 'Skip to workspace', exact: true });
+  await skip.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('main')).toBeFocused();
+  await expect(page.getByRole('link', { name: /Review your fines/ })).toHaveAttribute('href', '/services/fines');
+  expect(await controlsBelowTarget(page)).toEqual([]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.getByRole('textbox', { name: 'Message Rashid', exact: true }).focus();
+  expect(await focusIsVisible(page)).toBe(true);
+  await page.getByRole('textbox', { name: 'Message Rashid', exact: true }).blur();
+  await page.evaluate(() => { window.scrollTo(0, 0); document.querySelector('.conversation-scroll')?.scrollTo(0, 0); });
+  await page.screenshot({ path: info.outputPath('concierge-home.png'), fullPage: true });
+  if (info.project.name === 'mobile') {
+    const opener = page.getByRole('button', { name: 'Open navigation', exact: true });
+    await opener.click();
+    const close = page.getByRole('button', { name: 'Close navigation menu', exact: true });
+    await expect(close).toBeFocused();
+    await page.keyboard.press('Shift+Tab');
+    await expect(page.getByRole('button', { name: /Demo resident/ })).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(close).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(opener).toBeFocused();
+    await expect(page.getByRole('complementary', { name: 'Main navigation', exact: true })).toBeHidden();
+    await opener.click();
+    await page.setViewportSize({ width: 1024, height: 1000 });
+    await expect(page.getByRole('button', { name: 'Open navigation', exact: true, includeHidden: true })).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.getByRole('main')).not.toHaveAttribute('inert');
+  }
+  for (const width of [320, 768, 1024]) {
+    await page.setViewportSize({ width, height: 1000 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `no overflow at ${width}px`).toBe(true);
+  }
+  await page.setViewportSize(originalViewport);
   await page.getByRole('button', { name: 'Maximize conversation', exact: true }).click();
   await expect(page.getByRole('region', { name: 'service details pane', exact: true })).toBeHidden();
   await page.getByRole('button', { name: 'Restore split view', exact: true }).click();
@@ -149,4 +184,7 @@ test('the main concierge also exposes the shared pane layout controls', async ({
   const pane = await page.getByRole('region', { name: 'service details pane', exact: true }).boundingBox();
   const panel = await page.getByRole('complementary', { name: 'Service details', exact: true }).boundingBox();
   expect(panel!.width).toBeGreaterThan(pane!.width * 0.9);
+  await injectMotionCanary(page);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  expect(await stillMoving(page)).toEqual([]);
 });

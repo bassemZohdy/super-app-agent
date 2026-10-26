@@ -1,5 +1,11 @@
 # Documentation changelog
 
+## 26 October 2026 — Refine the React city workspace with offline design skills (QA-06, step)
+
+The user-requested design work takes precedence over planner qualification for this slice. Use `frontend-design` and the vendored design-system/UI guidance to give the concierge more desktop space, readable type, a direct fines shortcut, a labelled composer and a compact service directory. The local Dubai skyline and semantic service icons retain Cityside's identity without external assets. Existing pane controls, service actions and exact fines approvals remain intact. The main React stylesheet now uses shared color tokens throughout, lowering the raw-color baseline. The tablet/phone navigation drawer traps focus, closes with Escape, restores its opener and releases the workspace when resized to desktop; a skip link reaches the workspace. The [design guide](development/design-tokens.md#react-workspace-design) records the palette, layout and checklist.
+
+Validation: repository checks and token checks pass. Desktop/phone focused-agent, Angular accessibility and external-host-guard journeys pass against isolated test servers (Chrome's IPv4 host resolver avoids an older IPv6 Angular dev server); the concierge gateway is explicitly stubbed and fines use the real isolated agent/SQLite runtime. Screenshots are visually inspected. The full compatibility suite was attempted and stopped after account loading failed during real Keycloak sign-in, before those journeys could run; no full compatibility or native/device pass is claimed.
+
 ## 26 October 2026 — React adoption milestone evidence recorded (P1-03)
 
 The [executed report](reports/2026-10-26-react-fines.md) names implementation revision `9041913`, its focused/repository checks, desktop/phone browser assertions and visually inspected artifacts. It distinguishes the real process/SQLite boundary from fixture inference, the stubbed main-concierge layout test and the unsuccessful OpenRouter connection attempt. The evidence register links this milestone without extending historical compatibility operating claims. No runtime or task status changes.
