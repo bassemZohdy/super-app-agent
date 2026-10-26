@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 27 October 2026 — P2-01 (step): Angular delegation and voice panels in Arabic
+
+The Angular shell's delegated access panel (consent actions, grant status, notices) and voice settings (microphone, language, preset, speed, preview, status text) follow the language through more `ng.*` keys. Grant purposes and results still come from the gateway in English. The Angular build passes; no browser spec has run it in Arabic.
+
 ## 27 October 2026 — P2-01 (step): Angular shell chrome in Arabic
 
 The Angular shell's sign-in screen, header, concierge title, suggestion chips, composer, workspace titles and empty state follow the language through `ng.*` catalog keys, with a language selector that shares the React shell's saved choice and sets `lang` and `dir`. Physical left/right styles became logical ones (English unchanged). The delegated access and voice panels, welcome message and status text stay English; the Angular build passes, but no browser spec has run it in Arabic.

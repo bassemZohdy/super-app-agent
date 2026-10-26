@@ -48,29 +48,29 @@ const GATEWAY_URL = environment.gatewayUrl;
             <button [disabled]="pending" (click)="sendIntent('I signed my Ejari lease, help me move in')">{{ t('ng.chip.moving') }}</button>
           </div>
           <details class="voice-settings">
-            <summary (click)="loadDelegations()">Delegated access</summary>
-            <p>Cityside demo broker · current account only · five-minute consent. Review the exact operation before allowing it.</p>
-            <button [disabled]="delegationBusy" (click)="createDelegation(false)">Allow up to 3 wallet balance checks</button>
-            <button [disabled]="delegationBusy" (click)="createDelegation(true)">Approve one AED 1 demo wallet credit</button>
+            <summary (click)="loadDelegations()">{{ t('ng.deleg.title') }}</summary>
+            <p>{{ t('ng.deleg.intro') }}</p>
+            <button [disabled]="delegationBusy" (click)="createDelegation(false)">{{ t('ng.deleg.allowReads') }}</button>
+            <button [disabled]="delegationBusy" (click)="createDelegation(true)">{{ t('ng.deleg.approveCredit') }}</button>
             <p role="status">{{ delegationNotice() }}</p>
             <div *ngFor="let grant of delegationGrants()">
-              <strong>{{ grant.purpose }}</strong><p>{{ grant.used }}/{{ grant.maxOperations }} executions · {{ grant.revokedAt ? 'Revoked' : grant.expiresAt <= now() ? 'Expired' : 'Active' }}</p>
-              <button [disabled]="delegationBusy || grant.revokedAt || grant.expiresAt <= now() || grant.used >= grant.maxOperations" (click)="runDelegation(grant.id)">Run approved operation</button>
-              <button [disabled]="delegationBusy || grant.revokedAt" (click)="revokeDelegation(grant.id)">Revoke consent</button>
-              <button [disabled]="delegationBusy" (click)="delegationHistory(grant.id)">View audit history</button>
+              <strong>{{ grant.purpose }}</strong><p>{{ t('ng.deleg.status', { used: grant.used, max: grant.maxOperations, state: grant.revokedAt ? t('ng.deleg.revoked') : grant.expiresAt <= now() ? t('ng.deleg.expired') : t('ng.deleg.active') }) }}</p>
+              <button [disabled]="delegationBusy || grant.revokedAt || grant.expiresAt <= now() || grant.used >= grant.maxOperations" (click)="runDelegation(grant.id)">{{ t('ng.deleg.run') }}</button>
+              <button [disabled]="delegationBusy || grant.revokedAt" (click)="revokeDelegation(grant.id)">{{ t('ng.deleg.revoke') }}</button>
+              <button [disabled]="delegationBusy" (click)="delegationHistory(grant.id)">{{ t('ng.deleg.history') }}</button>
             </div>
           </details>
           <details class="voice-settings">
-            <summary>Voice &amp; conversation settings</summary>
+            <summary>{{ t('ng.voice.title') }}</summary>
             <div class="voice-controls">
-              <button [disabled]="pending || !voice?.canListen || !localVoice()?.asrReady || voiceState() === 'transcribing'" [attr.aria-pressed]="voiceState() === 'listening'" (click)="toggleMicrophone()">{{ voiceState() === 'listening' ? 'Stop microphone' : 'Use microphone' }}</button>
-              <select aria-label="Voice language" [value]="voiceLanguage" (change)="setVoiceLanguage($any($event.target).value)"><option value="en-US">English</option><option value="ar-AE">Arabic dictation · text replies</option></select>
-              <label><input type="checkbox" [checked]="readReplies" [disabled]="!voice?.canSpeak || !localVoice()?.ttsReady || voiceLanguage !== 'en-US'" (change)="setReadReplies($any($event.target).checked)" /> Read replies aloud</label>
-              <label>Voice preset<select aria-label="Voice preset" [value]="voiceProfile" (change)="voice?.cancel(); voiceProfile = $any($event.target).value"><option *ngFor="let item of localVoice()?.voices" [value]="item.id">{{ item.name }}</option></select></label>
-              <label>Speaking speed · {{ voiceSpeed }}×<input aria-label="Speaking speed" type="range" min="0.8" max="1.2" step="0.05" [value]="voiceSpeed" (input)="setVoiceSpeed($any($event.target).value)" /></label>
-              <button [disabled]="!localVoice()?.ttsReady || voiceState() !== 'idle'" (click)="previewVoice()">Preview voice</button><button (click)="voice?.cancel()">Stop voice</button><button (click)="refreshVoice()">Refresh local voice</button>
-              <button *ngIf="voiceState() !== 'idle'" (click)="voice?.cancel()">Cancel voice</button>
-              <p role="status">{{ voiceError() || (voiceState() === 'listening' ? 'Listening. Stop when done; drafts are limited to 15 seconds.' : voiceState() === 'transcribing' ? 'Transcribing locally. Review your draft before sending.' : 'Open-source speech runs on the local app server. Dictation stays a draft until Send.') }}</p>
+              <button [disabled]="pending || !voice?.canListen || !localVoice()?.asrReady || voiceState() === 'transcribing'" [attr.aria-pressed]="voiceState() === 'listening'" (click)="toggleMicrophone()">{{ voiceState() === 'listening' ? t('ng.voice.stopMic') : t('ng.voice.useMic') }}</button>
+              <select [attr.aria-label]="t('ng.voice.language')" [value]="voiceLanguage" (change)="setVoiceLanguage($any($event.target).value)"><option value="en-US">English</option><option value="ar-AE">{{ t('ng.voice.arabic') }}</option></select>
+              <label><input type="checkbox" [checked]="readReplies" [disabled]="!voice?.canSpeak || !localVoice()?.ttsReady || voiceLanguage !== 'en-US'" (change)="setReadReplies($any($event.target).checked)" /> {{ t('ng.voice.readAloud') }}</label>
+              <label>{{ t('ng.voice.preset') }}<select [attr.aria-label]="t('ng.voice.preset')" [value]="voiceProfile" (change)="voice?.cancel(); voiceProfile = $any($event.target).value"><option *ngFor="let item of localVoice()?.voices" [value]="item.id">{{ item.name }}</option></select></label>
+              <label>{{ t('ng.voice.speed', { speed: voiceSpeed }) }}<input [attr.aria-label]="t('ng.voice.speedLabel')" type="range" min="0.8" max="1.2" step="0.05" [value]="voiceSpeed" (input)="setVoiceSpeed($any($event.target).value)" /></label>
+              <button [disabled]="!localVoice()?.ttsReady || voiceState() !== 'idle'" (click)="previewVoice()">{{ t('ng.voice.preview') }}</button><button (click)="voice?.cancel()">{{ t('ng.voice.stop') }}</button><button (click)="refreshVoice()">{{ t('ng.voice.refresh') }}</button>
+              <button *ngIf="voiceState() !== 'idle'" (click)="voice?.cancel()">{{ t('ng.voice.cancel') }}</button>
+              <p role="status">{{ voiceError() || (voiceState() === 'listening' ? t('ng.voice.listening') : voiceState() === 'transcribing' ? t('ng.voice.transcribing') : t('ng.voice.idle')) }}</p>
             </div>
           </details>
           <div class="input-row">
@@ -205,9 +205,9 @@ export class AppComponent implements OnInit, OnDestroy {
   }
   async loadDelegations() { try { const data = await this.delegationApi(); this.delegationGrants.set(data.grants.filter((g: any) => g.accountId === this.accountId)); } catch (e) { this.delegationNotice.set((e as Error).message); } }
   private async delegationWork(fn: () => Promise<void>) { this.delegationBusy = true; try { await fn(); await this.loadDelegations(); } catch (e) { this.delegationNotice.set((e as Error).message); } finally { this.delegationBusy = false; } }
-  createDelegation(write: boolean) { void this.delegationWork(async () => { await this.delegationApi('', 'POST', { accountId: this.accountId, provider: 'payments', method: write ? 'POST' : 'GET', path: write ? '/topups' : '/wallet', body: write ? { amountMinor: 100, source: 'demo_approved' } : {}, purpose: write ? 'Approve one synthetic AED 1 wallet credit' : 'Check my synthetic wallet balance', expiresInSeconds: 300, maxOperations: write ? 1 : 3 }); this.delegationNotice.set('Consent saved. Review the grant before running it.'); }); }
+  createDelegation(write: boolean) { void this.delegationWork(async () => { await this.delegationApi('', 'POST', { accountId: this.accountId, provider: 'payments', method: write ? 'POST' : 'GET', path: write ? '/topups' : '/wallet', body: write ? { amountMinor: 100, source: 'demo_approved' } : {}, purpose: write ? 'Approve one synthetic AED 1 wallet credit' : 'Check my synthetic wallet balance', expiresInSeconds: 300, maxOperations: write ? 1 : 3 }); this.delegationNotice.set(this.t('ng.deleg.n.saved')); }); }
   runDelegation(id: string) { void this.delegationWork(async () => { const data = await this.delegationApi(`/${id}/execute`, 'POST', { requestKey: crypto.randomUUID() }); this.delegationNotice.set(delegationResult(data.result)); }); }
-  revokeDelegation(id: string) { void this.delegationWork(async () => { await this.delegationApi(`/${id}`, 'DELETE'); this.delegationNotice.set('Consent revoked. Further delegated operations will be denied.'); }); }
+  revokeDelegation(id: string) { void this.delegationWork(async () => { await this.delegationApi(`/${id}`, 'DELETE'); this.delegationNotice.set(this.t('ng.deleg.n.revoked')); }); }
   delegationHistory(id: string) { void this.delegationWork(async () => { const data = await this.delegationApi(`/${id}/history`); this.delegationNotice.set(data.history.map((e: any) => e.event).join(', ')); }); }
   auth?: BrowserAuth;
   authReady = signal(false);

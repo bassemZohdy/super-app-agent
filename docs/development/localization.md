@@ -10,7 +10,7 @@ The stylesheet uses logical properties (`margin-inline-start`, `inset-inline-end
 
 ## What the Angular shell does
 
-The shell's chrome is translated with the same catalogs (`ng.*` keys): the sign-in screen, header, language selector, concierge title, suggestion chips, composer, workspace titles and empty state. It reads and writes the same saved choice (`cityside.locale`) as the React shell and sets `lang` and `dir` on the page. Its stylesheet uses logical properties, so English pixels are unchanged. The suggestion chips still send their English requests to the gateway; only the labels change. The delegated access and voice panels, the welcome message, connection status and errors stay English for now, and no browser spec has run it in Arabic yet.
+The shell's chrome is translated with the same catalogs (`ng.*` keys): the sign-in screen, header, language selector, concierge title, suggestion chips, composer, workspace titles and empty state, then the delegated access panel and the voice settings with their notices and status text. It reads and writes the same saved choice (`cityside.locale`) as the React shell and sets `lang` and `dir` on the page. Its stylesheet uses logical properties, so English pixels are unchanged. The suggestion chips still send their English requests to the gateway; only the labels change. The grant purposes and results from the gateway, the welcome message, connection status, surface content and errors stay English for now, and no browser spec has run it in Arabic yet.
 
 ## Money, dates and times
 
