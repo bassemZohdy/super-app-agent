@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 26 October 2026 — React adoption milestone evidence recorded (P1-03)
+
+The [executed report](reports/2026-10-26-react-fines.md) names implementation revision `9041913`, its focused/repository checks, desktop/phone browser assertions and visually inspected artifacts. It distinguishes the real process/SQLite boundary from fixture inference, the stubbed main-concierge layout test and the unsuccessful OpenRouter connection attempt. The evidence register links this milestone without extending historical compatibility operating claims. No runtime or task status changes.
+
 ## 26 October 2026 — React fines adoption and interchangeable workspace panes (P1-03)
 
 The primary React `/services/fines` route uses the focused agent's authenticated POST SSE, validated Cityside surface and exact approval bindings, with saved conversation restoration, inspect/recover and cancellation. The selected fine set is shown in AED; receipts stay explicitly simulated. A lost response blocks replacement commands until the original operation is recovered. The browser token stays in memory and the model key stays server-side. Desktop/phone browser journeys execute the real agent and SQLite, kill/restart it across an approval, replay/stale/cross-owner actions and verify the persisted payment count. Other journeys retain their existing API paths.
