@@ -40,6 +40,6 @@ First-party API references checked during implementation: [LangGraph interrupts]
 
 ## Incremental adoption boundary
 
-Reuse the primary React shell and the validated compatibility surface. Bind one fines conversation to the focused API before migrating another journey. Display the exact quote and bind approve/reject/cancel to its saved approval ID; after a disconnect or restart, inspect the thread and reconcile the original operation. Preserve manual routes and existing ownership checks on journeys that remain on the compatibility entry point.
+The primary React `/services/fines` route binds one conversation to the focused API through a same-origin development proxy and the validated compatibility surface. It displays only the selected fine set and exact quote, binds approve/reject/cancel to the saved approval ID, and inspects/restores the thread after a disconnect or restart. Unknown outcomes require original-operation recovery. Conversation and service-detail panes share icon-only swap and maximize/restore controls with the main concierge. Other manual routes and their ownership checks remain on the compatibility entry point.
 
 Local model and container qualification follow the same service contract. Deterministic test adapters remain explicitly selected; they do not prove live identity or model quality. A further service is added as a small governed adapter and native graph path after the fines interaction is qualified. Task ordering and completion criteria live only in [TODO.md](../TODO.md).

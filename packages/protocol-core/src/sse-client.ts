@@ -1,6 +1,6 @@
 import type { A2UIMessageEnvelope } from './a2-ui.ts';
 
-export interface StreamEvent { data: string; id?: string }
+export interface StreamEvent { data: string; id?: string; event?: string }
 
 /** Incremental UTF-8 SSE parser; comments, multi-line data, CR/LF and split frames. */
 export async function* readEventStream(response: Response): AsyncGenerator<StreamEvent> {
@@ -8,6 +8,7 @@ export async function* readEventStream(response: Response): AsyncGenerator<Strea
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '', data: string[] = [], id: string | undefined;
+  let event: string | undefined;
   let eventBytes = 0;
   try {
     while (true) {
@@ -20,8 +21,8 @@ export async function* readEventStream(response: Response): AsyncGenerator<Strea
         const line = buffer.slice(0, match.index);
         buffer = buffer.slice(match.index + match[0].length);
         if (!line) {
-          if (data.length) yield { data: data.join('\n'), id };
-          data = []; id = undefined; eventBytes = 0;
+          if (data.length) yield { data: data.join('\n'), id, ...(event ? { event } : {}) };
+          data = []; id = undefined; event = undefined; eventBytes = 0;
           continue;
         }
         if (line.startsWith(':')) continue;
@@ -29,6 +30,7 @@ export async function* readEventStream(response: Response): AsyncGenerator<Strea
         const field = separator < 0 ? line : line.slice(0, separator);
         const text = separator < 0 ? '' : line.slice(separator + 1).replace(/^ /, '');
         if (field === 'data') { data.push(text); eventBytes += text.length; }
+        if (field === 'event') event = text;
         if (field === 'id' && !text.includes('\0')) id = text;
         if (eventBytes > 1_000_000) throw new Error('Stream frame exceeds client limit');
       }

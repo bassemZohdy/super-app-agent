@@ -4,14 +4,16 @@ import { DelegationPanel } from './DelegationPanel.tsx';
 import { ConnectionsPanel } from './ConnectionsPanel.tsx';
 import { useLocale } from './locale.ts';
 import type { CatalogKey, Locale } from '../../../packages/protocol-core/src/i18n.ts';
-import { useEffect, useRef, useState } from 'react';
-import { ArrowUp, ArrowUpRight, AudioLines, Building2, CarFront, Check, ChevronDown, CircleHelp, Compass, CreditCard, House, MapPin, Menu, MessageSquare, Mic, Plus, Settings2, ShieldCheck, Sparkles, Square, Volume2, Wifi, X, Zap } from 'lucide-react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { ArrowUp, ArrowUpRight, AudioLines, Building2, CarFront, ChevronDown, CircleHelp, Compass, CreditCard, House, Link2, MapPin, Menu, MessageSquare, Mic, Plus, Settings2, ShieldCheck, Sparkles, Square, Volume2, Wifi, X, Zap } from 'lucide-react';
 import { VoiceClient, type VoiceState } from '../../../packages/protocol-core/src/voice-client.ts';
 import { LocalVoiceApi, type LocalVoiceConfig } from '../../../packages/protocol-core/src/voice-api.ts';
 import { checkedSurface, readCoreResponse } from '../../../packages/protocol-core/src/surface-client.ts';
 import { connectEventStream } from '../../../packages/protocol-core/src/sse-client.ts';
 import type { AGUISurfacePayload } from '../../../packages/protocol-core/src/index.ts';
+import { WorkspacePanes } from './components/WorkspacePanes.tsx';
 import { A2UIRenderer } from './components/A2UIRenderer.tsx';
+import './chat-workspace.css';
 
 const GATEWAY_URL = import.meta.env.VITE_GATEWAY_URL || 'http://localhost:4000';
 const services = [
@@ -21,11 +23,18 @@ const services = [
   { id: 'telecom', name: 'Stay connected', short: 'Telecom', detail: 'Etisalat & du', icon: Wifi, color: 'blue', prompt: 'Show my Etisalat subscriptions and bills' },
   { id: 'housing', name: 'A place to call home', short: 'Housing', detail: 'Ejari & moving in', icon: House, color: 'teal', prompt: 'I just signed my Ejari lease, help me move in' },
 ];
-type ModelStatus = { ready?: boolean; model: string; enabled: boolean; configured: boolean; mode: string };
+type ModelStatus = { provider?: string; ready?: boolean; model: string; enabled: boolean; configured: boolean; mode: string };
 type ChatMessage = { id: string; role: 'user' | 'assistant'; text: string; error?: boolean; retry?: string };
 
 
+const FocusedFinesWorkspace = lazy(() => import('./FocusedFinesWorkspace.tsx'));
 export function App() {
+  return location.pathname === '/services/fines'
+    ? <Suspense fallback={<main className="login-screen"><p role="status">Preparing your fines workspace…</p></main>}><FocusedFinesWorkspace /></Suspense>
+    : <CompatibilityApp />;
+}
+
+function CompatibilityApp() {
   const [sessionId, setSessionId] = useState(() => `sess_${crypto.randomUUID()}`);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const auth = useRef<BrowserAuth>();
@@ -53,7 +62,7 @@ export function App() {
   const [paymentAccountsOpen, setPaymentAccountsOpen] = useState(false);
   const [connectionsOpen, setConnectionsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [mobilePanel, setMobilePanel] = useState(false);
+  const [chatViewRequest, setChatViewRequest] = useState(0);
   const [readReplies, setReadReplies] = useState(false);
   const [voiceProfile, setVoiceProfile] = useState('Jasper');
   const [voiceSpeed, setVoiceSpeed] = useState(1);
@@ -71,9 +80,31 @@ export function App() {
   const revision = useRef<string>();
   const messagesEnd = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
+  const navigation = useRef<HTMLElement>(null);
+  const menuButton = useRef<HTMLButtonElement>(null);
   const paymentAccountsButton = useRef<HTMLButtonElement>(null);
   const sessionRef = useRef(sessionId);
   sessionRef.current = sessionId;
+  useEffect(() => {
+    if (!menuOpen) return;
+    const main = document.getElementById('main');
+    if (main) main.inert = true;
+    const controls = () => Array.from(navigation.current?.querySelectorAll<HTMLElement>('a[href], button:not(:disabled), select:not(:disabled)') || []).filter(node => node.getClientRects().length);
+    const desktop = window.matchMedia('(min-width: 1101px)');
+    const segmented = window.matchMedia('(horizontal-viewport-segments: 2), (vertical-viewport-segments: 2)');
+    const closeOnDesktop = () => { if (desktop.matches && !segmented.matches) setMenuOpen(false); };
+    controls()[0]?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { event.preventDefault(); setMenuOpen(false); }
+      if (event.key !== 'Tab') return;
+      const items = controls(), first = items[0], last = items.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    desktop.addEventListener('change', closeOnDesktop); segmented.addEventListener('change', closeOnDesktop);
+    return () => { document.removeEventListener('keydown', onKeyDown); desktop.removeEventListener('change', closeOnDesktop); segmented.removeEventListener('change', closeOnDesktop); if (main) main.inert = false; menuButton.current?.focus(); };
+  }, [menuOpen]);
   const append = (message: Omit<ChatMessage, 'id'>) => setMessages(prev => [...prev, { ...message, id: crypto.randomUUID() }]);
 
   const getToken = async () => auth.current ? auth.current.token() : 'demo-local';
@@ -81,7 +112,7 @@ export function App() {
     revision.current = undefined; setMessages([]); setSurface(null); setDraft(''); setInference(null); setShareProfile(true); setShareNotice('');
     const sid = `sess_${crypto.randomUUID()}`;
     sessionStorage.setItem(`cityside.session.${nextAccount}`, sid);
-    setSessionId(sid); sessionRef.current = sid; setMenuOpen(false); setMobilePanel(false);
+    setSessionId(sid); sessionRef.current = sid; setMenuOpen(false);
     return sid;
   };
   const restoredService = useRef<string>();
@@ -150,7 +181,7 @@ export function App() {
   };
   useEffect(() => {
     const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') { setMenuOpen(false); setSettingsOpen(false); setMobilePanel(false); }
+      if (event.key === 'Escape') { setMenuOpen(false); setSettingsOpen(false); }
     };
     window.addEventListener('keydown', escape);
     return () => window.removeEventListener('keydown', escape);
@@ -210,7 +241,7 @@ export function App() {
     });
     return () => controller.abort();
   }, [sessionId, accountId, authReady, loginRequired]);
-  useEffect(() => { messagesEnd.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'end' }); }, [messages, pending]);
+  useEffect(() => { if (messages.length || pending) messagesEnd.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'end' }); }, [messages, pending]);
 
   const request = async (path: string, body: Record<string, unknown>, retry?: string, targetSession = sessionId) => {
     if (busy.current) return;
@@ -272,7 +303,7 @@ export function App() {
     setPaymentAccountsOpen(false);
     if (!text.trim() || busy.current || !authReady || loginRequired) return;
     const query = text.trim();
-    append({ role: 'user', text: query }); setDraft(''); setMenuOpen(false); setMobilePanel(false);
+    append({ role: 'user', text: query }); setDraft(''); setMenuOpen(false);
     void request('intent', { text: query }, query);
   };
   const dispatch = (action: string, payload: Record<string, unknown>) => {
@@ -289,86 +320,84 @@ export function App() {
     setPaymentAccountsOpen(false); setDelegationOpen(false);
     voice.current?.cancel(); resetConversation(); history.replaceState(null, '', '/'); input.current?.focus();
   };
+  const modelLabel = model?.provider === 'litellm' ? 'LiteLLM' : model?.provider === 'openrouter' ? 'OpenRouter' : 'Local model';
   const statusLabel = connection === 'offline' ? 'Gateway offline' : connection === 'checking' ? 'Connecting…'
-    : inference === 'error' ? 'Model needs attention' : model?.enabled ? inference === 'connected' ? 'Local model connected' : model.ready ? 'Local model ready' : 'Local model warming up' : t('status.demoMode');
+    : inference === 'error' ? 'Model needs attention' : model?.enabled ? inference === 'connected' ? `${modelLabel} connected` : !model.configured ? `${modelLabel} needs configuration` : model.ready ? `${modelLabel} ready` : model?.provider === 'llama.cpp' ? 'Local model warming up' : `${modelLabel} configured` : t('status.demoMode');
 
   if (loginRequired) return <main className="login-screen"><div className="login-card"><span className="brand-mark"><Building2 size={30} /></span><h1>Your city.<br />Your account.</h1><p>Sign in to manage your personal and household services with Rashid.</p>{authError && <p role="alert" className="login-error">{authError}</p>}<button className="login-button" onClick={() => void auth.current?.login().catch(error => setAuthError(error.message))}>Sign in with Keycloak</button><small>Demo accounts: bassem or demo-commuter.<br />Password: demo123</small></div></main>;
   if (!authReady) return <main className="login-screen"><p role="status">Preparing your city workspace…</p></main>;
   const initials = userName.split(' ').map(part => part[0]).slice(0,2).join('').toUpperCase();
   return (
-    <div className="city-app">
-      <aside id="city-navigation" className={`sidebar ${menuOpen ? 'is-open' : ''}`} aria-label="Main navigation">
+    <div className="city-app concierge-app">
+      <a className="skip-link" href="#main">Skip to workspace</a>
+      <aside ref={navigation} id="city-navigation" className={`sidebar ${menuOpen ? 'is-open' : ''}`} aria-label="Main navigation">
         <button className="icon-button close-sidebar" aria-label={t('nav.closeMenu')} onClick={() => setMenuOpen(false)}><X size={18} /></button>
         <a href="#main" className="brand"><span className="brand-mark"><Building2 size={24} strokeWidth={1.6} /></span><span>city<span className="brand-light">side</span><small>Your everyday, connected.</small></span></a>
         <button className="new-chat" onClick={newConversation} disabled={pending}><Plus size={17} /> {t('app.newConversation')} </button>
         <div className="nav-label">{t('nav.yourSpace')}</div>
-        <button className="nav-item active" onClick={() => { setMobilePanel(false); setMenuOpen(false); input.current?.focus(); }}><Sparkles size={18} /> {t('nav.yourConcierge')} <span className="nav-dot" /></button>
+        <button className="nav-item active" aria-current="page" onClick={() => { setMenuOpen(false); setChatViewRequest(value => value + 1); input.current?.focus(); }}><Sparkles size={18} /> {t('nav.yourConcierge')} <span className="nav-dot" /></button>
         <button className="nav-item" disabled={pending} onClick={() => void loadHistory()}><MessageSquare size={18} /> {t('nav.conversations')}</button>
         <div className="nav-label services-label">{t('nav.exploreServices')}</div>
+        <a className="nav-item" href="/services/fines"><ShieldCheck size={18} /> {t('nav.fines')}</a>
         <nav>{services.map(service => <button key={service.id} className="nav-item" disabled={pending} onClick={() => openService(service.id)}><service.icon size={18} /> {t(`service.${service.id}` as CatalogKey)}<ArrowUpRight size={13} className="nav-arrow" /></button>)}</nav>
-        <button className="nav-item" disabled={pending} onClick={() => send('Show my citizen profile and registered vehicles and premises')}><ShieldCheck size={18} /> {t('nav.myProfile')}</button>
+        <button className="nav-item" disabled={pending} onClick={() => openService('profile')}><ShieldCheck size={18} /> {t('nav.myProfile')}</button>
         <div className="sidebar-bottom">
           {accounts.length > 0 && <label className="account-selector">{t('nav.currentAccount')}<select aria-label={t('nav.currentAccount')} disabled={pending} value={accountId} onChange={e => void switchAccount(e.target.value)}>{accounts.map(account => <option key={account.id} value={account.id}>{account.label}</option>)}</select></label>}
           {auth.current?.signedIn && <button className="text-button" onClick={() => { voice.current?.cancel(); auth.current?.logout(); }}>{t('nav.signOut')}</button>}
           <div className="city-location"><MapPin size={17} /><div>{t('footer.madeForLife')}<small>{t('footer.cityServices')}</small></div></div>
-          <button className="profile-button" disabled={pending} onClick={() => send('Show my citizen profile')}><span className="avatar">{initials}</span><span>{userName}<small>{accounts.find(a => a.id === accountId)?.label || 'Demo account'}</small></span><ChevronDown size={15} /></button>
+          <button className="profile-button" disabled={pending} onClick={() => openService('profile')}><span className="avatar">{initials}</span><span>{userName}<small>{accounts.find(a => a.id === accountId)?.label || 'Demo account'}</small></span><ChevronDown size={15} /></button>
         </div>
       </aside>
       {menuOpen && <button className="menu-scrim" aria-label={t('nav.close')} onClick={() => setMenuOpen(false)} />}
-      <main id="main" className="main-workspace">
+      <main id="main" className="main-workspace" tabIndex={-1}>
         <header className="topbar">
-          <div className="breadcrumb"><button className="icon-button mobile-menu" aria-label={t('nav.open')} aria-controls="city-navigation" aria-expanded={menuOpen} onClick={() => setMenuOpen(true)}><Menu size={20} /></button><span>{t('nav.yourSpace')}</span><span className="breadcrumb-slash">/</span><strong>{paymentAccountsOpen ? 'Payment accounts' : 'Concierge'}</strong></div>
-          <div className="topbar-actions"><span className={`connection-status ${connection === 'offline' || inference === 'error' ? 'is-error' : ''}`} role="status"><i />{statusLabel}</span><button className="icon-button" aria-label={t('settings.title')} aria-expanded={settingsOpen} onClick={() => setSettingsOpen(!settingsOpen)}><Settings2 size={18} /></button></div>
+          <div className="chat-header-identity"><button ref={menuButton} className="icon-button mobile-menu" aria-label={t('nav.open')} aria-controls="city-navigation" aria-expanded={menuOpen} onClick={() => setMenuOpen(true)}><Menu size={20} /></button><span className="rashid-avatar" aria-hidden="true"><Sparkles size={22} /></span><div><h1>{paymentAccountsOpen ? t('tools.paymentAccounts') : t('chat.title')}</h1><span className={`connection-status ${connection === 'offline' || inference === 'error' ? 'is-error' : ''}`} role="status"><i />{statusLabel}</span></div></div>
+          <div className="topbar-actions"><nav className="workspace-tools" aria-label="Workspace tools"><button className="icon-button account-tool" aria-label={t('tools.delegatedAccess')} title={t('tools.delegatedAccess')} aria-expanded={delegationOpen} onClick={() => { setPaymentAccountsOpen(false); setConnectionsOpen(false); setDelegationOpen(!delegationOpen); }}><ShieldCheck size={18} /><span>{t('tools.delegatedAccess')}</span></button><button className="icon-button account-tool" aria-label={t('tools.connections')} title={t('tools.connections')} aria-expanded={connectionsOpen} onClick={() => { setDelegationOpen(false); setPaymentAccountsOpen(false); setConnectionsOpen(!connectionsOpen); }}><Link2 size={18} /><span>{t('tools.connections')}</span></button><button ref={paymentAccountsButton} className="icon-button account-tool" aria-label={t('tools.paymentAccounts')} title={t('tools.paymentAccounts')} disabled={pending || !accountId} aria-controls="payment-account-panel" aria-expanded={paymentAccountsOpen} onClick={() => { voice.current?.cancel(); setDelegationOpen(false); setConnectionsOpen(false); setPaymentAccountsOpen(!paymentAccountsOpen); }}><CreditCard size={18} /><span>{t('tools.paymentAccounts')}</span></button></nav><button className="icon-button" aria-label={t('settings.title')} aria-expanded={settingsOpen} onClick={() => setSettingsOpen(!settingsOpen)}><Settings2 size={18} /></button></div>
         </header>
-        <nav className="workspace-tools" aria-label="Workspace tools"><button className="text-button" aria-expanded={delegationOpen} onClick={() => { setPaymentAccountsOpen(false); setConnectionsOpen(false); setDelegationOpen(!delegationOpen); }}>{t('tools.delegatedAccess')}</button>
-        <button className="text-button" aria-expanded={connectionsOpen} onClick={() => { setDelegationOpen(false); setPaymentAccountsOpen(false); setConnectionsOpen(!connectionsOpen); }}>{t('tools.connections')}</button>
-        <button ref={paymentAccountsButton} className="text-button" disabled={pending || !accountId} aria-controls="payment-account-panel" aria-expanded={paymentAccountsOpen} onClick={() => { voice.current?.cancel(); setDelegationOpen(false); setConnectionsOpen(false); setPaymentAccountsOpen(!paymentAccountsOpen); }}>{t('tools.paymentAccounts')}</button></nav>
         {paymentAccountsOpen && <PaymentAccountsPanel key={accountId} gateway={GATEWAY_URL} accountId={accountId} getToken={getToken} onClose={() => { setPaymentAccountsOpen(false); paymentAccountsButton.current?.focus(); }} />}
         {delegationOpen && <DelegationPanel gateway={GATEWAY_URL} accountId={accountId} getToken={getToken} locale={locale} />}
         {connectionsOpen && <ConnectionsPanel gateway={GATEWAY_URL} getToken={getToken} locale={locale} />}
-        {settingsOpen && <section className="settings-panel" aria-label={t('settings.title')}><div className="settings-title"><strong>{t('settings.title')}</strong><button className="icon-button" aria-label={t('settings.close')} onClick={() => setSettingsOpen(false)}><X size={17} /></button></div><p>Model: {model?.model || 'Unavailable'}</p><p>{model?.enabled ? 'Private replies from the local open-source model.' : 'Demo replies. Enable live inference in the server environment.'}</p><label>Voice language<select value={language} onChange={e => { voice.current?.cancel(); setLanguage(e.target.value); if (e.target.value !== 'en-US') setReadReplies(false); }}><option value="en-US">English</option><option value="ar-AE">Arabic dictation · text replies</option></select></label><label>{t('settings.language')}<select aria-label={t('settings.language')} value={locale} onChange={e => setLocale(e.target.value as Locale)}><option value="en">English</option><option value="ar">العربية</option></select></label><label className="checkbox-label"><input type="checkbox" checked={shareProfile} onChange={e => void changeShareProfile(e.target.checked)} />{t('settings.shareProfile')}</label>{shareNotice && <p role="status">{shareNotice}</p>}<label className="checkbox-label"><input type="checkbox" checked={readReplies} disabled={!canSpeak || language !== 'en-US'} onChange={e => { setReadReplies(e.target.checked); if (!e.target.checked) voice.current?.cancel(); }} />{t('settings.readReplies')}</label><h3>Voice studio</h3><p>{voiceConfig?.ttsReady && voiceConfig?.asrReady ? 'Local open-source speech is ready.' : 'Local voice is not ready. Text chat remains available.'}</p><label>Voice preset<select aria-label="Voice preset" value={voiceProfile} onChange={e => { voice.current?.cancel(); setVoiceProfile(e.target.value); }}>{(voiceConfig?.voices || [{id:'Jasper', name:'Jasper'}]).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label><label>Speaking speed · {voiceSpeed.toFixed(2)}×<input aria-label="Speaking speed" type="range" min="0.8" max="1.2" step="0.05" value={voiceSpeed} onChange={e => { voice.current?.cancel(); setVoiceSpeed(Number(e.target.value)); }} /></label><button className="text-button" disabled={!canSpeak || voiceState !== 'idle'} onClick={() => voice.current?.speak('Marhaba. I am Rashid, your city concierge. Tell me what you need, and we will take it one step at a time.', 'en-US')}>Preview voice</button><button className="text-button" onClick={() => voice.current?.cancel()}>Stop voice</button><button className="text-button" onClick={() => void refreshVoice()}>Refresh local voice</button><small>Speech runs on the local app server using open-source models. Short microphone recordings become editable drafts; review them before Send. Sent messages follow your chat settings.</small><button className="text-button" onClick={() => void checkConnection()}>Check connection again</button></section>}
+        {settingsOpen && <section className="settings-panel" aria-label={t('settings.title')}><div className="settings-title"><strong>{t('settings.title')}</strong><button className="icon-button" aria-label={t('settings.close')} onClick={() => setSettingsOpen(false)}><X size={17} /></button></div><p>Model: {model?.model || 'Unavailable'}</p><p>{model?.enabled ? model?.provider === 'litellm' ? 'Replies through your configured LiteLLM server.' : model?.provider === 'openrouter' ? 'Replies through the selected free OpenRouter model.' : 'Private replies from the local open-source model.' : 'Demo replies. Enable inference in the server environment.'}</p><label>Voice language<select value={language} onChange={e => { voice.current?.cancel(); setLanguage(e.target.value); if (e.target.value !== 'en-US') setReadReplies(false); }}><option value="en-US">English</option><option value="ar-AE">Arabic dictation · text replies</option></select></label><label>{t('settings.language')}<select aria-label={t('settings.language')} value={locale} onChange={e => setLocale(e.target.value as Locale)}><option value="en">English</option><option value="ar">العربية</option></select></label><label className="checkbox-label"><input type="checkbox" checked={shareProfile} onChange={e => void changeShareProfile(e.target.checked)} />{t('settings.shareProfile')}</label>{shareNotice && <p role="status">{shareNotice}</p>}<label className="checkbox-label"><input type="checkbox" checked={readReplies} disabled={!canSpeak || language !== 'en-US'} onChange={e => { setReadReplies(e.target.checked); if (!e.target.checked) voice.current?.cancel(); }} />{t('settings.readReplies')}</label><h3>Voice studio</h3><p>{voiceConfig?.ttsReady && voiceConfig?.asrReady ? 'Local open-source speech is ready.' : 'Local voice is not ready. Text chat remains available.'}</p><label>Voice preset<select aria-label="Voice preset" value={voiceProfile} onChange={e => { voice.current?.cancel(); setVoiceProfile(e.target.value); }}>{(voiceConfig?.voices || [{id:'Jasper', name:'Jasper'}]).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label><label>Speaking speed · {voiceSpeed.toFixed(2)}×<input aria-label="Speaking speed" type="range" min="0.8" max="1.2" step="0.05" value={voiceSpeed} onChange={e => { voice.current?.cancel(); setVoiceSpeed(Number(e.target.value)); }} /></label><button className="text-button" disabled={!canSpeak || voiceState !== 'idle'} onClick={() => voice.current?.speak('Marhaba. I am Rashid, your city concierge. Tell me what you need, and we will take it one step at a time.', 'en-US')}>Preview voice</button><button className="text-button" onClick={() => voice.current?.cancel()}>Stop voice</button><button className="text-button" onClick={() => void refreshVoice()}>Refresh local voice</button><small>Speech runs on the local app server using open-source models. Short microphone recordings become editable drafts; review them before Send. Sent messages follow your chat settings.</small><button className="text-button" onClick={() => void checkConnection()}>Check connection again</button></section>}
         {historyOpen && <section className="settings-panel history-panel" aria-label="Saved conversations"><div className="settings-title"><strong>Saved conversations</strong><button className="icon-button" aria-label="Close conversations" onClick={() => setHistoryOpen(false)}><X size={17}/></button></div>{recentSessions.filter(item => item.accountId === accountId).map(item => <div className="history-row" key={item.sessionId}><button className="text-button" onClick={() => void restoreConversation(item.sessionId, accountId)}>{item.title}</button><button className="icon-button" aria-label={`Delete ${item.title}`} onClick={() => void (async () => { const response = await fetch(`${GATEWAY_URL}/api/sessions/${item.sessionId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${await getToken()}` } }); if (response.ok) { if (item.sessionId === sessionId) resetConversation(); void loadHistory(); } })()}><X size={14}/></button></div>)}{!recentSessions.some(item => item.accountId === accountId) && <p>No saved conversations for this account yet.</p>}</section>}
-        {!paymentAccountsOpen && <div className="workspace-content">
-          <section className={`conversation ${mobilePanel ? 'mobile-hidden' : ''}`} aria-label="Concierge conversation">
+        {!paymentAccountsOpen && <WorkspacePanes chatLayout conversationKey={`${sessionId}:${chatViewRequest}`} revealDetailsKey={surface?.revision} conversation={<>
+          <section className="conversation" aria-label="Concierge conversation">
             <div className="conversation-scroll">
               {messages.length === 0 ? <div className="welcome">
-                <div className="concierge-emblem"><Sparkles size={28} strokeWidth={1.4} /></div>
-                <p className="welcome-greeting">Marhaba, {userName.split(' ')[0]}</p>
-                <h1>A little help.<br />A lot more city.</h1>
-                <p className="welcome-description">I’m Rashid, your city concierge. From your morning commute to your next move, let’s take care of it.</p>
-                <div className="suggestion-grid">
-                  <button disabled={pending} onClick={() => send('Find parking in Downtown Dubai')}><span className="suggestion-icon blue"><CarFront size={20} /></span><span>Find a parking spot<small>A smoother arrival in Downtown</small></span><ArrowUpRight size={16} /></button>
-                  <button disabled={pending} onClick={() => openService('utilities')}><span className="suggestion-icon amber"><Zap size={20} /></span><span>Take care of my bills<small>Your electricity & water, together</small></span><ArrowUpRight size={16} /></button>
-                  <button disabled={pending} onClick={() => openService('wallet')}><span className="suggestion-icon violet"><CreditCard size={20} /></span><span>Check my wallet<small>Keep an eye on your everyday</small></span><ArrowUpRight size={16} /></button>
-                  <button disabled={pending} onClick={() => openService('housing')}><span className="suggestion-icon teal"><House size={20} /></span><span>Make my move easier<small>Settle into your new home</small></span><ArrowUpRight size={16} /></button>
+                <div className="chat-welcome-mark" aria-hidden="true"><Sparkles size={30} strokeWidth={1.5} /></div>
+                <h2>Marhaba, {userName.split(' ')[0]}.</h2>
+                <p className="welcome-description">Your city. One conversation.</p>
+                <article className="message assistant welcome-message"><div className="message-avatar" aria-hidden="true"><Sparkles size={18} /></div><div className="message-body"><span className="message-author">Rashid</span><p>I can help with bills, getting around, and everyday city services. What would you like to take care of?</p></div></article>
+                <div className="suggestion-grid" aria-label="Suggested messages">
+                  <button disabled={pending} onClick={() => openService('utilities')}><Zap size={16} aria-hidden="true" />Check my bills</button>
+                  <button disabled={pending} onClick={() => openService('parking')}><CarFront size={16} aria-hidden="true" />Find parking</button>
+                  <button disabled={pending} onClick={() => openService('wallet')}><CreditCard size={16} aria-hidden="true" />Check my wallet</button>
                 </div>
-                <button className="browse-services" onClick={() => send('Show all available city services')}><Compass size={15} /> Explore all city services <ArrowUpRight size={14} /></button>
+                <a className="fines-shortcut" href="/services/fines"><ShieldCheck size={16} aria-hidden="true" />{t('chat.reviewFines')}<ArrowUpRight size={16} aria-hidden="true" /></a>
               </div> : <div className="message-list" aria-live="polite" aria-relevant="additions">{messages.map(message => <article key={message.id} className={`message ${message.role} ${message.error ? 'message-error' : ''}`}><div className="message-avatar">{message.role === 'assistant' ? <Sparkles size={17} /> : initials}</div><div className="message-body"><span className="message-author">{message.role === 'assistant' ? 'Rashid' : t('message.you')}</span><p dir="auto">{message.text}</p>{message.retry && <button className="text-button" disabled={pending} onClick={() => send(message.retry)}>{t('message.tryAgain')}</button>}</div></article>)}</div>}
               {pending && <div className="thinking" role="status"><span className="thinking-dots"><i /><i /><i /></span><span>{progress}</span></div>}
               <div ref={messagesEnd} />
             </div>
             <div className="composer-area">
-              {surface && <button className="mobile-surface-toggle" onClick={() => setMobilePanel(true)}><Check size={15} /> View service details <ArrowUpRight size={15} /></button>}
               {(voiceError || voiceState !== 'idle') && <div className="voice-status" role="status">{voiceError || (voiceState === 'listening' ? 'Listening… stop when you are done (up to 15 seconds).' : voiceState === 'transcribing' ? 'Transcribing locally… review the draft before sending.' : 'Reading the reply aloud.')}<button onClick={() => { voice.current?.cancel(); setVoiceError(''); }}>Dismiss</button></div>}
               <form className={`composer ${pending ? 'is-pending' : ''}`} onSubmit={e => { e.preventDefault(); send(); }}>
-                <textarea ref={input} aria-label={t('composer.label')} placeholder={t('composer.placeholder')} value={draft} maxLength={4000} rows={2} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }} />
-                <div className="composer-toolbar"><span><Sparkles size={13} /> Your city, simplified</span><div><button type="button" className={`icon-button ${voiceState === 'listening' ? 'recording' : ''}`} disabled={pending || !canListen || voiceState === 'transcribing'} title={canListen ? 'Dictate a message' : 'Voice input is unavailable in this browser'} aria-label={voiceState === 'listening' ? 'Stop microphone' : 'Use microphone'} onClick={() => { setVoiceError(''); voiceState === 'listening' ? voice.current?.stopListening() : voice.current?.startListening(language); }}>{voiceState === 'listening' ? <Square size={17} /> : <Mic size={18} />}</button>{voiceState === 'speaking' && <button type="button" className="icon-button" aria-label="Stop reading" onClick={() => voice.current?.cancel()}><Volume2 size={18} /></button>}<button type="submit" className="send-button" disabled={pending || !draft.trim()} aria-label="Send message">{pending ? <AudioLines size={18} /> : <ArrowUp size={19} />}</button></div></div>
+                <label className="composer-label" htmlFor="concierge-message">{t('composer.label')}</label>
+                <textarea id="concierge-message" ref={input} placeholder={t('composer.placeholder')} value={draft} maxLength={4000} rows={2} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }} />
+                <div className="composer-toolbar"><span>Enter to send<span className="keyboard-hint">, Shift + Enter for a new line</span></span><div><button type="button" className={`icon-button ${voiceState === 'listening' ? 'recording' : ''}`} disabled={pending || !canListen || voiceState === 'transcribing'} title={canListen ? 'Dictate a message' : 'Voice input is unavailable in this browser'} aria-label={voiceState === 'listening' ? 'Stop microphone' : 'Use microphone'} onClick={() => { setVoiceError(''); voiceState === 'listening' ? voice.current?.stopListening() : voice.current?.startListening(language); }}>{voiceState === 'listening' ? <Square size={17} /> : <Mic size={18} />}</button>{voiceState === 'speaking' && <button type="button" className="icon-button" aria-label="Stop reading" onClick={() => voice.current?.cancel()}><Volume2 size={18} /></button>}<button type="submit" className="send-button" disabled={pending || !draft.trim()} aria-label="Send message">{pending ? <AudioLines size={18} /> : <ArrowUp size={19} />}<span>Send</span></button></div></div>
               </form>
               <p className="composer-note"><ShieldCheck size={12} /> You’re in control. Review and confirm before any service action.</p>
             </div>
-          </section>
-          <aside className={`service-panel ${mobilePanel ? 'mobile-visible' : ''}`} aria-label="Service details">
-            <div className="service-panel-heading"><span><Compass size={18} /> {surface ? 'Your service workspace' : 'A city within reach'}</span><button className="icon-button mobile-close" aria-label="Back to conversation" onClick={() => setMobilePanel(false)}><X size={18} /></button><span className="preview-pill">Demo</span>{surface?.revision && JSON.stringify(surface.view).includes('AGENT_ACTION_DISPATCH') && <button className="text-button" disabled={pending} onClick={() => void request('cancel', { surfaceRevision: surface.revision })}>Cancel approval</button>}</div>
+          </section></>} details={<>
+          <aside className="service-panel" aria-label="Service details">
+            <div className="service-panel-heading"><span><Compass size={18} /> {surface ? 'Prepared for you' : 'Your workspace'}</span><span className="preview-pill">Demo</span>{surface?.revision && JSON.stringify(surface.view).includes('AGENT_ACTION_DISPATCH') && <button className="text-button" disabled={pending} onClick={() => void request('cancel', { surfaceRevision: surface.revision })}>Cancel approval</button>}</div>
             {surface ? <div className="surface-content"><div className="surface-context"><span className="context-dot" /> Prepared for you <span>Review the details below</span></div><A2UIRenderer key={surface.revision} node={surface.view} isPending={pending} onDispatchAction={dispatch} /><p className="demo-note">City services use simulated data. No real bookings or payments are made.</p></div> : <>
-              <div className="city-scene" aria-hidden="true"><div className="scene-sun" /><div className="scene-cloud cloud-one" /><div className="scene-cloud cloud-two" /><div className="skyline"><div className="building b1" /><div className="building b2" /><div className="building b3" /><div className="burj"><i /><b /><span /></div><div className="building b4" /><div className="building b5" /><div className="frame-building" /></div><div className="scene-ground" /><div className="scene-caption"><MapPin size={13} /> Dubai, United Arab Emirates</div></div>
-              <div className="panel-intro"><h2>More living.<br />Less life admin.</h2><p>Everything you need for the everyday, in one place. Start with a conversation.</p></div>
+              <div className="service-empty"><span className="review-emblem" aria-hidden="true"><MessageSquare size={28} strokeWidth={1.5} /></span><h2>Details, as we talk.</h2><p>Your service options and confirmations will appear here. Start with a message to Rashid.</p></div>
+              <div className="panel-intro"><h2>Explore services</h2></div>
               <div className="service-directory">{services.map(service => <button key={service.id} disabled={pending} onClick={() => openService(service.id)}><span className={`directory-icon ${service.color}`}><service.icon size={19} /></span><span>{service.short}<small>{service.detail}</small></span><ArrowUpRight size={15} /></button>)}</div>
-              <div className="workspace-tip"><MessageSquare size={19} /><div>One request. A few things, sorted.<p>Try “Help me move in and set up my utilities.” I’ll bring the steps together.</p></div></div>
+              <div className="workspace-tip"><ShieldCheck size={20} aria-hidden="true" /><div><strong>You make the final call</strong><p>Review the service details and exact amount before confirming an action.</p></div></div>
               <p className="demo-note">A working preview with simulated city services.<br />{model?.enabled ? 'Local open-source conversations.' : 'Local demo conversations.'}</p>
             </>}
-          </aside>
-        </div>}
-        <footer className="app-footer"><span><Building2 size={12} /> Life happens. We help.</span><button onClick={() => send('How does this work?')} disabled={pending}><CircleHelp size={13} /> How it works</button></footer>
+          </aside></>} />}
+        <footer className="app-footer"><span><Building2 size={12} /> Dubai city services</span><button onClick={() => send('How does this work?')} disabled={pending}><CircleHelp size={13} /> How it works</button></footer>
       </main>
     </div>
   );

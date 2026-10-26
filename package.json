@@ -35,6 +35,7 @@
     "check": "npm run lint && npm run check:e2e && npm run check:docs && npm run check:secrets && npm run check:local-only && npm run check:any && npm run check:tokens && npm test && npm run build -- --concurrency=2",
     "test:keycloak": "node --experimental-strip-types scripts/test-keycloak.ts",
     "demo:up": "docker compose -f docker-compose.demo.yml up -d && npm run demo:wait && npm run demo:delegation:realm && npm run local-ai:up",
+    "demo:refresh": "npm run demo:delegation:realm && node --experimental-strip-types scripts/refresh-demo-apis.ts && npm run demo:wait",
     "demo:wait": "node --experimental-strip-types scripts/wait-demo-stack.ts",
     "qualify": "node --experimental-strip-types scripts/qualification-stack.ts",
     "demo:down": "docker compose -f docker-compose.demo.yml --profile local-ai down",
@@ -49,7 +50,6 @@
     "demo:verify:journeys": "node --experimental-strip-types scripts/verify-demo-journeys.ts",
     "demo:verify:restart": "node --experimental-strip-types scripts/run-demo-restart.ts",
     "demo:verify:manual": "node --experimental-strip-types scripts/verify-demo-manual.ts",
-    "demo:check:openrouter": "node --env-file-if-exists=.env --experimental-strip-types scripts/check-openrouter.ts",
     "test:e2e": "node --experimental-strip-types scripts/record-e2e-scenarios.ts",
     "recordings:serve": "node --experimental-strip-types scripts/serve-recordings.ts",
     "check:e2e": "tsc --project scripts/e2e/tsconfig.json",
@@ -116,7 +116,8 @@
     "agent:init": "node --experimental-strip-types scripts/init-simple-agent.ts",
     "agent:verify:container": "node --experimental-strip-types scripts/verify-agent-container.ts",
     "agent:client": "node --env-file=.env.agent --experimental-strip-types scripts/simple-agent-client.ts",
-    "test:agent": "node --experimental-strip-types --test services/test/simple-agent.test.ts services/agent-core/test/*.test.ts",
+    "agent:verify:model": "node --env-file=.env.agent --experimental-strip-types scripts/verify-agent-model.ts",
+    "test:agent": "node --experimental-strip-types --test services/test/simple-agent.test.ts services/test/agent-model-config.test.ts services/test/focused-agent-client.test.ts services/agent-core/test/*.test.ts",
     "check:agent": "npm run build --workspace services/agent-core && tsc -p services/agent-core/test/tsconfig.json && npm run test:agent"
   },
   "devDependencies": {
@@ -134,7 +135,6 @@
     "superapp",
     "agentic-ai",
     "langgraph",
-    "openrouter",
     "mcp",
     "ag-ui",
     "a2-ui",

@@ -8,18 +8,18 @@ export const MODEL_TOKENS_PER_HOUR = 40000;
 const OUTPUT_TOKEN_RESERVATION = 192;
 
 /** Conservative estimate: about three UTF-8 bytes per token, plus the reserved output. */
-export function estimateTokens(bytes: number) {
-  return Math.ceil(bytes / 3) + OUTPUT_TOKEN_RESERVATION;
+export function estimateTokens(bytes: number, outputTokens = OUTPUT_TOKEN_RESERVATION) {
+  return Math.ceil(bytes / 3) + outputTokens;
 }
 
 const usage = new Map<string, { until: number; calls: number; tokens: number; active: number }>();
-export function acquireModelBudget(messages: Array<{ role: string; content: string }> = []) {
+export function acquireModelBudget(messages: Array<{ role: string; content: string }> = [], outputTokens = OUTPUT_TOKEN_RESERVATION) {
   const actor = actorContext.getStore();
   const key = actor ? `${actor.sub}:${actor.accountId}` : 'local-demo';
   const now = Date.now();
   let inputBytes = 0;
   try { inputBytes = boundedMessages(messages).reduce((sum, item) => sum + Buffer.byteLength(item.content), 0); } catch { inputBytes = 0; }
-  const estimated = estimateTokens(inputBytes);
+  const estimated = estimateTokens(inputBytes, outputTokens);
   for (const [id, value] of usage) if (value.until <= now && !value.active) usage.delete(id);
   if (!usage.has(key) && usage.size >= 1000) throw new Error('Model request capacity reached');
   const budget = usage.get(key) || { until: now + 3600000, calls: 0, tokens: 0, active: 0 };

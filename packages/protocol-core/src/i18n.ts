@@ -8,7 +8,10 @@ export const DEFAULT_LOCALE: Locale = 'en';
 const en = {
   'app.newConversation': 'New conversation',
   'nav.yourSpace': 'Your space',
-  'nav.yourConcierge': 'Your concierge',
+  'nav.yourConcierge': 'Chat with Rashid',
+  'nav.fines': 'Fines',
+  'chat.title': 'Chat with Rashid',
+  'chat.reviewFines': 'Review your fines',
   'nav.conversations': 'Conversations',
   'nav.exploreServices': 'Explore services',
   'nav.myProfile': 'My profile',
@@ -91,7 +94,10 @@ export type CatalogKey = keyof typeof en;
 const ar: Record<CatalogKey, string> = {
   'app.newConversation': 'محادثة جديدة',
   'nav.yourSpace': 'مساحتك',
-  'nav.yourConcierge': 'مساعدك الشخصي',
+  'nav.yourConcierge': 'محادثة مع راشد',
+  'nav.fines': 'المخالفات',
+  'chat.title': 'محادثة مع راشد',
+  'chat.reviewFines': 'راجع مخالفاتك',
   'nav.conversations': 'المحادثات',
   'nav.exploreServices': 'استكشف الخدمات',
   'nav.myProfile': 'ملفي الشخصي',

@@ -19,21 +19,27 @@ Try **Show outstanding fines** or **Retrieve my fines and pay them**. Review the
 
 Set `AGENT_PLANNER=compatible` plus a local/self-hosted `AGENT_LLM_BASE_URL` and `AGENT_LLM_MODEL` for model-selected plans. Fixture mode is deterministic simulation; a provider outage never silently selects it. Keep `AGENT_AUTH=test` for the isolated local demo, or configure the existing Keycloak verifier and explicit fines scopes. See [API/configuration](docs/integrations.md) and [security](docs/security.md).
 
+To explicitly use an existing exported `OPENROUTER_API_KEY`, initialize with `npm run agent:init -- --openrouter` instead. The compatible planner uses the free router, requires zero-price provider routing and keeps the key server-side. `npm run agent:verify:model` runs the real-provider smoke check. Existing private configurations are preserved; see [OpenRouter setup](docs/integrations.md#explicit-openrouter-setup) to switch one.
+
 ```bash
 npm run check:agent
 # Optional single-container demo (not needed for local execution):
 docker compose -f compose.agent.yml up --build
 ```
 
-[Architecture](docs/architecture.md) · [Native graph](docs/agent-flow.md) · [Testing](docs/testing.md). Use one process/replica per SQLite file. The existing React/Angular/Flutter shells and integrated provider/payment/delegation demo are preserved below as a compatibility path; they are not yet wired to the focused API. No frontend rewrite is included.
+[Architecture](docs/architecture.md) · [Native graph](docs/agent-flow.md) · [Testing](docs/testing.md). Use one process/replica per SQLite file. The primary React fines route uses this API; other React journeys and the Angular/Flutter shells retain the integrated compatibility path below.
+
+Start `npm run dev:react` in another terminal and open [the fines conversation](http://localhost:3000/services/fines). Sign in with the local `token` field from `AGENT_TEST_IDENTITIES` in private `.env.agent`, then ask to view fines or review a payment. The OpenRouter API key stays on the server. The **Swap panes** icon exchanges conversation and service details. Each pane’s size icon maximizes it; click that same icon again to restore the split view. The split starts at 50/50; drag the divider to resize it, or focus it and use the arrow keys (Enter resets). The same controls are available in the main concierge, with progressive book/clamshell fold layouts. See [browser setup and recovery](docs/integrations.md#react-fines-workspace).
 
 [What exists today](#what-exists-today) · [Documentation index](docs/INDEX.md) · [Open work](TODO.md) · [Verification evidence](docs/reports/README.md)
+
+The main concierge can use the existing LiteLLM server with **GLM 5.3** or **MiMo**, or explicitly select local/free OpenRouter inference. Provider keys stay server-side. See [provider configuration](docs/development/local-ai.md#select-a-conversation-provider).
 
 ## What exists today
 
 | Area | Implemented in the local demo | Not claimed |
 | --- | --- | --- |
-| Focused agent | One Node.js process, official SQLite LangGraph checkpoints, bounded model-selected plans, REST fines simulator, durable approval and deduplicated simulated payment | Real-model quality, production identity/delegation, shell migration or multi-replica operation |
+| Focused agent | One Node.js process, official SQLite LangGraph checkpoints, bounded model-selected plans, REST fines simulator, primary React fines conversation, durable approval and deduplicated simulated payment | Real-model quality, production identity/delegation, Angular/Flutter migration or multi-replica operation |
 | Integrated compatibility runtime | Concierge plus six application APIs and seven account-scoped provider simulators; real HTTP boundaries and SQLite persistence | Real agency, UAE PASS, bank or PSP integration; records and funds are synthetic |
 | Identity | Keycloak 26.6.4 pinned by digest; browser PKCE, signed ownership checks, introspection, separate RFC 7523 delegation broker | Production identity, custom actor mapper, multi-hop authority; local HTTP with seeded credentials |
 | Compatibility conversation | Bounded LangGraph review/execute flow, Redis ownership/leases/checkpoints/replay, explicit approval and cancellation, authenticated MCP | Model-selected tool plans, general workflow engine or compensation |
@@ -41,7 +47,7 @@ docker compose -f compose.agent.yml up --build
 | Payments | Linked billers and synthetic saved cards; finite wallet/card reviews; bills, exact fines, prepaid/toll recharges, wallet funding, grouped checkout, original-source refunds, signed events, recovery and statements | Real cards or money; atomic multi-provider settlement (cross-provider effects are sequential with truthful partial and unknown states) |
 | Automation | Finite versioned consent records that can be paused (one rule or all at once), resumed, skipped and revoked in the React panel; run-scoped preparation, a read-only preview of what a rule would do, per-execution credentials and settlement of automatic executions in isolated simulator runs, an off-by-default persistent job worker with a scheduler for calendar, invoice-due and balance-threshold rules, and an owner inbox of what each rule did, skipped or is waiting on ([guide](docs/development/automation-worker.md)) | Execution: nothing schedules unless both worker flags are set, nothing runs outside an isolated run, and mandates return `executionEnabled:false` |
 | Simulator | Persistent business clock, eight isolated issuer outcomes, guarded run-scoped failpoint controls, read-only run inspector, partial lifecycle fixtures | Network admin panel, full lifecycle event generation |
-| Shells | React primary; Angular and Flutter comparison shells | Full payment, accessibility, localization and native-device parity |
+| Shells | React primary with fines adoption and swappable/maximizable conversation and service panes; Angular and Flutter comparison shells | Full payment, accessibility, localization and native-device parity |
 | Compatibility operations | Fifteen Node processes with private telemetry, correlation IDs, dependency readiness, bounded shutdown, encrypted cold restore and fenced single-writer rehearsal | Replicated HA, scheduled off-host backup, immutable audit archive |
 
 Open work is tracked only in [TODO.md](TODO.md); the delivered record is the [changelog](docs/CHANGELOG.md); what was verified, when and against which revision is the [evidence register](docs/reports/README.md). Dated reports and recordings state what was true at their own checkpoint.
@@ -133,7 +139,7 @@ Each exposes `/health`, `/live`, `/ready` and `/openapi.json`; `/ready` runs a S
 
 ## Integrated compatibility model behavior and limits
 
-Local Qwen2.5-1.5B-Instruct replies use bounded recent messages and current service results. llama.cpp runs CPU-only behind the authenticated core; model errors stay visible. `/health` probes actual model readiness. Requests enforce a 24 KiB context budget, 192 output tokens, a 45-second timeout and per-actor call/concurrency limits. The retained OpenRouter diagnostic/helper is historical and unused by application inference; an existing private key is neither needed nor forwarded by the demo.
+Local Qwen2.5-1.5B-Instruct replies use bounded recent messages and current service results. llama.cpp runs CPU-only behind the authenticated core; model errors stay visible. `/health` probes actual model readiness. Requests enforce a 24 KiB context budget, 192 output tokens, a 45-second timeout and per-actor call/concurrency limits.
 
 React and Angular offer **Conversation settings → Voice studio** with four local presets, speed, preview and stop controls. Dictation becomes an editable draft; **Send** and service confirmation stay explicit. English spoken replies are opt-in; English/Arabic dictation is available, with Arabic replies as text. No browser speech/cloud fallback or voice cloning is enabled. [Voice behavior](docs/architecture/voice-and-conversation.md) · [Original sample](docs/assets/voice/rashid-preview.wav) · [Executed checks](docs/reports/2026-10-24-local-ai.md).
 

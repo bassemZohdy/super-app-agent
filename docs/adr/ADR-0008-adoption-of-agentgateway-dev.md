@@ -2,8 +2,8 @@
 
 > Implementation review, 24 October 2026: [what exists today](../../README.md#what-exists-today), [delivery target](ADR-0011-local-demo-target.md) and [bounded delegation amendment](ADR-0012-secure-delegation-demo.md) identify the implemented demo. This decision does not establish production approval.
 
-**Status:** **Candidate/configured for experimentation; adoption and compatibility NOT verified.**
-**Reviewed:** 2026-10-24.
+**Status:** **Deferred candidate; unused experimental configuration removed. Adoption and compatibility NOT verified.**
+**Reviewed:** 2026-10-26.
 
 ## Context
 
@@ -18,9 +18,9 @@ Production agent traffic may require model budgets, authentication, MCP federati
 
 ## Current evidence
 
-`services/agentgateway/config.yaml` describes listener, LLM, tool and tracing settings; `docker-compose.yml` references an unpinned `ghcr.io/agentgateway/agentgateway:latest` image. The demo agent graph **does not use** the gateway for its business calls and active inference uses private llama.cpp through an internal adapter. The historical OpenRouter helper uses direct HTTP only when explicitly invoked for diagnostics/tests.
+The unused gateway YAML, older default Compose file and historical OpenRouter connector/diagnostic/tests were removed during workspace cleanup. No retained application path imported that connector. The focused agent uses its configured OpenAI-compatible planner; the integrated demo uses private llama.cpp. `compose.agent.yml` and `docker-compose.demo.yml` are the respective explicit entry points.
 
-The config describes `/mcp` endpoints, but application services still expose legacy `GET /mcp` descriptors. The core now has a real authenticated MCP endpoint, but the candidate gateway has not been wired to or tested against it. No gateway startup/integration test in this repository validates supported syntax, policy or real federation. Its listener includes wildcard CORS, unsuitable without review.
+Application services still expose legacy `GET /mcp` descriptors. The core has a real authenticated MCP endpoint, but no gateway federation has been wired to or tested against it. No gateway startup/integration test establishes supported syntax, policy or real federation.
 
 ## Consequences
 

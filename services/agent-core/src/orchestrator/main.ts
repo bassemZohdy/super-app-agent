@@ -19,7 +19,7 @@ async function main() {
   const store = new Store(saver.db);
   store.setup();
   const auth = cfg.AGENT_AUTH === 'test' ? new TestAuthenticator(cfg.identities, cfg.AGENT_WORKLOAD_ID) : new KeycloakAuthenticator(cfg.AGENT_WORKLOAD_ID);
-  const planner = cfg.AGENT_PLANNER === 'fixture' ? new FixturePlanner() : new CompatiblePlanner(cfg.AGENT_LLM_BASE_URL!, cfg.AGENT_LLM_MODEL!, cfg.AGENT_LLM_KEY);
+  const planner = cfg.AGENT_PLANNER === 'fixture' ? new FixturePlanner() : new CompatiblePlanner(cfg.AGENT_LLM_BASE_URL!, cfg.AGENT_LLM_MODEL!, cfg.AGENT_LLM_KEY, cfg.AGENT_LLM_TIMEOUT_MS, cfg.AGENT_LLM_MAX_TOKENS, cfg.AGENT_LLM_RESPONSE_FORMAT === 'json_object');
   const graph = createGraph(planner, new FinesAdapter(cfg.AGENT_SIMULATOR_URL, cfg.AGENT_WORKLOAD_KEY), store, saver);
   const server = createServer(new AgentService(graph, store), auth, cfg.AGENT_WORKLOAD_KEY);
   server.listen(cfg.AGENT_PORT, cfg.AGENT_HOST, () => logEvent('info', 'agent.ready', { port: cfg.AGENT_PORT, planner: cfg.AGENT_PLANNER, auth: cfg.AGENT_AUTH }));

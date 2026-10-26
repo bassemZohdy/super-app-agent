@@ -44,7 +44,7 @@ HTTP readers enforce byte-based 64 KiB bodies, JSON media type, read deadlines a
 
 Production identity/tenant federation; native Flutter OIDC/device parity; complete consent/quotes and audit; payment reconciliation/compensation workflows; dependency upgrades/security scans; per-user/global quotas; durable workflow execution; production identity operations; HTTPS deployment; production HA/off-host backups; remote mini-app isolation; official protocol compatibility.
 
-The legacy `DEMO_AUTH` runner and agentgateway candidate are not production security boundaries. See [backlog](TODO.md), [provider guide](docs/demo/provider-backends.md), and [executed verification](docs/reports/2026-10-24-demo-completion.md).
+The legacy `DEMO_AUTH` runner is not a production security boundary. See [backlog](TODO.md), [provider guide](docs/demo/provider-backends.md), and [executed verification](docs/reports/2026-10-24-demo-completion.md).
 
 ## Planned payment and automation boundary
 

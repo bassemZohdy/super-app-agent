@@ -47,6 +47,7 @@ export class Store {
     if (!row) throw new AgentError('THREAD_NOT_FOUND', 404);
     if (row.expires_at <= Date.now()) throw new AgentError('THREAD_EXPIRED', 410);
     if (row.cancelled && !allowCancelled) throw new AgentError('THREAD_CANCELLED', 409);
+    return row;
   }
   /** Single-process demo: reject overlapping transitions instead of queuing unbounded work. */
   async exclusive<T>(id: string, fn: () => Promise<T>): Promise<T> {

@@ -15,6 +15,7 @@ test('HTTP vertical slice: list → multi-turn pay → durable interrupt → app
     assert.equal(review.data.status, 'awaiting_approval');
     assert.deepEqual(review.data.next, ['approval']);
     assert.equal(review.data.approval.quote.amountMinor, 45000);
+    assert.deepEqual(review.data.messages.map((message: { role: string }) => message.role), ['user', 'assistant', 'user']);
     assert.equal(validateAGUISurface(review.data.surface).success, true);
     assert.equal((h.store.db.prepare('SELECT count(*) AS n FROM sa_sim_payments').get() as { n: number }).n, 0);
     const command = { approvalId: review.data.approval.id, decision: 'approve' };
@@ -28,6 +29,21 @@ test('HTTP vertical slice: list → multi-turn pay → durable interrupt → app
     assert.equal((h.store.db.prepare('SELECT count(*) AS n FROM sa_sim_payments').get() as { n: number }).n, 1);
     assert.equal((await h.req(`${root}/messages`, { message: 'pay fines' })).data.status, 'complete');
     assert.equal((await h.req(`${root}/messages`, { message: 'show fines' }, { key: 'review' })).status, 409);
+  } finally { await h.close(); }
+});
+
+test('the shell review shows only the selected fine set and AED values; cancelled threads stay inspectable', async () => {
+  const h = await harness();
+  try {
+    const id = await h.thread(), root = `/api/agent/threads/${id}`;
+    const review = await h.req(`${root}/messages`, { message: 'pay fine-1' });
+    const table = review.data.surface.view.children.find((node: { type: string }) => node.type === 'DataTable');
+    assert.deepEqual(table.properties.rows, [{ id: 'fine-1', description: 'Simulated parking fine', amount: '150.00' }]);
+    assert.equal(review.data.approval.quote.amountMinor, 15000);
+    assert.equal((await h.req(`${root}/cancel`, {})).data.status, 'cancelled');
+    assert.equal((await h.req(root)).data.status, 'cancelled');
+    assert.equal((await h.req(`${root}/messages`, { message: 'pay fines' })).status, 409);
+    assert.equal((h.store.db.prepare('SELECT count(*) AS n FROM sa_sim_payments').get() as { n: number }).n, 0);
   } finally { await h.close(); }
 });
 
