@@ -2,6 +2,8 @@
  *  response after the capture commits; the resident pays two fines from the wallet on the page. The journey asserts what the ledger and
  *  the agency actually hold at each step: the unknown outcome blocks a replacement payment, recovery completes the original order once,
  *  and nothing is debited, settled or marked paid twice. */
+import { signPaymentEvent } from '../../../services/provider-simulator/src/payment-events.ts';
+import type { PaymentEvent } from '../../../packages/protocol-core/src/payment-events.ts';
 import { expect, scenarioTest as test } from '../stack.ts';
 
 test('a response lost after the capture is recovered on the original order, once', async ({ resident, residentApi, stack, scenario }) => {
@@ -97,4 +99,57 @@ test('a response lost after the capture is recovered on the original order, once
   await resident.getByRole('button', { name: 'Payment accounts', exact: true }).click();
   await panel.getByText('AED 1080.00', { exact: true }).waitFor();
   expect(journal(), 'a reload is not an effect').toHaveLength(1);
+});
+
+test('a source event delivered again changes nothing: one inbox result, no second effect', async ({ resident, residentApi, stack, scenario }) => {
+  const { accountId, call } = residentApi, payments = stack.payments.db;
+  const journal = () => payments.prepare("SELECT id, kind, wallet_delta FROM payment_journal_entries WHERE account_id=? AND kind<>'OPENING' ORDER BY rowid").all(accountId);
+  const panel = resident.getByRole('region', { name: 'Payment accounts', exact: true });
+  await resident.getByRole('button', { name: 'Payment accounts', exact: true }).click();
+  await panel.getByText('AED 1500.00', { exact: true }).waitFor();
+  const responseFor = (path: string) => resident.waitForResponse(r => new URL(r.url()).pathname === `/api/payments/${path}` && r.request().method() === 'POST');
+  let response = responseFor('billing-accounts');
+  await panel.getByRole('button', { name: /^Link DEWA/ }).click();
+  await response;
+  const bill = ((await call('overview')).data.payables as Array<{ id: string; provider: string; status: string; revision: string }>).find(p => p.provider === 'dewa' && p.status === 'UNPAID')!;
+  const order = (await call('orders', { provider: 'dewa', payableId: bill.id, expectedPayableRevision: bill.revision, methodId: 'wallet', expectedMethodVersion: 1 })).data.order as { id: string; version: number; approvalDigest: string };
+  expect((await call('orders/approve', { orderId: order.id, expectedVersion: order.version, approvalDigest: order.approvalDigest })).status).toBe(200);
+  await scenario.controls.arm('checkout.after-capture-commit', 1, `arm_${crypto.randomUUID().slice(0, 12)}`);
+  const lost = await call('orders/execute', { orderId: order.id, expectedVersion: order.version + 1, approvalDigest: order.approvalDigest });
+  expect(lost.data.order.state).toBe('RECONCILIATION_REQUIRED');
+  const recovered = (await call('orders/recover', { orderId: order.id })).data.order as { state: string; paymentId: string };
+  expect(recovered.state).toBe('SETTLED');
+  const settledJournal = journal();
+  expect(settledJournal, 'one payment').toHaveLength(1);
+  const outbox = () => stack.stores.get('dewa')!.db.prepare('SELECT body FROM payment_event_outbox WHERE account_id=? ORDER BY rowid').all(accountId).map(row => JSON.parse(String((row as { body: string }).body)) as PaymentEvent);
+  const sourceEvent = outbox().find(event => event.type === 'PROVIDER_APPLIED')!;
+  expect(sourceEvent, 'the source committed an applied event').toBeTruthy();
+  const deliver = async (event: PaymentEvent, forged = false) => {
+    const h = signPaymentEvent(event);
+    const reply = await fetch(`http://localhost:${stack.corePort + 107}/internal/payment-events`, { method: 'POST', signal: AbortSignal.timeout(5000),
+      headers: { 'Content-Type': 'application/json', 'X-Payment-Event-Source': h.source, 'X-Payment-Event-Key': h.kid, 'X-Payment-Event-Time': h.timestamp, 'X-Payment-Event-Nonce': h.nonce, 'X-Payment-Event-Signature': forged ? '0'.repeat(64) : h.signature }, body: JSON.stringify(event) });
+    return { status: reply.status, data: await reply.json() as any };
+  };
+  const inbox = () => payments.prepare('SELECT id, disposition FROM payment_event_inbox WHERE account_id=?').all(accountId).map(row => ({ ...row }));
+  // The source's own worker delivers the event first: wait for that, so what follows really is a repeat.
+  await expect.poll(() => inbox().filter(row => (row as { id: string }).id === sourceEvent.id).length, { timeout: 15_000 }).toBe(1);
+  const before = { inbox: inbox(), wallet: (await call('overview')).data.wallet, journal: settledJournal };
+
+  // The same signed event again is a duplicate, however many times it arrives; a forged copy is refused; none of it moves money.
+  expect((await deliver(sourceEvent)).data.disposition).toBe('DUPLICATE');
+  expect((await deliver(sourceEvent)).data.disposition).toBe('DUPLICATE');
+  expect((await deliver(sourceEvent, true)).status).toBe(401);
+  expect(inbox(), 'one inbox result per event id').toEqual(before.inbox);
+  expect(journal()).toEqual(before.journal);
+  expect((await call('overview')).data.wallet).toEqual(before.wallet);
+  expect((await call('overview')).data.orders.find((o: { id: string }) => o.id === order.id).state).toBe('SETTLED');
+
+  // An event the source never committed cannot authorise anything: it is refused and still moves nothing.
+  const invented: PaymentEvent = { ...sourceEvent, id: `evt_${crypto.randomUUID()}`, binding: { ...sourceEvent.binding, paymentId: 'invented' } };
+  expect((await deliver(invented)).status).toBeGreaterThanOrEqual(400);
+  expect(journal()).toEqual(before.journal);
+  expect((await call('overview')).data.wallet).toEqual(before.wallet);
+  await resident.reload();
+  await resident.getByRole('button', { name: 'Payment accounts', exact: true }).click();
+  await panel.getByText(/AED 1079.60/).first().waitFor();
 });
