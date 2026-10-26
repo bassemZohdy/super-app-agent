@@ -45,7 +45,8 @@ test('P2-13: every CSS variable the shells already use keeps its name and value'
   const css = buildThemeCss(source()), light = cssBlock(css, ':root'), dark = cssBlock(css, "[data-theme='dark']");
   for (const [name, value] of Object.entries(LEGACY_LIGHT)) assert.equal(light[name], value, name);
   for (const [name, value] of Object.entries(LEGACY_DARK)) assert.equal(dark[name], value, `dark ${name}`);
-  assert.deepEqual(Object.keys(dark).sort(), Object.keys(LEGACY_DARK).sort(), 'dark overrides only the roles that differ');
+  const darkText = ['--color-primary-text', '--color-success-text', '--color-warning-text', '--color-danger-text', '--color-focus-ring'];
+  assert.deepEqual(Object.keys(dark).sort(), [...Object.keys(LEGACY_DARK), ...darkText].sort(), 'dark overrides only the roles that differ');
   for (const font of ['--font-family-base', '--font-family-mono', '--shadow-sm', '--shadow-md', '--shadow-lg']) assert.ok(light[font], font);
 });
 
@@ -63,7 +64,7 @@ test('P2-13: tokens.json keeps its legacy shape and gains the dark roles and com
   assert.deepEqual(Object.keys(json).slice(0, 6), ['colors', 'typography', 'spacing', 'radii', 'shadows', 'breakpoints']);
   assert.equal(json.colors.primary, '#285c76');
   assert.equal(json.typography.fontFamily.startsWith('Avenir Next, Avenir,'), true);
-  assert.deepEqual(json.colorsDark, { background: '#090d16', surface: '#131b2e', surfaceBorder: '#1e293b', text: '#f8fafc', textMuted: '#94a3b8' });
+  assert.deepEqual(json.colorsDark, { background: '#090d16', surface: '#131b2e', surfaceBorder: '#1e293b', text: '#f8fafc', textMuted: '#94a3b8', primaryText: '#7fb4d0', successText: '#7dd3b0', warningText: '#fbbf24', dangerText: '#f87171', focusRing: '#7fb4d0' });
   assert.equal(json.components.button.background, '#285c76');
 });
 

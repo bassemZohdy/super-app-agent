@@ -6,7 +6,27 @@ export type Layered = {
   primitive: { color: Record<string, string>; font: Record<string, string>; size: Record<string, string>; weight: Record<string, string>; space: Record<string, string>; radius: Record<string, string>; shadow: Record<string, string>; breakpoint: Record<string, string> };
   semantic: { light: Record<string, string>; dark: Record<string, string> };
   component: Record<string, Record<string, string>>;
+  /** Text/background pairs that must meet a minimum contrast ratio in both themes; each side is a token reference. */
+  contrast?: Array<{ text: string; on: string[]; min: number }>;
 };
+
+const channel = (hex: string, at: number) => { const v = Number.parseInt(hex.slice(at, at + 2), 16) / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+const luminance = (hex: string) => 0.2126 * channel(hex, 1) + 0.7152 * channel(hex, 3) + 0.0722 * channel(hex, 5);
+/** WCAG 2.x contrast ratio between two #rrggbb colors, from 1 to 21. */
+export function contrastRatio(a: string, b: string): number {
+  const [high, low] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (high + 0.05) / (low + 0.05);
+}
+
+export type ContrastResult = { theme: 'light' | 'dark'; text: string; on: string; ratio: number; min: number; ok: boolean };
+export function evaluateContrast(source: Layered): ContrastResult[] {
+  const results: ContrastResult[] = [];
+  for (const theme of ['light', 'dark'] as const) for (const pair of source.contrast ?? []) for (const background of pair.on) {
+    const ratio = contrastRatio(resolveToken(source, pair.text, theme), resolveToken(source, background, theme));
+    results.push({ theme, text: pair.text, on: background, ratio, min: pair.min, ok: ratio >= pair.min });
+  }
+  return results;
+}
 
 const REF = /^\{([A-Za-z0-9_.-]+)\}$/;
 
@@ -38,6 +58,9 @@ export function validateSource(source: Layered) {
     if (!REF.test(value)) throw new Error(`Component ${component}.${name} must reference a token, not repeat a value.`);
     resolveToken(source, value);
   }
+  for (const pair of source.contrast ?? []) if (!Number.isFinite(pair.min) || pair.min < 3 || pair.min > 21 || !pair.on.length) throw new Error(`Contrast pair for ${pair.text} needs a minimum from 3 to 21 and at least one background.`);
+  const failing = evaluateContrast(source).filter(result => !result.ok);
+  if (failing.length) throw new Error(`Contrast below the minimum: ${failing.map(r => `${r.theme} ${r.text} on ${r.on} is ${r.ratio.toFixed(2)}:1, needs ${r.min}:1`).join('; ')}`);
 }
 
 const kebab = (name: string) => name.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`);

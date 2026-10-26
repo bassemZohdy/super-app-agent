@@ -12,6 +12,10 @@ One source, `packages/ui-tokens/src/tokens.source.json`, feeds the React, Angula
 
 A reference is written `{primitive.color.teal-700}` or `{semantic.primary}`. A missing path or a cycle fails the build. In CSS a component token that references a role is emitted as `var(--color-…)`, so it follows `[data-theme='dark']` without a second definition.
 
+## Text roles, contrast and focus
+
+A fill and a text color are separate roles. `success`, `warning` and `danger` are fills (badges, bars, icons) and measured 3.45:1, 2.15:1 and 3.76:1 on white, so text uses `successText`, `warningText` and `dangerText`, and `primaryText` for links; each has a separate dark value, because a light-theme text color is unreadable on a dark surface (the primary fill as dark-theme text was 2.4 to 2.7:1). The source lists the text/background pairs that must meet a minimum ratio in a `contrast` array (4.5:1 for text, 3:1 for the focus ring), written as token references. `npm run tokens:generate` evaluates every pair in both themes and refuses to write outputs if one fails, with the pair, theme and ratio in the message. `--color-focus-ring` is the focus indicator color and `--font-size-control` (14px) is the smallest text size for a control.
+
 ## Outputs
 
 | File | Used by |
