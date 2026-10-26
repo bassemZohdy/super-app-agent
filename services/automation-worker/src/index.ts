@@ -1,6 +1,7 @@
 /** Local demo automation worker. It stays off unless explicitly enabled, never runs in production
  *  and holds no authority of its own: only the `automation-worker` service account and the
  *  per-execution credentials the broker issues for prepared executions. */
+import { delegationAuthorityUrl, paymentsUrl } from '../../../packages/backend-kit/src/local-endpoints.ts';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { JobStore } from './jobs.ts';
@@ -19,11 +20,11 @@ export function createWorkerFromEnv(env: NodeJS.ProcessEnv = process.env) {
   if (!secret || !env.AUTOMATION_RUN_ID) throw new Error('Configure AUTOMATION_RUN_ID and the worker client secret.');
   const store = new JobStore(env.AUTOMATION_JOBS_DB || '.data/automation-worker/jobs.sqlite');
   const gateway = new HttpExecutionGateway({ runId: env.AUTOMATION_RUN_ID, clientSecret: secret,
-    paymentsUrl: env.PROVIDER_PAYMENTS_URL || 'http://localhost:4107', brokerUrl: env.DELEGATION_AUTHORITY_URL || 'http://localhost:4010' });
+    paymentsUrl: paymentsUrl(env), brokerUrl: delegationAuthorityUrl(env) });
   const worker = new AutomationWorker(store, gateway, { workerId: env.AUTOMATION_WORKER_ID || `worker-${process.pid}` });
   // Scheduling is a second, separate opt-in: without it the worker only runs jobs someone else enqueued.
   const scheduler = env.AUTOMATION_SCHEDULE_ENABLED === 'true'
-    ? new Scheduler(store, new HttpRuleSource({ runId: env.AUTOMATION_RUN_ID, clientSecret: secret, paymentsUrl: env.PROVIDER_PAYMENTS_URL || 'http://localhost:4107' }))
+    ? new Scheduler(store, new HttpRuleSource({ runId: env.AUTOMATION_RUN_ID, clientSecret: secret, paymentsUrl: paymentsUrl(env) }))
     : undefined;
   return { store, worker, scheduler };
 }

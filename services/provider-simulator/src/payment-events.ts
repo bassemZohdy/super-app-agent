@@ -1,5 +1,6 @@
 import { tracedFetch as fetch } from '../../../packages/backend-kit/src/observability.ts';
 /** Transactional financial outbox and authenticated inspection-only inbox. No bearer credentials or caller-selected destinations. */
+import { paymentsUrl } from '../../../packages/backend-kit/src/local-endpoints.ts';
 import { createHash,createHmac,randomUUID,timingSafeEqual } from 'node:crypto';
 import { Ajv } from 'ajv';
 import type { AccountDatabase } from './database.ts';
@@ -133,7 +134,7 @@ export function emitGatewaySnapshot(store:AccountDatabase,kind:PaymentEvent['sub
 }
 /** Bounded background delivery: fixed destination, persistent leases, fresh signatures and no user credentials. */
 export function startPaymentEventDelivery(events:PaymentEvents,options:{url?:string;keys?:EventKeys;send?:typeof fetch;intervalMs?:number}={}){
-  const url=options.url||new URL('/internal/payment-events',process.env.PROVIDER_PAYMENTS_URL||'http://localhost:4107').href;
+  const url=options.url||new URL('/internal/payment-events',paymentsUrl()).href;
   if(!(options.keys||eventKeys)(events.producer,currentKeyId(events.producer)))throw new Error('A configured payment event signing key is required.');
   if(process.env.NODE_ENV==='production'&&new URL(url).protocol!=='https:')throw new Error('Production event delivery requires HTTPS.');
   let stopped=false,busy=false;

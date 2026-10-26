@@ -1,4 +1,5 @@
 import { shutdownOnSignal } from '../../../packages/backend-kit/src/shutdown.ts';
+import { mcpEndpoint } from '../../../packages/backend-kit/src/local-endpoints.ts';
 import { createApplicationServer } from '../../../packages/backend-kit/src/application.ts';
 import { validateRequest, toolSchema } from '../../../packages/protocol-core/src/request-validation.ts';
 import { capabilities } from './capabilities.ts';
@@ -19,7 +20,7 @@ export interface MiniAppManifest {
 }
 
 // MCP endpoint advertised for every mini-app; MCP_ENDPOINT overrides the local default (read at module load).
-const MCP_ENDPOINT = process.env.MCP_ENDPOINT || 'http://localhost:4000/mcp';
+const MCP_ENDPOINT = mcpEndpoint();
 
 export const miniApps: MiniAppManifest[] = [
   {

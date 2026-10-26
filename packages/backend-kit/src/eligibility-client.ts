@@ -1,5 +1,6 @@
 import { tracedFetch as fetch } from './observability.ts';
 /** Narrow server-only current-eligibility reader. No positive permission cache and no caller owner header. */
+import { paymentsUrl } from './local-endpoints.ts';
 import { ProviderClient } from './provider-client.ts';
 import { ClientCredentials } from './oauth.ts';
 import type { Actor } from './context.ts';
@@ -13,7 +14,7 @@ export class EligibilityClient {
   readonly credentials:ClientCredentials;
   constructor(){this.credentials=new ClientCredentials('provider-eligibility',process.env.ELIGIBILITY_READER_SECRET|| (process.env.NODE_ENV==='production'?'':'demo-eligibility-reader-secret'));}
   async read(accountId:string):Promise<AccountEligibility>{
-    const url=new URL(`/internal/account-eligibility/${encodeURIComponent(accountId)}`,process.env.PROVIDER_PAYMENTS_URL||'http://localhost:4107');if(process.env.NODE_ENV==='production'&&url.protocol!=='https:')throw Error('Eligibility HTTPS required');
+    const url=new URL(`/internal/account-eligibility/${encodeURIComponent(accountId)}`,paymentsUrl());if(process.env.NODE_ENV==='production'&&url.protocol!=='https:')throw Error('Eligibility HTTPS required');
     const send=async()=>fetch(url,{headers:{Authorization:`Bearer ${await this.credentials.token()}`},signal:AbortSignal.timeout(5000),redirect:'error'});
     let response=await send();if(response.status===401){this.credentials.invalidate();response=await send();}
     if(!response.ok)throw new EligibilityReadError(response.status===404?404:503,'Current eligibility unavailable');const {eligibility,success}=await response.json() as {eligibility:unknown;success?:boolean};

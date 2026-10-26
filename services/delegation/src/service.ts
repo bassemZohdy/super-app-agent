@@ -1,4 +1,5 @@
 import { tracedFetch as fetch } from '../../../packages/backend-kit/src/observability.ts';
+import { delegationIssuer, paymentsUrl } from '../../../packages/backend-kit/src/local-endpoints.ts';
 import { join } from 'node:path';
 import { verifyJwt, type JwtClaims } from '../../../packages/backend-kit/src/jwt.ts';
 import { logEvent } from '../../../packages/backend-kit/src/redact.ts';
@@ -20,7 +21,7 @@ async function currentEligibility(owner:string,accountId:string,epoch?:string,au
 export const delegationEnabled = () => process.env.DELEGATION_ENABLED === 'true';
 let singleton: GrantStore | undefined;
 export const grantStore = () => singleton ||= new GrantStore(process.env.DELEGATION_DB_PATH || join('.data/delegation', 'grants.sqlite'));
-export const issuerName = () => process.env.DELEGATION_ISSUER || 'http://localhost:4000/api/delegation';
+export const issuerName = () => delegationIssuer();
 type Reply = { status: number; data: any };
 function checkedEndpoint(raw: string) { const u = new URL(raw); if (u.username || u.password || !['http:', 'https:'].includes(u.protocol) || (process.env.NODE_ENV === 'production' && u.protocol !== 'https:')) throw new Error('Invalid delegation endpoint'); return u; }
 async function user(authorization?: string) {
@@ -102,7 +103,7 @@ let permitSingleton: PermitStore | undefined;
 const permitStore = () => permitSingleton ||= new PermitStore(grantStore().db);
 /** The provider read is made with the worker's own token, so the provider authenticates the exact workload. */
 async function readExecutionView(runId: string, executionId: string, authorization: string): Promise<ExecutionView> {
-  const base = checkedEndpoint(process.env.PROVIDER_PAYMENTS_URL || 'http://localhost:4107');
+  const base = checkedEndpoint(paymentsUrl());
   const response = await fetch(new URL(`/internal/automation-runs/${runId}/execution/${encodeURIComponent(executionId)}`, base), { redirect: 'error', signal: AbortSignal.timeout(5000), headers: { Authorization: authorization } });
   if (!response.ok) throw new DelegationError(response.status === 404 ? 404 : response.status === 403 ? 403 : 503, 'AUTOMATION_EXECUTION_UNAVAILABLE', 'The prepared execution could not be read; no credential is issued.');
   const data = await response.json() as { execution?: ExecutionView };

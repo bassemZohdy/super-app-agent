@@ -1,11 +1,12 @@
 import { randomBytes } from 'node:crypto';
+import { delegationIssuer } from '../../../packages/backend-kit/src/local-endpoints.ts';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { brokerClient, runnerClient, automationWorkerClient, automationAdminClient, idpAlias } from './policy.ts';
 
 /** Local demo reconciliation only; never deletes/recreates a human user. */
 export async function configureDelegation(api: (path: string, method?: string, body?: any) => Promise<any>) {
   const origin = process.env.DELEGATION_KEYCLOAK_BACKCHANNEL || 'http://delegation-broker:4010';
-  const issuer = process.env.DELEGATION_ISSUER || 'http://localhost:4000/api/delegation';
+  const issuer = delegationIssuer();
   const idp = { alias: idpAlias, providerId: 'jwt-authorization-grant', enabled: true, trustEmail: false, storeToken: false, config: {
     issuer, useJwksUrl: 'true', jwksUrl: `${origin}/api/delegation/jwks`, jwtAuthorizationGrantEnabled: 'true', jwtAuthorizationGrantAssertionReuseAllowed: 'false', jwtAuthorizationGrantMaxAllowedAssertionExpiration: '90', jwtAuthorizationGrantAssertionSignatureAlg: 'RS256', jwtAuthorizationGrantLimitAccessTokenExp: 'true', jwtAuthorizationGrantAllowedClockSkew: '0',
   } };
