@@ -28,7 +28,7 @@ export function config(env: NodeJS.ProcessEnv = process.env) {
     AGENT_WORKLOAD_KEY: z.string().min(32).max(200),
     AGENT_AUTH: z.enum(['keycloak', 'test']).default('keycloak'),
     AGENT_PLANNER: z.enum(['compatible', 'fixture']).default('compatible'),
-    AGENT_SIMULATOR_URL: Endpoint.prefault('http://127.0.0.1:4300/'),
+    AGENT_SIMULATOR_URL: Endpoint.optional(),
     AGENT_LLM_PROVIDER: z.enum(['compatible', 'openrouter', 'litellm']).optional(),
     AGENT_LLM_BASE_URL: Endpoint.optional(),
     AGENT_LLM_MODEL: z.string().min(1).optional(),
@@ -37,6 +37,12 @@ export function config(env: NodeJS.ProcessEnv = process.env) {
     AGENT_LLM_TIMEOUT_MS: z.coerce.number().int().min(100).max(60000).default(15000),
     AGENT_LLM_RESPONSE_FORMAT: z.enum(['json_object', 'prompt']).default('json_object'),
   }).parse(input);
+  // The simulator shares this process: follow the real listening address, never a fixed port that may differ.
+  if (!parsed.AGENT_SIMULATOR_URL) {
+    if (!parsed.AGENT_PORT) throw new AgentError('SIMULATOR_URL_REQUIRED');
+    const host = ['0.0.0.0', '::', '[::]', ''].includes(parsed.AGENT_HOST) ? '127.0.0.1' : parsed.AGENT_HOST;
+    parsed.AGENT_SIMULATOR_URL = new URL(`http://${host.includes(':') && !host.startsWith('[') ? `[${host}]` : host}:${parsed.AGENT_PORT}/`);
+  }
   if (parsed.AGENT_PLANNER === 'compatible' && (!parsed.AGENT_LLM_BASE_URL || !parsed.AGENT_LLM_MODEL || !parsed.AGENT_LLM_BASE_URL.pathname.endsWith('/'))) throw new AgentError('LLM_CONFIG_REQUIRED');
   if (parsed.AGENT_PLANNER === 'compatible' && liteBase) {
     if (parsed.AGENT_LLM_BASE_URL?.href !== liteBase.href) throw new AgentError('LITELLM_ENDPOINT_REQUIRED');
@@ -49,5 +55,5 @@ export function config(env: NodeJS.ProcessEnv = process.env) {
   }
   if (env.NODE_ENV === 'production' && (parsed.AGENT_AUTH === 'test' || parsed.AGENT_PLANNER === 'fixture')) throw new AgentError('TEST_ADAPTERS_FORBIDDEN');
   const identities = parsed.AGENT_AUTH === 'test' ? z.array(TestIdentity).min(1).max(20).parse(JSON.parse(env.AGENT_TEST_IDENTITIES || '[]')) : [];
-  return { ...parsed, identities };
+  return { ...parsed, AGENT_SIMULATOR_URL: parsed.AGENT_SIMULATOR_URL, identities };
 }

@@ -21,6 +21,18 @@ test('the focused planner reuses the OpenRouter environment key only at its offi
   }
 });
 
+test('the in-process simulator URL follows the listening address and is never a stale default', () => {
+  const env = { ...base, AGENT_PLANNER: 'fixture' };
+  assert.equal(config(env).AGENT_SIMULATOR_URL.href, 'http://127.0.0.1:4300/');
+  assert.equal(config({ ...env, AGENT_PORT: '4411' }).AGENT_SIMULATOR_URL.href, 'http://127.0.0.1:4411/');
+  assert.equal(config({ ...env, AGENT_PORT: '4411', AGENT_HOST: '0.0.0.0' }).AGENT_SIMULATOR_URL.href, 'http://127.0.0.1:4411/');
+  assert.equal(config({ ...env, AGENT_PORT: '4411', AGENT_HOST: '::' }).AGENT_SIMULATOR_URL.href, 'http://127.0.0.1:4411/');
+  assert.equal(config({ ...env, AGENT_PORT: '4411', AGENT_SIMULATOR_URL: 'http://127.0.0.1:9/' }).AGENT_SIMULATOR_URL.href, 'http://127.0.0.1:9/');
+  // An ephemeral port cannot be known before listening, so the caller must name the simulator.
+  assert.throws(() => config({ ...env, AGENT_PORT: '0' }), /SIMULATOR_URL_REQUIRED/);
+  assert.equal(config({ ...env, AGENT_PORT: '0', AGENT_SIMULATOR_URL: 'http://127.0.0.1:9/' }).AGENT_SIMULATOR_URL.href, 'http://127.0.0.1:9/');
+});
+
 test('OpenRouter requires a key and refuses paid models even with the historical opt-in set', () => {
   assert.throws(() => config({ ...base, OPENROUTER_API_KEY: '' }), /OPENROUTER_KEY_REQUIRED/);
   assert.throws(() => config({ ...base, AGENT_LLM_MODEL: 'paid/model', OPENROUTER_ALLOW_PAID_MODELS: 'true' }), /FREE_MODEL_REQUIRED/);

@@ -47,7 +47,7 @@ The focused fines planner uses `AGENT_LLM_PROVIDER=litellm` in private `.env.age
 
 ## Configuration
 
-`npm run agent:init` creates private `.env.agent` once, with random local test credentials. The test identity lasts seven days; regenerating configuration is an explicit local operation. `npm start` reads that file. Defaults are loopback port 4300 and `.data/agent.sqlite`. Set `AGENT_PORT`, `AGENT_HOST`, `AGENT_DB_PATH` and `AGENT_SIMULATOR_URL` together when changing addressing. The simulator URL is trusted deployment configuration, never user or model output.
+`npm run agent:init` creates private `.env.agent` once, with random local test credentials. The test identity lasts seven days; regenerating configuration is an explicit local operation. `npm start` reads that file. Defaults are loopback port 4300 and `.data/agent.sqlite`. Set `AGENT_PORT`, `AGENT_HOST` and `AGENT_DB_PATH` when changing addressing; the in-process simulator URL follows the listening address (a wildcard host maps to `127.0.0.1`) unless `AGENT_SIMULATOR_URL` names another one, which is required when `AGENT_PORT` is 0. The simulator URL is trusted deployment configuration, never user or model output.
 
 For actual model-selected plans set `AGENT_PLANNER=compatible`, `AGENT_LLM_BASE_URL=http://your-local-model:port/v1/`, `AGENT_LLM_MODEL` and optional `AGENT_LLM_KEY`. The base URL must end in `/`. The endpoint must implement chat completions with JSON-object output. There is no hosted default or fallback. `fixture` is an explicit deterministic demo/test planner, not natural-language model evidence.
 
