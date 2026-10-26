@@ -10,6 +10,8 @@ export const HISTORY_SCOPE: readonly string[] = [
   ...Array.from({ length: 13 }, (_, i) => `AUTO-${String(i + 3).padStart(2, '0')}`),
   'PAY-08', 'SIM-02', 'SIM-05',
   ...Array.from({ length: 8 }, (_, i) => `QA-${String(i + 1).padStart(2, '0')}`),
+  // Tasks first tracked after the start: add the ID here in the commit that closes it, or it would vanish instead of counting.
+  'P2-08',
 ];
 const START = '<!-- progress:start -->', END = '<!-- progress:end -->', WIDTH = 24;
 

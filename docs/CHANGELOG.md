@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 26 October 2026 — P2-08 delivered: the free-only, local-only policy gate
+
+`npm run check:local-only` (part of `npm run check`) fails on a hosted-SDK dependency in any package manifest, a deploy or publish command in an npm script, a hosting linkage file (Vercel, Netlify, Firebase, Wrangler, Fly, Serverless, Procfile), a cloud key or credentialed source in an env file or lockfile, and a CDN or remote-font URL in a built bundle under `dist` or `build`. Findings name the rule, file and line and never the matched value. Evidence: `services/test/p208-local-only.test.ts` (8 fixture tests, one per rule plus a clean tree, CRLF and Windows paths); the gate passes on the current tree (20 manifests, 1 env file, 1 lockfile, 6 bundle files scanned). A fixture test found and fixed an `aws` subcommand pattern that missed `aws s3`. Guide: [testing](development/testing.md#commands).
+
 ## 26 October 2026 — run-scoped reset through the scenario controls (SIM-05, step)
 
 `POST /internal/scenario-controls/{run}/reset` lets the run's operator ask the host to replace the isolated run's database with a fresh, reseeded one. Sealed journals block an in-place restore, so the server only validates, audits and drops armed failpoints; the host deletes `payments.sqlite` and its WAL files inside the dedicated run directory and reopens the store on the same run context. A normal demo directory is refused, and each reset is logged outside the erased database. Evidence: `services/test/sim05-reset.test.ts` (7 tests); not yet run on the stack. SIM-05 stays open for the control-panel UI and that stack run. Guide: [issuer scenarios](development/issuer-scenarios.md#verified-boundary-and-remaining-work).

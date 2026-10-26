@@ -5,7 +5,8 @@ Verification results and the evidence behind them are in the [evidence register]
 ## Commands
 
 ```bash
-npm run check # lint, E2E TypeScript, docs, source secrets, offline tests and workspace builds
+npm run check # lint, E2E TypeScript, docs, source secrets, local-only policy, offline tests and workspace builds
+npm run check:local-only      # no hosted SDK, deploy command, linkage file, cloud key or CDN/remote-font bundle asset
 npm run openapi:generate      # regenerate the provider OpenAPI contracts (checked by tests)
 npm run openapi:generate:apps # regenerate the application API contract (checked by tests)
 npm run sbom:generate         # local CycloneDX SBOM into dist/sbom; opt-in, no CI workflow

@@ -17,7 +17,7 @@ Cityside is a local, synthetic city-services demo (ADR-0011). Nothing here touch
 | One test file | `node --experimental-strip-types --import ./scripts/test-env.ts --test services/test/<file>.ts` |
 | All offline tests | `npm test` |
 | Docs, links, task bullets | `npm run check:docs` |
-| Before pushing a checkpoint | `npm run check` (lint, E2E types, docs, secrets, tests, builds) |
+| Before pushing a checkpoint | `npm run check` (lint, E2E types, docs, secrets, local-only policy, tests, builds) |
 
 Node 24 is the supported floor (`.nvmrc`). Integration and browser suites need the Compose stack (`npm run demo:up`); say so when you did not run them instead of implying they passed.
 
