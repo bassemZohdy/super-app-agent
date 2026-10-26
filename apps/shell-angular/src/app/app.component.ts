@@ -7,6 +7,8 @@ import { connectEventStream } from '../../../../packages/protocol-core/src/sse-c
 import { Component, signal, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import type { AGUISurfacePayload, UIComponentNode } from '../../../../packages/protocol-core/src/index.ts';
+import { setAmountLocale } from '../../../../packages/protocol-core/src/payments.ts';
+import { direction, isLocale, preferredLocale, translate, type CatalogKey, type Locale } from '../../../../packages/protocol-core/src/i18n.ts';
 import { environment } from '../environments/environment.ts';
 
 const GATEWAY_URL = environment.gatewayUrl;
@@ -16,13 +18,13 @@ const GATEWAY_URL = environment.gatewayUrl;
   standalone: true,
   imports: [CommonModule],
   template: `
-    <div *ngIf="authReady() && loginRequired()" class="sign-in-screen"><h1>Your city. Your account.</h1><p>Sign in to manage personal and household services.</p><p *ngIf="authError()" role="alert">{{ authError() }}</p><button (click)="signIn()">Sign in with Keycloak</button><small>Demo users: bassem or demo-commuter. Password: demo123.</small></div>
-    <div *ngIf="!authReady()" class="sign-in-screen" role="status">Preparing your city workspace…</div>
+    <div *ngIf="authReady() && loginRequired()" class="sign-in-screen"><h1>{{ t('ng.signin.title') }}</h1><p>{{ t('ng.signin.hint') }}</p><p *ngIf="authError()" role="alert">{{ authError() }}</p><button (click)="signIn()">{{ t('ng.signin.button') }}</button><small>{{ t('ng.signin.demo') }}</small></div>
+    <div *ngIf="!authReady()" class="sign-in-screen" role="status">{{ t('ng.preparing') }}</div>
     <div *ngIf="authReady() && !loginRequired()" class="angular-shell-container">
       <header class="header">
-        <a class="city-brand" href="#conversation">cityside<span>Your everyday, connected.</span></a>
-        <span class="header-caption">Your city concierge</span>
-        <select class="account-select" aria-label="Current account" [value]="accountId" [disabled]="pending" (change)="switchAccount($any($event.target).value)"><option *ngFor="let account of accounts()" [value]="account.id">{{ account.label }}</option></select><button *ngIf="auth?.signedIn" class="account" (click)="auth?.logout()">Sign out</button>
+        <a class="city-brand" href="#conversation">cityside<span>{{ t('ng.tagline') }}</span></a>
+        <span class="header-caption">{{ t('ng.caption') }}</span>
+        <select class="account-select" [attr.aria-label]="t('ng.account')" [value]="accountId" [disabled]="pending" (change)="switchAccount($any($event.target).value)"><option *ngFor="let account of accounts()" [value]="account.id">{{ account.label }}</option></select><select class="account-select" [attr.aria-label]="t('ng.language')" [value]="locale()" (change)="setLocale($any($event.target).value)"><option value="en">English</option><option value="ar">العربية</option></select><button *ngIf="auth?.signedIn" class="account" (click)="auth?.logout()">{{ t('ng.signOut') }}</button>
         <div class="status" role="status">{{ connectionLabel() }}</div>
         <button class="account" [disabled]="pending" (click)="sendIntent('Show my citizen profile')">{{ userName().slice(0, 1) }} <span>{{ userName() }}</span></button>
       </header>
@@ -30,7 +32,7 @@ const GATEWAY_URL = environment.gatewayUrl;
       <div class="main-layout">
         <!-- Left Pane: Conversational Concierge -->
         <aside class="agent-pane" id="conversation">
-          <div class="pane-header">Rashid, your city concierge</div>
+          <div class="pane-header">{{ t('ng.pane') }}</div>
 
           <div class="messages">
             <div *ngFor="let m of messages()" class="msg" [class.user]="m.role === 'user'">
@@ -40,10 +42,10 @@ const GATEWAY_URL = environment.gatewayUrl;
           </div>
 
           <div class="suggestion-chips">
-            <button [disabled]="pending" (click)="sendIntent('Show parking zones in Downtown Dubai')">Find parking</button>
-            <button [disabled]="pending" (click)="sendIntent('Check my DEWA electricity and water bill')">Check my bills</button>
-            <button [disabled]="pending" (click)="sendIntent('Show my wallet balance')">My wallet</button>
-            <button [disabled]="pending" (click)="sendIntent('I signed my Ejari lease, help me move in')">Moving in</button>
+            <button [disabled]="pending" (click)="sendIntent('Show parking zones in Downtown Dubai')">{{ t('ng.chip.parking') }}</button>
+            <button [disabled]="pending" (click)="sendIntent('Check my DEWA electricity and water bill')">{{ t('ng.chip.bills') }}</button>
+            <button [disabled]="pending" (click)="sendIntent('Show my wallet balance')">{{ t('ng.chip.wallet') }}</button>
+            <button [disabled]="pending" (click)="sendIntent('I signed my Ejari lease, help me move in')">{{ t('ng.chip.moving') }}</button>
           </div>
           <details class="voice-settings">
             <summary (click)="loadDelegations()">Delegated access</summary>
@@ -72,8 +74,8 @@ const GATEWAY_URL = environment.gatewayUrl;
             </div>
           </details>
           <div class="input-row">
-            <input type="text" aria-label="Chat message" maxlength="4000" placeholder="Ask Rashid about your city…" [value]="draft()" (input)="voice?.cancel(); draft.set($any($event.target).value)" (keydown.enter)="sendIntent(draft()); draft.set('')" />
-            <button [disabled]="pending" (click)="sendIntent(draft()); draft.set('')">Send</button>
+            <input type="text" [attr.aria-label]="t('ng.composer.label')" maxlength="4000" [attr.placeholder]="t('ng.composer.placeholder')" [value]="draft()" (input)="voice?.cancel(); draft.set($any($event.target).value)" (keydown.enter)="sendIntent(draft()); draft.set('')" />
+            <button [disabled]="pending" (click)="sendIntent(draft()); draft.set('')">{{ t('ng.send') }}</button>
           </div>
         </aside>
 
@@ -81,10 +83,10 @@ const GATEWAY_URL = environment.gatewayUrl;
         <section class="canvas-pane">
           <div class="canvas-header">
             <div>
-              <h2 style="font-size: 20px; font-weight: 700; margin: 0 0 4px 0;">Your service workspace</h2>
-              <div style="font-size: 13px; color: var(--primitive-color-slate-500);">Options and details, ready for you to review.</div>
+              <h2 style="font-size: 20px; font-weight: 700; margin: 0 0 4px 0;">{{ t('ng.canvas.title') }}</h2>
+              <div style="font-size: 13px; color: var(--primitive-color-slate-500);">{{ t('ng.canvas.hint') }}</div>
             </div>
-            <span class="active-pill">Demo services</span>
+            <span class="active-pill">{{ t('ng.canvas.pill') }}</span>
           </div>
 
           <div *ngIf="surface()" class="surface-container">
@@ -143,8 +145,8 @@ const GATEWAY_URL = environment.gatewayUrl;
 
           <div *ngIf="!surface()" class="empty">
             <div class="empty-emblem">✧</div>
-            <div style="font-weight: 700; font-size: 16px; margin-bottom: 6px;">A little help. A lot more city.</div>
-            <div style="font-size: 13px;">From your morning commute to your next move, let’s take care of it. Choose a service to get started.</div>
+            <div style="font-weight: 700; font-size: 16px; margin-bottom: 6px;">{{ t('ng.empty.title') }}</div>
+            <div style="font-size: 13px;">{{ t('ng.empty.body') }}</div>
           </div>
         </section>
       </div>
@@ -159,14 +161,14 @@ const GATEWAY_URL = environment.gatewayUrl;
     .angular-shell-container { display: flex; flex-direction: column; height: 100dvh; background: var(--primitive-color-white); }
     .header { min-height: 82px; display: flex; align-items: center; gap: 25px; padding: 0 32px; border-bottom: 1px solid var(--primitive-color-slate-200); }
     .city-brand { color: var(--primitive-color-teal-800); font-size: 29px; font-weight: 700; text-decoration: none; letter-spacing: -1.2px; }.city-brand span { display: block; font-size: 9px; letter-spacing: 0; font-weight: 400; color: var(--primitive-color-mist-62); margin-top: 1px; }
-    .header-caption { font-size: 12px; color: var(--primitive-color-mist-62); border-left: 1px solid var(--primitive-color-slate-200); padding-left: 25px; }.status { margin-left: auto; font-size: 10px; color: var(--primitive-color-green-55); }.account { border: none; border-radius: 20px; background: var(--primitive-color-slate-50); color: var(--primitive-color-blue-43); padding: 10px; font-size: 10px; }.account span { margin-left: 6px; }
-    .main-layout { display: flex; flex: 1; overflow: hidden; min-height: 0; }.agent-pane { width: 44%; min-width: 330px; display: flex; flex-direction: column; border-right: 1px solid var(--primitive-color-slate-200); }.pane-header { padding: 24px; font-size: 13px; font-weight: 600; border-bottom: 1px solid var(--primitive-color-slate-50); }
-    .messages { flex: 1; overflow-y: auto; padding: 26px; display: flex; flex-direction: column; gap: 22px; }.msg { font-size: 13px; line-height: 1.9; max-width: 92%; white-space: pre-wrap; overflow-wrap: anywhere; }.msg.user { align-self: flex-end; background: var(--primitive-color-slate-50); padding: 12px 16px; border-radius: 13px 13px 3px 13px; }.delta { font-size: 11px; color: var(--primitive-color-mist-56); line-height: 1.7; }
+    .header-caption { font-size: 12px; color: var(--primitive-color-mist-62); border-inline-start: 1px solid var(--primitive-color-slate-200); padding-inline-start: 25px; }.status { margin-inline-start: auto; font-size: 10px; color: var(--primitive-color-green-55); }.account { border: none; border-radius: 20px; background: var(--primitive-color-slate-50); color: var(--primitive-color-blue-43); padding: 10px; font-size: 10px; }.account span { margin-inline-start: 6px; }
+    .main-layout { display: flex; flex: 1; overflow: hidden; min-height: 0; }.agent-pane { width: 44%; min-width: 330px; display: flex; flex-direction: column; border-inline-end: 1px solid var(--primitive-color-slate-200); }.pane-header { padding: 24px; font-size: 13px; font-weight: 600; border-bottom: 1px solid var(--primitive-color-slate-50); }
+    .messages { flex: 1; overflow-y: auto; padding: 26px; display: flex; flex-direction: column; gap: 22px; }.msg { font-size: 13px; line-height: 1.9; max-width: 92%; white-space: pre-wrap; overflow-wrap: anywhere; }.msg.user { align-self: flex-end; background: var(--primitive-color-slate-50); padding: 12px 16px; border-radius: 13px; border-end-end-radius: 3px; }.delta { font-size: 11px; color: var(--primitive-color-mist-56); line-height: 1.7; }
     .suggestion-chips { display: flex; gap: 7px; padding: 15px 22px; overflow-x: auto; }.suggestion-chips button { border: 1px solid var(--primitive-color-slate-200); background: white; color: var(--primitive-color-mist-53); border-radius: 7px; padding: 8px 11px; white-space: nowrap; font-size: 10px; }.suggestion-chips button:hover { background: var(--primitive-color-slate-50); }
     .voice-settings { margin: 0 24px 10px; font-size: 10px; color: var(--primitive-color-mist-62); }.voice-settings summary { cursor: pointer; padding: 7px 0; }.voice-controls { display: flex; flex-wrap: wrap; gap: 10px; padding: 12px 0; align-items: center; }.voice-controls button, .voice-controls select { border: 1px solid var(--primitive-color-slate-200); background: white; color: var(--primitive-color-mist-48); border-radius: 5px; padding: 7px; }.voice-controls p { font-size: 9px; line-height: 1.7; margin: 0; }
     .input-row { display: flex; gap: 8px; margin: 0 22px 22px; border: 1px solid var(--primitive-color-gray-88); border-radius: 12px; padding: 10px; }.input-row:focus-within { border-color: var(--primitive-color-blue-68); }.input-row input { flex: 1; min-width: 0; border: 0; outline: none; padding: 9px; font-size: 12px; color: var(--primitive-color-teal-700); }.input-row button { border: none; border-radius: 7px; background: var(--primitive-color-teal-700); color: white; padding: 9px 17px; font-size: 11px; }
-    .canvas-pane { flex: 1; min-width: 0; padding: 30px; background: var(--primitive-color-slate-50); overflow-y: auto; }.canvas-header { display: flex; align-items: center; justify-content: space-between; gap: 15px; margin-bottom: 28px; }.canvas-header h2 { color: var(--primitive-color-blue-33); font-size: 19px !important; }.active-pill { background: var(--primitive-color-slate-200); color: var(--primitive-color-mist-56); border-radius: 5px; padding: 5px 9px; font-size: 9px; white-space: nowrap; }.surface-container { max-width: 730px; margin: auto; }.surface-card { border: 1px solid var(--primitive-color-slate-200); padding: 24px; border-radius: 14px; background: white; }.metric-widget { border-bottom: 1px solid var(--primitive-color-slate-200); padding: 16px 0; display: flex; justify-content: space-between; gap: 15px; margin-bottom: 10px; }.metric-label { color: var(--primitive-color-mist-62); font-size: 11px; }.metric-val { color: var(--primitive-color-blue-33); font-size: 19px; font-weight: 600; }.choice-group { display: flex; flex-direction: column; gap: 9px; margin: 17px 0; }.choice-item { display: flex; justify-content: space-between; gap: 12px; padding: 14px; border: 1px solid var(--primitive-color-slate-200); border-radius: 8px; cursor: pointer; }.choice-item.selected { border-color: var(--primitive-color-blue-58); background: var(--primitive-color-slate-50); }.map-viewer { min-height: 130px; background: var(--primitive-color-slate-200); border-radius: 10px; padding: 22px; color: var(--primitive-color-mist-56); margin-bottom: 18px; }.map-tag { font-size: 9px; margin-top: 15px; }.map-pin { font-size: 12px; }.ag-action-btn { width: 100%; padding: 13px; border: none; border-radius: 8px; color: white; background: var(--primitive-color-teal-700); font-size: 12px; margin-top: 10px; }.empty { max-width: 500px; margin: 60px auto; text-align: left; padding: 30px; color: var(--primitive-color-mist-62); line-height: 1.9; }.empty-emblem { display: grid; place-items: center; height: 60px; width: 60px; border-radius: 18px; background: var(--primitive-color-slate-200); color: var(--primitive-color-blue-58); font-size: 40px; margin-bottom: 26px; }.empty > div:nth-child(2) { font-size: 30px !important; line-height: 1.3; font-weight: 500 !important; color: var(--primitive-color-blue-33); letter-spacing: -.9px; }
-    @media (max-width: 760px) { .header { padding: 15px 20px; min-height: 72px; gap: 14px; }.header-caption, .account span { display: none; }.header { flex-wrap: wrap; }.account-select { max-width: 135px; }.status { order: 3; width: 100%; text-align: right; }.main-layout { flex-direction: column; overflow-y: auto; }.agent-pane { width: 100%; min-width: 0; min-height: 50dvh; flex-shrink: 0; border-right: none; border-bottom: 1px solid var(--primitive-color-slate-200); }.messages { min-height: 100px; max-height: 40dvh; padding: 20px; }.canvas-pane { min-height: 340px; flex-shrink: 0; padding: 25px 20px; overflow: visible; }.canvas-header h2 { font-size: 16px !important; }.canvas-header > div > div { font-size: 11px !important; }.empty { margin: 0 auto; padding: 20px 5px; }.surface-card { padding: 18px; }.input-row input { font-size: 16px; }.status { font-size: 9px; }.account { flex-shrink: 0; } }
+    .canvas-pane { flex: 1; min-width: 0; padding: 30px; background: var(--primitive-color-slate-50); overflow-y: auto; }.canvas-header { display: flex; align-items: center; justify-content: space-between; gap: 15px; margin-bottom: 28px; }.canvas-header h2 { color: var(--primitive-color-blue-33); font-size: 19px !important; }.active-pill { background: var(--primitive-color-slate-200); color: var(--primitive-color-mist-56); border-radius: 5px; padding: 5px 9px; font-size: 9px; white-space: nowrap; }.surface-container { max-width: 730px; margin: auto; }.surface-card { border: 1px solid var(--primitive-color-slate-200); padding: 24px; border-radius: 14px; background: white; }.metric-widget { border-bottom: 1px solid var(--primitive-color-slate-200); padding: 16px 0; display: flex; justify-content: space-between; gap: 15px; margin-bottom: 10px; }.metric-label { color: var(--primitive-color-mist-62); font-size: 11px; }.metric-val { color: var(--primitive-color-blue-33); font-size: 19px; font-weight: 600; }.choice-group { display: flex; flex-direction: column; gap: 9px; margin: 17px 0; }.choice-item { display: flex; justify-content: space-between; gap: 12px; padding: 14px; border: 1px solid var(--primitive-color-slate-200); border-radius: 8px; cursor: pointer; }.choice-item.selected { border-color: var(--primitive-color-blue-58); background: var(--primitive-color-slate-50); }.map-viewer { min-height: 130px; background: var(--primitive-color-slate-200); border-radius: 10px; padding: 22px; color: var(--primitive-color-mist-56); margin-bottom: 18px; }.map-tag { font-size: 9px; margin-top: 15px; }.map-pin { font-size: 12px; }.ag-action-btn { width: 100%; padding: 13px; border: none; border-radius: 8px; color: white; background: var(--primitive-color-teal-700); font-size: 12px; margin-top: 10px; }.empty { max-width: 500px; margin: 60px auto; text-align: start; padding: 30px; color: var(--primitive-color-mist-62); line-height: 1.9; }.empty-emblem { display: grid; place-items: center; height: 60px; width: 60px; border-radius: 18px; background: var(--primitive-color-slate-200); color: var(--primitive-color-blue-58); font-size: 40px; margin-bottom: 26px; }.empty > div:nth-child(2) { font-size: 30px !important; line-height: 1.3; font-weight: 500 !important; color: var(--primitive-color-blue-33); letter-spacing: -.9px; }
+    @media (max-width: 760px) { .header { padding: 15px 20px; min-height: 72px; gap: 14px; }.header-caption, .account span { display: none; }.header { flex-wrap: wrap; }.account-select { max-width: 135px; }.status { order: 3; width: 100%; text-align: end; }.main-layout { flex-direction: column; overflow-y: auto; }.agent-pane { width: 100%; min-width: 0; min-height: 50dvh; flex-shrink: 0; border-inline-end: none; border-bottom: 1px solid var(--primitive-color-slate-200); }.messages { min-height: 100px; max-height: 40dvh; padding: 20px; }.canvas-pane { min-height: 340px; flex-shrink: 0; padding: 25px 20px; overflow: visible; }.canvas-header h2 { font-size: 16px !important; }.canvas-header > div > div { font-size: 11px !important; }.empty { margin: 0 auto; padding: 20px 5px; }.surface-card { padding: 18px; }.input-row input { font-size: 16px; }.status { font-size: 9px; }.account { flex-shrink: 0; } }
     /* Touch and focus floor (P2-14): a control is at least 44px, its text is the control size, keyboard focus shows on the chat row,
        and the shared a11y.css stops motion for reduced motion. These selectors repeat the scoped class rules above because they must out-rank them. */
     button, select, input:not([type='checkbox']):not([type='radio']), summary { min-height: 44px; }
@@ -177,6 +179,22 @@ const GATEWAY_URL = environment.gatewayUrl;
   `]
 })
 export class AppComponent implements OnInit, OnDestroy {
+  /** The resident's saved choice (shared with the React shell), else the browser's first language. */
+  locale = signal<Locale>(this.initialLocale());
+  t = (key: CatalogKey, values?: Record<string, string | number>) => translate(this.locale(), key, values);
+  private initialLocale(): Locale {
+    let saved: string | null = null;
+    try { saved = localStorage.getItem('cityside.locale'); } catch { /* the browser language still applies */ }
+    const locale = isLocale(saved) ? saved : preferredLocale(navigator.languages);
+    this.applyLocale(locale);
+    return locale;
+  }
+  private applyLocale(locale: Locale) { setAmountLocale(locale); document.documentElement.lang = locale; document.documentElement.dir = direction(locale); }
+  setLocale(value: string) {
+    if (!isLocale(value)) return;
+    this.locale.set(value); this.applyLocale(value);
+    try { localStorage.setItem('cityside.locale', value); } catch { /* the choice still applies for this visit */ }
+  }
   delegationGrants = signal<any[]>([]);
   delegationNotice = signal('');
   delegationBusy = false;

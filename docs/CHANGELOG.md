@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 27 October 2026 — P2-01 (step): Angular shell chrome in Arabic
+
+The Angular shell's sign-in screen, header, concierge title, suggestion chips, composer, workspace titles and empty state follow the language through `ng.*` catalog keys, with a language selector that shares the React shell's saved choice and sets `lang` and `dir`. Physical left/right styles became logical ones (English unchanged). The delegated access and voice panels, welcome message and status text stay English; the Angular build passes, but no browser spec has run it in Arabic.
+
 ## 27 October 2026 — P2-01 (step): wallet top-up in Arabic
 
 The wallet top-up panel (form, review cards, challenge and cancel actions, receipt and refund note) and the notices after each action follow the shell language through `wallet.*` catalog keys; its receipt facts now take the language too. English text is unchanged. Refund and checkout panels stay English for now. Taken ahead of the critical path because P1-04 is blocked here: the SQLite binding is not built (npm blocks its install script), so no agent-core test can run.
