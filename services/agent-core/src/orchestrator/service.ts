@@ -1,0 +1,62 @@
+import { Command } from '@langchain/langgraph';
+import { AgentError, Message, Decision, authorize, context, digest } from './contracts.ts';
+import type { State, AgentGraph } from './graph.ts';
+import type { Store } from './store.ts';
+import type { AGUISurfacePayload, UIComponentNode } from '../../../../packages/protocol-core/src/index.ts';
+
+export class AgentService {
+  readonly graph: AgentGraph; readonly store: Store;
+  constructor(graph: AgentGraph, store: Store) { this.graph = graph; this.store = store; }
+  private options(id: string) { return { configurable: { thread_id: id }, recursionLimit: 12, durability: 'sync' as const }; }
+  async inspect(id: string) {
+    await this.store.checkThread(id, context().principal, true);
+    const state = await this.graph.getState(this.options(id));
+    const values = state.values as Partial<typeof State.State>;
+    const approval = state.next.includes('approval') ? values.pending : null;
+    const children: UIComponentNode[] = [
+      { id: 'reply', type: 'Text', properties: { text: values.reply || 'Send a request about outstanding fines.' } },
+      { id: 'fines', type: 'DataTable', properties: { columns: [{ key: 'id', title: 'Fine' }, { key: 'description', title: 'Details' }, { key: 'amountMinor', title: 'Amount (fils)' }], rows: (values.fines || []).map(f => ({ ...f })) } },
+    ];
+    if (approval) children.push({ id: 'total', type: 'Text', properties: { text: `Simulated total: AED ${(approval.quote.amountMinor / 100).toFixed(2)}` } }, ...(['approve', 'reject', 'cancel'] as const).map(decision => ({ id: decision, type: 'Button' as const, properties: { label: decision === 'approve' ? 'Confirm simulated payment' : decision }, onEvents: [{ event: 'onPress' as const, actionType: 'AGENT_ACTION_DISPATCH' as const, payload: { action: 'agent.resume', approvalId: approval.id, decision } }] })));
+    const surface: AGUISurfacePayload = { version: '1.0.0', sessionId: id, revision: approval?.id, timestamp: Date.now(), view: { id: 'fines-service', type: 'SurfaceCard', children } };
+    return { threadId: id, status: values.status || 'new', reply: values.reply || '', fines: values.fines || [], receipt: values.receipt || null, approval, next: state.next, uiContract: 'cityside-compat-v1', surface };
+  }
+  async transition(id: string, requestId: string, action: 'message' | 'resume' | 'recover' | 'cancel', body: unknown) {
+    return this.store.exclusive(id, async () => {
+      const ctx = context(); authorize(ctx.principal, 'fines:read');
+      await this.store.checkThread(id, ctx.principal, true);
+      const fingerprint = digest({ action, body });
+      const prior = this.store.request(id, requestId);
+      if (prior && prior.fingerprint !== fingerprint) throw new AgentError('REQUEST_ID_CONFLICT', 409);
+      if (prior?.response) return prior.response;
+      await this.store.checkThread(id, ctx.principal);
+      const state = await this.graph.getState(this.options(id));
+      const values = state.values as Partial<typeof State.State>;
+      if (action === 'message') {
+        const message = Message.parse(body);
+        if (state.next.length || values.status === 'unknown') throw new AgentError('PENDING_INTERACTION', 409);
+        if (prior) throw new AgentError('RECOVERY_REQUIRED', 409);
+        this.store.saveRequest(id, requestId, fingerprint);
+        await this.graph.invoke({ messages: [{ role: 'user', content: message }], reply: '', status: 'new', receipt: null, pending: null, decision: null }, this.options(id));
+      } else if (action === 'resume') {
+        const decision = Decision.parse(body);
+        if (!values.pending || values.pending.id !== decision.approvalId || !state.next.includes('approval')) throw new AgentError('APPROVAL_MISMATCH', 409);
+        await this.graph.invoke(new Command({ resume: decision }), this.options(id));
+      } else if (action === 'cancel') {
+        if (values.status === 'unknown' || values.status === 'approved') throw new AgentError('RECONCILIATION_REQUIRED', 409);
+        if (state.next.includes('approval') && values.pending) await this.graph.invoke(new Command({ resume: { approvalId: values.pending.id, decision: 'cancel' } }), this.options(id));
+        this.store.cancelThread(id);
+      } else {
+        // Native continuation after a failed node, or reconcile ONLY the same persisted approved operation.
+        if (state.next.includes('approval')) return this.inspect(id);
+        if (values.status === 'unknown' && values.pending && values.decision?.decision === 'approve') {
+          await this.graph.updateState(this.options(id), { status: 'approved' }, 'approval');
+          await this.graph.invoke(null, this.options(id));
+        } else if (state.next.length) await this.graph.invoke(null, this.options(id));
+      }
+      const result = await this.inspect(id);
+      this.store.saveRequest(id, requestId, fingerprint, result);
+      return result;
+    });
+  }
+}

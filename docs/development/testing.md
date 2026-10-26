@@ -2,6 +2,10 @@
 
 Verification results and the evidence behind them are in the [evidence register](../reports/README.md). Current documentation checks cover local paths/Markdown anchors, documented npm commands outside historical material, unique task IDs and short task bullets in `TODO.md`. Dated report totals remain historical.
 
+## Focused agent
+
+Use `npm run check:agent` for strict agent/test types plus the unit, actual SQLite/HTTP integration and process-kill/restart tests. [Focused verification](../testing.md) distinguishes deterministic model/identity adapters from actual persistence evidence. `npm run check` remains the repository-wide offline/build gate. The integration/browser commands below refer to the optional compatibility stack and do not prove that the primary shell has adopted the focused API.
+
 ## Commands
 
 ```bash

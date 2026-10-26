@@ -1,0 +1,10 @@
+FROM node:24.22.1-bookworm-slim
+WORKDIR /app
+COPY package.json package-lock.json ./
+COPY packages ./packages
+COPY services/agent-core ./services/agent-core
+RUN npm ci --omit=dev --workspace services/agent-core --include-workspace-root=false && mkdir -p /app/.data && chgrp -R 0 /app && chmod -R g=u /app/.data
+ENV AGENT_HOST=0.0.0.0 AGENT_PORT=4300 AGENT_DB_PATH=/app/.data/agent.sqlite
+EXPOSE 4300
+USER 1001
+CMD ["node", "--experimental-strip-types", "services/agent-core/src/orchestrator/main.ts"]

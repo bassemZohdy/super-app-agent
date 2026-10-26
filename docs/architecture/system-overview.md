@@ -1,6 +1,10 @@
-# System overview — implemented demo
+# System overview — focused and compatibility runtimes
 
-The recommended runtime is `docker-compose.demo.yml`. It runs a real local Keycloak, Redis, six application APIs, seven provider API instances, agent-core and a separate trusted delegation broker on 4010. The provider names describe simulators, not actual government/telecom connectivity. [Delegation flow, grant contracts and key isolation](../development/delegation.md) · [ADR-0012](../adr/ADR-0012-secure-delegation-demo.md).
+The default focused demo uses `npm start`: one Node.js process, native LangGraph.js, official SQLite checkpoints and fixture-backed REST simulation. See the [implemented architecture](../architecture.md), [agent flow](../agent-flow.md), [focused API](../integrations.md) and [verification](../testing.md). The existing shells currently use the compatibility APIs; their migration is explicit application work, not an implemented default.
+
+## Integrated compatibility runtime
+
+The retained compatibility runtime is `docker-compose.demo.yml`. It runs a real local Keycloak, Redis, six application APIs, seven provider API instances, agent-core and a separate trusted delegation broker on 4010. The provider names describe simulators, not actual government/telecom connectivity. [Delegation flow, grant contracts and key isolation](../development/delegation.md) · [ADR-0012](../adr/ADR-0012-secure-delegation-demo.md).
 
 ```mermaid
 sequenceDiagram
@@ -50,7 +54,7 @@ A real LangGraph prepare/review/execute graph wraps the handwritten deterministi
 
 [Provider details and failure semantics](../demo/provider-backends.md) · [Authentication/security](../../SECURITY.md) · [Execution evidence](../reports/README.md)
 
-The next [payment accounts/automation extension](payment-automation-demo.md) has delivered the first linked-biller/saved-method setup and non-executable preview slice in React. A balanced local journal and checked wallet projection are implemented. Owned prepaid/vehicle discovery, lifecycle guards and source-owned payable revisions/history are implemented, as is a separate preview-only scenario clock. Stored authorization reviews and finite issuer/wallet holds are implemented. Capture/settlement through stored bill orders is implemented. Fine/recharge execution, wallet funding, grouped checkout, original-source refunds and finite consent records are implemented. A worker and general execution-scenario controls remain planned; consent records alone cannot execute an automatic payment. [Current setup/API guide](../development/payment-accounts.md).
+The compatibility [payment accounts/automation extension](payment-automation-demo.md) has delivered the first linked-biller/saved-method setup and non-executable preview slice in React. A balanced local journal and checked wallet projection are implemented. Owned prepaid/vehicle discovery, lifecycle guards and source-owned payable revisions/history are implemented, as is a separate preview-only scenario clock. Stored authorization reviews and finite issuer/wallet holds are implemented. Capture/settlement through stored bill orders is implemented. Fine/recharge execution, wallet funding, grouped checkout, original-source refunds and finite consent records are implemented. A worker and general execution-scenario controls remain planned; consent records alone cannot execute an automatic payment. [Current setup/API guide](../development/payment-accounts.md).
 
 Existing provider HTTP settlement now adds a durable gateway claim and a local PENDING/APPLIED/RELEASED fence around proof consumption. Separate provider workload clients can acknowledge/release only their own merchant claims. Gateway refund admission checks those claims atomically; historical uncertain application stays blocked until reconciled. [Settlement protocol](../development/settlement-claims.md).
 
