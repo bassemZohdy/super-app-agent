@@ -109,6 +109,7 @@ If test 1 fails, run `npm run openapi:generate:apps` and commit the regenerated 
 | `KEYCLOAK_AUDIENCE` | Audience checked (default `agent-core`) | `.env.example`, `application.ts`, `jwt.ts` |
 | `KEYCLOAK_JWKS_URL` | Signing-key source | `.env.example`, `jwt.ts` |
 | `KEYCLOAK_REQUIRED_SCOPES` | Space-separated scopes that must be present | `.env.example`, `jwt.ts` |
+| `KEYCLOAK_INTROSPECTION_TIMEOUT_MS` | How long the online token check may take, 1000 to 12000 (default 8000). A cold local Keycloak answered its first introspections in 3.7 s and once past 5 s, then in about 0.2 s. Past the limit, or with an invalid value, the token is refused, never trusted. |
 | `KEYCLOAK_INTROSPECTION_URL`, `KEYCLOAK_INTROSPECTION_CLIENT_ID`, `KEYCLOAK_INTROSPECTION_CLIENT_SECRET` | Online token check (secret is never written in docs) | `.env.example`, `jwt.ts` |
 | `NODE_ENV` | Forces introspection when `production` | `.env.example`, `jwt.ts` |
 | `APP_DATA_DIR` | Directory for per-service SQLite files (default `.data/application`) | `.env.example`, `application.ts` |

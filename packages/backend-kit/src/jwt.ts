@@ -76,6 +76,18 @@ async function signingKey(issuer: string, url: string, kid: string) {
   return createPublicKey({ key, format: 'jwk' });
 }
 
+/** How long the online token check may take before the request is refused. A cold local Keycloak answered its first
+ *  introspections in 3.7 s and once past 5 s, then in about 0.2 s once warm, so the default leaves headroom; the ceiling keeps
+ *  the check well inside the servers' 15 s request limit. Past the limit the token is refused, never trusted. */
+export const INTROSPECTION_TIMEOUT_DEFAULT_MS = 8000;
+export function introspectionTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = env.KEYCLOAK_INTROSPECTION_TIMEOUT_MS;
+  if (raw === undefined || raw === '') return INTROSPECTION_TIMEOUT_DEFAULT_MS;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 1000 || value > 12000) throw new Error('KEYCLOAK_INTROSPECTION_TIMEOUT_MS must be a whole number from 1000 to 12000');
+  return value;
+}
+
 async function checkOnline(token: string, claims: JwtClaims) {
   const configured = process.env.KEYCLOAK_INTROSPECTION_URL;
   if (!configured && process.env.NODE_ENV !== 'production') return;
@@ -83,7 +95,7 @@ async function checkOnline(token: string, claims: JwtClaims) {
   const secret = process.env.KEYCLOAK_INTROSPECTION_CLIENT_SECRET;
   if (!clientId || !secret) throw new Error('Online identity verification is not configured');
   const url = endpoint(configured || `${claims.iss}/protocol/openid-connect/token/introspect`);
-  const response = await fetch(url, { method: 'POST', redirect: 'error', signal: AbortSignal.timeout(5000),
+  const response = await fetch(url, { method: 'POST', redirect: 'error', signal: AbortSignal.timeout(introspectionTimeoutMs()),
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ client_id: clientId, client_secret: secret, token, token_type_hint: 'access_token' }),
   });

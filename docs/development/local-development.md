@@ -48,6 +48,7 @@ npm run demo:down  # preserves named volumes
 | ENABLE_LOCAL_LLM | true in Compose; false for deterministic text |
 | CONVERSATION_SERVICE_URL | private llama.cpp endpoint; fixed local hosts only |
 | VOICE_SERVICE_URL | private internal speech endpoint; fixed local hosts only |
+| KEYCLOAK_INTROSPECTION_TIMEOUT_MS | limit for the active-token check, 1000–12000 ms (default 8000); past it the request is refused |
 | KEYCLOAK_INTROSPECTION_URL / CLIENT_ID / CLIENT_SECRET | authenticated per-request active-token verification; Compose uses cityside-verifier |
 | OPS_API_KEY / OPS_BACKUP_KEY | private diagnostics / CLI-only encrypted backups; generate with `npm run ops:init` |
 | OBSERVABILITY_LOGS / OPS_STUCK_MS | payload-free completion logs / stuck-work threshold (default 120 seconds) |
