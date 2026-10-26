@@ -4,7 +4,7 @@
 
 ## What the React shell does
 
-The resident's language is their saved choice (`localStorage`, key `cityside.locale`), else Arabic when the browser's first language is Arabic, else English. **Conversation settings → Language** switches it. The choice sets `lang` and `dir` on the page, so screen readers, form controls and the layout follow it. Translated today: the sidebar and its drawer, the workspace tool buttons, the composer, the conversation settings and the message author and retry labels. The Delegated access panel, the Connections panel and the header, introduction, refresh control and wallet summary of Payment accounts are translated (the grant's purpose and the run result come from the gateway in English), the latter with its times formatted for the language; its notice is stored as what happened and worded when shown, so it follows a language change. (The Arabic for Telecom and for Connections must differ, because the journeys and the buttons are found by name: Connections is "روابط الخدمات".)
+The resident's language is their saved choice (`localStorage`, key `cityside.locale`), else Arabic when the browser's first language is Arabic, else English. **Conversation settings → Language** switches it. The choice sets `lang` and `dir` on the page, so screen readers, form controls and the layout follow it. Translated today: the sidebar and its drawer, the workspace tool buttons, the composer, the conversation settings and the message author and retry labels. The Delegated access panel, the Connections panel and the header, introduction, refresh control, wallet summary, demo cards and linked biller accounts of Payment accounts are translated (the grant's purpose and the run result come from the gateway in English), the latter with its times formatted for the language; its notice is stored as what happened and worded when shown, so it follows a language change. (The Arabic for Telecom and for Connections must differ, because the journeys and the buttons are found by name: Connections is "روابط الخدمات".)
 
 The stylesheet uses logical properties (`margin-inline-start`, `inset-inline-end`, `text-align: start`), so the layout mirrors by itself; the one place that names a side is the phone drawer, which has an explicit right-to-left rule. In English the pixels are unchanged (the same screens before and after the conversion compare identical).
 
@@ -14,7 +14,7 @@ The stylesheet uses logical properties (`margin-inline-start`, `inset-inline-end
 
 ## Not yet translated
 
-The sections inside Payment accounts (cards, billers, reviews, receipts and the panels below them), the grant purposes and results the gateway sends for delegation, and the provider problem messages, the assistant's replies and the surfaces it builds, the Angular and Flutter shells. A journey that must run in either language matches names with both spellings (`test/browser/layout.ts`).
+The sections of Payment accounts from the bills and fines list down (reviews, receipts and the panels below them), the grant purposes and results the gateway sends for delegation, and the provider problem messages, the assistant's replies and the surfaces it builds, the Angular and Flutter shells. A journey that must run in either language matches names with both spellings (`test/browser/layout.ts`).
 
 ## Checked
 

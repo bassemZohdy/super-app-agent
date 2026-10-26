@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 26 October 2026 — P2-01 (step): demo cards and biller accounts in Arabic
+
+The Payment accounts sections for demo cards (add, default, enable, disable, remove) and linked biller accounts (link, archive, balances) are translated, with the card statuses and presets still as the provider names them. The English payment, failure and automation journeys and the Arabic spec pass unchanged.
+
 ## 26 October 2026 — P2-01 (step): Payment accounts header and wallet summary in Arabic
 
 The Payment accounts panel takes the shell's language for its heading, introduction, loading text, refresh and close controls and the wallet summary, with amounts from the locale formatter. The sections inside it stay English for now because the payment journeys find their controls by name; they follow panel by panel. `arabic.spec.ts` checks the translated header on both projects.
