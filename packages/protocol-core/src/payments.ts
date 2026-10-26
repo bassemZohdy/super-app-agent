@@ -1,3 +1,4 @@
+import { formatMoney } from './i18n.ts';
 import type { PaymentEventStatus } from './payment-events.ts';
 /** Payment contract v1. Additive, synthetic-account APIs; previews never authorize execution. */
 export const PAYMENT_CONTRACT_VERSION = '1.14.0';
@@ -90,9 +91,12 @@ export const withOrderId=(schema:ReturnType<typeof paymentObject>)=>paymentObjec
 export const withPaymentAccount = (schema: ReturnType<typeof paymentObject>, write = true) => paymentObject({
   ...schema.properties, accountId: id, ...(write ? { requestKey: { type: 'string', pattern: '^[A-Za-z0-9_-]{8,100}$' } } : {}),
 }, [...schema.required, 'accountId', ...(write ? ['requestKey'] : [])]);
+/** The language amounts are shown in; a shell sets it when the resident chooses one. English keeps the established `AED 1500.00`. */
+let amountLocale: 'en' | 'ar' = 'en';
+export const setAmountLocale = (locale: 'en' | 'ar') => { amountLocale = locale; };
 export function formatAED(minor: number): string {
   if (!Number.isSafeInteger(minor) || minor < 0 || minor > MAX_PAYMENT_MINOR) throw new Error('Invalid AED fils');
-  return `AED ${(minor / 100).toFixed(2)}`;
+  return amountLocale === 'ar' ? formatMoney('ar', minor, 'AED', { grouping: false }) : `AED ${(minor / 100).toFixed(2)}`;
 }
 
 const date = { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$' };

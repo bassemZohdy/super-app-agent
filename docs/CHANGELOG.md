@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 26 October 2026 — P2-01 (step): every amount follows the language
+
+`formatAED` now takes the language from `setAmountLocale`, which the React shell sets when the resident chooses one, so the 63 places that show an amount show `1500٫00 د.إ` in Arabic and keep `AED 1500.00` in English (neither groups thousands, so widths do not change). Tests: the formatter in `services/test/p201-i18n.test.ts` and a phone and desktop journey on the payment screen.
+
 ## 26 October 2026 — P2-01 (step): the Connections view in Arabic
 
 The Connections panel's text is in the catalogs in English and Arabic (title, status, counts, table headers, call lines) and formats its times for the language; its status is kept as an outcome and worded when shown. A first Arabic wording for Connections duplicated the Telecom button's name, which the journey caught, so Connections is "روابط الخدمات". Tests: the catalog parity test and a phone and desktop Arabic journey for the view.

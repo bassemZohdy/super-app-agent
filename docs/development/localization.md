@@ -10,11 +10,11 @@ The stylesheet uses logical properties (`margin-inline-start`, `inset-inline-end
 
 ## Money, dates and times
 
-`formatMoney(locale, minor, currency)` takes whole minor units (a non-integer is refused, so a float never carries an amount) and prints `AED 1,500.00` in English and `1,500٫00 د.إ` in Arabic with Latin digits, so an amount reads the same on screen, in a receipt and in a statement. `formatDateTime` and `formatTime` use the Dubai time zone and the locale's tag.
+`formatMoney(locale, minor, currency)` takes whole minor units (a non-integer is refused, so a float never carries an amount) and prints `AED 1,500.00` in English and `1,500٫00 د.إ` in Arabic with Latin digits, so an amount reads the same on screen, in a receipt and in a statement. `formatAED`, which every amount in the shells already calls, follows the chosen language through `setAmountLocale` (set by the React shell's `useLocale`): English keeps `AED 1500.00`, Arabic shows `1500٫00 د.إ`, and neither groups thousands, so no screen changes its width unexpectedly. `formatDateTime` and `formatTime` use the Dubai time zone and the locale's tag.
 
 ## Not yet translated
 
-The payment and delegation panel bodies and the provider problem messages from the gateway, the assistant's replies and the surfaces it builds, the Angular and Flutter shells, and the existing `formatAED` call sites (the new formatter is not wired into them yet). A journey that must run in either language matches names with both spellings (`test/browser/layout.ts`).
+The payment and delegation panel bodies and the provider problem messages from the gateway, the assistant's replies and the surfaces it builds, the Angular and Flutter shells. A journey that must run in either language matches names with both spellings (`test/browser/layout.ts`).
 
 ## Checked
 

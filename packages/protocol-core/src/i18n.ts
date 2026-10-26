@@ -140,12 +140,12 @@ export function translate(locale: Locale, key: CatalogKey, values: Record<string
 }
 
 /** Whole-fils money as the currency's own formatting: integer minor units in, never a float of money. */
-export function formatMoney(locale: Locale, minor: number, currency = 'AED'): string {
+export function formatMoney(locale: Locale, minor: number, currency = 'AED', options: { grouping?: boolean } = {}): string {
   if (!Number.isSafeInteger(minor)) throw new Error('Money is a whole number of minor units.');
   const sign = minor < 0 ? -1 : 1, abs = Math.abs(minor);
   const whole = Math.trunc(abs / 100), cents = abs % 100;
   // Format the whole part with the locale's grouping and keep the two decimals as digits, so no float ever carries the amount.
-  const grouped = new Intl.NumberFormat(formatTag(locale), { useGrouping: true, maximumFractionDigits: 0 }).format(whole);
+  const grouped = new Intl.NumberFormat(formatTag(locale), { useGrouping: options.grouping ?? true, maximumFractionDigits: 0 }).format(whole);
   const decimal = locale === 'ar' ? '٫' : '.';
   const amount = `${grouped}${decimal}${String(cents).padStart(2, '0')}`;
   return locale === 'ar' ? `${sign < 0 ? '-' : ''}${amount} ${currency === 'AED' ? 'د.إ' : currency}` : `${sign < 0 ? '-' : ''}${currency} ${amount}`;

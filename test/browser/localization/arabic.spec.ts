@@ -64,3 +64,13 @@ test('the Connections view is in Arabic when the language is Arabic, and its tim
   expect(await controlsBelowTarget(resident)).toEqual([]);
   expect(await sideways(resident)).toBe(false);
 });
+
+test('amounts on the payment screen follow the language: AED in English, د.إ in Arabic, and the layout still fits', async ({ resident }) => {
+  await resident.getByRole('button', { name: 'Conversation settings', exact: true }).click();
+  await resident.getByRole('region', { name: 'Conversation settings', exact: true }).getByLabel('Language', { exact: true }).selectOption('ar');
+  await resident.getByRole('button', { name: 'إغلاق الإعدادات', exact: true }).click();
+  await resident.getByRole('button', { name: 'حسابات الدفع', exact: true }).click();
+  await expect(resident.getByText('1500٫00 د.إ').first()).toBeVisible();
+  await expect(resident.getByText('AED 1500.00')).toHaveCount(0);
+  expect(await sideways(resident)).toBe(false);
+});

@@ -51,3 +51,15 @@ test('P2-01: dates and times use the Dubai time zone and the locale\'s tag', () 
   assert.match(formatTime('en', at), /12:30:00/);
   assert.match(formatTime('ar', at), /12:30:00/);
 });
+
+test('P2-01: amounts follow the chosen language, and English keeps its established form', async () => {
+  const { formatAED, setAmountLocale } = await import('../../packages/protocol-core/src/payments.ts');
+  try {
+    assert.equal(formatAED(150000), 'AED 1500.00');
+    setAmountLocale('ar');
+    assert.equal(formatAED(150000), '1500٫00 د.إ');
+    assert.equal(formatAED(42040), '420٫40 د.إ');
+    assert.throws(() => formatAED(-1), /Invalid AED fils/);
+  } finally { setAmountLocale('en'); }
+  assert.equal(formatAED(5), 'AED 0.05');
+});
