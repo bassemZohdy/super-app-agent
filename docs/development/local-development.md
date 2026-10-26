@@ -82,6 +82,30 @@ For offline historical scenarios without Docker: set `DEMO_AUTH=true`, `PROVIDER
 
 The older `docker-compose.yml` and agentgateway YAML are compatibility/reference artifacts. Use `docker-compose.demo.yml` for verified provider integration. No gateway is needed in the verified application-to-provider path.
 
+## Reproducible start, release controls and rollback
+
+Every step below has a command, and each claim a test or a verifier that fails when it stops being true.
+
+| Concern | How it is reproduced | What fails if it drifts |
+| --- | --- | --- |
+| Start | `npm run demo:up` (Compose, Keycloak realm, providers, gateway); `npm run demo:verify` and `npm run demo:verify:security` check the running stack. | the two verifiers |
+| Seed | Provider fixtures come from `services/provider-simulator/src/fixtures.json` and a per-account seed, so a fresh run always starts from AED 1500.00 in the wallet and the same fines, bills and prepaid lines. A reset of an isolated run recreates its own seed (`npm run simulator:console`). | `services/test/sim05-reset.test.ts` and the seeded-fixture tests in the simulator suite |
+| Migrations | Schema changes are additive and run on open. The ones that rewrite constraints copy the old file first to a `.before-<change>.sqlite` backup beside it (see the issuer, fine-checkout and payment-events guides). Reopening is idempotent. | the restart and reopen tests, `npm run demo:verify:restart` |
+| Clock | Real time signs and expires tokens. The business clock of an isolated run moves only through the operator (`npm run simulator:console`, or `scenario.clock.advance` in the browser journeys) and never revives an expired token. | `services/test/sim05-console.test.ts` (no provider route moves time) and the simulator clock tests |
+| Scenarios | Card presets and named failpoints are chosen by the run's operator, never by the resident. | the issuer-scenario and failure journeys under `test/browser/failures/` |
+| Recovery | `npm run ops:verify:recovery` restores an encrypted checkpoint, fences the old writer and checks the financial tables, revocation and signing identity. | the verifier |
+| Rollback | Restore the cold checkpoint ([operations](operations.md#restore-and-fenced-failover)) or the `.before-*` backup of the one database, and run the previous code. A migration never deletes a row. | the recovery verifier |
+
+### Automation stays off until it is selected and consented
+
+`services/test/qa08-release-controls.test.ts` pins these defaults against the real files:
+
+- The worker starts only with `AUTOMATION_WORKER_ENABLED=true`, never when `NODE_ENV=production`, and then still needs an isolated `AUTOMATION_RUN_ID` and a client credential.
+- Scheduling (enqueuing jobs from rules) is a second opt-in, `AUTOMATION_SCHEDULE_ENABLED=true`; without it no work is created.
+- No compose file or example environment defines the worker or turns either switch on.
+- Rules keep returning `executionEnabled:false`; consent alone never runs a payment, and the kill switch stops new runs ([automation worker](automation-worker.md)).
+- No payment-provider SDK, hosted telemetry or feature-flag service is a dependency of any workspace package, and `npm run check:local-only` rejects hosted SDKs, deploy commands and remote assets.
+
 ## Troubleshooting
 
 - Sign-in not ready: check `npm run demo:logs` and wait for Keycloak realm import.
