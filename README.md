@@ -19,6 +19,8 @@ Try **Show outstanding fines** or **Retrieve my fines and pay them**. Review the
 
 Set `AGENT_PLANNER=compatible` plus a local/self-hosted `AGENT_LLM_BASE_URL` and `AGENT_LLM_MODEL` for model-selected plans. Fixture mode is deterministic simulation; a provider outage never silently selects it. Keep `AGENT_AUTH=test` for the isolated local demo, or configure the existing Keycloak verifier and explicit fines scopes. See [API/configuration](docs/integrations.md) and [security](docs/security.md).
 
+To explicitly use an existing exported `OPENROUTER_API_KEY`, initialize with `npm run agent:init -- --openrouter` instead. The compatible planner uses the free router, requires zero-price provider routing and keeps the key server-side. `npm run agent:verify:model` runs the real-provider smoke check. Existing private configurations are preserved; see [OpenRouter setup](docs/integrations.md#explicit-openrouter-setup) to switch one.
+
 ```bash
 npm run check:agent
 # Optional single-container demo (not needed for local execution):

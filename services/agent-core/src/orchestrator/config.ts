@@ -1,6 +1,7 @@
 import { z } from 'zod/v4';
 import { AgentError } from './contracts.ts';
 import { TestIdentity } from './auth.ts';
+import { isOpenRouter, requireFreeModel } from './planner.ts';
 
 const Endpoint = z.string().url().transform(raw => {
   const url = new URL(raw);
@@ -22,6 +23,11 @@ export function config(env: NodeJS.ProcessEnv = process.env) {
     AGENT_LLM_KEY: z.string().optional(),
   }).parse(env);
   if (parsed.AGENT_PLANNER === 'compatible' && (!parsed.AGENT_LLM_BASE_URL || !parsed.AGENT_LLM_MODEL || !parsed.AGENT_LLM_BASE_URL.pathname.endsWith('/'))) throw new AgentError('LLM_CONFIG_REQUIRED');
+  if (parsed.AGENT_PLANNER === 'compatible' && parsed.AGENT_LLM_BASE_URL && isOpenRouter(parsed.AGENT_LLM_BASE_URL)) {
+    requireFreeModel(parsed.AGENT_LLM_MODEL!);
+    parsed.AGENT_LLM_KEY = parsed.AGENT_LLM_KEY?.trim() || env.OPENROUTER_API_KEY?.trim();
+    if (!parsed.AGENT_LLM_KEY) throw new AgentError('OPENROUTER_KEY_REQUIRED');
+  }
   if (env.NODE_ENV === 'production' && (parsed.AGENT_AUTH === 'test' || parsed.AGENT_PLANNER === 'fixture')) throw new AgentError('TEST_ADAPTERS_FORBIDDEN');
   const identities = parsed.AGENT_AUTH === 'test' ? z.array(TestIdentity).min(1).max(20).parse(JSON.parse(env.AGENT_TEST_IDENTITIES || '[]')) : [];
   return { ...parsed, identities };

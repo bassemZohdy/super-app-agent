@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 26 October 2026 — Explicit free OpenRouter planner configuration (P1-05, step)
+
+The user-selected hosted planner reuses `OPENROUTER_API_KEY` through the existing OpenAI-compatible adapter, only at the exact HTTPS OpenRouter endpoint. The private initializer supports `--openrouter` without copying the key; free model names and zero provider prices are enforced, redirects are refused and there is no paid/fixture fallback. Tests cover key isolation, explicit override, paid-model refusal and safe provider failures. The opt-in `npm run agent:verify:model` declares synthetic bilingual intent/latency smoke thresholds. Live access attempts failed at network connectivity before a usable response; no successful key authentication or inference is claimed. This explicit user request takes precedence over the local-only planner preference. Guide: [OpenRouter setup](integrations.md#explicit-openrouter-setup).
+
 ## 26 October 2026 — Remove unused workspace experiments (P2-05, P2-06)
 
 User-requested cleanup takes precedence over the adoption critical path for this change. Remove the unreferenced historical OpenRouter connector, its isolated tests and diagnostic command, the unvalidated gateway YAML and obsolete default Compose file, and the duplicate pnpm workspace manifest. Remove their environment hints and update the gateway decision and [local setup guide](development/local-development.md#refreshing-the-workspace). The focused agent, retained compatibility services, payment/security/restart suites and historical evidence remain in place. No TODO acceptance criterion is claimed by deleting unused experiments.

@@ -3,16 +3,29 @@ import { Plan, AgentError, boundedJson } from './contracts.ts';
 export interface Planner {
   plan(messages: Array<{ role: 'user' | 'assistant'; content: string }>, tools: Array<{ id: string; description: string }>): Promise<Plan>;
 }
+/** A shared environment key is never forwarded to a lookalike or non-TLS endpoint. */
+export function isOpenRouter(base: URL): boolean {
+  if (base.hostname !== 'openrouter.ai') return false;
+  if (base.protocol !== 'https:' || base.port || base.pathname !== '/api/v1/' || base.username || base.password || base.search || base.hash) throw new AgentError('OPENROUTER_ENDPOINT_REQUIRED');
+  return true;
+}
+export function requireFreeModel(model: string) {
+  if (model !== 'openrouter/free' && !model.endsWith(':free')) throw new AgentError('FREE_MODEL_REQUIRED');
+}
 /** No hosted SDK or fallback. The endpoint is deployment configuration, never model/user input. */
 export class CompatiblePlanner implements Planner {
   private readonly base: URL; private readonly model: string; private readonly key?: string; private readonly timeoutMs: number;
-  constructor(base: URL, model: string, key?: string, timeoutMs = 15000) { this.base = base; this.model = model; this.key = key; this.timeoutMs = timeoutMs; }
+  constructor(base: URL, model: string, key?: string, timeoutMs = 15000) {
+    if (isOpenRouter(base)) requireFreeModel(model);
+    this.base = base; this.model = model; this.key = key; this.timeoutMs = timeoutMs;
+  }
   async plan(messages: Array<{ role: 'user' | 'assistant'; content: string }>, tools: Array<{ id: string; description: string }>): Promise<Plan> {
     try {
       const response = await fetch(new URL('chat/completions', this.base), {
         method: 'POST', redirect: 'error', signal: AbortSignal.timeout(this.timeoutMs),
         headers: { 'Content-Type': 'application/json', ...(this.key ? { Authorization: `Bearer ${this.key}` } : {}) },
-        body: JSON.stringify({ model: this.model, temperature: 0, max_tokens: 200, response_format: { type: 'json_object' }, messages: [
+        body: JSON.stringify({ model: this.model, temperature: 0, max_tokens: 200, response_format: { type: 'json_object' },
+          ...(isOpenRouter(this.base) ? { provider: { max_price: { prompt: 0, completion: 0 } }, reasoning: { enabled: false } } : {}), messages: [
           { role: 'system', content: `Select a bounded fines plan using only these services: ${JSON.stringify(tools)}. Return JSON {"intent":"list_fines"|"pay_fines"|"clarify"|"out_of_scope","fineIds":string[]}. Pay only if requested. Use exact fine IDs requested by the user; empty IDs means all currently outstanding fines. Unclear requests need clarify. You cannot authorize, consent or execute. Never echo user text or credentials.` },
           ...messages.slice(-12),
         ] }),
