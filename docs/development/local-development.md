@@ -61,6 +61,7 @@ npm run demo:down  # preserves named volumes
 | PROVIDER_ID / PROVIDER_DB_PATH | one provider instance and its SQLite file |
 | APP_DATA_DIR | application-owned profile/order SQLite storage |
 | REDIS_URL / SESSION_TTL_SECONDS | Redis endpoint and idle retention, 60–86400 seconds |
+| SESSION_MAX_PER_OWNER / SESSION_MAX_TOTAL / SESSION_IDLE_SECONDS | in-memory conversation bounds (defaults 25, 1000 and `SESSION_TTL_SECONDS`): the owner's least recently used thread is evicted first, a thread with a request in flight never is, and a new thread is refused with `SESSION_LIMIT_REACHED` (429) when every candidate is busy |
 
 Known demo service secrets and grants are documented in the [provider guide](../demo/provider-backends.md). They are intentionally local-only. Preserve existing `.env` keys; do not copy secrets into source control. Restart affected containers after source edits; recreate them with `docker compose -f docker-compose.demo.yml up -d --force-recreate SERVICE_NAME` after environment edits; backend containers do not run a source watcher.
 

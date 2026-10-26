@@ -22,6 +22,7 @@ import {
 } from '../../../packages/protocol-core/src/index.ts';
 import type { SuperAppAgentState } from './langgraph/state.ts';
 import { executeRuntimeIntent, executeRuntimeAction, discardRuntime } from './langgraph/runtime.ts';
+import { sessionLimitsFromEnv } from './session-limits.ts';
 import { verifyKeycloakToken, isDemoAuthEnabled } from './auth.ts';
 import { localModelStatus } from './local-conversation.ts';
 import { voiceConfig, localSpeech, localTranscription } from './local-voice.ts';
@@ -44,6 +45,15 @@ function ownsSession(sessionId: string, sub: string): boolean {
   return true;
 }
 const activeTransitions = new Set<string>();
+const sessionLimits = sessionLimitsFromEnv();
+/** Admits an in-memory conversation for its owner, evicting this owner's idle ones first; false means every candidate is busy. */
+function admitSession(sessionId: string, sub: string): boolean {
+  const admitted = sessionLimits.admit(sessionId, sub, id => activeTransitions.has(id));
+  if (!admitted) return false;
+  for (const id of admitted.evicted) { const state = sessions.get(id); sessions.delete(id); sessionOwners.delete(id); if (state) void discardRuntime(state).catch(() => {}); }
+  return true;
+}
+const sessionLimitReply = { success: false, code: 'SESSION_LIMIT_REACHED', error: 'Too many conversations are running. Wait for one to finish.' };
 const eligibilityReader=new EligibilityClient(),accountReader=new ProviderClient('service-wallet',process.env.SERVICE_WALLET_CLIENT_SECRET||'demo-wallet-secret');
 type RequestContext = { session?: SuperAppAgentState; release?: () => void | Promise<void>; save?: () => Promise<void>; assertLease?: () => Promise<void> };
 
@@ -164,7 +174,7 @@ async function handleGatewayRequest(
     if (sessionOwners.get(sid) !== actor.sub) return { status: 403, data: { error: 'Session belongs to a different user' } };
     const state = sessions.get(sid)!;
     if(eligibilityEnforced())await eligibilityReader.require({...actor,accountId:state.metadata?.accountId||accountId,eligibilityEpoch:undefined});
-    if (normMethod === 'DELETE') { if (activeTransitions.has(sid)) return { status: 409, data: { error: 'Session busy' } }; await discardRuntime(state); sessions.delete(sid); sessionOwners.delete(sid); return { status: 200, data: { success: true } }; }
+    if (normMethod === 'DELETE') { if (activeTransitions.has(sid)) return { status: 409, data: { error: 'Session busy' } }; await discardRuntime(state); sessions.delete(sid); sessionOwners.delete(sid); sessionLimits.forget(sid); return { status: 200, data: { success: true } }; }
     return { status: 200, data: { success: true, sessionId: sid, accountId: state.metadata?.accountId, messages: state.messages, surface: state.currentSurface, serviceId:state.metadata?.manualService, inference: state.metadata?.inference, runtime: state.metadata?.runtime, approval: state.approval, approvalHistory: state.approvalHistory } };
   }
   // Hold ownership and coordination through persistence and the final event.
@@ -181,6 +191,7 @@ async function handleGatewayRequest(
       requestContext.assertLease = lock.assert;
     } else {
       if ((pathname.endsWith('/action') || pathname.endsWith('/cancel')) && !sessions.has(body.sessionId)) return { status: 404, data: { error: 'Session not found' } };
+      if (!admitSession(body.sessionId, actor.sub)) return { status: 429, data: sessionLimitReply };
       if (!ownsSession(body.sessionId, actor.sub)) return { status: 403, data: { error: 'Session belongs to a different user' } };
       if (activeTransitions.has(body.sessionId)) return { status: 409, data: { success: false, code: 'SESSION_BUSY', error: 'A request is already running. Wait for its result before retrying.', retry: { allowed: false, next: 'wait' } } };
       activeTransitions.add(body.sessionId);
@@ -440,6 +451,7 @@ export const server = http.createServer({ maxHeaderSize: 16384 }, telemetry.hand
     if(!persistent&&sessions.get(sid)?.metadata?.accountId&&sessions.get(sid)!.metadata!.accountId!==streamAccount){sendJson(req,res,403,{error:'This conversation belongs to another workspace.'});return;}
     try { if (persistent) persistentState = await persistent.claim(sid, authResult.user!.sub, streamAccount); }
     catch (error) { sendJson(req, res, error instanceof SessionError ? error.status : 503, { error: 'Session unavailable or not owned by this user' }); return; }
+    if (!persistent && !admitSession(sid, authResult.user!.sub)) { sendJson(req, res, 429, sessionLimitReply); return; }
     if (!persistent && !ownsSession(sid, authResult.user!.sub)) {
       sendJson(req, res, 403, { error: 'Session belongs to a different user' });
       return;
