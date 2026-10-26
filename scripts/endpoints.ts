@@ -20,7 +20,7 @@
  *   DEMO_WALLET_SERVICE_URL   wallet service (http://localhost:4003)
  *   DEMO_CATALOG_SERVICE_URL  catalog service (http://localhost:4004)
  *   DEMO_PROFILE_SERVICE_URL  profile service (http://localhost:4005)
- *   DEMO_PORT_OFFSET          shifts every default port above by this many (0); a qualification stack uses 10000
+ *   DEMO_PORT_OFFSET          shifts every default port above by this many (0); a qualification stack uses 30000
  *                             so it runs beside the interactive stack (see scripts/qualification-stack.ts)
  */
 

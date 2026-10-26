@@ -10,9 +10,9 @@ import { removeTemp } from '../../test/support/temp-cleanup.ts';
 const compose = readFileSync('docker-compose.demo.yml', 'utf8');
 
 test('P2-09: every published port in the Compose file is a variable whose default is the interactive port', () => {
-  const published = [...compose.matchAll(/ports: \['127\.0\.0\.1:\$\{(PORT_[A-Z_]+):-(\d+)\}:\d+'\]/g)].map(match => [match[1], Number(match[2])] as const);
+  const published = [...compose.matchAll(/^\s+- '127\.0\.0\.1:\$\{(PORT_[A-Z_]+):-(\d+)\}:\d+'$/gm)].map(match => [match[1], Number(match[2])] as const);
   assert.deepEqual(Object.fromEntries(published), PORTS, 'the launcher knows exactly the ports the Compose file publishes');
-  assert.doesNotMatch(compose, /ports: \['(127\.0\.0\.1:)?\d+:\d+'\]/, 'no port is published at a fixed host number');
+  assert.doesNotMatch(compose, /^\s+- '(127\.0\.0\.1:)?\d+:\d+'$/m, 'no port is published at a fixed host number');
   assert.match(compose, /^name: \$\{COMPOSE_PROJECT_NAME:-cityside-demo\}/m);
   assert.equal(compose.match(/localhost:8085/g)?.length ?? 0, 0, 'the Keycloak public address follows its port variable');
 });
@@ -48,9 +48,9 @@ test('P2-09: a script run against the qualification stack inherits no interactiv
   assert.equal(child.PORT_GATEWAY, undefined);
   assert.equal(child.KEYCLOAK_ISSUER, undefined);
   for (const [name, value] of Object.entries(endpointEnvironment())) assert.equal(child[name], value, `${name} is explicit`);
-  assert.equal(child.DEMO_GATEWAY_URL, 'http://localhost:14000');
-  assert.equal(child.DEMO_KEYCLOAK_URL, 'http://localhost:18085/realms/superapp');
-  assert.equal(child.DEMO_REDIS_URL, 'redis://127.0.0.1:16379');
+  assert.equal(child.DEMO_GATEWAY_URL, 'http://localhost:34000');
+  assert.equal(child.DEMO_KEYCLOAK_URL, 'http://localhost:38085/realms/superapp');
+  assert.equal(child.DEMO_REDIS_URL, 'redis://127.0.0.1:36379');
 });
 
 test('P2-09: DEMO_PORT_OFFSET is a whole number in range, and 0 or unset is the interactive stack', () => {
@@ -58,4 +58,10 @@ test('P2-09: DEMO_PORT_OFFSET is a whole number in range, and 0 or unset is the 
   assert.equal(portOffset(''), 0);
   assert.equal(portOffset('10000'), 10000);
   for (const bad of ['-1', '1.5', 'abc', '60000']) assert.throws(() => portOffset(bad), /DEMO_PORT_OFFSET/, bad);
+});
+
+test('P2-09: the qualification ports stay clear of the in-process browser journeys and of ephemeral ports', () => {
+  const lowest = Math.min(...Object.values(portVariables()).map(Number)), highest = Math.max(...Object.values(portVariables()).map(Number));
+  assert.ok(lowest > 14000 + 200, 'above the E2E_CORE_PORT range (14000 plus its provider offsets)');
+  assert.ok(highest < 49152, 'below the dynamic port range');
 });

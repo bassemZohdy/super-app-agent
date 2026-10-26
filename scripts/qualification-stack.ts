@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 export const INTERACTIVE_PROJECT = 'cityside-demo';
 export const PROJECT = 'cityside-qualify';
-export const OFFSET = 10000;
+export const OFFSET = 30000;
 export const STATE_DIR = '.data/qualification';
 export const ENV_FILE = `${STATE_DIR}/stack.env`;
 

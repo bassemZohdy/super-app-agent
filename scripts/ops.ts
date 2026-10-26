@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { resolve,join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { backupDirectory,restoreDirectory,withoutBackupKey } from './ops/archive.ts';
-import { gatewayUrl,delegationAuthorityUrl,rideServiceUrl,foodServiceUrl,walletServiceUrl,catalogServiceUrl,profileServiceUrl,telecomServiceUrl } from './endpoints.ts';
+import { gatewayUrl,delegationAuthorityUrl,rideServiceUrl,foodServiceUrl,walletServiceUrl,catalogServiceUrl,profileServiceUrl,telecomServiceUrl,demoPortOffset } from './endpoints.ts';
 const compose=['compose','-f','docker-compose.demo.yml'];
 const stateSources=[['delegation-broker','/data/delegation'],['redis','/data'],['keycloak','/opt/keycloak/data'],...['rta','dewa','etisalat','du','police','dld','payments'].map(n=>[`provider-${n}`,'/data']),...['ride','food','wallet','catalog','profile','telecom'].map(n=>[`service-${n}`,'/data'])];
 function docker(args:string[]){const result=spawnSync('docker',args,{encoding:'utf8',maxBuffer:1024*1024,timeout:120000});if(result.status!==0)throw Error(`Docker operation failed: ${args.slice(0,3).join(' ')}`);return result.stdout.trim();}
@@ -17,7 +17,7 @@ if(action==='init'){
 }else if(action==='inspect'){
   const secret=process.env.OPS_API_KEY;if(!secret||secret.length<32)throw Error('Run npm run ops:init first');
   const trace=process.argv[3];if(trace&&!/^[a-f0-9]{32}$/.test(trace))throw Error('Expected a 32-character trace ID');
-  const urls=[gatewayUrl,delegationAuthorityUrl,rideServiceUrl,foodServiceUrl,walletServiceUrl,catalogServiceUrl,profileServiceUrl,telecomServiceUrl,...['rta','dewa','etisalat','du','police','dld','payments'].map((n,i)=>process.env[`PROVIDER_${n.toUpperCase()}_URL`]||`http://localhost:${4101+i}`)];
+  const urls=[gatewayUrl,delegationAuthorityUrl,rideServiceUrl,foodServiceUrl,walletServiceUrl,catalogServiceUrl,profileServiceUrl,telecomServiceUrl,...['rta','dewa','etisalat','du','police','dld','payments'].map((n,i)=>process.env[`PROVIDER_${n.toUpperCase()}_URL`]||`http://localhost:${4101+i+demoPortOffset}`)];
   const results=await Promise.all(urls.map(async base=>{try{const r=await fetch(`${base}/ops/state${trace?`?traceId=${trace}`:''}`,{headers:{'X-Ops-Key':secret},signal:AbortSignal.timeout(4000)});if(!r.ok)throw Error();return await r.json();}catch{return {endpoint:new URL(base).port,alerts:['UNAVAILABLE_OR_DENIED']};}}));
   console.log(JSON.stringify(results,null,2));if(results.some(r=>r.alerts.length))process.exitCode=1;
 }else if(action==='backup'){

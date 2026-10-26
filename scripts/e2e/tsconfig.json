@@ -19,6 +19,8 @@
     "../record-e2e-scenarios.ts",
     "../record-journeys.ts",
     "../qualification-stack.ts",
+    "../verify-network-isolation.ts",
+    "../port-relay.ts",
     "../verify-agent-container.ts",
     "../record-video-scenarios.ts",
     "../serve-recordings.ts",

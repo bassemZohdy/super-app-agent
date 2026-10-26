@@ -82,7 +82,6 @@ services:
       PORT: '4010'
       DELEGATION_DB_PATH: /data/delegation/grants.sqlite
       DELEGATION_KEY_DIR: /data/delegation/keys
-    ports: ['127.0.0.1:${PORT_BROKER:-4010}:4010']
     volumes:
       - .:/app:ro
       - delegation-data:/data/delegation
@@ -90,7 +89,6 @@ services:
   redis:
     image: redis:8.2-alpine
     command: [redis-server, --appendonly, 'yes', --appendfsync, everysec]
-    ports: ['127.0.0.1:${PORT_REDIS:-6379}:6379']
     volumes: [redis-data:/data]
     healthcheck:
       test: [CMD, redis-cli, ping]
@@ -105,7 +103,6 @@ services:
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
       KC_HOSTNAME: http://localhost:${PORT_KEYCLOAK:-8085}
       KC_HTTP_ENABLED: 'true'
-    ports: ['127.0.0.1:${PORT_KEYCLOAK:-8085}:8080']
     volumes:
       - ./services/keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
       - keycloak-data:/opt/keycloak/data
@@ -121,7 +118,6 @@ services:
       PROVIDER_DB_PATH: /data/rta.sqlite
       PROVIDER_SETTLEMENT_SECRET: ${PROVIDER_SETTLEMENT_SECRET:-demo-settlements-secret}
       PROVIDER_RTA_CLAIM_SECRET: ${PROVIDER_RTA_CLAIM_SECRET:-demo-rta-settlement-secret}
-    ports: ['127.0.0.1:${PORT_PROVIDER_RTA:-4101}:4101']
     volumes:
       - .:/app:ro
       - rta-data:/data
@@ -138,7 +134,6 @@ services:
       PROVIDER_DB_PATH: /data/dewa.sqlite
       PROVIDER_SETTLEMENT_SECRET: ${PROVIDER_SETTLEMENT_SECRET:-demo-settlements-secret}
       PROVIDER_DEWA_CLAIM_SECRET: ${PROVIDER_DEWA_CLAIM_SECRET:-demo-dewa-settlement-secret}
-    ports: ['127.0.0.1:${PORT_PROVIDER_DEWA:-4102}:4102']
     volumes:
       - .:/app:ro
       - dewa-data:/data
@@ -155,7 +150,6 @@ services:
       PROVIDER_DB_PATH: /data/etisalat.sqlite
       PROVIDER_SETTLEMENT_SECRET: ${PROVIDER_SETTLEMENT_SECRET:-demo-settlements-secret}
       PROVIDER_ETISALAT_CLAIM_SECRET: ${PROVIDER_ETISALAT_CLAIM_SECRET:-demo-etisalat-settlement-secret}
-    ports: ['127.0.0.1:${PORT_PROVIDER_ETISALAT:-4103}:4103']
     volumes:
       - .:/app:ro
       - etisalat-data:/data
@@ -172,7 +166,6 @@ services:
       PROVIDER_DB_PATH: /data/du.sqlite
       PROVIDER_SETTLEMENT_SECRET: ${PROVIDER_SETTLEMENT_SECRET:-demo-settlements-secret}
       PROVIDER_DU_CLAIM_SECRET: ${PROVIDER_DU_CLAIM_SECRET:-demo-du-settlement-secret}
-    ports: ['127.0.0.1:${PORT_PROVIDER_DU:-4104}:4104']
     volumes:
       - .:/app:ro
       - du-data:/data
@@ -189,7 +182,6 @@ services:
       PROVIDER_DB_PATH: /data/police.sqlite
       PROVIDER_SETTLEMENT_SECRET: ${PROVIDER_SETTLEMENT_SECRET:-demo-settlements-secret}
       PROVIDER_POLICE_CLAIM_SECRET: ${PROVIDER_POLICE_CLAIM_SECRET:-demo-police-settlement-secret}
-    ports: ['127.0.0.1:${PORT_PROVIDER_POLICE:-4105}:4105']
     volumes:
       - .:/app:ro
       - police-data:/data
@@ -203,7 +195,6 @@ services:
       PORT: '4106'
       PROVIDER_DB_PATH: /data/dld.sqlite
       PROVIDER_SETTLEMENT_SECRET: ${PROVIDER_SETTLEMENT_SECRET:-demo-settlements-secret}
-    ports: ['127.0.0.1:${PORT_PROVIDER_DLD:-4106}:4106']
     volumes:
       - .:/app:ro
       - dld-data:/data
@@ -241,7 +232,6 @@ services:
       PORT: '4107'
       PROVIDER_DB_PATH: /data/payments.sqlite
       PROVIDER_SETTLEMENT_SECRET: ${PROVIDER_SETTLEMENT_SECRET:-demo-settlements-secret}
-    ports: ['127.0.0.1:${PORT_PROVIDER_PAYMENTS:-4107}:4107']
     volumes:
       - .:/app:ro
       - payments-data:/data
@@ -255,7 +245,6 @@ services:
       PROVIDER_INTEGRATION: 'true'
       SERVICE_CLIENT_SECRET: demo-ride-secret
       APP_DATA_DIR: /data
-    ports: ['127.0.0.1:${PORT_SERVICE_RIDE:-4001}:4001']
     volumes:
       - .:/app:ro
       - app-ride-data:/data
@@ -269,7 +258,6 @@ services:
       PROVIDER_INTEGRATION: 'true'
       SERVICE_CLIENT_SECRET: demo-food-secret
       APP_DATA_DIR: /data
-    ports: ['127.0.0.1:${PORT_SERVICE_FOOD:-4002}:4002']
     volumes:
       - .:/app:ro
       - app-food-data:/data
@@ -283,7 +271,6 @@ services:
       PROVIDER_INTEGRATION: 'true'
       SERVICE_CLIENT_SECRET: demo-wallet-secret
       APP_DATA_DIR: /data
-    ports: ['127.0.0.1:${PORT_SERVICE_WALLET:-4003}:4003']
     volumes:
       - .:/app:ro
       - app-wallet-data:/data
@@ -297,7 +284,6 @@ services:
       PROVIDER_INTEGRATION: 'true'
       SERVICE_CLIENT_SECRET: demo-catalog-secret
       APP_DATA_DIR: /data
-    ports: ['127.0.0.1:${PORT_SERVICE_CATALOG:-4004}:4004']
     volumes:
       - .:/app:ro
       - app-catalog-data:/data
@@ -311,7 +297,6 @@ services:
       PROVIDER_INTEGRATION: 'true'
       SERVICE_CLIENT_SECRET: demo-profile-secret
       APP_DATA_DIR: /data
-    ports: ['127.0.0.1:${PORT_SERVICE_PROFILE:-4005}:4005']
     volumes:
       - .:/app:ro
       - app-profile-data:/data
@@ -325,7 +310,6 @@ services:
       PROVIDER_INTEGRATION: 'true'
       SERVICE_CLIENT_SECRET: demo-telecom-secret
       APP_DATA_DIR: /data
-    ports: ['127.0.0.1:${PORT_SERVICE_TELECOM:-4006}:4006']
     volumes:
       - .:/app:ro
       - app-telecom-data:/data
@@ -359,12 +343,48 @@ services:
       PROVIDER_POLICE_URL: http://provider-police:4105
       PROVIDER_DLD_URL: http://provider-dld:4106
       PROVIDER_PAYMENTS_URL: http://provider-payments:4107
-    ports: ['127.0.0.1:${PORT_GATEWAY:-4000}:4000']
     depends_on:
       redis:
         condition: service_healthy
       keycloak:
         condition: service_started
+  edge-relay:
+    <<: *node
+    # The only service that publishes ports. The backends are on an internal network with no route out; this relay is attached to
+    # both that network and an edge network, and forwards each loopback port to one fixed service (see scripts/port-relay.ts).
+    command: [node, --experimental-strip-types, scripts/port-relay.ts]
+    environment:
+      RELAY_ROUTES: 4010=delegation-broker:4010,6379=redis:6379,8080=keycloak:8080,4101=provider-rta:4101,4102=provider-dewa:4102,4103=provider-etisalat:4103,4104=provider-du:4104,4105=provider-police:4105,4106=provider-dld:4106,4107=provider-payments:4107,4001=service-ride:4001,4002=service-food:4002,4003=service-wallet:4003,4004=service-catalog:4004,4005=service-profile:4005,4006=service-telecom:4006,4000=agent-core:4000
+    ports:
+      - '127.0.0.1:${PORT_BROKER:-4010}:4010'
+      - '127.0.0.1:${PORT_REDIS:-6379}:6379'
+      - '127.0.0.1:${PORT_KEYCLOAK:-8085}:8080'
+      - '127.0.0.1:${PORT_PROVIDER_RTA:-4101}:4101'
+      - '127.0.0.1:${PORT_PROVIDER_DEWA:-4102}:4102'
+      - '127.0.0.1:${PORT_PROVIDER_ETISALAT:-4103}:4103'
+      - '127.0.0.1:${PORT_PROVIDER_DU:-4104}:4104'
+      - '127.0.0.1:${PORT_PROVIDER_POLICE:-4105}:4105'
+      - '127.0.0.1:${PORT_PROVIDER_DLD:-4106}:4106'
+      - '127.0.0.1:${PORT_PROVIDER_PAYMENTS:-4107}:4107'
+      - '127.0.0.1:${PORT_SERVICE_RIDE:-4001}:4001'
+      - '127.0.0.1:${PORT_SERVICE_FOOD:-4002}:4002'
+      - '127.0.0.1:${PORT_SERVICE_WALLET:-4003}:4003'
+      - '127.0.0.1:${PORT_SERVICE_CATALOG:-4004}:4004'
+      - '127.0.0.1:${PORT_SERVICE_PROFILE:-4005}:4005'
+      - '127.0.0.1:${PORT_SERVICE_TELECOM:-4006}:4006'
+      - '127.0.0.1:${PORT_GATEWAY:-4000}:4000'
+    networks: [default, edge]
+    stop_grace_period: 5s
+    healthcheck:
+      test: [CMD, node, -e, "require('net').connect(4000,'127.0.0.1').on('connect',function(){process.exit(0)}).on('error',function(){process.exit(1)})"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+networks:
+  # Backends: no route to the host network or the internet.
+  default:
+    internal: true
+  edge: {}
 volumes:
   voice-models: {}
   delegation-data: {}

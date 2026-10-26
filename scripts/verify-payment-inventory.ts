@@ -1,4 +1,4 @@
-import { gatewayUrl, keycloakIssuerUrl, providerPaymentsUrl } from './endpoints.ts';
+import { demoPortOffset, gatewayUrl, keycloakIssuerUrl, providerPaymentsUrl } from './endpoints.ts';
 /** Signed read-only inventory check against the current local demo. No transaction or rule is executed. */
 import assert from 'node:assert/strict';
 const issuer=keycloakIssuerUrl;
@@ -17,7 +17,7 @@ for(const balance of overview.cardBalances)assert.equal(balance.limitMinor-balan
 for(const order of overview.orders){assert.equal(order.accountId,account.id);assert.equal(typeof order.fundsCaptured,'boolean');if(order.state==='SETTLED'){assert.equal(order.fundsCaptured,true);assert.equal(order.receipt.amountMinor,order.quote.totalMinor);}}
 const reviews=await read(`${gatewayUrl}/api/payments/orders?accountId=${encodeURIComponent(account.id)}`);assert.ok(Array.isArray(reviews.orders));
 for(const [provider,port] of [['dewa',4102],['etisalat',4103],['du',4104],['police',4105]] as const) {
-  const source=await read(`http://localhost:${port}/v1/accounts/${encodeURIComponent(account.id)}/payables`);
+  const source=await read(`http://localhost:${port+demoPortOffset}/v1/accounts/${encodeURIComponent(account.id)}/payables`);
   for(const payable of source.payables) {
     assert.match(payable.revision,/^[a-f0-9]{64}$/);assert.ok(Number.isSafeInteger(payable.amountMinor)&&payable.amountMinor>0);assert.ok(Number.isSafeInteger(payable.version)&&payable.version>0);
     const visible=overview.payables.find((p:{id:string;provider:string})=>p.id===payable.id&&p.provider===provider);assert.deepEqual(visible,payable);

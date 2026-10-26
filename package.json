@@ -28,6 +28,7 @@
     "tokens:generate": "node --experimental-strip-types scripts/generate-tokens.ts",
     "check:tokens": "node --experimental-strip-types scripts/generate-tokens.ts --check && node --experimental-strip-types scripts/check-raw-colors.ts",
     "colors:baseline": "node --experimental-strip-types scripts/check-raw-colors.ts --update",
+    "verify:network": "node --experimental-strip-types scripts/verify-network-isolation.ts",
     "check:any": "node --experimental-strip-types scripts/check-any-types.ts",
     "any:baseline": "node --experimental-strip-types scripts/check-any-types.ts --update",
     "check:local-only": "node --experimental-strip-types scripts/check-local-only.ts",

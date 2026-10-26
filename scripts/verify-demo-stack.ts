@@ -1,4 +1,4 @@
-import { gatewayUrl, keycloakIssuerUrl, providerDewaUrl, providerPaymentsUrl, telecomServiceUrl } from './endpoints.ts';
+import { demoPortOffset, gatewayUrl, keycloakIssuerUrl, providerDewaUrl, providerPaymentsUrl, telecomServiceUrl } from './endpoints.ts';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { accountIdFor } from '../packages/backend-kit/src/context.ts';
@@ -47,7 +47,7 @@ const rideToken = await service('service-ride', 'demo-ride-secret');
 const denied = await fetch(`${providerDewaUrl}/v1/accounts/${accountId}/bills`, { headers: { Authorization: `Bearer ${rideToken}`, 'X-User-Subject': alice.sub } }); assert.equal(denied.status, 403);
 console.log('PASS: signed human identity, service impersonation rejection, payment capture/decline/refund and idempotency');
 for (const [port, providerName] of [[4103,'etisalat'],[4104,'du']] as const) {
-  const doc = await fetch(`http://localhost:${port}/openapi.json`); assert.equal((await doc.json() as any).openapi, '3.1.0');
+  const doc = await fetch(`http://localhost:${port + demoPortOffset}/openapi.json`); assert.equal((await doc.json() as any).openapi, '3.1.0');
   const response = await fetch(`${telecomServiceUrl}/telecom/${providerName}/bills`, { headers: { Authorization: `Bearer ${alice.token}`, 'X-Account-Id': accountId } }); assert.equal(response.status, 200); assert.ok((await response.json() as any).bills[0].billId);
 }
 console.log('PASS: Etisalat and du REST integration and OpenAPI discovery');
