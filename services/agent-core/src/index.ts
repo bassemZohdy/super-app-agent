@@ -168,22 +168,22 @@ async function handleGatewayRequest(
       if (normMethod === 'DELETE') { const record = await persistent.read(sid, actor.sub);if(eligibilityEnforced())await eligibilityReader.require({...actor,accountId:record.accountId,eligibilityEpoch:undefined}); await persistent.remove(sid, actor.sub); await discardRuntime(record.state); return { status: 200, data: { success: true } }; }
       const record = await persistent.read(sid, actor.sub);
       if(eligibilityEnforced())await eligibilityReader.require({...actor,accountId:record.accountId,eligibilityEpoch:undefined});
-      return { status: 200, data: { success: true, sessionId: sid, accountId: record.accountId, messages: record.state.messages, surface: record.state.currentSurface, serviceId:record.state.metadata?.manualService, inference: record.state.metadata?.inference, runtime: record.state.metadata?.runtime, approval: record.state.approval, approvalHistory: record.state.approvalHistory } };
+      return { status: 200, data: { success: true, sessionId: sid, accountId: record.accountId, messages: record.state.messages, surface: record.state.currentSurface, serviceId:record.state.metadata?.manualService, modelPersonalContext: record.state.metadata?.modelPersonalContext !== false, inference: record.state.metadata?.inference, runtime: record.state.metadata?.runtime, approval: record.state.approval, approvalHistory: record.state.approvalHistory } };
     }
     if (!sessions.has(sid)) return { status: 404, data: { error: 'Session not found' } };
     if (sessionOwners.get(sid) !== actor.sub) return { status: 403, data: { error: 'Session belongs to a different user' } };
     const state = sessions.get(sid)!;
     if(eligibilityEnforced())await eligibilityReader.require({...actor,accountId:state.metadata?.accountId||accountId,eligibilityEpoch:undefined});
     if (normMethod === 'DELETE') { if (activeTransitions.has(sid)) return { status: 409, data: { error: 'Session busy' } }; await discardRuntime(state); sessions.delete(sid); sessionOwners.delete(sid); sessionLimits.forget(sid); return { status: 200, data: { success: true } }; }
-    return { status: 200, data: { success: true, sessionId: sid, accountId: state.metadata?.accountId, messages: state.messages, surface: state.currentSurface, serviceId:state.metadata?.manualService, inference: state.metadata?.inference, runtime: state.metadata?.runtime, approval: state.approval, approvalHistory: state.approvalHistory } };
+    return { status: 200, data: { success: true, sessionId: sid, accountId: state.metadata?.accountId, messages: state.messages, surface: state.currentSurface, serviceId:state.metadata?.manualService, modelPersonalContext: state.metadata?.modelPersonalContext !== false, inference: state.metadata?.inference, runtime: state.metadata?.runtime, approval: state.approval, approvalHistory: state.approvalHistory } };
   }
   // Hold ownership and coordination through persistence and the final event.
-  if (normMethod === 'POST' && ['/api/a2ui/intent', '/api/a2ui/action', '/api/a2ui/cancel', '/api/manual/prepare'].includes(pathname)) {
+  if (normMethod === 'POST' && ['/api/a2ui/intent', '/api/a2ui/action', '/api/a2ui/cancel', '/api/a2ui/model-privacy', '/api/manual/prepare'].includes(pathname)) {
     const persistent = redisSessions();
     let session: SuperAppAgentState;
     if (persistent) {
       // Claim ownership before acquiring; load authoritative state again under the lock.
-      await persistent.claim(body.sessionId, actor.sub, accountId, pathname.endsWith('/intent') || pathname.endsWith('/prepare'));
+      await persistent.claim(body.sessionId, actor.sub, accountId, pathname.endsWith('/intent') || pathname.endsWith('/prepare') || pathname.endsWith('/model-privacy'));
       const lock = await persistent.acquire(body.sessionId);
       requestContext.release = lock.release;
       session = await persistent.claim(body.sessionId, actor.sub, accountId, false);
@@ -199,13 +199,21 @@ async function handleGatewayRequest(
       session = getOrCreateSession(body.sessionId);
       if (session.metadata?.accountId && session.metadata.accountId !== accountId) return { status: 409, data: { success: false, code: 'SESSION_ACCOUNT_MISMATCH', error: 'Start a new conversation when switching accounts.' } };
     }
-    if(eligibilityEnforced()&&pathname!=='/api/a2ui/cancel'&&(pathname==='/api/a2ui/action'||session.paymentFlow)&&(session.metadata?.eligibilityEpoch||'1:1')!==actor.eligibilityEpoch)return {status:409,data:{success:false,code:'ELIGIBILITY_CHANGED',error:'Owner or workspace permission changed. Cancel the original review and start a new conversation.'}};
+    if(eligibilityEnforced()&&pathname!=='/api/a2ui/cancel'&&pathname!=='/api/a2ui/model-privacy'&&(pathname==='/api/a2ui/action'||session.paymentFlow)&&(session.metadata?.eligibilityEpoch||'1:1')!==actor.eligibilityEpoch)return {status:409,data:{success:false,code:'ELIGIBILITY_CHANGED',error:'Owner or workspace permission changed. Cancel the original review and start a new conversation.'}};
     session.metadata = { ...session.metadata, accountId,...(actor.eligibilityEpoch?{eligibilityEpoch:actor.eligibilityEpoch}:{}) };
     requestContext.session = session;
     enrichCorrelation({workflowId:session.sessionId,approvalId:session.approval?.id});
-    if (session.reconciliation) return { status: 409, data: { success: false, code: 'RECONCILIATION_REQUIRED', error: 'Reconcile the previous journey before submitting more requests in this session.', outcome: session.reconciliation.outcome, steps: session.reconciliation.steps, retry: { allowed: false, next: 'reconcile' }, surface: session.currentSurface } };
+    if (session.reconciliation && pathname !== '/api/a2ui/model-privacy') return { status: 409, data: { success: false, code: 'RECONCILIATION_REQUIRED', error: 'Reconcile the previous journey before submitting more requests in this session.', outcome: session.reconciliation.outcome, steps: session.reconciliation.steps, retry: { allowed: false, next: 'reconcile' }, surface: session.currentSurface } };
     actor.assertLease = requestContext.assertLease;
     if (body.surfaceRevision) actor.requestId = `${body.surfaceRevision}:${body.action}`;
+  }
+
+  // The resident's own switch for what the assistant's model may see (P1-17). It applies to the next model call and nothing is
+  // retained from before the change, because consent is read from the session each time a prompt is built.
+  if (normMethod === 'POST' && pathname === '/api/a2ui/model-privacy') {
+    const state = requestContext.session!;
+    state.metadata = { ...state.metadata, modelPersonalContext: body.modelPersonalContext === true };
+    return { status: 200, data: { success: true, modelPersonalContext: body.modelPersonalContext === true } };
   }
 
   // 2. User Intent Ingestion

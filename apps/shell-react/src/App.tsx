@@ -42,6 +42,9 @@ export function App() {
   const [connection, setConnection] = useState<'checking' | 'online' | 'offline'>('checking');
   const [inference, setInference] = useState<'connected' | 'error' | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  /** Whether the assistant's model may see this conversation's personal details (P1-17); on until the resident turns it off. */
+  const [shareProfile, setShareProfile] = useState(true);
+  const [shareNotice, setShareNotice] = useState('');
   const [delegationOpen, setDelegationOpen] = useState(false);
   const [paymentAccountsOpen, setPaymentAccountsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -70,7 +73,7 @@ export function App() {
 
   const getToken = async () => auth.current ? auth.current.token() : 'demo-local';
   const resetConversation = (nextAccount = accountId) => {
-    revision.current = undefined; setMessages([]); setSurface(null); setDraft(''); setInference(null);
+    revision.current = undefined; setMessages([]); setSurface(null); setDraft(''); setInference(null); setShareProfile(true); setShareNotice('');
     const sid = `sess_${crypto.randomUUID()}`;
     sessionStorage.setItem(`cityside.session.${nextAccount}`, sid);
     setSessionId(sid); sessionRef.current = sid; setMenuOpen(false); setMobilePanel(false);
@@ -86,6 +89,7 @@ export function App() {
     setSessionId(sid); sessionRef.current = sid;
     sessionStorage.setItem(`cityside.session.${selectedAccount}`, sid);
     revision.current = data.surface?.revision;
+    setShareProfile(data.modelPersonalContext !== false); setShareNotice('');
     setSurface(data.surface || null);
     setInference(data.inference?.status === 'error' ? 'error' : data.inference?.status === 'connected' ? 'connected' : null);
     setMessages((data.messages || []).filter((m: any) => ['user','assistant'].includes(m.role)).map((m: any) => ({ id: m.id, role: m.role, text: m.content })));
@@ -232,6 +236,18 @@ export function App() {
       if (error instanceof TypeError) setConnection('offline');
     } finally { busy.current = false; setPending(false); setProgress(''); input.current?.focus(); }
   };
+  const changeShareProfile = async (next: boolean) => {
+    const previous = shareProfile, targetSession = sessionRef.current;
+    setShareProfile(next); setShareNotice('');
+    try {
+      const response = await fetch(`${GATEWAY_URL}/api/a2ui/model-privacy`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getToken()}` },
+        body: JSON.stringify({ sessionId: targetSession, ...(accountId ? { accountId } : {}), modelPersonalContext: next }) });
+      if (!response.ok) throw new Error('refused');
+      setShareNotice(next ? 'The assistant may use your profile details in this conversation.' : 'Your profile details are withheld from the assistant for the rest of this conversation.');
+    } catch {
+      if (targetSession === sessionRef.current) { setShareProfile(previous); setShareNotice('The setting could not be saved, so it is unchanged.'); }
+    }
+  };
   const openService = (service: string) => {
     setPaymentAccountsOpen(false);
     if (busy.current || !authReady || loginRequired) return;
@@ -303,7 +319,7 @@ export function App() {
         <button ref={paymentAccountsButton} className="text-button" disabled={pending || !accountId} aria-controls="payment-account-panel" aria-expanded={paymentAccountsOpen} onClick={() => { voice.current?.cancel(); setDelegationOpen(false); setPaymentAccountsOpen(!paymentAccountsOpen); }}>Payment accounts</button></nav>
         {paymentAccountsOpen && <PaymentAccountsPanel key={accountId} gateway={GATEWAY_URL} accountId={accountId} getToken={getToken} onClose={() => { setPaymentAccountsOpen(false); paymentAccountsButton.current?.focus(); }} />}
         {delegationOpen && <DelegationPanel gateway={GATEWAY_URL} accountId={accountId} getToken={getToken} />}
-        {settingsOpen && <section className="settings-panel" aria-label="Conversation settings"><div className="settings-title"><strong>Conversation settings</strong><button className="icon-button" aria-label="Close settings" onClick={() => setSettingsOpen(false)}><X size={17} /></button></div><p>Model: {model?.model || 'Unavailable'}</p><p>{model?.enabled ? 'Private replies from the local open-source model.' : 'Demo replies. Enable live inference in the server environment.'}</p><label>Voice language<select value={language} onChange={e => { voice.current?.cancel(); setLanguage(e.target.value); if (e.target.value !== 'en-US') setReadReplies(false); }}><option value="en-US">English</option><option value="ar-AE">Arabic dictation · text replies</option></select></label><label className="checkbox-label"><input type="checkbox" checked={readReplies} disabled={!canSpeak || language !== 'en-US'} onChange={e => { setReadReplies(e.target.checked); if (!e.target.checked) voice.current?.cancel(); }} />Read replies aloud</label><h3>Voice studio</h3><p>{voiceConfig?.ttsReady && voiceConfig?.asrReady ? 'Local open-source speech is ready.' : 'Local voice is not ready. Text chat remains available.'}</p><label>Voice preset<select aria-label="Voice preset" value={voiceProfile} onChange={e => { voice.current?.cancel(); setVoiceProfile(e.target.value); }}>{(voiceConfig?.voices || [{id:'Jasper', name:'Jasper'}]).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label><label>Speaking speed · {voiceSpeed.toFixed(2)}×<input aria-label="Speaking speed" type="range" min="0.8" max="1.2" step="0.05" value={voiceSpeed} onChange={e => { voice.current?.cancel(); setVoiceSpeed(Number(e.target.value)); }} /></label><button className="text-button" disabled={!canSpeak || voiceState !== 'idle'} onClick={() => voice.current?.speak('Marhaba. I am Rashid, your city concierge. Tell me what you need, and we will take it one step at a time.', 'en-US')}>Preview voice</button><button className="text-button" onClick={() => voice.current?.cancel()}>Stop voice</button><button className="text-button" onClick={() => void refreshVoice()}>Refresh local voice</button><small>Speech runs on the local app server using open-source models. Short microphone recordings become editable drafts; review them before Send. Sent messages follow your chat settings.</small><button className="text-button" onClick={() => void checkConnection()}>Check connection again</button></section>}
+        {settingsOpen && <section className="settings-panel" aria-label="Conversation settings"><div className="settings-title"><strong>Conversation settings</strong><button className="icon-button" aria-label="Close settings" onClick={() => setSettingsOpen(false)}><X size={17} /></button></div><p>Model: {model?.model || 'Unavailable'}</p><p>{model?.enabled ? 'Private replies from the local open-source model.' : 'Demo replies. Enable live inference in the server environment.'}</p><label>Voice language<select value={language} onChange={e => { voice.current?.cancel(); setLanguage(e.target.value); if (e.target.value !== 'en-US') setReadReplies(false); }}><option value="en-US">English</option><option value="ar-AE">Arabic dictation · text replies</option></select></label><label className="checkbox-label"><input type="checkbox" checked={shareProfile} onChange={e => void changeShareProfile(e.target.checked)} />Share my profile details with the assistant</label>{shareNotice && <p role="status">{shareNotice}</p>}<label className="checkbox-label"><input type="checkbox" checked={readReplies} disabled={!canSpeak || language !== 'en-US'} onChange={e => { setReadReplies(e.target.checked); if (!e.target.checked) voice.current?.cancel(); }} />Read replies aloud</label><h3>Voice studio</h3><p>{voiceConfig?.ttsReady && voiceConfig?.asrReady ? 'Local open-source speech is ready.' : 'Local voice is not ready. Text chat remains available.'}</p><label>Voice preset<select aria-label="Voice preset" value={voiceProfile} onChange={e => { voice.current?.cancel(); setVoiceProfile(e.target.value); }}>{(voiceConfig?.voices || [{id:'Jasper', name:'Jasper'}]).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label><label>Speaking speed · {voiceSpeed.toFixed(2)}×<input aria-label="Speaking speed" type="range" min="0.8" max="1.2" step="0.05" value={voiceSpeed} onChange={e => { voice.current?.cancel(); setVoiceSpeed(Number(e.target.value)); }} /></label><button className="text-button" disabled={!canSpeak || voiceState !== 'idle'} onClick={() => voice.current?.speak('Marhaba. I am Rashid, your city concierge. Tell me what you need, and we will take it one step at a time.', 'en-US')}>Preview voice</button><button className="text-button" onClick={() => voice.current?.cancel()}>Stop voice</button><button className="text-button" onClick={() => void refreshVoice()}>Refresh local voice</button><small>Speech runs on the local app server using open-source models. Short microphone recordings become editable drafts; review them before Send. Sent messages follow your chat settings.</small><button className="text-button" onClick={() => void checkConnection()}>Check connection again</button></section>}
         {historyOpen && <section className="settings-panel history-panel" aria-label="Saved conversations"><div className="settings-title"><strong>Saved conversations</strong><button className="icon-button" aria-label="Close conversations" onClick={() => setHistoryOpen(false)}><X size={17}/></button></div>{recentSessions.filter(item => item.accountId === accountId).map(item => <div className="history-row" key={item.sessionId}><button className="text-button" onClick={() => void restoreConversation(item.sessionId, accountId)}>{item.title}</button><button className="icon-button" aria-label={`Delete ${item.title}`} onClick={() => void (async () => { const response = await fetch(`${GATEWAY_URL}/api/sessions/${item.sessionId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${await getToken()}` } }); if (response.ok) { if (item.sessionId === sessionId) resetConversation(); void loadHistory(); } })()}><X size={14}/></button></div>)}{!recentSessions.some(item => item.accountId === accountId) && <p>No saved conversations for this account yet.</p>}</section>}
         {!paymentAccountsOpen && <div className="workspace-content">
           <section className={`conversation ${mobilePanel ? 'mobile-hidden' : ''}`} aria-label="Concierge conversation">

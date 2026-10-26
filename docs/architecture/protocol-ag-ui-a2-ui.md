@@ -59,6 +59,7 @@ Backend routes:
 | `GET /api/a2ui/stream?sessionId=...` | Server-Sent Events | Bearer Authorization header required in integrated mode; include the selected `accountId` reference, never a token in the URL |
 | `POST /api/a2ui/intent` | `{ sessionId, accountId?, text, handshake? }` | Handshake in request is currently not used to negotiate renderer components |
 | `POST /api/manual/prepare` | `{ sessionId, accountId?, serviceId }` | Fixed bundled route; bypasses model execution |
+| `POST /api/a2ui/model-privacy` | `{ sessionId, accountId?, modelPersonalContext }` | The resident's per-conversation switch for personal context in model requests; read on the next call, allowed during reconciliation, returned by the session read |
 | `POST /api/a2ui/cancel` | `{ sessionId, accountId?, surfaceRevision }` | Cancels the pending proposal and saved continuation |
 | `POST /api/a2ui/action` | `{ sessionId, accountId?, surfaceRevision, action, payload }` | Requires existing session, matching server-issued surface revision and action offered on active surface |
 

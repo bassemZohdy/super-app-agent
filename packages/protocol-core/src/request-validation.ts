@@ -67,6 +67,7 @@ route('agent-core', 'POST', '/api/a2ui/intent', coreIntent);
 route('agent-core', 'POST', '/api/manual/prepare', object({ sessionId, accountId: id, serviceId: { enum: ['parking','salik','utilities','fines','wallet','housing','etisalat','du','ride','food','profile'] } }, ['sessionId','serviceId']));
 route('agent-core', 'POST', '/api/a2ui/action', coreAction);
 route('agent-core', 'POST', '/api/a2ui/cancel', object({ sessionId, accountId: id, surfaceRevision: coreAction.properties.surfaceRevision }, ['sessionId','surfaceRevision']));
+route('agent-core', 'POST', '/api/a2ui/model-privacy', object({ sessionId, accountId: id, modelPersonalContext: { type: 'boolean' } }, ['sessionId', 'modelPersonalContext']));
 route('agent-core', 'GET', '/api/services', object({ accountId: id }));
 route('agent-core', 'GET', '/api/payments/overview', object({ accountId: id }, ['accountId']));
 for(const path of ['eligibility','lifecycle'])route('agent-core','GET',`/api/payments/${path}`,object({accountId:id},['accountId']));
