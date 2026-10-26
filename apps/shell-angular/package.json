@@ -5,7 +5,7 @@
   "description": "Cityside Angular reference shell with Keycloak login and a custom UI renderer",
   "scripts": {
     "dev": "ng serve --port 3001",
-    "build": "ng build"
+    "build": "node --experimental-strip-types ../../scripts/angular-environment.ts && ng build"
   },
   "dependencies": {
     "@angular/common": "^18.2.0",

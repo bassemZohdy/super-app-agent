@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 26 October 2026 — P2-06 (step): the Angular gateway and the dev backend ports come from the environment
+
+The Angular build now runs `scripts/angular-environment.ts` first, which writes `environment.ts` from `SHELL_GATEWAY_URL` (a bare http(s) origin; a path, query, fragment or credentials are refused, and unset leaves the committed default so a plain build changes nothing). Checked by building with `SHELL_GATEWAY_URL=http://localhost:4999` and then without it. `npm run dev:backend` no longer hard-codes its ports or binds every interface: each service takes the port of its `DEMO_*_URL` and all listen on `127.0.0.1` unless `DEV_BACKEND_HOST` is set; checked on alternate ports 24000 to 24005. Tests: `services/test/p206-angular-environment.test.ts`. Guide: [local development](development/local-development.md).
+
 ## 26 October 2026 — P2-16 delivered: the focused agent qualified as one container
 
 `npm run agent:verify:container` builds the image from this checkout (revision and image ID are printed), runs it as its own compose project with an empty SQLite volume and checks the readiness probe, a refused bad credential, the non-root user and writable volume, an approval that survives a restart unchanged, one payment however often the approval is replayed (same key 200 with the same receipt, new key 409), a receipt that survives another restart, a clean SIGTERM stop (0.6 seconds, exit 0, inside the 35-second grace) and a restart from the volume. It was run twice in a row against revision 839650f and passed both times, with no Redis, PostgreSQL, external simulator or model download. It covers the fixture planner over the HTTP API; the React fines journey and a real local planner stay with P1-03 and P1-05. Guide: [local development](development/local-development.md).
