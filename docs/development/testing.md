@@ -154,3 +154,5 @@ The offline suite runs on Windows, with these platform rules:
 - The SBOM generator needs the workspace links in `node_modules`. If `npm sbom` reports a missing `@superapp/*` package, run `npm install` once to link the workspaces.
 
 `npm test` on Windows reports the platform skips as skipped, not as passed. A run with no failures and only those skips is the expected result.
+
+Source-event replay checks wait for the original signed event to reach the inbox, then compare that event’s stored result before and after duplicate delivery. Other legitimate source events may arrive concurrently; an account-wide inbox snapshot is not stable. Keep the journal, wallet, settled-order, forged-event and invented-event assertions alongside the per-event duplicate check.

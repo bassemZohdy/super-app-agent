@@ -133,13 +133,14 @@ test('a source event delivered again changes nothing: one inbox result, no secon
   const inbox = () => payments.prepare('SELECT id, disposition FROM payment_event_inbox WHERE account_id=?').all(accountId).map(row => ({ ...row }));
   // The source's own worker delivers the event first: wait for that, so what follows really is a repeat.
   await expect.poll(() => inbox().filter(row => (row as { id: string }).id === sourceEvent.id).length, { timeout: 15_000 }).toBe(1);
-  const before = { inbox: inbox(), wallet: (await call('overview')).data.wallet, journal: settledJournal };
+  const originalEventInbox = () => inbox().filter(row => row.id === sourceEvent.id);
+  const before = { inbox: originalEventInbox(), wallet: (await call('overview')).data.wallet, journal: settledJournal };
 
   // The same signed event again is a duplicate, however many times it arrives; a forged copy is refused; none of it moves money.
   expect((await deliver(sourceEvent)).data.disposition).toBe('DUPLICATE');
   expect((await deliver(sourceEvent)).data.disposition).toBe('DUPLICATE');
   expect((await deliver(sourceEvent, true)).status).toBe(401);
-  expect(inbox(), 'one inbox result per event id').toEqual(before.inbox);
+  expect(originalEventInbox(), 'one inbox result for the replayed source event').toEqual(before.inbox);
   expect(journal()).toEqual(before.journal);
   expect((await call('overview')).data.wallet).toEqual(before.wallet);
   expect((await call('overview')).data.orders.find((o: { id: string }) => o.id === order.id).state).toBe('SETTLED');
