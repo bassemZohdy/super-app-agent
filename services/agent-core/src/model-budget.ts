@@ -1,4 +1,5 @@
 import { actorContext } from '../../../packages/backend-kit/src/context.ts';
+import { scrubText } from './model-input.ts';
 
 /** Hourly per-citizen ceilings for the demo model path. */
 export const MODEL_CALLS_PER_HOUR = 30;
@@ -45,5 +46,6 @@ export function boundedMessages(messages: Array<{ role: string; content: string 
     if (!content) continue;
     remaining -= Buffer.byteLength(content); turns.unshift({ role: item.role, content });
   }
-  return [...first, ...turns];
+  // Last net for every caller: identifiers never leave in a model request, whatever built the messages (P1-17).
+  return [...first, ...turns].map(item => ({ ...item, content: scrubText(item.content) }));
 }

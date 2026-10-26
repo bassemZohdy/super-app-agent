@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 26 October 2026 — one minimiser for model input (P1-17, step)
+
+The prompt now carries a minimised copy of the current surface and a scrubbed service summary, and `boundedMessages` removes raw identifiers from every model request as a last net. Excluded with or without consent: account, meter, card, ledger, order and receipt references, Emirates ID, phone, email, UUIDs, long digit runs, node and option IDs, coordinates and unknown properties. Amounts and dates stay while personal context is shared and are withheld when it is withdrawn, and consent is read on every call. Evidence: `services/test/p117-model-input.test.ts` (8 tests, including the real request body; the egress test fails when the net is removed) and the unchanged live-conversation tests. P1-17 stays open: no resident control sets the consent yet (shared by default), and the streamed UI state does not use this function. Guide: [local AI](development/local-ai.md#what-the-model-sees).
+
 ## 26 October 2026 — P2-08 delivered: the free-only, local-only policy gate
 
 `npm run check:local-only` (part of `npm run check`) fails on a hosted-SDK dependency in any package manifest, a deploy or publish command in an npm script, a hosting linkage file (Vercel, Netlify, Firebase, Wrangler, Fly, Serverless, Procfile), a cloud key or credentialed source in an env file or lockfile, and a CDN or remote-font URL in a built bundle under `dist` or `build`. Findings name the rule, file and line and never the matched value. Evidence: `services/test/p208-local-only.test.ts` (8 fixture tests, one per rule plus a clean tree, CRLF and Windows paths); the gate passes on the current tree (20 manifests, 1 env file, 1 lockfile, 6 bundle files scanned). A fixture test found and fixed an `aws` subcommand pattern that missed `aws s3`. Guide: [testing](development/testing.md#commands).
