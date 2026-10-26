@@ -65,7 +65,6 @@
   "services/agent-core/src/langgraph/state.ts": 2,
   "services/agent-core/src/mandate-pause-all.ts": 1,
   "services/agent-core/src/mcp.ts": 2,
-  "services/agent-core/src/openrouter.ts": 1,
   "services/agent-core/src/payment-accounts.ts": 1,
   "services/agent-core/src/payment-surfaces.ts": 6,
   "services/agent-core/src/session-store.ts": 1,
