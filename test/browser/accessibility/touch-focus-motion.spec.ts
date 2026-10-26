@@ -1,6 +1,6 @@
 /** Resident intent: use the app with a finger, a keyboard or reduced motion (P2-14). Measured in the real shell on the running
  *  stack: every control is at least 44px, control text is at least the control size, keyboard focus is visible, and reduced
- *  motion stops animation. Desktop only until the phone layout is delivered (QA-06). */
+ *  motion stops animation. Runs on the desktop and phone projects (QA-06). */
 import type { Page } from 'playwright/test';
 import { expect, test } from '../stack.ts';
 import { controlsBelowTarget, focusIsVisible, injectMotionCanary, stillMoving, unseenFocusStops } from './measures.ts';
@@ -12,7 +12,6 @@ const screens: Array<[string, (page: Page) => Promise<void>]> = [
 ];
 
 test.describe('touch, focus and motion', () => {
-  test.beforeEach(({ isMobile }) => { test.skip(isMobile, 'QA-06: the phone layout is not delivered yet, so these measures run on desktop only.'); });
 
   for (const [name, open] of screens) {
     test(`${name}: every control is at least 44px and its text at least 14px`, async ({ resident }) => {

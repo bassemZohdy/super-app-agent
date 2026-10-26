@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 26 October 2026 — the React shell passes the touch, focus and motion measures at phone width (QA-06, step)
+
+The responsive rules for narrow screens had re-shrunk six controls: the navigation items, the four suggestion cards, the "Explore all city services" link, the profile button and the surface toggle, to 9 to 12px. They now use the control size, and `touch-focus-motion.spec.ts` runs on the phone project as well as desktop: every control is at least 44px with text of at least 14px on the home, payment accounts and delegated access screens, keyboard focus is visible, and reduced motion stops motion. I checked the phone home screen and the navigation drawer by eye. The Angular accessibility spec still skips on mobile. QA-06 stays open for the Angular and Flutter phone layouts and the masked-method, challenge, unknown-state and pause/revoke journeys. Guide: [testing](development/testing.md#browser-journeys-under-playwright-test).
+
 ## 26 October 2026 — the kill-switch journey runs on the phone project (QA-06, step)
 
 The earlier skip said the account switcher is not in the header at phone width; it is, in the navigation drawer that the "Open navigation" button opens, and the journeys never opened it. `withAccountSwitcher` (`test/browser/layout.ts`) opens the drawer when the layout collapses it, runs the step, and closes it again, and the shared signed-in fixture uses it. The AUTO-15 kill-switch journey now passes on both the desktop and mobile projects instead of skipping on mobile. The accessibility specs still skip on mobile: un-skipping the React one showed card buttons at 10px and the browse link at 9px in the phone layout, which is the next fix. QA-06 stays open. Guide: [testing](development/testing.md#browser-journeys-under-playwright-test).
