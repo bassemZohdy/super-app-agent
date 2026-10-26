@@ -4,7 +4,7 @@ import { VoiceClient, type VoiceState } from '../../../../packages/protocol-core
 import { LocalVoiceApi, type LocalVoiceConfig } from '../../../../packages/protocol-core/src/voice-api.ts';
 import { checkedSurface, choiceDefaults, readCoreResponse, surfaceActionPayload } from '../../../../packages/protocol-core/src/surface-client.ts';
 import { connectEventStream } from '../../../../packages/protocol-core/src/sse-client.ts';
-import { Component, signal, OnInit, OnDestroy } from '@angular/core';
+import { Component, computed, signal, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import type { AGUISurfacePayload, UIComponentNode } from '../../../../packages/protocol-core/src/index.ts';
 import { setAmountLocale } from '../../../../packages/protocol-core/src/payments.ts';
@@ -26,7 +26,7 @@ const GATEWAY_URL = environment.gatewayUrl;
         <span class="header-caption">{{ t('ng.caption') }}</span>
         <select class="account-select" [attr.aria-label]="t('ng.account')" [value]="accountId" [disabled]="pending" (change)="switchAccount($any($event.target).value)"><option *ngFor="let account of accounts()" [value]="account.id">{{ account.label }}</option></select><select class="account-select" [attr.aria-label]="t('ng.language')" [value]="locale()" (change)="setLocale($any($event.target).value)"><option value="en">English</option><option value="ar">العربية</option></select><button *ngIf="auth?.signedIn" class="account" (click)="auth?.logout()">{{ t('ng.signOut') }}</button>
         <div class="status" role="status">{{ connectionLabel() }}</div>
-        <button class="account" [disabled]="pending" (click)="sendIntent('Show my citizen profile')">{{ userName().slice(0, 1) }} <span>{{ userName() }}</span></button>
+        <button class="account" [disabled]="pending" (click)="sendIntent('Show my citizen profile')">{{ displayName().slice(0, 1) }} <span>{{ displayName() }}</span></button>
       </header>
 
       <div class="main-layout">
@@ -192,7 +192,10 @@ export class AppComponent implements OnInit, OnDestroy {
   private applyLocale(locale: Locale) { setAmountLocale(locale); document.documentElement.lang = locale; document.documentElement.dir = direction(locale); }
   setLocale(value: string) {
     if (!isLocale(value)) return;
+    const previous = this.locale();
     this.locale.set(value); this.applyLocale(value);
+    // Only the untouched welcome message is ours to re-word; later replies are the conversation.
+    this.messages.update(list => list.length === 1 && list[0].text === translate(previous, 'ng.welcome') ? [{ role: 'assistant', text: translate(value, 'ng.welcome') }] : list);
     try { localStorage.setItem('cityside.locale', value); } catch { /* the choice still applies for this visit */ }
   }
   delegationGrants = signal<any[]>([]);
@@ -213,7 +216,8 @@ export class AppComponent implements OnInit, OnDestroy {
   authReady = signal(false);
   loginRequired = signal(false);
   authError = signal('');
-  userName = signal('Demo citizen');
+  userName = signal('');
+  displayName = computed(() => this.userName() || this.t('ng.demoCitizen'));
   accounts = signal<Array<{ id: string; label: string }>>([]);
   accountId = '';
   signIn() { void this.auth?.login().catch(error => this.authError.set(error.message)); }
@@ -225,7 +229,9 @@ export class AppComponent implements OnInit, OnDestroy {
     this.messages.set([]); this.surface.set(null); this.choices.set({});
     this.connectStream();
   }
-  connectionLabel = signal('Connecting…');
+  /** What happened, worded when shown, so the status follows a language change. */
+  connection = signal<'connecting' | 'ready' | 'warming' | 'demo' | 'offline'>('connecting');
+  connectionLabel = computed(() => this.t(`ng.conn.${this.connection()}`));
   voice?: VoiceClient;
   voiceState = signal<VoiceState>('idle');
   voiceError = signal('');
@@ -248,9 +254,7 @@ export class AppComponent implements OnInit, OnDestroy {
   setVoiceLanguage(value: string) { this.voice?.cancel(); this.voiceLanguage = value; if (value !== 'en-US') this.readReplies = false; }
   setReadReplies(value: boolean) { this.readReplies = value; if (!value) this.voice?.cancel(); }
   private streamController = new AbortController();
-  messages = signal<Array<{ role: string; text: string }>>([
-    { role: 'assistant', text: 'Marhaba. I’m Rashid, your city concierge. Ask me about getting around, home essentials, payments or moving in.' }
-  ]);
+  messages = signal<Array<{ role: string; text: string }>>([{ role: 'assistant', text: translate(this.locale(), 'ng.welcome') }]);
   delta = signal<string | null>(null);
   surface = signal<AGUISurfacePayload | null>(null);
   choices = signal<Record<string, string>>({});
@@ -276,7 +280,7 @@ export class AppComponent implements OnInit, OnDestroy {
   keycloakToken = 'demo-local'; // local demo only
 
   async ngOnInit() {
-    void fetch(`${GATEWAY_URL}/health`).then(r => r.json()).then(data => this.connectionLabel.set(data.llm?.enabled ? data.llm?.ready ? 'Local model ready' : 'Local model warming up' : 'Demo mode')).catch(() => this.connectionLabel.set('Gateway offline'));
+    void fetch(`${GATEWAY_URL}/health`).then(r => r.json()).then(data => this.connection.set(data.llm?.enabled ? data.llm?.ready ? 'ready' : 'warming' : 'demo')).catch(() => this.connection.set('offline'));
     this.voiceApi = new LocalVoiceApi(GATEWAY_URL, () => this.auth?.token() || 'demo-local');
     this.voice = new VoiceClient({ onTranscript: text => this.draft.set(text), onState: state => this.voiceState.set(state), onError: error => this.voiceError.set(error), allowBrowserFallback: false,
       fetchAudio: (text, language, signal) => this.voiceApi!.speech(text, language, this.voiceProfile, this.voiceSpeed, signal), transcribeAudio: (input, signal) => this.voiceApi!.transcribe(input, signal) });
@@ -286,8 +290,8 @@ export class AppComponent implements OnInit, OnDestroy {
       this.auth = new BrowserAuth(config); await this.auth.completeLogin();
       if (config.enabled && !this.auth.signedIn) { this.loginRequired.set(true); return; }
       const response = await fetch(`${GATEWAY_URL}/api/accounts`, { headers: { Authorization: `Bearer ${await this.auth.token()}` } });
-      if (!response.ok) throw new Error('Could not load your accounts. Sign in again.');
-      const data = await response.json(); this.accounts.set(data.accounts); this.accountId = data.accounts[0]?.id || ''; this.userName.set(data.user?.name || 'Demo citizen');
+      if (!response.ok) throw new Error(this.t('ng.err.accounts'));
+      const data = await response.json(); this.accounts.set(data.accounts); this.accountId = data.accounts[0]?.id || ''; this.userName.set(data.user?.name || '');
       this.connectStream();
       void this.refreshVoice();
     } catch (error) { this.authError.set((error as Error).message); this.loginRequired.set(true); }
@@ -311,7 +315,7 @@ export class AppComponent implements OnInit, OnDestroy {
     this.pending = true;
     this.voice?.cancel();
     this.messages.update((m) => [...m, { role: 'user', text }]);
-    this.delta.set('Preparing your request...');
+    this.delta.set(this.t('ng.preparingRequest'));
 
     try {
       const res = await fetch(`${GATEWAY_URL}/api/a2ui/intent`, {
@@ -334,21 +338,21 @@ export class AppComponent implements OnInit, OnDestroy {
       await this.applyResponse(res);
     } catch {
       this.delta.set(null);
-      this.showError('Could not read the gateway response. Check status before retrying.');
+      this.showError(this.t('ng.err.read'));
     } finally { this.pending = false; this.delta.set(null); }
   }
 
   async dispatchAction(node: UIComponentNode) {
     if (this.pending || node.properties?.disabled) return;
     const binding = node.onEvents?.find(event => event.event === 'onPress');
-    if (!binding || !this.surface()) { this.showError('No active action is available.'); return; }
+    if (!binding || !this.surface()) { this.showError(this.t('ng.err.noAction')); return; }
     let payload: Record<string, any>;
     try { payload = surfaceActionPayload(this.surface()!.view, binding, this.choices()); }
     catch (error) { this.showError((error as Error).message); return; }
     const action = binding.payload.action;
     this.pending = true;
     this.voice?.cancel();
-    this.delta.set(`⚡ Executing action: ${action}...`);
+    this.delta.set(this.t('ng.executing', { action: String(action) }));
     try {
       const res = await fetch(`${GATEWAY_URL}/api/a2ui/action`, {
         method: 'POST',
@@ -367,7 +371,7 @@ export class AppComponent implements OnInit, OnDestroy {
       await this.applyResponse(res);
     } catch {
       this.delta.set(null);
-      this.showError('Could not confirm the action result. Check status before retrying.');
+      this.showError(this.t('ng.err.confirm'));
     } finally { this.pending = false; this.delta.set(null); }
   }
 }

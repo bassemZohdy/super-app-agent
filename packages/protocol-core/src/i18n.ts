@@ -351,6 +351,19 @@ const en = {
   'ng.voice.listening': 'Listening. Stop when done; drafts are limited to 15 seconds.',
   'ng.voice.transcribing': 'Transcribing locally. Review your draft before sending.',
   'ng.voice.idle': 'Open-source speech runs on the local app server. Dictation stays a draft until Send.',
+  'ng.welcome': 'Marhaba. I’m Rashid, your city concierge. Ask me about getting around, home essentials, payments or moving in.',
+  'ng.demoCitizen': 'Demo citizen',
+  'ng.conn.connecting': 'Connecting…',
+  'ng.conn.ready': 'Local model ready',
+  'ng.conn.warming': 'Local model warming up',
+  'ng.conn.demo': 'Demo mode',
+  'ng.conn.offline': 'Gateway offline',
+  'ng.preparingRequest': 'Preparing your request...',
+  'ng.executing': '⚡ Executing action: {action}...',
+  'ng.err.read': 'Could not read the gateway response. Check status before retrying.',
+  'ng.err.confirm': 'Could not confirm the action result. Check status before retrying.',
+  'ng.err.noAction': 'No active action is available.',
+  'ng.err.accounts': 'Could not load your accounts. Sign in again.',
 } as const;
 
 export type CatalogKey = keyof typeof en;
@@ -700,6 +713,19 @@ const ar: Record<CatalogKey, string> = {
   'ng.voice.listening': 'جارٍ الاستماع. أوقفه عند الانتهاء؛ المسودات محدودة بـ 15 ثانية.',
   'ng.voice.transcribing': 'جارٍ التفريغ محليًا. راجع مسودتك قبل الإرسال.',
   'ng.voice.idle': 'يعمل الكلام مفتوح المصدر على خادم التطبيق المحلي. يبقى الإملاء مسودة حتى تضغط إرسال.',
+  'ng.welcome': 'مرحبًا. أنا راشد، مرشدك في المدينة. اسألني عن التنقّل واحتياجات المنزل والمدفوعات أو الانتقال إلى سكن جديد.',
+  'ng.demoCitizen': 'مواطن تجريبي',
+  'ng.conn.connecting': 'جارٍ الاتصال…',
+  'ng.conn.ready': 'النموذج المحلي جاهز',
+  'ng.conn.warming': 'النموذج المحلي قيد التهيئة',
+  'ng.conn.demo': 'الوضع التجريبي',
+  'ng.conn.offline': 'البوابة غير متصلة',
+  'ng.preparingRequest': 'نجهّز طلبك...',
+  'ng.executing': '⚡ جارٍ تنفيذ الإجراء: {action}...',
+  'ng.err.read': 'تعذّرت قراءة استجابة البوابة. تحقق من الحالة قبل إعادة المحاولة.',
+  'ng.err.confirm': 'تعذّر تأكيد نتيجة الإجراء. تحقق من الحالة قبل إعادة المحاولة.',
+  'ng.err.noAction': 'لا يوجد إجراء نشط متاح.',
+  'ng.err.accounts': 'تعذّر تحميل حساباتك. سجّل الدخول مرة أخرى.',
 };
 
 export const CATALOGS: Readonly<Record<Locale, Readonly<Record<CatalogKey, string>>>> = { en, ar };

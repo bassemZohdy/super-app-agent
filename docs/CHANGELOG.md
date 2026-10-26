@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 27 October 2026 — P2-01 (step): Angular status and messages in Arabic
+
+The Angular shell's welcome message, connection status, default user name, request progress text and error messages follow the language through more `ng.*` keys. The connection status is stored as what happened and worded when shown, so it follows a language change; an untouched welcome message is re-worded too. Gateway-supplied surface content and grant text stay English. The Angular build passes; no browser spec has run it in Arabic.
+
 ## 27 October 2026 — P2-01 (step): Angular delegation and voice panels in Arabic
 
 The Angular shell's delegated access panel (consent actions, grant status, notices) and voice settings (microphone, language, preset, speed, preview, status text) follow the language through more `ng.*` keys. Grant purposes and results still come from the gateway in English. The Angular build passes; no browser spec has run it in Arabic.
