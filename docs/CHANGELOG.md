@@ -2,7 +2,7 @@
 
 ## 26 October 2026 — P2-06 (step): the repeated service defaults live in one place
 
-The payments, delegation-broker, delegation-issuer and MCP defaults that eleven files each repeated as a literal are now functions in `packages/backend-kit/src/local-endpoints.ts`, read from the environment at call time (an empty value counts as unset). A test pins the defaults and fails if a service or package repeats one again. Behaviour is unchanged: the payment and failure journeys pass against the refactor. Tests: `services/test/p206-local-endpoints.test.ts`.
+The payments, delegation-broker, delegation-issuer and MCP defaults that nine files each repeated as a literal are now functions in `packages/backend-kit/src/local-endpoints.ts`, read from the environment at call time (an empty value counts as unset). A test pins the defaults and fails if a service or package repeats one again. Behaviour is unchanged: the payment and failure journeys pass against the refactor. Tests: `services/test/p206-local-endpoints.test.ts`.
 
 ## 26 October 2026 — P2-05 (step): an `any` ratchet in the checks
 
