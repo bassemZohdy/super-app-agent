@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 26 October 2026 — P2-06 (step): voice, conversation and CORS defaults and the port tables in one place
+
+`packages/backend-kit/src/local-endpoints.ts` now also holds the local voice and conversation service addresses, the default CORS origins and the application-service and provider port tables, which the gateway, the voice and conversation clients, the domain transport and the provider client read from it; the test that forbids repeating a default covers them. Test: `services/test/p206-local-endpoints.test.ts`.
+
 ## 26 October 2026 — P1-17 delivered: earlier turns go through the minimiser too
 
 A gap remained after the consent switch: the earlier assistant turns sent back as conversation history reached the model with their balances, amounts and dates even when the resident had withheld personal context (only identifiers were scrubbed at the egress). `minimiseHistory` now applies the full minimiser to assistant turns and only the identifier scrub to the resident's own words, and the graph uses it for every prompt, so the current surface, the service summary and the history all follow the same function and the same per-call consent. Test: `services/test/p117-model-input.test.ts`. Guide: [local AI](development/local-ai.md).

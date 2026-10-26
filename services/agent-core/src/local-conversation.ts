@@ -1,4 +1,5 @@
 import { tracedFetch as fetch } from '../../../packages/backend-kit/src/observability.ts';
+import { conversationServiceUrl } from '../../../packages/backend-kit/src/local-endpoints.ts';
 import { acquireModelBudget, boundedMessages } from './model-budget.ts';
 export class LocalConversationError extends Error {
   readonly code: string;
@@ -12,7 +13,7 @@ export async function localModelStatus() {
   return { ...getModelStatus(), ready };
 }
 function endpoint() {
-  const url = new URL(process.env.CONVERSATION_SERVICE_URL || 'http://127.0.0.1:4201');
+  const url = new URL(conversationServiceUrl());
   if (!['localhost', '127.0.0.1', '[::1]', 'conversation'].includes(url.hostname) || url.protocol !== 'http:' || url.username || url.password || url.search || url.hash || url.pathname !== '/') throw new LocalConversationError('LOCAL_MODEL_CONFIG', 'The local conversation endpoint is not configured.');
   return new URL('/v1/chat/completions', url);
 }

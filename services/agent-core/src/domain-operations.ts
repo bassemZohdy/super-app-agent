@@ -1,4 +1,5 @@
 import { tracedFetch as fetch,inSpan,routeName } from '../../../packages/backend-kit/src/observability.ts';
+import { SERVICE_PORTS } from '../../../packages/backend-kit/src/local-endpoints.ts';
 import { actorContext } from '../../../packages/backend-kit/src/context.ts';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { executeRideRequest } from '../../service-ride/src/index.ts';
@@ -99,7 +100,7 @@ async function callDomainRequest(service: keyof typeof domainHandlers | 'telecom
   if (mutation) await actor.assertLease?.();
   const step: Step | undefined = mutation ? { service, method, path, state: 'PENDING' } : undefined;
   if (step) context.getStore()?.push(step);
-  const ports = { ride: 4001, food: 4002, wallet: 4003, catalog: 4004, profile: 4005, telecom: 4006 };
+  const ports = SERVICE_PORTS;
   const base = process.env[`SERVICE_${service.toUpperCase()}_URL`] || `http://localhost:${ports[service]}`;
   const url = new URL(path, base); for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value);
   let result: Result;

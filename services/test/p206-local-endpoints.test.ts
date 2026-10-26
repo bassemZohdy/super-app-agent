@@ -24,3 +24,13 @@ test('P2-06: no service or package repeats these defaults; they come from one pl
     .filter(file => Object.values(LOCAL_DEFAULTS).some(value => readFileSync(file, 'utf8').includes(`'${value}'`)));
   assert.deepEqual(offenders, []);
 });
+
+test('P2-06: the voice, conversation and CORS defaults and the port tables come from the same place', async () => {
+  const { conversationServiceUrl, voiceServiceUrl, corsOrigins, SERVICE_PORTS, PROVIDER_PORTS } = await import('../../packages/backend-kit/src/local-endpoints.ts');
+  assert.equal(conversationServiceUrl({}), 'http://127.0.0.1:4201');
+  assert.equal(voiceServiceUrl({}), 'http://127.0.0.1:4200');
+  assert.deepEqual(corsOrigins({}), ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002']);
+  assert.deepEqual(corsOrigins({ CORS_ORIGINS: ' https://a.test , https://b.test' }), ['https://a.test', 'https://b.test']);
+  assert.deepEqual(Object.values(SERVICE_PORTS), [4001, 4002, 4003, 4004, 4005, 4006]);
+  assert.deepEqual(Object.values(PROVIDER_PORTS), [4101, 4102, 4103, 4104, 4105, 4106, 4107]);
+});

@@ -1,11 +1,12 @@
 import { tracedFetch as fetch } from '../../../packages/backend-kit/src/observability.ts';
+import { voiceServiceUrl } from '../../../packages/backend-kit/src/local-endpoints.ts';
 import { HttpError } from '../../../packages/backend-kit/src/http-policy.ts';
 
 export const localVoices = ['Jasper', 'Bruno', 'Hugo', 'Luna'] as const;
 const actors = new Map<string, { until: number; count: number; active: number }>();
 let active = 0;
 function endpoint(path: string) {
-  const url = new URL(process.env.VOICE_SERVICE_URL || 'http://127.0.0.1:4200');
+  const url = new URL(voiceServiceUrl());
   if (!['localhost', '127.0.0.1', '[::1]', 'voice'].includes(url.hostname) || url.protocol !== 'http:' || url.username || url.password || url.search || url.hash || url.pathname !== '/') throw new HttpError(503, 'Local speech endpoint is not configured.');
   return new URL(path, url);
 }

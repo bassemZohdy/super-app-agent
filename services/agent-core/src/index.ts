@@ -1,4 +1,5 @@
 import { shutdownOnSignal } from '../../../packages/backend-kit/src/shutdown.ts';
+import { corsOrigins } from '../../../packages/backend-kit/src/local-endpoints.ts';
 import { ConnectionRegistry, callsFor } from '../../../packages/backend-kit/src/connections.ts';
 import { Telemetry,correlation,enrichCorrelation,operationalEvent } from '../../../packages/backend-kit/src/observability.ts';
 import { handlePaymentAccounts } from './payment-accounts.ts';
@@ -396,9 +397,7 @@ export async function executeGatewayRequest(method: string, pathname: string,
 }
 
 function allowedOrigin(requestOrigin: string | undefined): string {
-  const allowed = (process.env.CORS_ORIGINS ||
-    'http://localhost:3000,http://localhost:3001,http://localhost:3002')
-    .split(',').map(value => value.trim());
+  const allowed = corsOrigins();
   return requestOrigin && allowed.includes(requestOrigin) ? requestOrigin : 'null';
 }
 function sendJson(req: http.IncomingMessage, res: http.ServerResponse, statusCode: number, data: any) {

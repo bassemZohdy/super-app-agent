@@ -1,4 +1,5 @@
 import { tracedFetch as fetch } from './observability.ts';
+import { PROVIDER_PORTS } from './local-endpoints.ts';
 import { ClientCredentials } from './oauth.ts';
 import type { Actor } from './context.ts';
 import { recordCall } from './connections.ts';
@@ -6,7 +7,7 @@ export class UpstreamError extends Error {
   status: number; code: string;
   constructor(status: number, code: string, message: string) { super(message); this.status = status; this.code = code; }
 }
-const ports: Record<string, number> = { rta: 4101, dewa: 4102, etisalat: 4103, du: 4104, police: 4105, dld: 4106, payments: 4107 };
+const ports: Record<string, number> = PROVIDER_PORTS;
 export class ProviderClient {
   readonly credentials: ClientCredentials;
   constructor(clientId: string, secret: string) { this.credentials = new ClientCredentials(clientId, secret); }
