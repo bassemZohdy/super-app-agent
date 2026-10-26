@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 26 October 2026 — P2-05 (step): an `any` ratchet in the checks
+
+`npm run check:any` fails when a TypeScript file gains an explicit `any` (or a new file has one) and when a file loses some without the baseline being lowered, so the 809 uses recorded across 159 files can only go down. It is part of `npm run check`; `npm run any:baseline` rewrites the baseline. Tests: `services/test/p205-any-ratchet.test.ts`. Guide: [testing](development/testing.md#the-any-ratchet).
+
 ## 26 October 2026 — P1-17 (step): the resident decides what the assistant's model sees
 
 Conversation settings now has "Share my profile details with the assistant". It calls the new `POST /api/a2ui/model-privacy` (`{ sessionId, accountId?, modelPersonalContext }`, boolean only), which stores the choice in the conversation's metadata; the minimiser reads it on the next prompt, a session read returns it, and a reload shows the same choice. Turning it off is allowed even during a pending reconciliation or an eligibility change, so withdrawing consent is never blocked, while other requests still wait. Tests: `services/test/p117-model-privacy-route.test.ts` and the phone and desktop journey `test/browser/privacy/model-privacy.spec.ts`. Streamed UI state still has to be fed through the same function. Guide: [local AI](development/local-ai.md).
