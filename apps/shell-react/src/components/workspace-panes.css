@@ -20,3 +20,10 @@
   .workspace-pane-body > .conversation { min-height: 60dvh; }
   .workspace-pane-body > .service-panel { inset: auto; }
 }
+.pane-divider { position: relative; display: flex; align-items: center; justify-content: center; min-width: 0; cursor: col-resize; touch-action: none; color: var(--color-text-muted); }
+.pane-divider::before { content: ''; position: absolute; width: 44px; height: 100%; left: 50%; transform: translateX(-50%); z-index: 1; }
+.pane-divider > span { display: grid; place-items: center; width: 24px; min-height: 48px; border-radius: var(--radius-full); background: var(--color-surface); border: 1px solid var(--color-surface-border); }
+.pane-divider:hover, .pane-divider:focus-visible { color: var(--color-primary-text); }
+.pane-divider:focus-visible { outline: 3px solid var(--color-focus-ring); outline-offset: -3px; border-radius: var(--radius-sm); }
+.workspace-pane-grid.is-resizing { cursor: col-resize; user-select: none; }
+@media (max-width: 800px) { .workspace-pane-grid > .pane-divider { display: none; } }

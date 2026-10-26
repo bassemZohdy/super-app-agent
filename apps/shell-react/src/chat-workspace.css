@@ -1,5 +1,5 @@
 /* The concierge keeps a visible conversation and composer inside the viewport. */
-.city-app.concierge-app { --workspace-conversation-width: minmax(0, 1fr); --workspace-details-width: clamp(20rem, 30vw, 28rem); background: var(--color-surface); }
+.city-app.concierge-app { background: var(--color-surface); }
 .concierge-app .sidebar { width: 232px; padding: var(--spacing-xlarge) var(--spacing-medium) var(--spacing-medium); background: var(--primitive-color-navy-900); border-color: var(--primitive-color-slate-800); color: var(--primitive-color-slate-200); }
 .concierge-app .sidebar .brand { color: var(--primitive-color-white); }
 .concierge-app .sidebar .brand small, .concierge-app .nav-label, .concierge-app .city-location, .concierge-app .account-selector, .concierge-app .profile-button small { color: var(--primitive-color-slate-400); }
@@ -24,7 +24,7 @@
 .concierge-app .account-tool { width: auto; gap: var(--spacing-small); padding-inline: var(--spacing-small); font-size: var(--font-size-control); }
 .concierge-app .topbar-actions { gap: var(--spacing-small); }
 .concierge-app .workspace-layout { padding: 0 var(--spacing-large) var(--spacing-medium); }
-.concierge-app .workspace-pane-grid { gap: var(--spacing-medium); overflow: visible; }
+.concierge-app .workspace-pane-grid { display: grid; gap: 0; overflow: visible; }
 .concierge-app .workspace-pane { border: 1px solid var(--color-surface-border); border-radius: var(--radius-lg); background: var(--color-background); overflow: hidden; }
 .concierge-app .workspace-pane-heading { flex-shrink: 0; flex-wrap: nowrap; min-height: 64px; padding: var(--spacing-small) var(--spacing-medium); background: var(--color-background); }
 .concierge-app .workspace-pane-heading strong { font-size: var(--font-size-base); font-weight: 600; }
@@ -91,17 +91,6 @@
   .chat-header-identity .connection-status { font-size: var(--font-size-xs); }
   .concierge-app .topbar-actions, .concierge-app .workspace-tools { gap: 0; }
   .concierge-app .workspace-layout { padding: 0 var(--spacing-small) var(--spacing-small); min-height: 0; }
-  .chat-layout .mobile-pane-tabs { display: flex; flex-shrink: 0; gap: var(--spacing-small); padding-bottom: var(--spacing-small); }
-  .mobile-pane-tabs button { flex: 1; display: flex; align-items: center; justify-content: center; gap: var(--spacing-small); border: 1px solid transparent; border-radius: var(--radius-md); color: var(--color-text-muted); background: transparent; min-height: 44px; font-size: var(--font-size-control); }
-  .mobile-pane-tabs button[aria-pressed='true'] { color: var(--color-primary-text); border-color: var(--color-surface-border); background: var(--color-background); font-weight: 600; }
-  .details-ready { font-size: var(--font-size-xs); color: var(--color-success-text); }
-  .chat-layout .workspace-pane-grid { display: flex; flex-direction: column; min-height: 0; overflow: visible; }
-  .chat-layout .workspace-pane { flex: 1; flex-shrink: 1; min-height: 0; }
-  .chat-layout .workspace-pane.is-mobile-inactive { display: none; }
-  .chat-layout .workspace-pane-heading { min-height: 52px; padding: 4px var(--spacing-small); }
-  .chat-layout .workspace-pane-heading > div { gap: 0; }
-  .chat-layout .workspace-pane-body { min-height: 0; overflow: hidden; }
-  .chat-layout .workspace-pane-body > .conversation { min-height: 0; }
   .concierge-app .conversation-scroll { overflow-y: auto; padding: var(--spacing-medium); }
   .concierge-app .welcome { padding-block: var(--spacing-small); }
   .chat-welcome-mark { width: 48px; height: 48px; margin-bottom: var(--spacing-medium); }
@@ -125,3 +114,55 @@
 }
 
 @media (max-width: 800px) { .concierge-app .sidebar { width: min(300px, calc(100vw - 32px)); } }
+
+@media (max-width: 679px) {
+  .chat-layout .mobile-pane-tabs { display: flex; flex-shrink: 0; gap: var(--spacing-small); padding-bottom: var(--spacing-small); }
+  .mobile-pane-tabs button { flex: 1; display: flex; align-items: center; justify-content: center; gap: var(--spacing-small); border: 1px solid transparent; border-radius: var(--radius-md); color: var(--color-text-muted); background: transparent; min-height: 44px; font-size: var(--font-size-control); }
+  .mobile-pane-tabs button[aria-pressed='true'] { color: var(--color-primary-text); border-color: var(--color-surface-border); background: var(--color-background); font-weight: 600; }
+  .details-ready { font-size: var(--font-size-xs); color: var(--color-success-text); }
+  .chat-layout .workspace-pane-grid { display: flex; flex-direction: column; min-height: 0; overflow: visible; }
+  .chat-layout .workspace-pane { flex: 1; flex-shrink: 1; min-height: 0; }
+  .chat-layout .workspace-pane.is-mobile-inactive { display: none; }
+  .chat-layout .workspace-pane-heading { min-height: 52px; padding: 4px var(--spacing-small); }
+  .chat-layout .workspace-pane-heading > div { gap: 0; }
+  .chat-layout .workspace-pane-body { min-height: 0; overflow: hidden; }
+  .chat-layout .workspace-pane-body > .conversation { min-height: 0; }
+  .chat-layout .pane-divider { display: none; }
+}
+
+@media (min-width: 680px) {
+  .concierge-app .chat-layout .workspace-pane-grid { display: grid; }
+  .concierge-app .chat-layout .workspace-pane { min-height: 0; }
+  .concierge-app .chat-layout .pane-divider { display: flex; }
+}
+@media (max-width: 1100px), (horizontal-viewport-segments: 2), (vertical-viewport-segments: 2) {
+  .concierge-app .app-footer { display: none; }
+  .concierge-app .sidebar { position: fixed; inset: 0 auto 0 0; z-index: 40; width: min(300px, calc(100vw - 32px)); transform: translateX(-100%); }
+  .concierge-app .sidebar:not(.is-open) { visibility: hidden; }
+  .concierge-app .sidebar.is-open { transform: translateX(0); }
+  .concierge-app .mobile-menu, .concierge-app .close-sidebar { display: inline-flex; }
+  .concierge-app .close-sidebar { position: absolute; top: 0; right: 0; }
+  .concierge-app .menu-scrim { display: block; position: fixed; inset: 0; z-index: 30; border: none; background: var(--primitive-color-navy-950); opacity: .5; }
+}
+/* Physical segments take priority over the adjustable continuous-screen split. */
+@media (horizontal-viewport-segments: 2) {
+  .city-app.concierge-app { height: 100dvh; min-height: 0; overflow: hidden; --workspace-grid-template: env(viewport-segment-width 0 0) calc(env(viewport-segment-left 1 0) - env(viewport-segment-right 0 0)) env(viewport-segment-width 1 0); }
+  .concierge-app .workspace-layout { padding: 0 0 var(--spacing-small); }
+  .concierge-app .chat-layout .workspace-pane-grid { display: grid; }
+  .concierge-app .chat-layout .mobile-pane-tabs { display: none; }
+  .concierge-app .chat-layout .workspace-pane:not([hidden]) { display: flex; margin-inline: var(--spacing-small); }
+  .concierge-app .chat-layout .pane-divider { display: block; visibility: hidden; pointer-events: none; }
+  .concierge-app .workspace-pane-grid.has-maximized-pane .workspace-pane-heading,
+  .concierge-app .workspace-pane-grid.has-maximized-pane .conversation,
+  .concierge-app .workspace-pane-grid.has-maximized-pane .service-panel { max-width: calc(env(viewport-segment-width 0 0) - 16px); }
+}
+@media (vertical-viewport-segments: 2) {
+  .city-app.concierge-app { height: 100dvh; min-height: 0; overflow: hidden; }
+  .concierge-app .topbar { height: 72px; min-height: 72px; }
+  .concierge-app .workspace-layout { padding: 0; }
+  .concierge-app .chat-layout .mobile-pane-tabs { display: none; }
+  .concierge-app .chat-layout .workspace-pane-grid { display: grid; grid-template-columns: minmax(0, 1fr) !important; grid-template-rows: calc(env(viewport-segment-height 0 0) - 72px) calc(env(viewport-segment-top 0 1) - env(viewport-segment-bottom 0 0)) env(viewport-segment-height 0 1); }
+  .concierge-app .chat-layout .workspace-pane:not([hidden]) { display: flex; margin-inline: var(--spacing-small); }
+  .concierge-app .chat-layout .pane-divider { display: block; visibility: hidden; pointer-events: none; }
+  .concierge-app .chat-layout .workspace-pane-grid.has-maximized-pane { grid-template-rows: calc(env(viewport-segment-height 0 0) - 72px); }
+}

@@ -1,3 +1,4 @@
+import type { Page } from 'playwright/test';
 import { randomUUID } from 'node:crypto';
 import { test, expect } from './fixtures.ts';
 import { controlsBelowTarget, focusIsVisible, injectMotionCanary, stillMoving } from '../accessibility/measures.ts';
@@ -122,15 +123,7 @@ test('icon controls swap panes and toggle maximize/restore without losing the dr
 
 test('the main concierge also exposes the shared pane layout controls', async ({ page, focused }, info) => {
   const originalViewport = page.viewportSize()!;
-  await page.route('http://localhost:4000/**', route => {
-    const path = new URL(route.request().url()).pathname;
-    const headers = { 'access-control-allow-origin': new URL(focused.url).origin };
-    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: { ...headers, 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' } });
-    if (path.includes('stream')) return route.fulfill({ status: 200, contentType: 'text/event-stream', headers, body: ': stub\n\n' });
-    if (path === '/api/a2ui/intent') return route.fulfill({ status: 200, contentType: 'application/json', headers, body: JSON.stringify({ success: true, surface: { version: '1.0.0', sessionId: route.request().postDataJSON().sessionId, revision: randomUUID(), timestamp: Date.now(), assistantMessage: { id: randomUUID(), text: route.request().postDataJSON().text === 'Explain my services' ? 'Here is a longer explanation. '.repeat(100) : 'Here are your service details. You can review them in the service workspace.' }, view: { id: 'layout-service', type: 'SurfaceCard', children: [{ id: 'details', type: 'Text', properties: { text: 'Your saved service details' } }] } } }) });
-    const value = path === '/api/auth/config' ? { enabled: false } : path === '/api/accounts' ? { accounts: [{ id: 'layout-demo', label: 'Personal account' }], user: { name: 'Demo resident' } } : { success: true };
-    return route.fulfill({ status: 200, contentType: 'application/json', headers, body: JSON.stringify(value) });
-  });
+  await stubConcierge(page, focused.url);
   await page.goto(new URL('/', focused.url).href);
   await expect(page.getByRole('heading', { name: 'Chat with Rashid', exact: true })).toBeInViewport();
   await expect(page.getByRole('textbox', { name: 'Message Rashid', exact: true })).toBeInViewport({ ratio: 1 });
@@ -160,7 +153,7 @@ test('the main concierge also exposes the shared pane layout controls', async ({
     await expect(opener).toBeFocused();
     await expect(page.getByRole('complementary', { name: 'Main navigation', exact: true })).toBeHidden();
     await opener.click();
-    await page.setViewportSize({ width: 1024, height: 1000 });
+    await page.setViewportSize({ width: 1280, height: 1000 });
     await expect(page.getByRole('button', { name: 'Open navigation', exact: true, includeHidden: true })).toHaveAttribute('aria-expanded', 'false');
     await expect(page.getByRole('main')).not.toHaveAttribute('inert');
   }
@@ -168,10 +161,10 @@ test('the main concierge also exposes the shared pane layout controls', async ({
     await page.setViewportSize({ width, height: 1000 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `no overflow at ${width}px`).toBe(true);
     await expect(page.getByRole('textbox', { name: 'Message Rashid', exact: true })).toBeInViewport({ ratio: 1 });
-    if (width > 1100) {
+    if (width >= 680) {
       const details = await page.getByRole('region', { name: 'service details pane', exact: true }).boundingBox();
-      expect(details!.width).toBeGreaterThanOrEqual(320);
-      expect(details!.width).toBeLessThanOrEqual(448);
+      const chat = await page.getByRole('region', { name: 'conversation pane', exact: true }).boundingBox();
+      expect(Math.abs(details!.width - chat!.width)).toBeLessThanOrEqual(1);
     }
   }
   await page.setViewportSize(originalViewport);
@@ -182,9 +175,7 @@ test('the main concierge also exposes the shared pane layout controls', async ({
   if (info.project.name === 'desktop') {
     const chatBox = await page.getByRole('region', { name: 'conversation pane', exact: true }).boundingBox();
     const detailsBox = await page.getByRole('region', { name: 'service details pane', exact: true }).boundingBox();
-    expect(chatBox!.width).toBeGreaterThan(detailsBox!.width);
-    expect(detailsBox!.width).toBeGreaterThanOrEqual(320);
-    expect(detailsBox!.width).toBeLessThanOrEqual(448);
+    expect(Math.abs(chatBox!.width - detailsBox!.width)).toBeLessThanOrEqual(1);
   }
   await page.getByRole('button', { name: 'Maximize conversation', exact: true }).click();
   await expect(page.getByRole('region', { name: 'service details pane', exact: true })).toBeHidden();
@@ -223,4 +214,90 @@ test('the main concierge also exposes the shared pane layout controls', async ({
   await page.getByRole('button', { name: 'New conversation', exact: true }).click();
   await expect(page.getByRole('textbox', { name: 'Message Rashid', exact: true })).toHaveValue('');
   await expect(page.getByRole('textbox', { name: 'Message Rashid', exact: true })).toBeInViewport({ ratio: 1 });
+});
+
+async function stubConcierge(page: Page, url: string) {
+  await page.route('http://localhost:4000/**', route => {
+    const path = new URL(route.request().url()).pathname;
+    const headers = { 'access-control-allow-origin': new URL(url).origin };
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: { ...headers, 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' } });
+    if (path.includes('stream')) return route.fulfill({ status: 200, contentType: 'text/event-stream', headers, body: ': stub\n\n' });
+    if (path === '/api/a2ui/intent') return route.fulfill({ status: 200, contentType: 'application/json', headers, body: JSON.stringify({ success: true, surface: { version: '1.0.0', sessionId: route.request().postDataJSON().sessionId, revision: randomUUID(), timestamp: Date.now(), assistantMessage: { id: randomUUID(), text: route.request().postDataJSON().text === 'Explain my services' ? 'Here is a longer explanation. '.repeat(100) : 'Here are your service details. You can review them in the service workspace.' }, view: { id: 'layout-service', type: 'SurfaceCard', children: [{ id: 'details', type: 'Text', properties: { text: 'Your saved service details' } }] } } }) });
+    const value = path === '/api/auth/config' ? { enabled: false } : path === '/api/accounts' ? { accounts: [{ id: 'layout-demo', label: 'Personal account' }], user: { name: 'Demo resident' } } : { success: true };
+    return route.fulfill({ status: 200, contentType: 'application/json', headers, body: JSON.stringify(value) });
+  });
+}
+
+test('the divider starts at 50/50 and supports drag, keyboard, touch and swap without losing drafts', async ({ page, focused }, info) => {
+  await page.setViewportSize({ width: info.project.name === 'mobile' ? 824 : 1440, height: 1000 });
+  await stubConcierge(page, focused.url);
+  await page.goto(new URL('/', focused.url).href);
+  const separator = page.getByRole('separator', { name: 'Resize conversation and service details', exact: true });
+  await expect(separator).toHaveAttribute('aria-valuenow', '50');
+  const draft = page.getByRole('textbox', { name: 'Message Rashid', exact: true });
+  await draft.fill('Preserve this draft');
+  const box = (await separator.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down(); await page.mouse.move(box.x + box.width / 2 + 70, box.y + box.height / 2, { steps: 8 }); await page.mouse.up();
+  await expect.poll(async () => Number(await separator.getAttribute('aria-valuenow'))).toBeGreaterThan(50);
+  const before = (await page.getByRole('region', { name: 'conversation pane', exact: true }).boundingBox())!.width;
+  await page.getByRole('button', { name: 'Swap panes', exact: true }).click();
+  const after = (await page.getByRole('region', { name: 'conversation pane', exact: true }).boundingBox())!.width;
+  expect(Math.abs(before - after)).toBeLessThanOrEqual(1);
+  await expect(draft).toHaveValue('Preserve this draft');
+  await separator.focus(); await page.keyboard.press('Enter');
+  await expect(separator).toHaveAttribute('aria-valuenow', '50');
+  await page.keyboard.press('ArrowRight'); await expect(separator).toHaveAttribute('aria-valuenow', '55');
+  await page.keyboard.press('Enter'); await expect(separator).toHaveAttribute('aria-valuenow', '50');
+  if (info.project.name === 'mobile') {
+    const cdp = await page.context().newCDPSession(page), touch = (await separator.boundingBox())!;
+    const x = touch.x + touch.width / 2, y = touch.y + touch.height / 2;
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x + 40, y }] });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await expect.poll(async () => Number(await separator.getAttribute('aria-valuenow'))).toBeGreaterThan(50);
+    await separator.focus(); await page.keyboard.press('Enter');
+    await cdp.detach();
+  }
+  await page.getByRole('button', { name: 'Maximize conversation', exact: true }).click();
+  await expect(separator).toHaveCount(0);
+  await page.getByRole('button', { name: 'Restore conversation size', exact: true }).click();
+  await expect(separator).toHaveAttribute('aria-valuenow', '50');
+  await expect(draft).toHaveValue('Preserve this draft');
+  await page.screenshot({ path: info.outputPath('resizable-panes.png'), fullPage: true });
+});
+
+test('foldable book screens keep panes and controls outside the hinge and return to a phone view', async ({ page, focused }, info) => {
+  await page.setViewportSize({ width: 824, height: 900 });
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Emulation.setDeviceMetricsOverride', { width: 824, height: 900, screenWidth: 824, screenHeight: 900, deviceScaleFactor: 1, mobile: true });
+  await cdp.send('Emulation.setDisplayFeaturesOverride', { features: [{ orientation: 'vertical', offset: 400, maskLength: 24 }] });
+  await cdp.send('Emulation.setDevicePostureOverride', { posture: { type: 'folded' } });
+  await stubConcierge(page, focused.url);
+  await page.goto(new URL('/', focused.url).href);
+  await cdp.send('Emulation.setDeviceMetricsOverride', { width: 824, height: 900, screenWidth: 824, screenHeight: 900, deviceScaleFactor: 1, mobile: true, displayFeature: { orientation: 'vertical', offset: 400, maskLength: 24 }, devicePosture: { type: 'folded' } });
+  expect(await page.evaluate(() => matchMedia('(horizontal-viewport-segments: 2)').matches)).toBe(true);
+  const chat = page.getByRole('region', { name: 'conversation pane', exact: true });
+  const details = page.getByRole('region', { name: 'service details pane', exact: true });
+  await expect(chat).toBeVisible(); await expect(details).toBeVisible();
+  const left = (await chat.boundingBox())!, right = (await details.boundingBox())!;
+  expect(left.x + left.width).toBeLessThanOrEqual(400); expect(right.x).toBeGreaterThanOrEqual(424);
+  await expect(page.getByRole('separator')).toBeHidden();
+  const draft = page.getByRole('textbox', { name: 'Message Rashid', exact: true });
+  await draft.fill('Foldable draft');
+  await expect(draft).toBeInViewport({ ratio: 1 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: info.outputPath('folded-book.png'), fullPage: false });
+  await cdp.send('Emulation.clearDisplayFeaturesOverride');
+  await cdp.send('Emulation.setDeviceMetricsOverride', { width: 600, height: 900, screenWidth: 600, screenHeight: 900, deviceScaleFactor: 1, mobile: true, displayFeature: { orientation: 'horizontal', offset: 438, maskLength: 24 }, devicePosture: { type: 'folded' } });
+  expect(await page.evaluate(() => matchMedia('(vertical-viewport-segments: 2)').matches)).toBe(true);
+  const upper = (await chat.boundingBox())!, lower = (await details.boundingBox())!;
+  expect(upper.y + upper.height).toBeLessThanOrEqual(438); expect(lower.y).toBeGreaterThanOrEqual(462);
+  await expect(draft).toBeInViewport({ ratio: 1 });
+  await page.screenshot({ path: info.outputPath('folded-clamshell.png'), fullPage: false });
+  await cdp.send('Emulation.clearDisplayFeaturesOverride'); await cdp.send('Emulation.clearDevicePostureOverride');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByRole('button', { name: 'Chat', exact: true })).toBeVisible();
+  await expect(draft).toHaveValue('Foldable draft'); await expect(draft).toBeInViewport({ ratio: 1 });
+  await cdp.detach();
 });

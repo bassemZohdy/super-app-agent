@@ -16,13 +16,15 @@ npm run check
 | Actual process restart | `services/agent-core/test/restart.test.ts`: spawn the real entry point, obtain approval, SIGKILL, restart on the same file, compare restored approval, approve, SIGKILL/restart again, replay the request and retain the same receipt |
 | Lost-response reconciliation | Commit the actual simulator effect over HTTP, inject a lost reply, close/reopen the application database, recover with the original key and assert exactly one simulator payment |
 | Browser fines adoption | `test/browser/focused-agent/fines.spec.ts`: actual React/agent HTTP requests, process restart on the same SQLite file, exact selected-fine review, duplicate/stale/cross-owner refusal, reject/cancel, lost-response recovery and database payment-row assertions |
-| Pane controls | The same browser suite checks swap/read order, maximize/restore through the same icon, preserved drafts, automatic review reopening, labelled touch targets/focus, the main concierge width bounds and composer visibility; navigation/reload uses real local identity and APIs, while the main concierge layout check uses an explicitly stubbed compatibility gateway |
+| Pane controls | The same browser suite checks swap/read order, maximize/restore through the same icon, preserved drafts, automatic review reopening, labelled touch targets/focus, equal initial widths, mouse/touch/keyboard resizing, the main concierge width bounds and composer visibility; navigation/reload uses real local identity and APIs, while the main concierge layout check uses an explicitly stubbed compatibility gateway |
 
 Run just the self-contained fines and pane journeys without Docker:
 
 ```bash
 E2E_SUITE=focused-agent npm run test:browser -- focused-agent
 ```
+
+The foldable cases use Chromium device metrics to expose two viewport segments in book and clamshell orientations, assert panes and composer stay outside the hinge, and return to an ordinary phone viewport. This is browser emulation, not physical foldable validation.
 
 They start isolated Vite and real agent processes on ephemeral loopback ports with temporary SQLite files and explicit fixture planners. Desktop and phone projects use separate browser contexts and block external browser hosts. Screenshots, traces on failure and the report are saved under `.data/e2e-artifacts/focused-agent/`. No interactive data, local user token or OpenRouter key is used by this suite. The other browser suites still require their documented compatibility stack.
 

@@ -82,8 +82,9 @@ function CompatibilityApp() {
     const main = document.getElementById('main');
     if (main) main.inert = true;
     const controls = () => Array.from(navigation.current?.querySelectorAll<HTMLElement>('a[href], button:not(:disabled), select:not(:disabled)') || []).filter(node => node.getClientRects().length);
-    const desktop = window.matchMedia('(min-width: 801px)');
-    const closeOnDesktop = () => { if (desktop.matches) setMenuOpen(false); };
+    const desktop = window.matchMedia('(min-width: 1101px)');
+    const segmented = window.matchMedia('(horizontal-viewport-segments: 2), (vertical-viewport-segments: 2)');
+    const closeOnDesktop = () => { if (desktop.matches && !segmented.matches) setMenuOpen(false); };
     controls()[0]?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') { event.preventDefault(); setMenuOpen(false); }
@@ -93,8 +94,8 @@ function CompatibilityApp() {
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
     };
     document.addEventListener('keydown', onKeyDown);
-    desktop.addEventListener('change', closeOnDesktop);
-    return () => { document.removeEventListener('keydown', onKeyDown); desktop.removeEventListener('change', closeOnDesktop); if (main) main.inert = false; menuButton.current?.focus(); };
+    desktop.addEventListener('change', closeOnDesktop); segmented.addEventListener('change', closeOnDesktop);
+    return () => { document.removeEventListener('keydown', onKeyDown); desktop.removeEventListener('change', closeOnDesktop); segmented.removeEventListener('change', closeOnDesktop); if (main) main.inert = false; menuButton.current?.focus(); };
   }, [menuOpen]);
   const append = (message: Omit<ChatMessage, 'id'>) => setMessages(prev => [...prev, { ...message, id: crypto.randomUUID() }]);
 
