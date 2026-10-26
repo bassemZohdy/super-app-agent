@@ -1,0 +1,38 @@
+.focused-fines { font-family: var(--font-family-base); font-size: var(--font-size-base); color: var(--color-text); background: var(--color-background); }
+.focused-fines .topbar { flex-wrap: wrap; }
+.focused-fines .workspace-tools { flex-wrap: wrap; }
+.focused-fines a { color: var(--color-primary-text); }
+.focused-fines button, .focused-fines input, .focused-fines a { min-height: 44px; font-size: var(--font-size-control); }
+.focused-fines .brand { font-size: var(--font-size-2xl); }
+.focused-notice, .focused-error { margin: var(--spacing-medium) var(--spacing-large); display: flex; align-items: center; gap: var(--spacing-small); line-height: 1.6; }
+.focused-notice svg { flex-shrink: 0; }
+.focused-error { color: var(--color-danger-text); }
+.focused-login { width: min(100%, 38rem); padding: var(--spacing-xlarge); margin: auto; overflow-y: auto; }
+.focused-login h1 { margin-bottom: var(--spacing-large); }
+.focused-login p { line-height: 1.6; }
+.focused-login label { display: block; margin-bottom: var(--spacing-small); }
+.focused-login input { width: 100%; padding: var(--spacing-small); border: 1px solid var(--color-surface-border); border-radius: var(--radius-sm); color: var(--color-text); background: var(--color-background); }
+.focused-fines .workspace-pane-body > section { width: 100%; }
+.focused-conversation, .focused-review { padding: var(--spacing-large); min-width: 0; }
+.focused-conversation h1 { font-size: var(--font-size-2xl); letter-spacing: normal; }
+.focused-transcript { padding-block: var(--spacing-medium); }
+.focused-transcript .message-body p { color: var(--color-text); font-size: var(--font-size-base); }
+.focused-transcript .message-author { color: var(--color-primary-text); font-size: var(--font-size-control); }
+.focused-transcript p, .focused-review p { overflow-wrap: anywhere; line-height: 1.6; }
+.focused-review { border-left: 1px solid var(--color-surface-border); background: var(--color-surface); }
+.focused-review h2 { font-size: var(--font-size-xl); }
+.focused-review .ag-btn { min-height: 44px; margin: var(--spacing-small); }
+.focused-review table { font-size: var(--font-size-control) !important; }
+.focused-fines .composer textarea { width: 100%; min-height: 6rem; font-size: var(--font-size-base); }
+.focused-suggestions { display: flex; flex-wrap: wrap; gap: var(--spacing-small); }
+.focused-receipt { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--spacing-medium); line-height: 1.6; }
+.focused-receipt dd { margin: 0; overflow-wrap: anywhere; }
+.nav-item[href] { text-decoration: none; }
+@media (max-width: 800px) {
+  .focused-fines { height: auto; min-height: 100dvh; overflow: visible; }
+  .focused-fines .workspace-layout { min-height: 0; }
+  .focused-review { border-left: 0; border-top: 1px solid var(--color-surface-border); }
+  .focused-login { padding: var(--spacing-large); }
+  .focused-fines .topbar { padding: var(--spacing-medium); }
+  .focused-fines .composer textarea { font-size: 16px; }
+}

@@ -1,0 +1,152 @@
+import { randomUUID } from 'node:crypto';
+import { test, expect } from './fixtures.ts';
+import { controlsBelowTarget, focusIsVisible } from '../accessibility/measures.ts';
+
+test('retrieve fines, resume the exact review after restart, pay once and reject duplicate/stale/cross-owner approvals', async ({ page, focused }, info) => {
+  await page.goto(focused.url);
+  await page.getByLabel('Access token', { exact: true }).fill(focused.token);
+  await page.getByRole('button', { name: 'Open my fines' }).click();
+  await page.getByRole('button', { name: 'Show outstanding fines', exact: true }).click();
+  await expect(page.getByRole('cell', { name: 'fine-1', exact: true })).toBeVisible();
+  await page.getByRole('textbox', { name: 'Message about fines' }).fill('Pay fine-1');
+  await page.getByRole('button', { name: 'Send message' }).click();
+  await expect(page.getByRole('heading', { name: 'Review before you pay' })).toBeVisible();
+  await expect(page.getByText('Simulated total: AED 150.00', { exact: true })).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'fine-2', exact: true })).toHaveCount(0);
+  expect(focused.payments()).toBe(0);
+  await page.screenshot({ path: info.outputPath('review.png'), fullPage: true });
+  const thread = await page.evaluate(() => sessionStorage.getItem('cityside.fines.thread.v1'));
+  const root = `${new URL(focused.url).origin}/api/agent/threads/${thread}`;
+  const inspect = async (token = focused.token) => page.request.get(root, { headers: { Authorization: `Bearer ${token}` } });
+  const review = await (await inspect()).json();
+  await focused.restart();
+  await page.getByRole('button', { name: 'Inspect saved conversation' }).click();
+  await expect(page.getByRole('button', { name: 'Confirm simulated payment', exact: true })).toBeEnabled();
+  expect((await (await inspect()).json()).approval).toEqual(review.approval);
+  const request = page.waitForRequest(req => req.url() === `${root}/resume` && req.method() === 'POST');
+  await page.getByRole('button', { name: 'Confirm simulated payment', exact: true }).click();
+  const confirmation = await request;
+  await expect(page.getByRole('heading', { name: 'Your simulated receipt' })).toBeVisible();
+  expect(focused.payments()).toBe(1);
+  await page.screenshot({ path: info.outputPath('receipt.png'), fullPage: true });
+  const headers = await confirmation.allHeaders();
+  const body = confirmation.postDataJSON();
+  const replay = await page.request.post(`${root}/resume`, { headers: { Authorization: `Bearer ${focused.token}`, 'Idempotency-Key': headers['idempotency-key'] }, data: body });
+  expect(replay.status()).toBe(200);
+  const paid = await replay.json();
+  for (const [token, approvalId, status] of [[focused.token, body.approvalId, 409], [focused.token, randomUUID(), 409], [focused.otherToken, body.approvalId, 404]] as const) {
+    const refused = await page.request.post(`${root}/resume`, { headers: { Authorization: `Bearer ${token}`, 'Idempotency-Key': randomUUID() }, data: { approvalId, decision: 'approve' } });
+    expect(refused.status()).toBe(status);
+    expect(focused.payments()).toBe(1);
+  }
+  expect((await inspect(focused.otherToken)).status()).toBe(404);
+  await page.reload();
+  await page.getByLabel('Access token', { exact: true }).fill(focused.token);
+  await page.getByRole('button', { name: 'Open my fines' }).click();
+  await expect(page.getByText(paid.receipt.id, { exact: true })).toBeVisible();
+  expect(await page.evaluate(token => [...Object.values(sessionStorage), ...Object.values(localStorage)].some(value => String(value).includes(token)), focused.token)).toBe(false);
+});
+
+test('reject and cancel leave payment records unchanged and allow a new conversation', async ({ page, focused }) => {
+  await page.goto(focused.url);
+  await page.getByLabel('Access token', { exact: true }).fill(focused.token);
+  await page.getByRole('button', { name: 'Open my fines' }).click();
+  for (const decision of ['Reject payment', 'Cancel review', 'Cancel conversation']) {
+    await page.getByRole('button', { name: 'Review payment', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Confirm simulated payment', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: decision, exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Confirm simulated payment', exact: true })).toHaveCount(0);
+    expect(focused.payments()).toBe(0);
+    await page.getByRole('button', { name: 'Start a new conversation' }).click();
+    await expect(page.getByRole('button', { name: 'Review payment', exact: true })).toBeEnabled();
+  }
+});
+
+test('a lost payment result blocks new commands until the original operation is recovered', async ({ page, focused }) => {
+  await page.goto(focused.url);
+  await page.getByLabel('Access token', { exact: true }).fill(focused.token);
+  await page.getByRole('button', { name: 'Open my fines' }).click();
+  await page.getByRole('button', { name: 'Review payment', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Confirm simulated payment', exact: true })).toBeVisible();
+  await page.route('**/api/agent/threads/*/resume', async route => { await route.fetch(); await route.abort('connectionfailed'); });
+  await page.getByRole('button', { name: 'Confirm simulated payment', exact: true }).click();
+  await expect(page.getByRole('alert')).toBeVisible();
+  expect(focused.payments()).toBe(1);
+  await expect(page.getByRole('button', { name: 'Start a new conversation' })).toBeDisabled();
+  await expect(page.getByRole('textbox', { name: 'Message about fines' })).toBeDisabled();
+  await page.getByRole('button', { name: 'Recover saved operation' }).click();
+  await expect(page.getByRole('heading', { name: 'Your simulated receipt' })).toBeVisible();
+  expect(focused.payments()).toBe(1);
+});
+
+test('the fines route has labelled controls, touch targets, keyboard focus and no sideways overflow', async ({ page, focused }) => {
+  await page.goto(focused.url);
+  await page.getByLabel('Access token', { exact: true }).focus();
+  expect(await focusIsVisible(page)).toBe(true);
+  expect(await controlsBelowTarget(page)).toEqual([]);
+  await page.getByLabel('Access token', { exact: true }).fill(focused.token);
+  await page.getByRole('button', { name: 'Open my fines' }).click();
+  await page.getByRole('button', { name: 'Review payment', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Review before you pay' })).toBeFocused();
+  expect(await controlsBelowTarget(page)).toEqual([]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test('conversation and service panes swap, maximize, minimize and restore without losing the draft', async ({ page, focused }, info) => {
+  await page.goto(focused.url);
+  await page.getByLabel('Access token', { exact: true }).fill(focused.token);
+  await page.getByRole('button', { name: 'Open my fines' }).click();
+  const draft = page.getByRole('textbox', { name: 'Message about fines' });
+  await draft.fill('Show outstanding fines');
+  await page.getByRole('button', { name: 'Swap panes', exact: true }).click();
+  expect(await page.locator('[data-pane]').evaluateAll(nodes => nodes.map(node => node.getAttribute('data-pane')))).toEqual(['details', 'conversation']);
+  const conversation = page.getByRole('region', { name: 'conversation pane', exact: true });
+  const details = page.getByRole('region', { name: 'service details pane', exact: true });
+  const first = await details.boundingBox(), second = await conversation.boundingBox();
+  expect(info.project.name === 'mobile' ? first!.y < second!.y : first!.x < second!.x).toBe(true);
+  await page.getByRole('button', { name: 'Maximize conversation', exact: true }).click();
+  await expect(details).toBeHidden(); await expect(draft).toHaveValue('Show outstanding fines');
+  await page.screenshot({ path: info.outputPath('conversation-maximized.png'), fullPage: true });
+  await page.getByRole('button', { name: 'Restore split view', exact: true }).click();
+  await page.getByRole('button', { name: 'Minimize conversation', exact: true }).click();
+  await expect(draft).toBeHidden(); await expect(details).toBeVisible();
+  await page.getByRole('button', { name: 'Restore conversation', exact: true }).click();
+  await expect(draft).toHaveValue('Show outstanding fines');
+  await page.getByRole('button', { name: 'Maximize service details', exact: true }).click();
+  await expect(conversation).toBeHidden();
+  await page.getByRole('button', { name: 'Restore service details size', exact: true }).click();
+  await page.getByRole('button', { name: 'Minimize service details', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Your fines', exact: true })).toBeHidden();
+  await page.getByRole('button', { name: 'Review payment', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Review before you pay' })).toBeVisible();
+  expect(await controlsBelowTarget(page)).toEqual([]);
+  expect(focused.payments()).toBe(0);
+});
+
+test('the main concierge also exposes the shared pane layout controls', async ({ page, focused }) => {
+  await page.route('http://localhost:4000/**', route => {
+    const path = new URL(route.request().url()).pathname;
+    const headers = { 'access-control-allow-origin': new URL(focused.url).origin };
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: { ...headers, 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' } });
+    if (path.includes('stream')) return route.fulfill({ status: 200, contentType: 'text/event-stream', headers, body: ': stub\n\n' });
+    if (path === '/api/a2ui/intent') return route.fulfill({ status: 200, contentType: 'application/json', headers, body: JSON.stringify({ success: true, surface: { version: '1.0.0', sessionId: route.request().postDataJSON().sessionId, revision: randomUUID(), timestamp: Date.now(), view: { id: 'layout-service', type: 'SurfaceCard', children: [{ id: 'details', type: 'Text', properties: { text: 'Your saved service details' } }] } } }) });
+    const value = path === '/api/auth/config' ? { enabled: false } : path === '/api/accounts' ? { accounts: [{ id: 'layout-demo', label: 'Personal account' }], user: { name: 'Demo resident' } } : { success: true };
+    return route.fulfill({ status: 200, contentType: 'application/json', headers, body: JSON.stringify(value) });
+  });
+  await page.goto(new URL('/', focused.url).href);
+  await expect(page.getByRole('heading', { name: /A little help/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Maximize conversation', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'service details pane', exact: true })).toBeHidden();
+  await page.getByRole('button', { name: 'Restore split view', exact: true }).click();
+  await page.getByRole('button', { name: 'Swap panes', exact: true }).click();
+  expect(await page.locator('[data-pane]').evaluateAll(nodes => nodes.map(node => node.getAttribute('data-pane')))).toEqual(['details', 'conversation']);
+  await page.getByRole('button', { name: 'Minimize service details', exact: true }).click();
+  await page.getByRole('button', { name: 'Restore service details', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'service details pane', exact: true })).toBeVisible();
+  await page.getByRole('textbox', { name: 'Message Rashid', exact: true }).fill('Show test service');
+  await page.getByRole('button', { name: 'Send message', exact: true }).click();
+  await expect(page.getByText('Your saved service details', { exact: true })).toBeVisible();
+  const pane = await page.getByRole('region', { name: 'service details pane', exact: true }).boundingBox();
+  const panel = await page.getByRole('complementary', { name: 'Service details', exact: true }).boundingBox();
+  expect(panel!.width).toBeGreaterThan(pane!.width * 0.9);
+});

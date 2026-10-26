@@ -27,7 +27,9 @@ npm run check:agent
 docker compose -f compose.agent.yml up --build
 ```
 
-[Architecture](docs/architecture.md) · [Native graph](docs/agent-flow.md) · [Testing](docs/testing.md). Use one process/replica per SQLite file. The existing React/Angular/Flutter shells and integrated provider/payment/delegation demo are preserved below as a compatibility path; they are not yet wired to the focused API. No frontend rewrite is included.
+[Architecture](docs/architecture.md) · [Native graph](docs/agent-flow.md) · [Testing](docs/testing.md). Use one process/replica per SQLite file. The primary React fines route uses this API; other React journeys and the Angular/Flutter shells retain the integrated compatibility path below.
+
+Start `npm run dev:react` in another terminal and open [the fines conversation](http://localhost:3000/services/fines). Sign in with the local `token` field from `AGENT_TEST_IDENTITIES` in private `.env.agent`, then ask to view fines or review a payment. The OpenRouter API key stays on the server. **Swap panes** exchanges conversation and service details; each pane has **Maximize** and **Minimize** controls, and **Restore split view** brings both back. The same layout controls are available in the main concierge. See [browser setup and recovery](docs/integrations.md#react-fines-workspace).
 
 [What exists today](#what-exists-today) · [Documentation index](docs/INDEX.md) · [Open work](TODO.md) · [Verification evidence](docs/reports/README.md)
 
@@ -35,7 +37,7 @@ docker compose -f compose.agent.yml up --build
 
 | Area | Implemented in the local demo | Not claimed |
 | --- | --- | --- |
-| Focused agent | One Node.js process, official SQLite LangGraph checkpoints, bounded model-selected plans, REST fines simulator, durable approval and deduplicated simulated payment | Real-model quality, production identity/delegation, shell migration or multi-replica operation |
+| Focused agent | One Node.js process, official SQLite LangGraph checkpoints, bounded model-selected plans, REST fines simulator, primary React fines conversation, durable approval and deduplicated simulated payment | Real-model quality, production identity/delegation, Angular/Flutter migration or multi-replica operation |
 | Integrated compatibility runtime | Concierge plus six application APIs and seven account-scoped provider simulators; real HTTP boundaries and SQLite persistence | Real agency, UAE PASS, bank or PSP integration; records and funds are synthetic |
 | Identity | Keycloak 26.6.4 pinned by digest; browser PKCE, signed ownership checks, introspection, separate RFC 7523 delegation broker | Production identity, custom actor mapper, multi-hop authority; local HTTP with seeded credentials |
 | Compatibility conversation | Bounded LangGraph review/execute flow, Redis ownership/leases/checkpoints/replay, explicit approval and cancellation, authenticated MCP | Model-selected tool plans, general workflow engine or compensation |
@@ -43,7 +45,7 @@ docker compose -f compose.agent.yml up --build
 | Payments | Linked billers and synthetic saved cards; finite wallet/card reviews; bills, exact fines, prepaid/toll recharges, wallet funding, grouped checkout, original-source refunds, signed events, recovery and statements | Real cards or money; atomic multi-provider settlement (cross-provider effects are sequential with truthful partial and unknown states) |
 | Automation | Finite versioned consent records that can be paused (one rule or all at once), resumed, skipped and revoked in the React panel; run-scoped preparation, a read-only preview of what a rule would do, per-execution credentials and settlement of automatic executions in isolated simulator runs, an off-by-default persistent job worker with a scheduler for calendar, invoice-due and balance-threshold rules, and an owner inbox of what each rule did, skipped or is waiting on ([guide](docs/development/automation-worker.md)) | Execution: nothing schedules unless both worker flags are set, nothing runs outside an isolated run, and mandates return `executionEnabled:false` |
 | Simulator | Persistent business clock, eight isolated issuer outcomes, guarded run-scoped failpoint controls, read-only run inspector, partial lifecycle fixtures | Network admin panel, full lifecycle event generation |
-| Shells | React primary; Angular and Flutter comparison shells | Full payment, accessibility, localization and native-device parity |
+| Shells | React primary with fines adoption and swappable/maximizable conversation and service panes; Angular and Flutter comparison shells | Full payment, accessibility, localization and native-device parity |
 | Compatibility operations | Fifteen Node processes with private telemetry, correlation IDs, dependency readiness, bounded shutdown, encrypted cold restore and fenced single-writer rehearsal | Replicated HA, scheduled off-host backup, immutable audit archive |
 
 Open work is tracked only in [TODO.md](TODO.md); the delivered record is the [changelog](docs/CHANGELOG.md); what was verified, when and against which revision is the [evidence register](docs/reports/README.md). Dated reports and recordings state what was true at their own checkpoint.

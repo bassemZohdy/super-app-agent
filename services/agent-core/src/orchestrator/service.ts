@@ -9,17 +9,18 @@ export class AgentService {
   constructor(graph: AgentGraph, store: Store) { this.graph = graph; this.store = store; }
   private options(id: string) { return { configurable: { thread_id: id }, recursionLimit: 12, durability: 'sync' as const }; }
   async inspect(id: string) {
-    await this.store.checkThread(id, context().principal, true);
+    const thread = await this.store.checkThread(id, context().principal, true);
     const state = await this.graph.getState(this.options(id));
     const values = state.values as Partial<typeof State.State>;
     const approval = state.next.includes('approval') ? values.pending : null;
+    const shownFines = (values.fines || []).filter(fine => !approval || approval.quote.fineIds.includes(fine.id));
     const children: UIComponentNode[] = [
       { id: 'reply', type: 'Text', properties: { text: values.reply || 'Send a request about outstanding fines.' } },
-      { id: 'fines', type: 'DataTable', properties: { columns: [{ key: 'id', title: 'Fine' }, { key: 'description', title: 'Details' }, { key: 'amountMinor', title: 'Amount (fils)' }], rows: (values.fines || []).map(f => ({ ...f })) } },
+      { id: 'fines', type: 'DataTable', properties: { columns: [{ key: 'id', title: 'Fine' }, { key: 'description', title: 'Details' }, { key: 'amount', title: 'Amount (AED)' }], rows: shownFines.map(f => ({ id: f.id, description: f.description, amount: (f.amountMinor / 100).toFixed(2) })) } },
     ];
-    if (approval) children.push({ id: 'total', type: 'Text', properties: { text: `Simulated total: AED ${(approval.quote.amountMinor / 100).toFixed(2)}` } }, ...(['approve', 'reject', 'cancel'] as const).map(decision => ({ id: decision, type: 'Button' as const, properties: { label: decision === 'approve' ? 'Confirm simulated payment' : decision }, onEvents: [{ event: 'onPress' as const, actionType: 'AGENT_ACTION_DISPATCH' as const, payload: { action: 'agent.resume', approvalId: approval.id, decision } }] })));
+    if (approval) children.push({ id: 'total', type: 'Text', properties: { text: `Simulated total: AED ${(approval.quote.amountMinor / 100).toFixed(2)}` } }, ...(['approve', 'reject', 'cancel'] as const).map(decision => ({ id: decision, type: 'Button' as const, properties: { label: decision === 'approve' ? 'Confirm simulated payment' : decision === 'reject' ? 'Reject payment' : 'Cancel review', variant: decision === 'approve' ? 'primary' as const : 'outline' as const }, onEvents: [{ event: 'onPress' as const, actionType: 'AGENT_ACTION_DISPATCH' as const, payload: { action: 'agent.resume', approvalId: approval.id, decision } }] })));
     const surface: AGUISurfacePayload = { version: '1.0.0', sessionId: id, revision: approval?.id, timestamp: Date.now(), view: { id: 'fines-service', type: 'SurfaceCard', children } };
-    return { threadId: id, status: values.status || 'new', reply: values.reply || '', fines: values.fines || [], receipt: values.receipt || null, approval, next: state.next, uiContract: 'cityside-compat-v1', surface };
+    return { threadId: id, status: thread.cancelled ? 'cancelled' : values.status || 'new', reply: values.reply || '', messages: values.messages || [], fines: values.fines || [], receipt: values.receipt || null, approval, next: state.next, uiContract: 'cityside-compat-v1', surface };
   }
   async transition(id: string, requestId: string, action: 'message' | 'resume' | 'recover' | 'cancel', body: unknown) {
     return this.store.exclusive(id, async () => {

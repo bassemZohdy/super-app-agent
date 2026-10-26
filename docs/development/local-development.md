@@ -6,6 +6,8 @@ Use Node.js 24 and npm. Run `npm ci --ignore-scripts`, `npm rebuild better-sqlit
 
 The official LangGraph SQLite saver uses a native `better-sqlite3` binding; rebuild it after an installation using `--ignore-scripts`. For the optional container path use `docker compose -f compose.agent.yml up --build`; container execution needs separate qualification.
 
+For the primary fines UI, also run `npm run dev:react` and open `/services/fines` on the reported React port. The conversation and service details have shared swap, maximize/minimize and restore controls. Sign in with the private local test token; [browser authentication, proxy and recovery](../integrations.md#react-fines-workspace) explains the boundary. To explicitly use the exported OpenRouter key, initialize with `npm run agent:init -- --openrouter` on a fresh setup, or follow [switching an existing configuration](../integrations.md#explicit-openrouter-setup).
+
 ## Recommended integrated stack
 
 This section is the optional compatibility stack used by existing shells and advanced simulated payment/delegation journeys. Use Node.js 24+, npm and Docker Compose. Those legacy business stores use Node's built-in SQLite; the focused saver additionally requires the binding described above.

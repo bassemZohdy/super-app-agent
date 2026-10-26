@@ -1,13 +1,14 @@
 import { PaymentAccountsPanel } from './PaymentAccountsPanel.tsx';
 import { BrowserAuth, type BrowserAuthConfig } from '../../../packages/protocol-core/src/oidc-client.ts';
 import { DelegationPanel } from './DelegationPanel.tsx';
-import { useEffect, useRef, useState } from 'react';
-import { ArrowUp, ArrowUpRight, AudioLines, Building2, CarFront, Check, ChevronDown, CircleHelp, Compass, CreditCard, House, MapPin, Menu, MessageSquare, Mic, Plus, Settings2, ShieldCheck, Sparkles, Square, Volume2, Wifi, X, Zap } from 'lucide-react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { ArrowUp, ArrowUpRight, AudioLines, Building2, CarFront, ChevronDown, CircleHelp, Compass, CreditCard, House, MapPin, Menu, MessageSquare, Mic, Plus, Settings2, ShieldCheck, Sparkles, Square, Volume2, Wifi, X, Zap } from 'lucide-react';
 import { VoiceClient, type VoiceState } from '../../../packages/protocol-core/src/voice-client.ts';
 import { LocalVoiceApi, type LocalVoiceConfig } from '../../../packages/protocol-core/src/voice-api.ts';
 import { checkedSurface, readCoreResponse } from '../../../packages/protocol-core/src/surface-client.ts';
 import { connectEventStream } from '../../../packages/protocol-core/src/sse-client.ts';
 import type { AGUISurfacePayload } from '../../../packages/protocol-core/src/index.ts';
+import { WorkspacePanes } from './components/WorkspacePanes.tsx';
 import { A2UIRenderer } from './components/A2UIRenderer.tsx';
 
 const GATEWAY_URL = import.meta.env.VITE_GATEWAY_URL || 'http://localhost:4000';
@@ -22,7 +23,14 @@ type ModelStatus = { ready?: boolean; model: string; enabled: boolean; configure
 type ChatMessage = { id: string; role: 'user' | 'assistant'; text: string; error?: boolean; retry?: string };
 
 
+const FocusedFinesWorkspace = lazy(() => import('./FocusedFinesWorkspace.tsx'));
 export function App() {
+  return location.pathname === '/services/fines'
+    ? <Suspense fallback={<main className="login-screen"><p role="status">Preparing your fines workspace…</p></main>}><FocusedFinesWorkspace /></Suspense>
+    : <CompatibilityApp />;
+}
+
+function CompatibilityApp() {
   const [sessionId, setSessionId] = useState(() => `sess_${crypto.randomUUID()}`);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const auth = useRef<BrowserAuth>();
@@ -45,7 +53,6 @@ export function App() {
   const [delegationOpen, setDelegationOpen] = useState(false);
   const [paymentAccountsOpen, setPaymentAccountsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [mobilePanel, setMobilePanel] = useState(false);
   const [readReplies, setReadReplies] = useState(false);
   const [voiceProfile, setVoiceProfile] = useState('Jasper');
   const [voiceSpeed, setVoiceSpeed] = useState(1);
@@ -73,7 +80,7 @@ export function App() {
     revision.current = undefined; setMessages([]); setSurface(null); setDraft(''); setInference(null);
     const sid = `sess_${crypto.randomUUID()}`;
     sessionStorage.setItem(`cityside.session.${nextAccount}`, sid);
-    setSessionId(sid); sessionRef.current = sid; setMenuOpen(false); setMobilePanel(false);
+    setSessionId(sid); sessionRef.current = sid; setMenuOpen(false);
     return sid;
   };
   const restoredService = useRef<string>();
@@ -141,7 +148,7 @@ export function App() {
   };
   useEffect(() => {
     const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') { setMenuOpen(false); setSettingsOpen(false); setMobilePanel(false); }
+      if (event.key === 'Escape') { setMenuOpen(false); setSettingsOpen(false); }
     };
     window.addEventListener('keydown', escape);
     return () => window.removeEventListener('keydown', escape);
@@ -251,7 +258,7 @@ export function App() {
     setPaymentAccountsOpen(false);
     if (!text.trim() || busy.current || !authReady || loginRequired) return;
     const query = text.trim();
-    append({ role: 'user', text: query }); setDraft(''); setMenuOpen(false); setMobilePanel(false);
+    append({ role: 'user', text: query }); setDraft(''); setMenuOpen(false);
     void request('intent', { text: query }, query);
   };
   const dispatch = (action: string, payload: Record<string, unknown>) => {
@@ -281,9 +288,10 @@ export function App() {
         <a href="#main" className="brand"><span className="brand-mark"><Building2 size={24} strokeWidth={1.6} /></span><span>city<span className="brand-light">side</span><small>Your everyday, connected.</small></span></a>
         <button className="new-chat" onClick={newConversation} disabled={pending}><Plus size={17} /> New conversation </button>
         <div className="nav-label">Your space</div>
-        <button className="nav-item active" onClick={() => { setMobilePanel(false); setMenuOpen(false); input.current?.focus(); }}><Sparkles size={18} /> Your concierge <span className="nav-dot" /></button>
+        <button className="nav-item active" onClick={() => { setMenuOpen(false); input.current?.focus(); }}><Sparkles size={18} /> Your concierge <span className="nav-dot" /></button>
         <button className="nav-item" disabled={pending} onClick={() => void loadHistory()}><MessageSquare size={18} /> Conversations</button>
         <div className="nav-label services-label">Explore services</div>
+        <a className="nav-item" href="/services/fines"><ShieldCheck size={18} /> Fines</a>
         <nav>{services.map(service => <button key={service.id} className="nav-item" disabled={pending} onClick={() => openService(service.id)}><service.icon size={18} /> {service.short}<ArrowUpRight size={13} className="nav-arrow" /></button>)}</nav>
         <button className="nav-item" disabled={pending} onClick={() => send('Show my citizen profile and registered vehicles and premises')}><ShieldCheck size={18} /> My profile</button>
         <div className="sidebar-bottom">
@@ -305,8 +313,8 @@ export function App() {
         {delegationOpen && <DelegationPanel gateway={GATEWAY_URL} accountId={accountId} getToken={getToken} />}
         {settingsOpen && <section className="settings-panel" aria-label="Conversation settings"><div className="settings-title"><strong>Conversation settings</strong><button className="icon-button" aria-label="Close settings" onClick={() => setSettingsOpen(false)}><X size={17} /></button></div><p>Model: {model?.model || 'Unavailable'}</p><p>{model?.enabled ? 'Private replies from the local open-source model.' : 'Demo replies. Enable live inference in the server environment.'}</p><label>Voice language<select value={language} onChange={e => { voice.current?.cancel(); setLanguage(e.target.value); if (e.target.value !== 'en-US') setReadReplies(false); }}><option value="en-US">English</option><option value="ar-AE">Arabic dictation · text replies</option></select></label><label className="checkbox-label"><input type="checkbox" checked={readReplies} disabled={!canSpeak || language !== 'en-US'} onChange={e => { setReadReplies(e.target.checked); if (!e.target.checked) voice.current?.cancel(); }} />Read replies aloud</label><h3>Voice studio</h3><p>{voiceConfig?.ttsReady && voiceConfig?.asrReady ? 'Local open-source speech is ready.' : 'Local voice is not ready. Text chat remains available.'}</p><label>Voice preset<select aria-label="Voice preset" value={voiceProfile} onChange={e => { voice.current?.cancel(); setVoiceProfile(e.target.value); }}>{(voiceConfig?.voices || [{id:'Jasper', name:'Jasper'}]).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label><label>Speaking speed · {voiceSpeed.toFixed(2)}×<input aria-label="Speaking speed" type="range" min="0.8" max="1.2" step="0.05" value={voiceSpeed} onChange={e => { voice.current?.cancel(); setVoiceSpeed(Number(e.target.value)); }} /></label><button className="text-button" disabled={!canSpeak || voiceState !== 'idle'} onClick={() => voice.current?.speak('Marhaba. I am Rashid, your city concierge. Tell me what you need, and we will take it one step at a time.', 'en-US')}>Preview voice</button><button className="text-button" onClick={() => voice.current?.cancel()}>Stop voice</button><button className="text-button" onClick={() => void refreshVoice()}>Refresh local voice</button><small>Speech runs on the local app server using open-source models. Short microphone recordings become editable drafts; review them before Send. Sent messages follow your chat settings.</small><button className="text-button" onClick={() => void checkConnection()}>Check connection again</button></section>}
         {historyOpen && <section className="settings-panel history-panel" aria-label="Saved conversations"><div className="settings-title"><strong>Saved conversations</strong><button className="icon-button" aria-label="Close conversations" onClick={() => setHistoryOpen(false)}><X size={17}/></button></div>{recentSessions.filter(item => item.accountId === accountId).map(item => <div className="history-row" key={item.sessionId}><button className="text-button" onClick={() => void restoreConversation(item.sessionId, accountId)}>{item.title}</button><button className="icon-button" aria-label={`Delete ${item.title}`} onClick={() => void (async () => { const response = await fetch(`${GATEWAY_URL}/api/sessions/${item.sessionId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${await getToken()}` } }); if (response.ok) { if (item.sessionId === sessionId) resetConversation(); void loadHistory(); } })()}><X size={14}/></button></div>)}{!recentSessions.some(item => item.accountId === accountId) && <p>No saved conversations for this account yet.</p>}</section>}
-        {!paymentAccountsOpen && <div className="workspace-content">
-          <section className={`conversation ${mobilePanel ? 'mobile-hidden' : ''}`} aria-label="Concierge conversation">
+        {!paymentAccountsOpen && <WorkspacePanes revealDetailsKey={surface?.revision} conversation={<>
+          <section className="conversation" aria-label="Concierge conversation">
             <div className="conversation-scroll">
               {messages.length === 0 ? <div className="welcome">
                 <div className="concierge-emblem"><Sparkles size={28} strokeWidth={1.4} /></div>
@@ -325,7 +333,6 @@ export function App() {
               <div ref={messagesEnd} />
             </div>
             <div className="composer-area">
-              {surface && <button className="mobile-surface-toggle" onClick={() => setMobilePanel(true)}><Check size={15} /> View service details <ArrowUpRight size={15} /></button>}
               {(voiceError || voiceState !== 'idle') && <div className="voice-status" role="status">{voiceError || (voiceState === 'listening' ? 'Listening… stop when you are done (up to 15 seconds).' : voiceState === 'transcribing' ? 'Transcribing locally… review the draft before sending.' : 'Reading the reply aloud.')}<button onClick={() => { voice.current?.cancel(); setVoiceError(''); }}>Dismiss</button></div>}
               <form className={`composer ${pending ? 'is-pending' : ''}`} onSubmit={e => { e.preventDefault(); send(); }}>
                 <textarea ref={input} aria-label="Message Rashid" placeholder="Ask Rashid anything about your city…" value={draft} maxLength={4000} rows={2} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }} />
@@ -333,9 +340,9 @@ export function App() {
               </form>
               <p className="composer-note"><ShieldCheck size={12} /> You’re in control. Review and confirm before any service action.</p>
             </div>
-          </section>
-          <aside className={`service-panel ${mobilePanel ? 'mobile-visible' : ''}`} aria-label="Service details">
-            <div className="service-panel-heading"><span><Compass size={18} /> {surface ? 'Your service workspace' : 'A city within reach'}</span><button className="icon-button mobile-close" aria-label="Back to conversation" onClick={() => setMobilePanel(false)}><X size={18} /></button><span className="preview-pill">Demo</span>{surface?.revision && JSON.stringify(surface.view).includes('AGENT_ACTION_DISPATCH') && <button className="text-button" disabled={pending} onClick={() => void request('cancel', { surfaceRevision: surface.revision })}>Cancel approval</button>}</div>
+          </section></>} details={<>
+          <aside className="service-panel" aria-label="Service details">
+            <div className="service-panel-heading"><span><Compass size={18} /> {surface ? 'Your service workspace' : 'A city within reach'}</span><span className="preview-pill">Demo</span>{surface?.revision && JSON.stringify(surface.view).includes('AGENT_ACTION_DISPATCH') && <button className="text-button" disabled={pending} onClick={() => void request('cancel', { surfaceRevision: surface.revision })}>Cancel approval</button>}</div>
             {surface ? <div className="surface-content"><div className="surface-context"><span className="context-dot" /> Prepared for you <span>Review the details below</span></div><A2UIRenderer key={surface.revision} node={surface.view} isPending={pending} onDispatchAction={dispatch} /><p className="demo-note">City services use simulated data. No real bookings or payments are made.</p></div> : <>
               <div className="city-scene" aria-hidden="true"><div className="scene-sun" /><div className="scene-cloud cloud-one" /><div className="scene-cloud cloud-two" /><div className="skyline"><div className="building b1" /><div className="building b2" /><div className="building b3" /><div className="burj"><i /><b /><span /></div><div className="building b4" /><div className="building b5" /><div className="frame-building" /></div><div className="scene-ground" /><div className="scene-caption"><MapPin size={13} /> Dubai, United Arab Emirates</div></div>
               <div className="panel-intro"><h2>More living.<br />Less life admin.</h2><p>Everything you need for the everyday, in one place. Start with a conversation.</p></div>
@@ -343,8 +350,7 @@ export function App() {
               <div className="workspace-tip"><MessageSquare size={19} /><div>One request. A few things, sorted.<p>Try “Help me move in and set up my utilities.” I’ll bring the steps together.</p></div></div>
               <p className="demo-note">A working preview with simulated city services.<br />{model?.enabled ? 'Local open-source conversations.' : 'Local demo conversations.'}</p>
             </>}
-          </aside>
-        </div>}
+          </aside></>} />}
         <footer className="app-footer"><span><Building2 size={12} /> Life happens. We help.</span><button onClick={() => send('How does this work?')} disabled={pending}><CircleHelp size={13} /> How it works</button></footer>
       </main>
     </div>

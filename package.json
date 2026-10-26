@@ -110,7 +110,7 @@
     "agent:init": "node --experimental-strip-types scripts/init-simple-agent.ts",
     "agent:client": "node --env-file=.env.agent --experimental-strip-types scripts/simple-agent-client.ts",
     "agent:verify:model": "node --env-file=.env.agent --experimental-strip-types scripts/verify-agent-model.ts",
-    "test:agent": "node --experimental-strip-types --test services/test/simple-agent.test.ts services/test/agent-model-config.test.ts services/agent-core/test/*.test.ts",
+    "test:agent": "node --experimental-strip-types --test services/test/simple-agent.test.ts services/test/agent-model-config.test.ts services/test/focused-agent-client.test.ts services/agent-core/test/*.test.ts",
     "check:agent": "npm run build --workspace services/agent-core && tsc -p services/agent-core/test/tsconfig.json && npm run test:agent"
   },
   "devDependencies": {
