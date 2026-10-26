@@ -56,6 +56,7 @@ Payments use synthetic funds only. Automatic execution is disabled; open work is
 | [History/receipts](development/payment-history.md) | Snapshot-paginated journals/activity and original-source details |
 | [Owner/source lifecycle](development/payment-lifecycle.md) | Current permission versions, revocation and retained in-flight state |
 | [Business obligations](development/payment-obligations.md) | Invoice/fine/recharge exclusion and original capture identities; AUTO qualification open |
+| [Localization](development/localization.md) | English and Arabic catalogs, right-to-left layout, money and date formatting |
 | [Connections view](development/connections.md) | Discovered provider operations, refused documents and the owner's recent calls |
 | [Preview simulator](development/simulator.md) | Persisted business clock/due-event preview; no execution authority |
 

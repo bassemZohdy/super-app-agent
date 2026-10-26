@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react';
+import { formatTime, type Locale } from '../../../packages/protocol-core/src/i18n.ts';
 
 type Operation = { operationId: string; method: string; path: string };
 type Provider = { provider: string; ok: boolean; checkedAt: number; operations: Operation[]; problem?: string };
 type Call = { at: number; provider: string; method: string; path: string; status: number; code?: string; ms: number };
 
 const NAMES: Record<string, string> = { rta: 'RTA', dewa: 'DEWA', etisalat: 'etisalat', du: 'du', police: 'Dubai Police', dld: 'DLD', payments: 'Payments' };
-const time = (at: number) => new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
 /** What each provider advertises and what this resident's own calls to it did. Read-only: it shows the operations the providers
  *  describe and the calls made, with failures marked in words, and it can ask the gateway to read the providers again. */
-export function ConnectionsPanel({ gateway, getToken }: { gateway: string; getToken: () => Promise<string> }) {
+export function ConnectionsPanel({ gateway, getToken, locale = 'en' }: { gateway: string; getToken: () => Promise<string>; locale?: Locale }) {
   const [providers, setProviders] = useState<Provider[]>([]), [calls, setCalls] = useState<Call[]>([]), [busy, setBusy] = useState(false), [notice, setNotice] = useState('Loading connections…');
   async function load(refresh: boolean) {
     setBusy(true);
@@ -39,7 +39,7 @@ export function ConnectionsPanel({ gateway, getToken }: { gateway: string; getTo
     </article>)}
     <h3>Recent calls</h3>
     {calls.length === 0 ? <p>No calls have been made for you yet.</p> : <ol aria-label="Recent provider calls">
-      {calls.map((call, index) => <li key={`${call.at}-${index}`}>{time(call.at)} · {NAMES[call.provider] ?? call.provider} · {call.method} {call.path} · {call.status >= 200 && call.status < 300 ? `OK ${call.status}` : `Failed ${call.status}${call.code ? ` ${call.code}` : ''}`} · {call.ms} ms</li>)}
+      {calls.map((call, index) => <li key={`${call.at}-${index}`}>{formatTime(locale, call.at)} · {NAMES[call.provider] ?? call.provider} · {call.method} {call.path} · {call.status >= 200 && call.status < 300 ? `OK ${call.status}` : `Failed ${call.status}${call.code ? ` ${call.code}` : ''}`} · {call.ms} ms</li>)}
     </ol>}
   </section>;
 }
