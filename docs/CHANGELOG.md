@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 26 October 2026 — P2-16 delivered: the focused agent qualified as one container
+
+`npm run agent:verify:container` builds the image from this checkout (revision and image ID are printed), runs it as its own compose project with an empty SQLite volume and checks the readiness probe, a refused bad credential, the non-root user and writable volume, an approval that survives a restart unchanged, one payment however often the approval is replayed (same key 200 with the same receipt, new key 409), a receipt that survives another restart, a clean SIGTERM stop (0.6 seconds, exit 0, inside the 35-second grace) and a restart from the volume. It was run twice in a row against revision 839650f and passed both times, with no Redis, PostgreSQL, external simulator or model download. It covers the fixture planner over the HTTP API; the React fines journey and a real local planner stay with P1-03 and P1-05. Guide: [local development](development/local-development.md).
+
 ## 26 October 2026 — QA-09 delivered; QA-10 step: the rule editor and inbox pass the screen checklist
 
 QA-09 is closed: the QA-04, QA-05 and QA-06 browser journeys all run under `npm run test:browser` on the desktop and phone projects, each with its own context, traces on failure and the external-host block. `accessibility/automation-screens.spec.ts` applies the screen checklist (named fields, 44px targets, an error said in words next to the action, nothing to scroll sideways, keyboard order, an honest empty state) to the AUTO-04 rule editor and the AUTO-14 inbox on both projects; QA-10 stays open for the P2-11 Connections view and the shell token migration (P2-13).

@@ -18,6 +18,7 @@
     "./*.ts",
     "../record-e2e-scenarios.ts",
     "../record-journeys.ts",
+    "../verify-agent-container.ts",
     "../record-video-scenarios.ts",
     "../serve-recordings.ts",
     "../local-ai-up.ts",

@@ -6,6 +6,8 @@ Use Node.js 24 and npm. Run `npm ci --ignore-scripts`, `npm rebuild better-sqlit
 
 The official LangGraph SQLite saver uses a native `better-sqlite3` binding; rebuild it after an installation using `--ignore-scripts`. For the optional container path use `docker compose -f compose.agent.yml up --build`; container execution needs separate qualification.
 
+`npm run agent:verify:container` qualifies the same agent as one container (it needs Docker and a private `.env.agent` from `npm run agent:init`). It builds `services/agent-core/Dockerfile.simple` from this checkout and runs `compose.agent.yml` as its own project, `super-app-agent-qualify`, with an empty SQLite volume that it removes at the end, so it never touches the data of a `compose.agent.yml` run of your own. It checks `/ready`, that a bad credential is refused, that the process runs as uid 1001 and writes its volume, that a pending approval survives a restart with the same identity, that approving once pays once (the same key returns the same receipt, a new key is refused with 409) and that the receipt survives another restart, and that SIGTERM stops it in under the 35-second grace period with exit code 0. It needs no Redis, PostgreSQL, external simulator or model download, and port 4300 free. It exercises the fixture planner over the HTTP API; the React path and a real local planner are P1-03 and P1-05.
+
 ## Recommended integrated stack
 
 This section is the optional compatibility stack used by existing shells and advanced simulated payment/delegation journeys. Use Node.js 24+, npm and Docker Compose. Those legacy business stores use Node's built-in SQLite; the focused saver additionally requires the binding described above.
