@@ -32,6 +32,7 @@
     "../ops.ts",
     "../ops/*.ts",
     "../verify-operations.ts",
-    "../verify-operations-recovery.ts"
+    "../verify-operations-recovery.ts",
+    "../../test/browser/**/*.ts"
   ]
 }

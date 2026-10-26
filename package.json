@@ -19,6 +19,7 @@
     "build": "turbo run build",
     "test": "node --experimental-strip-types --import ./scripts/test-env.ts --test packages/protocol-core/test/*.ts services/test/*.ts test/*.ts",
     "test:record": "node --experimental-strip-types scripts/record-e2e-scenarios.ts",
+    "test:browser": "playwright test -c test/browser/playwright.config.ts",
     "test:video": "node --experimental-strip-types scripts/record-video-scenarios.ts",
     "lint": "eslint apps packages services mini-apps scripts test --max-warnings 0",
     "progress": "node --experimental-strip-types scripts/progress.ts",
