@@ -17,6 +17,8 @@ const validate=new Ajv({strict:false,allErrors:true}).compile(mandatePolicySchem
 const canonical=(v:unknown):string=>Array.isArray(v)?`[${v.map(canonical).join(',')}]`:v&&typeof v==='object'?`{${Object.entries(v).sort(([a],[b])=>a.localeCompare(b)).map(([k,x])=>`${JSON.stringify(k)}:${canonical(x)}`).join(',')}}`:JSON.stringify(v);
 const digest=(v:unknown)=>createHash('sha256').update(canonical(v)).digest('hex');
 const active=(m:PaymentMandate)=>m.state==='AWAITING_APPROVAL'||m.state==='APPROVED';
+/** Still holds consent and references: a paused rule is open, so it can be revoked and it still expires. */
+const open=(m:PaymentMandate)=>active(m)||m.state==='PAUSED';
 export class PaymentMandates {
   private sequence=0;
   readonly store:AccountDatabase;readonly uses:PaymentResourceUses;readonly clock:()=>number;
@@ -61,7 +63,7 @@ export class PaymentMandates {
     if(m.billerSnapshot)this.uses.release(m.accountId,'BILLER',m.billerSnapshot.id,'MANDATE',dependentId);
   }
   private sync(m:PaymentMandate){
-    if(active(m)&&(Date.parse(m.policy.expiresAt)<=this.clock()||m.state==='AWAITING_APPROVAL'&&Date.parse(m.reviewExpiresAt)<=this.clock())){this.release(m);m.state='EXPIRED';return this.save(m);}return m;
+    if(open(m)&&(Date.parse(m.policy.expiresAt)<=this.clock()||m.state==='AWAITING_APPROVAL'&&Date.parse(m.reviewExpiresAt)<=this.clock())){this.release(m);m.state='EXPIRED';return this.save(m);}return m;
   }
   get(actor:Actor,id:string){return this.atomic(()=>this.sync(this.load(actor,id)));}
   list(actor:Actor){return this.atomic(()=>{this.owner(actor);return this.store.db.prepare('SELECT id FROM payment_mandates WHERE account_id=? ORDER BY rowid DESC LIMIT 100').all(actor.accountId).map(r=>this.sync(this.load(actor,String(r.id))));});}
@@ -145,7 +147,7 @@ export class PaymentMandates {
     this.store.db.prepare('INSERT INTO payment_mandate_versions VALUES(?,?,?)').run(m.id,m.version,JSON.stringify(m));return true;
   });}
   revoke(actor:Actor,id:string,expectedVersion:number){return this.atomic(()=>{
-    this.interactive(actor);const m=this.sync(this.load(actor,id));this.expected(m,expectedVersion);if(active(m)){this.release(m);m.state='REVOKED';return this.save(m);}return m;
+    this.interactive(actor);const m=this.sync(this.load(actor,id));this.expected(m,expectedVersion);if(open(m)){this.release(m);m.state='REVOKED';return this.save(m);}return m;
   });}
   private expected(m:PaymentMandate,version:number){if(m.version!==version)deny('MANDATE_CHANGED','The mandate changed. Refresh before continuing.');}
 }

@@ -1,6 +1,6 @@
 # Super App Agent architecture
 
-The focused entry point is `services/agent-core/src/orchestrator/main.ts`, run with `npm start`. It is an independent TypeScript application using first-party LangGraph.js. The 26 October 2026 implementation instruction supersedes the earlier proposal for a separate workflow executor. The later simplification instruction selects embedded SQLite instead of PostgreSQL for this demo.
+The default local demo is `services/agent-core/src/orchestrator/main.ts`, run with `npm start`: one independent TypeScript application using first-party LangGraph.js and embedded SQLite. Government services are simulated by JSON-fixture REST handlers in the same process. No separate workflow executor or database service is required.
 
 ```mermaid
 flowchart TD
@@ -37,3 +37,9 @@ The compatibility demo still uses `services/agent-core/src/index.ts` and its his
 See [flow](agent-flow.md), [integrations and API](integrations.md), [security](security.md), [testing](testing.md) and [remaining work](../TODO.md).
 
 First-party API references checked during implementation: [LangGraph interrupts](https://docs.langchain.com/oss/javascript/langgraph/interrupts), [checkpointers](https://docs.langchain.com/oss/javascript/langgraph/checkpointers), [JavaScript SQLite saver](https://reference.langchain.com/javascript/langchain-langgraph-checkpoint-sqlite). Existing LangGraph 1.5.2 is retained; SQLite saver 1.1.0 is pinned. No managed deployment or tracing service is required.
+
+## Incremental adoption boundary
+
+Reuse the primary React shell and the validated compatibility surface. Bind one fines conversation to the focused API before migrating another journey. Display the exact quote and bind approve/reject/cancel to its saved approval ID; after a disconnect or restart, inspect the thread and reconcile the original operation. Preserve manual routes and existing ownership checks on journeys that remain on the compatibility entry point.
+
+Local model and container qualification follow the same service contract. Deterministic test adapters remain explicitly selected; they do not prove live identity or model quality. A further service is added as a small governed adapter and native graph path after the fines interaction is qualified. Task ordering and completion criteria live only in [TODO.md](../TODO.md).

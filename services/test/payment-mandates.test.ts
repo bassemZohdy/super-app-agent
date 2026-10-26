@@ -143,6 +143,16 @@ test('AUTO-04: an owner pauses, resumes and revokes rules with exact versions an
   assert.throws(()=>f.mandates.resume(f.actor,secondPaused.id,secondPaused.version),code('MANDATE_SOURCE_CHANGED'),'resume revalidates current sources');
 });
 
+test('QA-05: a paused rule can be revoked, which releases its references',t=>{
+  const f=fixture(t),m=f.mandates.create(f.actor,f.policy());
+  const approved=f.mandates.approve(f.actor,m.id,m.version,m.approvalDigest),paused=f.mandates.pause(f.actor,approved.id,approved.version);
+  assert.equal(f.engine.resourceUses!.list(f.actor.accountId).length>0,true,'a paused rule keeps its references');
+  const revoked=f.mandates.revoke(f.actor,paused.id,paused.version);
+  assert.equal(revoked.state,'REVOKED','revoking a paused rule revokes it');
+  assert.equal(f.engine.resourceUses!.list(f.actor.accountId).length,0,'revocation releases the references the paused rule held');
+  assert.throws(()=>f.mandates.resume(f.actor,revoked.id,revoked.version),code('MANDATE_NOT_PAUSED'));
+});
+
 test('AUTO-04: skip-next is a versioned one-shot consumed exactly once by the execution authority',t=>{
   const f=fixture(t),m=f.mandates.create(f.actor,f.policy());
   const approved=f.mandates.approve(f.actor,m.id,m.version,m.approvalDigest);

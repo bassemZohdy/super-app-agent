@@ -1,6 +1,6 @@
 # ADR-0009 — Agent-first Super App with bounded authority (Option A)
 
-> Current demo implementation update (24 October 2026): see [ADR-0010](ADR-0010-provider-simulators-and-redis-demo.md) and the [provider guide](../demo/provider-backends.md). The implementation sections below describe the retained fixture path and integrated path where applicable. The integrated demo now has REST provider adapters, Keycloak browser/service authentication and Redis sessions. A real LangGraph approval graph with Redis checkpoints and authenticated core MCP now run; model-selected planning, production consent and UI standards migration remain targets.
+> Historical proposal. The focused TypeScript/LangGraph.js implementation and embedded SQLite decision are documented in [architecture](../architecture.md) and [ADR-0007](ADR-0007-agentic-platform-langgraph-and-llm-gateway.md). The separate workflow executor and registry below are not the current target.
 
 **Status:** Superseded for the agent runtime by the explicit implementation assignment of 26 October 2026 and its embedded-database simplification. See [implemented architecture](../architecture.md). The proposal below is historical: its separate workflow executor, registry service and mandatory UI protocol migration are not requirements for the focused application.
 **Related:** ADR-0001, ADR-0002, ADR-0003, ADR-0006, ADR-0007.

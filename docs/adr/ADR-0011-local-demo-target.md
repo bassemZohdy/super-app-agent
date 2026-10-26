@@ -2,6 +2,12 @@
 
 **Status:** Accepted for this delivery following the user's clarification, “it have to be demo”. **Date:** 24 October 2026.
 
+## 26 October 2026 amendment — minimal focused runtime
+
+The default demo is now one Node.js/TypeScript/LangGraph.js agent with embedded SQLite and JSON-fixture REST simulation. `npm start` and the executable client run without the integrated Compose dependencies. `compose.agent.yml` supplies an optional single-container configuration whose execution remains separately qualified. Deterministic identity/model adapters are explicit and do not imply production authority or real inference quality.
+
+React remains the primary shell to adopt this API; Angular/Flutter and retained payment/delegation journeys keep their current compatibility endpoints until migrated. The older integrated-stack decision and local-AI detail below apply to that optional compatibility runtime. PostgreSQL, a separate workflow engine, mandatory gateway/registry infrastructure and compulsory protocol migration are outside the minimal demo. See [actual architecture](../architecture.md) and [current task order](../../TODO.md).
+
 ## Context and boundaries
 
 Deliver a runnable local demonstration using synthetic city records and funds. Retain React as the primary interactive demo; Angular and Flutter web remain comparison shells with explicitly documented parity gaps. Docker Compose on localhost is the deployment target. No OpenShift/cloud deployment, actual agency/UAE PASS/PSP contracts, native app distribution or offline/air-gapped operation is selected. The initial decision allowed optional OpenRouter egress; the later local-AI amendment below supersedes that choice. The current demo uses internal open-source inference and bundled manual routes.

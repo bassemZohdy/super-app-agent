@@ -1,27 +1,17 @@
-# ADR-0007 — Agent reasoning runtime and model inference separation
+# ADR-0007 — Native LangGraph.js runtime and replaceable model inference
 
-> Implementation review, 24 October 2026: [what exists today](../../README.md#what-exists-today), [delivery target](ADR-0011-local-demo-target.md) and [bounded delegation amendment](ADR-0012-secure-delegation-demo.md) identify the implemented demo. This decision does not establish production approval.
-
-**Status:** **LangGraph approval runtime and grounded replies implemented; model-selected planning remains a target.**
-**Reviewed:** 2026-10-24.
-
-## Context
-
-Model inference (text completion) is different from maintaining a stateful, permissioned multi-step agent. The project wants vendor-agnostic LLM access and an engine capable of selecting tools, applying policy and coordinating long-running journeys.
+**Status:** Accepted for the focused local demo, amended 26 October 2026. The [implemented architecture](../architecture.md) supersedes the earlier separate workflow-layer direction. Synthetic data and funds remain the delivery boundary.
 
 ## Decision
 
-- Keep model inference behind a replaceable provider adapter; never embed provider keys in frontend code.
-- Use internal open-source text/voice for the selected demo and deterministic fixtures for repeatable tests. This supersedes the initial free-hosted-inference experiment under the later user choice.
-- Use a real agent framework (LangGraph is an evaluated target) only when its graph/checkpoint/interrupt semantics are implemented and tested, not inferred from naming.
-- Keep durable deterministic workflows distinct from probabilistic planning. The workflow/policy layer enforces effects and approvals.
+- Use strict TypeScript, Node.js 24 and first-party LangGraph.js for one main agent. Native nodes, conditional edges, interrupts and checkpoints own execution transitions; no separate workflow engine or generic DSL is added.
+- Keep model inference behind the `Planner` interface. The configured OpenAI-compatible endpoint selects a bounded validated plan. Fixture planning is an explicitly selected test/demo adapter, never an outage fallback.
+- Use the official SQLite saver and one embedded database for the minimal demo. Checkpoint continuation, authority and business idempotency have separate responsibilities. No Redis or PostgreSQL service is required by this entry point.
+- Deterministic code authenticates, checks scope/consent, builds the exact quote and revalidates before effects. Model text cannot approve a payment or change authority. Credentials remain outside graph state.
+- Add REST/MCP/A2A/legacy integrations only for actual services; preserve a direct governed REST adapter where an API already exists. No mandatory gateway, registry service or independent specialist hierarchy is selected.
 
-## As built
+## As built and boundaries
 
-A real LangGraph `StateGraph` now wraps the deterministic service router with prepare, persisted review interrupt and execute nodes. Integrated mode uses bounded Redis checkpoints; fixtures use MemorySaver. Normal restart recovery resumes an outstanding approval. Model-selected routing, schedules and general workflow compensation are not implemented. See [runtime details](../architecture/agent-runtime.md).
+The focused graph classifies a fines request, reads its REST simulator, builds a quote, pauses durably and executes an approved simulated payment with an original stable operation key. Its deterministic suite verifies real SQLite/HTTP and actual process restart; live model quality, the new Keycloak fines scopes, primary-shell adoption and container execution require their own evidence. See [flow](../agent-flow.md), [security](../security.md) and [testing](../testing.md).
 
-Private Qwen/llama.cpp supplies grounded text with bounded context/output/time and per-actor limits. KittenTTS/Whisper provide local speech. The retained OpenRouter helper is inactive compatibility/diagnostic code; earlier HTTP 401 observations belong to the dated hosted-model report. Manual bundled routes bypass inference and retain the same approval checks. [Current local AI setup](../development/local-ai.md).
-
-## Consequences
-
-Describe the app as a checkpointed LangGraph approval demo with deterministic service coordination and optional generated conversation. It is not an autonomous planner or general durable workflow platform. [Demo target decision](ADR-0011-local-demo-target.md) records the accepted boundary.
+The optional compatibility entry point retains its deterministic domain coordinator, Redis saver, current shell APIs, authenticated MCP and local voice/model integration. This preserves working journeys while a selected React interaction adopts the focused API. Its historical reports keep their original scope; those components do not become mandatory infrastructure for the default agent.

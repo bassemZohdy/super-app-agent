@@ -1,8 +1,14 @@
 # Local development
 
+## Default focused demo
+
+Use Node.js 24 and npm. Run `npm ci --ignore-scripts`, `npm rebuild better-sqlite3`, `npm run agent:init`, then `npm start`. In another terminal, run `npm run agent:client`. This starts one process on loopback port 4300 with `.data/agent.sqlite`; the private `.env.agent` configuration is generated once. No external database, identity service, simulator or model download is required for explicit fixture mode. See [configuration and API](../integrations.md) and [focused verification](../testing.md).
+
+The official LangGraph SQLite saver uses a native `better-sqlite3` binding; rebuild it after an installation using `--ignore-scripts`. For the optional container path use `docker compose -f compose.agent.yml up --build`; container execution needs separate qualification.
+
 ## Recommended integrated stack
 
-Use Node.js 24+, npm and Docker Compose. Native SQLite is built into Node; no native database package is installed.
+This section is the optional compatibility stack used by existing shells and advanced simulated payment/delegation journeys. Use Node.js 24+, npm and Docker Compose. Those legacy business stores use Node's built-in SQLite; the focused saver additionally requires the binding described above.
 
 ```bash
 npm ci --ignore-scripts
