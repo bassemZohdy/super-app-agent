@@ -29,7 +29,7 @@ Do not edit these three files; change the source.
 
 ## Raw colors in shells
 
-Shell source should use these tokens, not its own hex, rgb or hsl values or Flutter `Color(0x…)` and `Colors.*` literals. Today's raw colors are recorded per file in `packages/ui-tokens/raw-colors.baseline.json`. `npm run check:tokens` fails when a file gains a raw color or a new file has one, and also when a file loses some without the baseline being lowered; after migrating a file run `npm run colors:baseline` and commit the smaller baseline. The baseline is empty when the shells are migrated.
+Shell source should use these tokens, not its own hex, rgb or hsl values or Flutter `Color(0x…)` and `Colors.*` literals. The React and Angular shells have no raw colors; the 45 left, all in the Flutter shell's `main.dart`, are recorded in `packages/ui-tokens/raw-colors.baseline.json`. Colors that were hand-picked per screen were clustered to the nearest of 84 primitive tokens (a distance of at most 4 in CIELAB, so a change is visible only side by side); a shadow takes its token through `color-mix(… transparent)`. `npm run check:tokens` fails when a file gains a raw color or a new file has one, and also when a file loses some without the baseline being lowered; after migrating a file run `npm run colors:baseline` and commit the smaller baseline. The baseline is empty when the shells are migrated.
 
 ## Design skills for agents
 

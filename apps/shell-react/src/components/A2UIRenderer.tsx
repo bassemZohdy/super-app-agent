@@ -55,8 +55,8 @@ function SurfaceCardWrapper({
 
   const isSuccess = node.style?.variant === 'success';
   const isWarning = node.style?.variant === 'warning';
-  const borderColor = isSuccess ? '#bbf7d0' : isWarning ? '#fde68a' : '#e2e8f0';
-  const bgColor = isSuccess ? '#f0f7f8' : isWarning ? '#fffbeb' : '#ffffff';
+  const borderColor = isSuccess ? 'var(--primitive-color-green-92)' : isWarning ? 'var(--primitive-color-yellow-91)' : 'var(--primitive-color-slate-200)';
+  const bgColor = isSuccess ? 'var(--primitive-color-slate-50)' : isWarning ? 'var(--primitive-color-yellow-96)' : 'var(--primitive-color-white)';
 
   return (
     <SurfaceFormContext.Provider
@@ -75,7 +75,7 @@ function SurfaceCardWrapper({
               : node.style?.padding === 'small'
               ? '12px'
               : '20px',
-          boxShadow: '0 4px 12px -2px rgba(0, 0, 0, 0.05)',
+          boxShadow: '0 4px 12px -2px color-mix(in srgb, var(--primitive-color-slate-900) 5%, transparent)',
           marginBottom: '16px',
         }}
       >
@@ -107,7 +107,7 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
       const level = node.properties?.level || 2;
       const fontSize = level === 1 ? '24px' : level === 2 ? '18px' : '16px';
       return (
-        <h2 style={{ fontSize, fontWeight: 700, color: '#0f172a', marginBottom: '12px' }}>
+        <h2 style={{ fontSize, fontWeight: 700, color: 'var(--primitive-color-slate-900)', marginBottom: '12px' }}>
           {node.properties?.text}
         </h2>
       );
@@ -117,7 +117,7 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
       return (
         <p
           style={{
-            color: node.properties?.muted ? '#64748b' : '#334155',
+            color: node.properties?.muted ? 'var(--primitive-color-slate-500)' : 'var(--primitive-color-mist-27)',
             fontSize: '14px',
             lineHeight: '1.6',
             marginBottom: '12px',
@@ -132,12 +132,12 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
       const variant = node.properties?.variant || 'primary';
       const styles =
         {
-          primary: { bg: '#dbeafe', color: '#1e40af' },
-          secondary: { bg: '#f1f5f9', color: '#475569' },
-          success: { bg: '#dcfce7', color: '#166534' },
-          warning: { bg: '#fef3c7', color: '#92400e' },
-          danger: { bg: '#fee2e2', color: '#991b1b' },
-        }[variant as 'primary'] || { bg: '#dbeafe', color: '#1e40af' };
+          primary: { bg: 'var(--primitive-color-mist-92)', color: 'var(--primitive-color-purple-32)' },
+          secondary: { bg: 'var(--primitive-color-slate-50)', color: 'var(--primitive-color-mist-36)' },
+          success: { bg: 'var(--primitive-color-green-96)', color: 'var(--primitive-color-lime-37)' },
+          warning: { bg: 'var(--primitive-color-yellow-96-2)', color: 'var(--primitive-color-amber-38)' },
+          danger: { bg: 'var(--primitive-color-orange-92)', color: 'var(--primitive-color-orange-33)' },
+        }[variant as 'primary'] || { bg: 'var(--primitive-color-mist-92)', color: 'var(--primitive-color-purple-32)' };
 
       return (
         <span
@@ -186,8 +186,8 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
                   alignItems: 'center',
                   padding: '13px 16px',
                   borderRadius: '12px',
-                  border: isSelected ? '2px solid #285c76' : '1.5px solid #e2e8f0',
-                  background: isSelected ? '#edf5f8' : '#ffffff',
+                  border: isSelected ? '2px solid var(--primitive-color-teal-700)' : '1.5px solid var(--primitive-color-slate-200)',
+                  background: isSelected ? 'var(--primitive-color-slate-50)' : 'var(--primitive-color-white)',
                   cursor: 'pointer',
                   transition: 'all 0.18s ease',
                 }}
@@ -199,19 +199,19 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
                       width: '20px',
                       height: '20px',
                       borderRadius: '50%',
-                      border: isSelected ? '6px solid #285c76' : '2px solid #cbd5e1',
-                      background: '#ffffff',
+                      border: isSelected ? '6px solid var(--primitive-color-teal-700)' : '2px solid var(--primitive-color-mist-85)',
+                      background: 'var(--primitive-color-white)',
                       flexShrink: 0,
                       transition: 'all 0.15s ease',
-                      boxShadow: isSelected ? '0 0 0 2px rgba(5, 150, 105, 0.25)' : 'none',
+                      boxShadow: isSelected ? '0 0 0 2px color-mix(in srgb, var(--primitive-color-emerald-600) 25%, transparent)' : 'none',
                     }}
                   />
                   <div>
-                    <div style={{ fontWeight: 600, fontSize: '14px', color: '#0f172a' }}>
+                    <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--primitive-color-slate-900)' }}>
                       {opt.title}
                     </div>
                     {opt.subtitle && (
-                      <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                      <div style={{ fontSize: '12px', color: 'var(--primitive-color-slate-500)', marginTop: '2px' }}>
                         {opt.subtitle}
                       </div>
                     )}
@@ -219,7 +219,7 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
                 </div>
                 <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
                   {opt.price && (
-                    <div style={{ fontWeight: 700, fontSize: '15px', color: '#0f172a' }}>
+                    <div style={{ fontWeight: 700, fontSize: '15px', color: 'var(--primitive-color-slate-900)' }}>
                       {opt.price}
                     </div>
                   )}
@@ -227,8 +227,8 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
                     <span
                       style={{
                         fontSize: '11px',
-                        background: '#e0e7ff',
-                        color: '#4338ca',
+                        background: 'var(--primitive-color-mist-92)',
+                        color: 'var(--primitive-color-purple-35)',
                         padding: '2px 6px',
                         borderRadius: '4px',
                         fontWeight: 600,
@@ -242,8 +242,8 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
                     <span
                       style={{
                         fontSize: '10px',
-                        background: '#dcfce7',
-                        color: '#166534',
+                        background: 'var(--primitive-color-green-96)',
+                        color: 'var(--primitive-color-lime-37)',
                         padding: '1px 6px',
                         borderRadius: '4px',
                         fontWeight: 700,
@@ -277,8 +277,8 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
             }
           }}
           style={{
-            background: isInteractive ? '#ffffff' : '#f8fafc',
-            border: isInteractive ? '1.5px solid #a7f3d0' : '1px solid #e2e8f0',
+            background: isInteractive ? 'var(--primitive-color-white)' : 'var(--primitive-color-slate-50)',
+            border: isInteractive ? '1.5px solid var(--primitive-color-green-90)' : '1px solid var(--primitive-color-slate-200)',
             padding: '14px 18px',
             borderRadius: '12px',
             marginBottom: '12px',
@@ -292,7 +292,7 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
           <div>
             <div
               style={{
-                color: isInteractive ? '#065f46' : '#64748b',
+                color: isInteractive ? 'var(--primitive-color-green-35)' : 'var(--primitive-color-slate-500)',
                 fontSize: '12px',
                 fontWeight: 600,
                 textTransform: 'uppercase',
@@ -304,18 +304,18 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
             >
               {node.properties?.label}
               {isInteractive && (
-                <span style={{ fontSize: '10px', background: '#edf5f8', color: '#1e4961', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>
+                <span style={{ fontSize: '10px', background: 'var(--primitive-color-slate-50)', color: 'var(--primitive-color-teal-800)', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>
                   TAP TO OPEN ↗
                 </span>
               )}
             </div>
             {node.properties?.subtext && (
-              <div style={{ color: '#94a3b8', fontSize: '11px', marginTop: '2px' }}>
+              <div style={{ color: 'var(--primitive-color-slate-400)', fontSize: '11px', marginTop: '2px' }}>
                 {node.properties?.subtext}
               </div>
             )}
           </div>
-          <div style={{ fontWeight: 800, fontSize: '17px', color: '#0f172a' }}>
+          <div style={{ fontWeight: 800, fontSize: '17px', color: 'var(--primitive-color-slate-900)' }}>
             {node.properties?.value}
           </div>
         </div>
@@ -327,8 +327,8 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
       return (
         <div
           style={{
-            background: '#e2e8f0',
-            border: '1px solid #cbd5e1',
+            background: 'var(--primitive-color-slate-200)',
+            border: '1px solid var(--primitive-color-mist-85)',
             borderRadius: '12px',
             minHeight: '180px',
             padding: '14px 4px 30px',
@@ -346,7 +346,7 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
             style={{
               position: 'absolute',
               inset: 0,
-              backgroundImage: 'radial-gradient(#94a3b8 1.5px, transparent 1.5px)',
+              backgroundImage: 'radial-gradient(var(--primitive-color-slate-400) 1.5px, transparent 1.5px)',
               backgroundSize: '24px 24px',
               opacity: 0.5,
             }}
@@ -364,7 +364,7 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
             <path
               d="M 60,130 Q 200,40 340,110 T 520,70"
               fill="none"
-              stroke="#285c76"
+              stroke="var(--primitive-color-teal-700)"
               strokeWidth="4"
               strokeDasharray="6 4"
             />
@@ -374,18 +374,18 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
               <div
                 key={m.id || i}
                 style={{
-                  background: '#ffffff',
+                  background: 'var(--primitive-color-white)',
                   padding: '6px 12px',
                   borderRadius: '20px',
-                  boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
+                  boxShadow: '0 4px 8px color-mix(in srgb, var(--primitive-color-slate-900) 10%, transparent)',
                   fontWeight: 700,
                   fontSize: '12px',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px',
-                  color: '#0f172a',
+                  color: 'var(--primitive-color-slate-900)',
                   cursor: 'pointer',
-                  border: '1px solid #cbd5e1',
+                  border: '1px solid var(--primitive-color-mist-85)',
                 }}
               >
                 <span>📍</span>
@@ -399,8 +399,8 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
               bottom: '8px',
               right: '12px',
               fontSize: '10px',
-              color: '#065f46',
-              background: 'rgba(255,255,255,0.9)',
+              color: 'var(--primitive-color-green-35)',
+              background: 'color-mix(in srgb, var(--primitive-color-white) 90%, transparent)',
               padding: '2px 6px',
               borderRadius: '4px',
               fontWeight: 600,
@@ -421,7 +421,7 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
           style={{
             overflowX: 'auto',
             marginBottom: '16px',
-            border: '1px solid #e2e8f0',
+            border: '1px solid var(--primitive-color-slate-200)',
             borderRadius: '10px',
           }}
         >
@@ -434,11 +434,11 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
             }}
           >
             <thead>
-              <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+              <tr style={{ background: 'var(--primitive-color-slate-50)', borderBottom: '1px solid var(--primitive-color-slate-200)' }}>
                 {columns.map((col) => (
                   <th
                     key={col.key}
-                    style={{ padding: '10px 14px', color: '#64748b', fontWeight: 600 }}
+                    style={{ padding: '10px 14px', color: 'var(--primitive-color-slate-500)', fontWeight: 600 }}
                   >
                     {col.title}
                   </th>
@@ -451,14 +451,14 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
                   key={rIdx}
                   className="ag-table-row"
                   style={{
-                    borderBottom: rIdx < rows.length - 1 ? '1px solid #f1f5f9' : 'none',
+                    borderBottom: rIdx < rows.length - 1 ? '1px solid var(--primitive-color-slate-50)' : 'none',
                     transition: 'all 0.15s ease',
                   }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f8fafc')}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--primitive-color-slate-50)')}
                   onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                 >
                   {columns.map((col) => (
-                    <td key={col.key} style={{ padding: '11px 14px', color: '#1e293b' }}>
+                    <td key={col.key} style={{ padding: '11px 14px', color: 'var(--primitive-color-slate-800)' }}>
                       {printableCell(row[col.key])}
                     </td>
                   ))}
@@ -483,7 +483,7 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
                 display: 'block',
                 fontSize: '13px',
                 fontWeight: 600,
-                color: '#334155',
+                color: 'var(--primitive-color-mist-27)',
                 marginBottom: '4px',
               }}
             >
@@ -499,7 +499,7 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
               width: '100%',
               padding: '10px 14px',
               borderRadius: '8px',
-              border: '1px solid #cbd5e1',
+              border: '1px solid var(--primitive-color-mist-85)',
               fontSize: '14px',
               outline: 'none',
               boxSizing: 'border-box',
@@ -517,28 +517,28 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
           className="ag-interactive-widget"
           onClick={() => onDispatchAction('LAUNCH_MINIAPP', { miniAppId: appId })}
           style={{
-            border: '2px solid #285c76',
+            border: '2px solid var(--primitive-color-teal-700)',
             borderRadius: '14px',
             padding: '20px',
-            background: 'linear-gradient(135deg, #f0f7f8 0%, #edf5f8 100%)',
+            background: 'linear-gradient(135deg, var(--primitive-color-slate-50) 0%, var(--primitive-color-slate-50) 100%)',
             marginBottom: '16px',
             cursor: 'pointer',
-            boxShadow: '0 4px 12px rgba(5, 150, 105, 0.08)',
+            boxShadow: '0 4px 12px color-mix(in srgb, var(--primitive-color-emerald-600) 8%, transparent)',
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ fontSize: '20px' }}>🏛️</span>
-              <strong style={{ fontSize: '15px', color: '#065f46' }}>
+              <strong style={{ fontSize: '15px', color: 'var(--primitive-color-green-35)' }}>
                 Smart City Microfrontend: {appId}
               </strong>
             </div>
-            <span style={{ fontSize: '10px', background: '#dcfce7', color: '#166534', padding: '3px 8px', borderRadius: '12px', fontWeight: 700 }}>
+            <span style={{ fontSize: '10px', background: 'var(--primitive-color-green-96)', color: 'var(--primitive-color-lime-37)', padding: '3px 8px', borderRadius: '12px', fontWeight: 700 }}>
               ● TAP TO LAUNCH
             </span>
           </div>
-          <p style={{ fontSize: '12.5px', color: '#475569', marginBottom: '14px', lineHeight: '1.5' }}>
-            Route: <code style={{ background: '#ffffff', padding: '2px 6px', borderRadius: '4px', border: '1px solid #cbd5e1' }}>{node.properties?.entryRoute || '/'}</code> • Sandboxed sovereign microfrontend
+          <p style={{ fontSize: '12.5px', color: 'var(--primitive-color-mist-36)', marginBottom: '14px', lineHeight: '1.5' }}>
+            Route: <code style={{ background: 'var(--primitive-color-white)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--primitive-color-mist-85)' }}>{node.properties?.entryRoute || '/'}</code> • Sandboxed sovereign microfrontend
           </p>
           <button
             type="button"
@@ -546,8 +546,8 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
             style={{
               padding: '9px 16px',
               borderRadius: '8px',
-              background: '#285c76',
-              color: '#ffffff',
+              background: 'var(--primitive-color-teal-700)',
+              color: 'var(--primitive-color-white)',
               border: 'none',
               fontWeight: 700,
               fontSize: '12.5px',
@@ -567,9 +567,9 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
     case 'Button': {
       const variant = node.properties?.variant || 'primary';
       const isOutline = variant === 'outline';
-      const bg = isOutline ? '#ffffff' : '#285c76';
-      const textCol = isOutline ? '#285c76' : '#ffffff';
-      const border = isOutline ? '1.5px solid #285c76' : 'none';
+      const bg = isOutline ? 'var(--primitive-color-white)' : 'var(--primitive-color-teal-700)';
+      const textCol = isOutline ? 'var(--primitive-color-teal-700)' : 'var(--primitive-color-white)';
+      const border = isOutline ? '1.5px solid var(--primitive-color-teal-700)' : 'none';
 
       const eventBinding = node.onEvents?.find((e) => e.event === 'onPress');
       const actionKey = eventBinding?.payload?.action || eventBinding?.actionType || 'action';
@@ -608,7 +608,7 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
             background: bg,
             color: textCol,
             border,
-            boxShadow: isOutline ? 'none' : '0 2px 6px rgba(5, 150, 105, 0.25)',
+            boxShadow: isOutline ? 'none' : '0 2px 6px color-mix(in srgb, var(--primitive-color-emerald-600) 25%, transparent)',
           }}
         >
           {isSubmitting ? (
@@ -625,7 +625,7 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
 
     default:
       return (
-        <div style={{ color: '#ef4444', fontSize: '12px' }}>
+        <div style={{ color: 'var(--primitive-color-red-500)', fontSize: '12px' }}>
           Unsupported component: {node.type}
         </div>
       );
