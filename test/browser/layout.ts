@@ -11,5 +11,9 @@ export async function withAccountSwitcher<T>(page: Page, use: (switcher: ReturnT
   const collapsed = !await switcher.isVisible();
   if (collapsed) { await open.click(); await switcher.waitFor(); }
   try { return await use(switcher); }
-  finally { if (collapsed) await page.getByRole('button', { name: 'Close navigation menu', exact: true }).click(); }
+  finally {
+    // Some actions (switching account) close the drawer themselves; close it only if it is still open.
+    const close = page.getByRole('button', { name: 'Close navigation menu', exact: true });
+    if (collapsed && await close.isVisible()) await close.click();
+  }
 }

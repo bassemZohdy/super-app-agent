@@ -55,6 +55,17 @@ try {
   const accountId = accounts.find((a: any) => a.label === 'Personal account').id as string;
   const api = (path: string, body?: Record<string, unknown>) => call(`${env!.coreUrl}/api/payments/${path}${body ? '' : `?accountId=${accountId}`}`, owner, body ? { accountId, requestKey: randomUUID(), ...body } : undefined);
   const wallet = async () => (await call(`http://localhost:${env!.corePort + 107}/v1/accounts/${accountId}/wallet`, owner)).data.balanceMinor as number;
+  // The ledger's own journal for the account, so a debit is proved against the entries and not only the balance (QA-04).
+  const journal = () => {
+    const db = env!.providerStores.get('payments')!.db;
+    return (db.prepare("SELECT id, kind, reference, wallet_delta, finalized FROM payment_journal_entries WHERE account_id=? AND kind<>'OPENING' ORDER BY rowid").all(accountId) as Array<{ id: string; kind: string; reference: string; wallet_delta: number; finalized: number }>)
+      .map(entry => ({ ...entry, postings: (db.prepare('SELECT ledger_account, amount_minor FROM payment_journal_postings WHERE entry_id=? ORDER BY line').all(entry.id) as Array<{ ledger_account: string; amount_minor: number }>).map(posting => ({ ...posting })) }));
+  };
+  const assertOnePayment = (entries: ReturnType<typeof journal>, minor: number, label: string) => {
+    assert.equal(entries.length, 1, `${label}: exactly one journal entry`);
+    assert.deepEqual([entries[0].kind, entries[0].wallet_delta, entries[0].finalized], ['PAYMENT', -minor, 1], label);
+    assert.deepEqual(entries[0].postings, [{ ledger_account: 'wallet', amount_minor: -minor }, { ledger_account: 'merchant-clearing', amount_minor: minor }], `${label}: balanced against merchant clearing`);
+  };
 
   // Owner consent: a linked DEWA biller, one due bill and an approved automatic rule.
   const overview = (await api('overview')).data, dewa = overview.candidates.find((c: any) => c.provider === 'dewa');
@@ -117,6 +128,7 @@ try {
   assert.equal(settled.data.order.quote.totalMinor, 15000);
   assert.equal(env.providerStores.get('dewa')!.get(accountId, 'bill', billId).status, 'PAID');
   assert.equal(await wallet(), before - 15000);
+  assertOnePayment(journal(), 15000, 'the admitted token settles once');
   console.log('PASS: the admitted token settles the stored order once across the real providers.');
 
   // The permit is spent and the token covers nothing else.
@@ -213,7 +225,7 @@ try {
   env.providerStores.get('dewa')!.put(accountId, 'bill', { billId: workerBill, accountNumber: dewa.reference, totalAmount: 150, status: 'UNPAID', dueDate: due }, workerBill);
   const job = storeA.enqueue({ mandateId: workerMandate.id, policyVersion: workerMandate.policyVersion, occurrenceKey: 'occ-worker-1', target: `dewa-${billing.id}` });
   assert.equal(storeB.enqueue({ mandateId: workerMandate.id, policyVersion: workerMandate.policyVersion, occurrenceKey: 'occ-worker-1', target: `dewa-${billing.id}` }).id, job.id);
-  const beforeWorker = await wallet();
+  const beforeWorker = await wallet(), journalBeforeWorker = journal().length;
   const results = await Promise.all([
     new AutomationWorker(storeA, new HttpExecutionGateway(gatewayConfig), { workerId: 'worker-a' }).runOnce(),
     new AutomationWorker(storeB, new HttpExecutionGateway(gatewayConfig), { workerId: 'worker-b' }).runOnce(),
@@ -222,6 +234,8 @@ try {
   const finished = storeA.get(job.id)!;
   assert.equal(finished.state, 'SETTLED', JSON.stringify(finished));
   assert.equal(await wallet(), beforeWorker - 15000, 'the worker-driven job debited the wallet once');
+  assert.equal(journal().length, journalBeforeWorker + 1, 'the worker-driven job wrote exactly one journal entry');
+  assert.deepEqual([journal().at(-1)!.kind, journal().at(-1)!.wallet_delta, journal().at(-1)!.finalized], ['PAYMENT', -15000, 1]);
   assert.deepEqual(storeA.outbox(job.id).map(e => e.kind), ['PREPARED', 'SETTLED']);
   assert.equal(await new AutomationWorker(storeB, new HttpExecutionGateway(gatewayConfig), { workerId: 'worker-c' }).runOnce(), undefined, 'a settled job is never run again');
   assert.equal(await wallet(), beforeWorker - 15000);
@@ -276,7 +290,7 @@ try {
   const rules = new HttpRuleSource(gatewayConfig), scheduler = new Scheduler(schedulerStore, rules);
   assert.ok((await rules.rules()).some(r => r.mandateId === scheduled.id && r.state === 'APPROVED'));
   assert.deepEqual((await new HttpRuleSource({ ...gatewayConfig, clientSecret: 'wrong' }).rules().then(() => 'read', () => 'denied')), 'denied', 'only the worker identity reads the scheduling view');
-  const beforeScheduled = await wallet();
+  const beforeScheduled = await wallet(), journalBeforeScheduled = journal().length;
   const ticked = await Promise.all([scheduler.tick(Date.now()), scheduler.tick(Date.now())]);
   const mine = (r: { enqueued: string[] }) => r.enqueued.filter(k => k.startsWith(`${scheduled.id}:`));
   assert.ok(ticked.flatMap(mine).length >= 1);
@@ -284,11 +298,14 @@ try {
   assert.equal(scheduledJobs.length, 1, 'duplicate ticks produced one job for the due invoice');
   assert.match(scheduledJobs[0]!.occurrenceKey, /^INV:/);
   assert.equal(await wallet(), beforeScheduled, 'scheduling alone moves no money');
+  assert.equal(journal().length, journalBeforeScheduled, 'scheduling alone writes nothing to the journal');
   await new AutomationWorker(schedulerStore, new HttpExecutionGateway(gatewayConfig), { workerId: 'worker-sched' }).drain();
   assert.equal(schedulerStore.get(scheduledJobs[0]!.id)!.state, 'SETTLED', JSON.stringify(schedulerStore.list().map(j => [j.mandateId === scheduled.id, j.state, j.reason])));
   assert.equal(await wallet(), beforeScheduled - 15000, 'exactly one invoice was paid');
+  assertOnePayment(journal().slice(journalBeforeScheduled), 15000, 'the scheduled run');
   await scheduler.tick(Date.now());
   assert.equal(schedulerStore.list().filter(j => j.mandateId === scheduled.id).length, 1, 'a settled occurrence is never scheduled again');
+  assert.equal(journal().length, journalBeforeScheduled + 1, 'and writes no second journal entry');
   schedulerStore.close();
   // ---- AUTO-14: the owner is told once, ahead of a run that has not started, and nothing is queued until the run is due. ----
   const upcomingRule = await newMandate(); n++;
