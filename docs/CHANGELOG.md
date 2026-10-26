@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 26 October 2026 — Focused-agent verification recorded (P1-03)
+
+The [milestone evidence](reports/2026-10-26-simple-agent.md) now names the exact fetched implementation revision and records executed focused/repository checks, the clean native dependency install, interactive CLI result, the reproduced Python formatting issue and the optional pytest skip. No application behavior or task status changes.
+
 ## 26 October 2026 — Python-version-independent vendored-skill assertion (P2-12)
 
 The unchanged base test rejected Python 3.14's argparse output solely because choices no longer have surrounding quotes. The assertion accepts both Python 3.12 and 3.14 formatting while still requiring rejection of `vue` and exactly the supported React, Angular and Flutter choices. No vendored skill source or product behavior changes. The focused-agent evidence records the original failure, base reproduction and subsequent verification.
