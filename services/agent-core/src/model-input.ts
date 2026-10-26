@@ -34,6 +34,12 @@ export function minimiseText(text: string, consent: ModelInputConsent): string {
   return consent.personalContext ? clean : clean.replace(/\d[\d,.:/-]*/g, WITHHELD);
 }
 
+/** Earlier turns sent back to the model. What the resident typed is their own words and is only scrubbed of identifiers; what the
+ *  assistant said was built from service state (balances, amounts, names), so it takes the full minimiser and follows the consent. */
+export function minimiseHistory(messages: ReadonlyArray<{ role: string; content: string }>, consent: ModelInputConsent, limit = 4000): Array<{ role: string; content: string }> {
+  return messages.map(message => ({ role: message.role, content: (message.role === 'assistant' ? minimiseText(message.content, consent) : scrubText(message.content)).slice(0, limit) }));
+}
+
 const STRUCTURE_KEYS = ['variant', 'level', 'trend', 'fullWidth', 'disabled', 'columns'] as const;
 const TEXT_KEYS = ['text', 'label', 'value', 'title', 'subtext', 'subtitle', 'name'] as const;
 const MAX_DEPTH = 12, MAX_NODES = 200;

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { minimiseSurface, minimiseText, modelConsentFor, scrubText, REDACTED, WITHHELD } from '../agent-core/src/model-input.ts';
+import { minimiseHistory, minimiseSurface, minimiseText, modelConsentFor, scrubText, REDACTED, WITHHELD } from '../agent-core/src/model-input.ts';
 import { invokeLocalConversation } from '../agent-core/src/local-conversation.ts';
 
 // One value per excluded class. Each is built from parts so no real-looking literal sits in the source.
@@ -96,4 +96,18 @@ test('P1-17: the model request body carries no raw identifier whatever the calle
   assert.equal(bodies.length, 1);
   for (const [name, value] of Object.entries(RAW)) assert.equal(bodies[0].includes(value), false, `${name} reached the model request`);
   assert.match(bodies[0], new RegExp(REDACTED.replace(/[[\]]/g, '\\$&')));
+});
+
+test('P1-17: earlier assistant turns follow the consent, and the resident\'s own words keep their numbers', () => {
+  const history = [
+    { role: 'user', content: 'Please pay 50 AED, my email is a.b@example.test' },
+    { role: 'assistant', content: 'Your wallet balance is 1500.00 AED and the fine FINE-00f4d533-0 is due on 2026-11-02.' },
+  ];
+  const shared = minimiseHistory(history, { personalContext: true });
+  assert.equal(shared[0].content, `Please pay 50 AED, my email is ${REDACTED}`, 'identifiers are scrubbed from the resident\'s words');
+  assert.equal(shared[1].content, `Your wallet balance is 1500.00 AED and the fine ${REDACTED} is due on 2026-11-02.`);
+  const withheld = minimiseHistory(history, { personalContext: false });
+  assert.match(withheld[0].content, /Please pay 50 AED/, 'what the resident typed is not withheld');
+  assert.equal(withheld[1].content, `Your wallet balance is ${WITHHELD} AED and the fine ${REDACTED} is due on ${WITHHELD}`);
+  assert.equal(minimiseHistory([{ role: 'assistant', content: 'x'.repeat(9000) }], { personalContext: true }, 100)[0].content.length, 100, 'bounded');
 });

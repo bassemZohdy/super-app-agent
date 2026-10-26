@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 26 October 2026 — P1-17 delivered: earlier turns go through the minimiser too
+
+A gap remained after the consent switch: the earlier assistant turns sent back as conversation history reached the model with their balances, amounts and dates even when the resident had withheld personal context (only identifiers were scrubbed at the egress). `minimiseHistory` now applies the full minimiser to assistant turns and only the identifier scrub to the resident's own words, and the graph uses it for every prompt, so the current surface, the service summary and the history all follow the same function and the same per-call consent. Test: `services/test/p117-model-input.test.ts`. Guide: [local AI](development/local-ai.md).
+
 ## 26 October 2026 — P2-01 (step): Arabic and right-to-left in the React shell
 
 Conversation settings has a Language choice (English or Arabic) that sets `lang` and `dir`, translates the sidebar, drawer, tool buttons, composer and settings from catalogs in `packages/protocol-core/src/i18n.ts` (same keys and placeholders enforced by a test), and mirrors the layout: the stylesheet moved to logical properties (English screens compare pixel-identical before and after) and the phone drawer slides from the right. `formatMoney` (whole minor units only, Latin digits), `formatDateTime` and `formatTime` (Dubai time zone) are in place; the Connections panel uses the time formatter. A browser asking for Arabic first starts in Arabic. Tests: `services/test/p201-i18n.test.ts` and `test/browser/localization/arabic.spec.ts` on the phone and desktop projects (the journey helpers now match names in both languages). Not yet translated: the panel bodies, the assistant's replies and surfaces, Angular and Flutter. Guide: [localization](development/localization.md).
