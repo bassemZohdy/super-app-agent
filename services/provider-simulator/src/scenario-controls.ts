@@ -5,7 +5,7 @@
  *  counters only; nothing here moves funds or touches normal demo data. */
 import { randomUUID } from 'node:crypto';
 import type { AccountDatabase } from './database.ts';
-import { FAILPOINTS, armFailpoint, clearFailpoints, failpointFirings, type FailpointName } from './failpoints.ts';
+import { FAILPOINTS, armFailpoint, clearFailpoints, failpointFirings, failpointRemaining, type FailpointName } from './failpoints.ts';
 import type { IssuerScenarios } from './issuer-scenarios.ts';
 import { redact } from '../../../packages/backend-kit/src/redact.ts';
 
@@ -81,6 +81,8 @@ export class ScenarioControls{
     });
   }
   /** Redacted counters for the run: which boundaries are armed and how often they fired. */
+  /** Run-wide funds, holds and orders belong to the run's operator alone: the route calls this before it builds the inspection. */
+  authorizeInspection(subject:string){this.operator(subject);}
   /** The run's inspection for the operator to keep, with secrets redacted. It reads only: nothing here changes the run. */
   export(subject:string,inspection:Record<string,unknown>){
     this.operator(subject);
@@ -89,7 +91,7 @@ export class ScenarioControls{
   status(subject:string){
     this.operator(subject);
     return {runId:this.run.context.runId,
-      armed:FAILPOINTS.map(name=>({name,fired:failpointFirings(name)})),
+      armed:FAILPOINTS.map(name=>({name,fired:failpointFirings(name),remaining:failpointRemaining(name)})),
       audit:this.store.db.prepare('SELECT body FROM scenario_control_audit ORDER BY rowid DESC LIMIT 50').all().map(r=>JSON.parse(String(r.body)))};
   }
 }

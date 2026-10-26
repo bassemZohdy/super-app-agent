@@ -90,3 +90,17 @@ test('SIM-05: the host refuses a relative root or a malformed run identity', () 
   assert.throws(() => resetRunDatabase(tmpdir(), 'not-a-run', 'op'), /run ID/);
   assert.throws(() => resetRunDatabase(tmpdir(), `simrun_${randomUUID()}`, ''), /run ID/);
 });
+
+test('SIM-05: run-wide inspection is authorized for the run operator alone', t => {
+  const f = fixture(t);
+  assert.doesNotThrow(() => f.controls.authorizeInspection('reset-operator'));
+  for (const subject of ['reset-customer', 'someone-else', '']) assert.throws(() => f.controls.authorizeInspection(subject), (e: any) => e.code === 'SCENARIO_OPERATOR_REQUIRED', JSON.stringify(subject));
+});
+
+test('SIM-05: the provider has no network route that moves shared time, so the business clock stays with the local CLI', async () => {
+  const { readFileSync } = await import('node:fs');
+  const source = readFileSync('services/provider-simulator/src/index.ts', 'utf8');
+  const prefixes = [...new Set([...source.matchAll(/\/internal\/([a-z-]+)/g)].map(m => m[1]))].sort();
+  assert.deepEqual(prefixes, ['automation-runs', 'issuer-scenarios', 'payment-events', 'scenario-controls'], 'a new internal route needs this list, and a review of whether it can move time, updated');
+  assert.equal(/\b(?:advance|setClock|set-clock|businessAt)\b/i.test(source), false, 'no provider route advances time');
+});

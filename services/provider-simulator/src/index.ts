@@ -93,6 +93,7 @@ export function createProviderServer(provider: ProviderId, path: string, options
           return send({status:200,data:{success:true,...controls.export(claims.sub,view as unknown as Record<string,unknown>)}});
         }
         if(req.method==='GET'&&controlRoute[2]==='inspect'){
+          controls.authorizeInspection(claims.sub);
           const view=inspectRun(engine.store,{orders:engine.orders!,ledger:engine.ledger!,issuer:engine.issuer,claims:engine.claims,
             methods:(accountId:string)=>engine.store.list(accountId,'payment-method') as {id:string;kind:string;status:string}[]});
           return send({status:200,data:{success:true,...view}});

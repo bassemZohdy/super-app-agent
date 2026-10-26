@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Scenario console</title>
+  <link rel="stylesheet" href="/theme.css">
+  <link rel="stylesheet" href="/a11y.css">
+  <link rel="stylesheet" href="/console.css">
+</head>
+<body>
+  <main>
+    <h1>Scenario console</h1>
+    <p class="lede">Local operator controls for one isolated run. Residents cannot reach this page, and nothing here moves real money.</p>
+
+    <section aria-labelledby="run-heading">
+      <h2 id="run-heading">This run</h2>
+      <dl id="run"></dl>
+    </section>
+
+    <section aria-labelledby="failpoint-heading">
+      <h2 id="failpoint-heading">Failpoints</h2>
+      <p>A failpoint loses the response after a real commit, so you can watch recovery keep one debit. Pick one of the named points; nothing else can be injected.</p>
+      <form id="arm-form">
+        <label for="failpoint">Failpoint</label>
+        <select id="failpoint"></select>
+        <label for="times">Next hits (1 to 100)</label>
+        <input id="times" type="number" min="1" max="100" value="1" required>
+        <button type="submit">Arm failpoint</button>
+        <button type="button" id="clear">Clear all failpoints</button>
+      </form>
+      <ul id="armed"></ul>
+    </section>
+
+    <section aria-labelledby="inspection-heading">
+      <h2 id="inspection-heading">Funds and orders</h2>
+      <div class="table-scroll" role="region" aria-label="Accounts used in this run" tabindex="0">
+      <table>
+        <caption>Accounts used in this run</caption>
+        <thead><tr><th scope="col">Account</th><th scope="col">Wallet</th><th scope="col">Held</th><th scope="col">Open orders</th><th scope="col">Claims</th></tr></thead>
+        <tbody id="inspection-body"></tbody>
+      </table>
+      </div>
+      <p id="pending-events"></p>
+    </section>
+
+    <section aria-labelledby="audit-heading">
+      <h2 id="audit-heading">What changed</h2>
+      <ol id="audit"></ol>
+    </section>
+
+    <section aria-labelledby="export-heading">
+      <h2 id="export-heading">Export</h2>
+      <p>Download the run's inspection as JSON. It is read only and has secrets removed.</p>
+      <button type="button" id="export">Export this run</button>
+    </section>
+
+    <section aria-labelledby="reset-heading">
+      <h2 id="reset-heading">Reset</h2>
+      <p>Replace this run with a fresh, reseeded one. Funds, orders and history are deleted; only this run is affected.</p>
+      <button type="button" id="reset-start">Reset this run…</button>
+      <div id="reset-confirm" hidden>
+        <p><strong>This deletes the run's funds, orders and history.</strong></p>
+        <button type="button" id="reset-do">Confirm reset</button>
+        <button type="button" id="reset-cancel">Cancel</button>
+      </div>
+    </section>
+
+    <div id="notice" role="status" aria-live="polite"></div>
+  </main>
+  <script src="/console.js"></script>
+</body>
+</html>

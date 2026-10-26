@@ -1,0 +1,27 @@
+/* The scenario console's styles (SIM-05). Colors, sizes and focus come from the generated design tokens. */
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--color-background); color: var(--color-text); font-family: var(--font-family-base); font-size: var(--font-size-base); line-height: 1.5; }
+main { max-width: 860px; margin: 0 auto; padding: var(--spacing-large) var(--spacing-medium) 96px; }
+h1 { font-size: var(--font-size-2xl); margin: 0 0 var(--spacing-small); }
+h2 { font-size: var(--font-size-lg); margin: 0 0 var(--spacing-small); }
+section { background: var(--card-background); border: 1px solid var(--card-border); border-radius: var(--card-radius); padding: var(--spacing-medium); margin: var(--spacing-medium) 0; }
+.lede { color: var(--color-text-muted); margin-top: 0; }
+dl { display: grid; grid-template-columns: max-content 1fr; gap: var(--spacing-small) var(--spacing-medium); margin: 0; }
+dt { color: var(--color-text-muted); }
+dd { margin: 0; overflow-wrap: anywhere; }
+form { display: grid; gap: var(--spacing-small); max-width: 560px; }
+label { font-weight: 600; }
+select, input { width: 100%; max-width: 100%; min-height: 44px; font: inherit; font-size: var(--font-size-control); color: var(--input-text); background: var(--input-background); border: 1px solid var(--input-border); border-radius: var(--input-radius); padding: 0 var(--spacing-small); }
+button { min-height: 44px; min-width: 44px; font: inherit; font-size: var(--font-size-control); font-weight: 600; color: var(--button-text); background: var(--button-background); border: 0; border-radius: var(--button-radius); padding: 0 var(--spacing-medium); cursor: pointer; }
+button:hover { background: var(--button-background-hover); }
+button#clear, button#reset-cancel { color: var(--color-primary-text); background: transparent; border: 1px solid var(--color-primary-text); }
+button#reset-do { background: var(--color-danger-text); }
+:focus-visible { outline: 3px solid var(--color-focus-ring); outline-offset: 3px; }
+.table-scroll { overflow-x: auto; }
+table { width: 100%; min-width: 520px; border-collapse: collapse; }
+caption { text-align: left; color: var(--color-text-muted); padding-bottom: var(--spacing-small); }
+th, td { text-align: left; padding: var(--spacing-small); border-bottom: 1px solid var(--color-surface-border); overflow-wrap: anywhere; }
+ul, ol { padding-left: var(--spacing-large); }
+[hidden] { display: none !important; }
+#notice { position: fixed; left: 0; right: 0; bottom: 0; padding: var(--spacing-small) var(--spacing-medium); background: var(--card-background); border-top: 1px solid var(--card-border); min-height: 44px; }
+@media (max-width: 600px) { dl { grid-template-columns: 1fr; } }

@@ -51,4 +51,4 @@ Seven unit/integration tests cover persistence/reopen, deterministic fixtures, o
 
 ## Authenticated issuer outcomes
 
-[SIM-03 issuer scenarios](issuer-scenarios.md) reuse isolated run identity for a separate finite financial matrix. `npm run simulator:issuer` authenticates a startup-bound operator and customer, exercises all eight outcomes and restarts the pending provider before resolution. It does not advance this preview clock or enable controls on normal provider data. General scenario start/reset/export, role-managed control UI and broad failpoints retain SIM-04/SIM-05 gates.
+[SIM-03 issuer scenarios](issuer-scenarios.md) reuse isolated run identity for a separate finite financial matrix. `npm run simulator:issuer` authenticates a startup-bound operator and customer, exercises all eight outcomes and restarts the pending provider before resolution. It does not advance this preview clock or enable controls on normal provider data. `npm run simulator:console` adds the operator page for an isolated run (see [the scenario console](issuer-scenarios.md#scenario-console)); broad failpoints retain the SIM-04 gate.

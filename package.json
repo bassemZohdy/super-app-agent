@@ -75,6 +75,7 @@
     "record:payment-refunds": "node --experimental-strip-types scripts/e2e/payment-refunds.ts --record",
     "demo:verify:payment-events": "node --experimental-strip-types scripts/e2e/payment-events.ts",
     "record:payment-events": "node --experimental-strip-types scripts/e2e/payment-events.ts --record",
+    "simulator:console": "node --experimental-strip-types scripts/scenario-console.ts",
     "simulator:issuer": "node --experimental-strip-types scripts/e2e/issuer-scenarios.ts",
     "demo:verify:issuer-scenarios": "node --experimental-strip-types scripts/e2e/issuer-scenarios.ts",
     "record:issuer-scenarios": "node --experimental-strip-types scripts/e2e/issuer-scenarios.ts --record",

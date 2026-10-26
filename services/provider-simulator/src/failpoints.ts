@@ -37,6 +37,11 @@ export function failpointFirings(name: FailpointName) {
   return armed.get(name)?.fired ?? 0;
 }
 
+/** Hits left before an armed failpoint stops firing; 0 when it is not armed. */
+export function failpointRemaining(name: FailpointName) {
+  return armed.get(name)?.remaining ?? 0;
+}
+
 /** Called at each boundary. Throws an unknown-outcome error only when armed. */
 export function hitFailpoint(name: FailpointName) {
   const entry = armed.get(name);
