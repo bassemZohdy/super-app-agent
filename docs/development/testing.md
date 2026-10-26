@@ -131,6 +131,10 @@ Eight checkout regressions cover both funding sources, exact one-payment recover
 
 Offline tests cover trace isolation/parent links/redaction, protected operations routes, readiness failure, bounded retention/stuck work/backpressure, encrypted integrity/overwrite/link protection and successful/failed SIGTERM drain. Container shutdown uses init plus a bounded request drain; cold backup refuses unclean exits. [Runbook and targets](operations.md) · [Execution evidence](../reports/2026-10-24-operations.md).
 
+## Fast signed-issuer suite
+
+`test/support/test-issuer.ts` starts a test-only OIDC issuer on a loopback port so auth negatives run in `npm test` without Docker: `services/test/p210-test-issuer.test.ts` exercises the real `verifyJwt` and `ClientCredentials` against it. It is **not Keycloak evidence**. It does not model Keycloak policy, mappers or realm configuration, and the real-Keycloak suites (`npm run demo:verify:security` and the delegation checks) remain the release gate.
+
 ## Windows test notes
 
 The offline suite runs on Windows, with these platform rules:
