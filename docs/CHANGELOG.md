@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 26 October 2026 — the Angular shell passes the touch, focus and motion measures at phone width (QA-06, step)
+
+The Angular accessibility spec now runs on the phone project as well as desktop and passes without further style changes: every control is at least 44px with text of at least 14px (with the delegation and voice panels open), keyboard focus is visible, and reduced motion stops motion. I checked the phone screen by eye, closed and with both panels open: the header wraps, the suggestion chips scroll sideways and nothing overlaps. The stubbed gateway now returns an empty grants list so the fixture shows a clean state. QA-06 stays open for Flutter (no toolchain here) and the masked-method, challenge, unknown-state and pause/revoke journeys. Guide: [testing](development/testing.md#browser-journeys-under-playwright-test).
+
 ## 26 October 2026 — the React shell passes the touch, focus and motion measures at phone width (QA-06, step)
 
 The responsive rules for narrow screens had re-shrunk six controls: the navigation items, the four suggestion cards, the "Explore all city services" link, the profile button and the surface toggle, to 9 to 12px. They now use the control size, and `touch-focus-motion.spec.ts` runs on the phone project as well as desktop: every control is at least 44px with text of at least 14px on the home, payment accounts and delegated access screens, keyboard focus is visible, and reduced motion stops motion. I checked the phone home screen and the navigation drawer by eye. The Angular accessibility spec still skips on mobile. QA-06 stays open for the Angular and Flutter phone layouts and the masked-method, challenge, unknown-state and pause/revoke journeys. Guide: [testing](development/testing.md#browser-journeys-under-playwright-test).

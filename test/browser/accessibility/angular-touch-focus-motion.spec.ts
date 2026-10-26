@@ -1,12 +1,10 @@
 /** Resident intent: use the Angular shell with a finger, a keyboard or reduced motion (P2-14). The built shell is measured in a
  *  real browser against a stubbed local gateway, so the layout is checked without depending on Keycloak or the live gateway.
- *  Desktop only until the phone layout is delivered (QA-06). */
+ *  Runs on the desktop and phone projects (QA-06). */
 import { expect, test } from '../angular.ts';
 import { controlsBelowTarget, injectMotionCanary, stillMoving, unseenFocusStops } from './measures.ts';
 
 test.describe('Angular shell: touch, focus and motion', () => {
-  test.beforeEach(({ isMobile }) => { test.skip(isMobile, 'QA-06: the phone layout is not delivered yet, so these measures run on desktop only.'); });
-
   test('every control is at least 44px and its text at least 14px, with the delegation and voice panels open', async ({ angular }) => {
     await angular.getByText('Delegated access', { exact: true }).click();
     await angular.getByText('Voice & conversation settings', { exact: true }).click();

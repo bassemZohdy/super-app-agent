@@ -32,6 +32,7 @@ export const test = base.extend<{ angular: Page }, { angularUrl: string }>({
       const url = new URL(route.request().url());
       if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': angularUrl, 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' } });
       if (url.pathname === '/api/auth/config') return route.fulfill(json({ enabled: false }));
+      if (url.pathname === '/api/delegation/grants') return route.fulfill(json({ success: true, grants: [] }));
       if (url.pathname === '/api/accounts') return route.fulfill(json({ success: true, accounts: [{ id: 'acc_stub', label: 'Personal account' }], user: { name: 'Demo resident' } }));
       if (url.pathname.includes('stream')) return route.fulfill({ status: 200, contentType: 'text/event-stream', headers: { 'access-control-allow-origin': angularUrl }, body: ': stub\n\n' });
       return route.fulfill(json({ success: true }));
