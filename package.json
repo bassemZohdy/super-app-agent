@@ -32,6 +32,7 @@
     "check": "npm run lint && npm run check:e2e && npm run check:docs && npm run check:secrets && npm run check:local-only && npm run check:tokens && npm test && npm run build -- --concurrency=2",
     "test:keycloak": "node --experimental-strip-types scripts/test-keycloak.ts",
     "demo:up": "docker compose -f docker-compose.demo.yml up -d && npm run demo:wait && npm run demo:delegation:realm && npm run local-ai:up",
+    "demo:refresh": "npm run demo:delegation:realm && node --experimental-strip-types scripts/refresh-demo-apis.ts && npm run demo:wait",
     "demo:wait": "node --experimental-strip-types scripts/wait-demo-stack.ts",
     "demo:down": "docker compose -f docker-compose.demo.yml --profile local-ai down",
     "demo:logs": "docker compose -f docker-compose.demo.yml logs -f",

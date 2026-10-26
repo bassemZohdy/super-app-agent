@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 26 October 2026 — Refresh stale APIs behind service-page 404s (P2-06, step)
+
+The running compatibility API predated the current route handlers: real local sign-in worked, but service discovery, payment accounts and manual page preparation returned HTTP 404. Reconcile the checked-in demo identity configuration and recreate the source-mounted APIs while retaining all existing volumes. All advertised manual routes then prepare successfully using real local Keycloak authentication; cancelled wallet approval replay remains refused. Add `npm run demo:refresh` so a source update reloads those Node processes without starting automation workers, resetting stores or downloading models. The [development guide](development/local-development.md#configuration) explains when a plain Compose `up -d` can leave an old process serving outdated routes. This user-requested repair takes precedence over planner qualification.
+
 ## 26 October 2026 — Put the conversation at the centre of the React app (QA-06, step)
 
 Replace the tall welcome cards and stacked phone directory with an explicit **Chat with Rashid** workspace: a dark navigation rail, message bubbles, compact prompt chips and a visible **Send** action. Chat and service details use separate phone views; drafts and transcripts survive switching, and service updates keep the resident in chat. A bounded viewport and scrolling transcript keep the composer on screen after long replies and resizing. New conversations and the chat navigation action restore the chat view. Swap/restore move into **Layout**, retaining each pane's minimize/maximize controls. Correct the payment button fill/text roles. The [design guide](development/design-tokens.md#react-workspace-design) describes the resulting layout and token palette. This user-requested UI correction takes precedence over planner qualification.
