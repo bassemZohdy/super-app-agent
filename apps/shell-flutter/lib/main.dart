@@ -6,6 +6,7 @@ import 'delegation_panel.dart';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'theme/tokens.g.dart';
 
 void main() {
   runApp(const SuperAppFlutter());
@@ -19,13 +20,13 @@ class SuperAppFlutter extends StatelessWidget {
     return MaterialApp(
       title: 'Cityside — Your city concierge',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF285C76)),
-        scaffoldBackgroundColor: const Color(0xFFF7FAFC),
+        colorScheme: ColorScheme.fromSeed(seedColor: CitysideTokens.primitiveTeal700),
+        scaffoldBackgroundColor: CitysideTokens.primitiveSlate50,
         fontFamily: 'Avenir Next',
         appBarTheme: const AppBarTheme(elevation: 0, centerTitle: false),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: Colors.white,
+          fillColor: CitysideTokens.primitiveWhite,
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         ),
         useMaterial3: true,
@@ -612,7 +613,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                   const Icon(
                     Icons.location_city_outlined,
                     size: 48,
-                    color: Color(0xFF285C76),
+                    color: CitysideTokens.primitiveTeal700,
                   ),
                   const SizedBox(height: 24),
                   const Text(
@@ -673,12 +674,12 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
             ),
             Text(
               'Your everyday, connected.',
-              style: TextStyle(fontSize: 10, color: Color(0xFF8297A5)),
+              style: TextStyle(fontSize: 10, color: CitysideTokens.primitiveMist62),
             ),
           ],
         ),
-        backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF285C76),
+        backgroundColor: CitysideTokens.primitiveWhite,
+        foregroundColor: CitysideTokens.primitiveTeal700,
         actions: [
           IconButton(
             tooltip: 'Delegated access',
@@ -708,7 +709,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
           Center(
             child: Text(
               _connectionLabel,
-              style: const TextStyle(fontSize: 10, color: Color(0xFF618C7A)),
+              style: const TextStyle(fontSize: 10, color: CitysideTokens.primitiveGreen55),
             ),
           ),
           const SizedBox(width: 18),
@@ -757,7 +758,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                   return Row(
                     children: [
                       Expanded(flex: 5, child: _buildAgentPane()),
-                      const VerticalDivider(width: 1, color: Color(0xFFE2E8F0)),
+                      const VerticalDivider(width: 1, color: CitysideTokens.primitiveSlate200),
                       Expanded(flex: 5, child: _buildCanvasPane()),
                     ],
                   );
@@ -801,23 +802,23 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
 
   Widget _buildAgentPane() {
     return Container(
-      color: Colors.white,
+      color: CitysideTokens.primitiveWhite,
       child: Column(
         children: [
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            color: Colors.white,
+            color: CitysideTokens.primitiveWhite,
             width: double.infinity,
             child: const Text(
               'Rashid, your city concierge',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 13,
-                color: Color(0xFF0F172A),
+                color: CitysideTokens.primitiveSlate900,
               ),
             ),
           ),
-          const Divider(height: 1, color: Color(0xFFE2E8F0)),
+          const Divider(height: 1, color: CitysideTokens.primitiveSlate200),
           if (_streamEnabled)
             Text(_streamStatus, style: const TextStyle(fontSize: 10)),
           Expanded(
@@ -839,14 +840,14 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                     ),
                     constraints: const BoxConstraints(maxWidth: 320),
                     decoration: BoxDecoration(
-                      color: isUser ? const Color(0xFF285C76) : Colors.white,
+                      color: isUser ? CitysideTokens.primitiveTeal700 : CitysideTokens.primitiveWhite,
                       borderRadius: BorderRadius.circular(12),
                       border: isUser
                           ? null
-                          : Border.all(color: const Color(0xFFE2E8F0)),
+                          : Border.all(color: CitysideTokens.primitiveSlate200),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.03),
+                          color: CitysideTokens.primitiveSlate900.withValues(alpha: 0.03),
                           blurRadius: 4,
                           offset: const Offset(0, 2),
                         ),
@@ -855,7 +856,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                     child: SelectableText(
                       msg['text'] ?? '',
                       style: TextStyle(
-                        color: isUser ? Colors.white : const Color(0xFF0F172A),
+                        color: isUser ? CitysideTokens.primitiveWhite : CitysideTokens.primitiveSlate900,
                         fontSize: 13,
                         height: 1.4,
                       ),
@@ -870,14 +871,14 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
               margin: const EdgeInsets.all(8),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: const Color(0xFFFEF3C7),
+                color: CitysideTokens.primitiveYellow962,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
                 '⚡ $_thinkingDelta',
                 style: const TextStyle(
                   fontStyle: FontStyle.italic,
-                  color: Color(0xFF92400E),
+                  color: CitysideTokens.primitiveAmber38,
                   fontSize: 12,
                 ),
               ),
@@ -914,7 +915,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
           ),
           Container(
             padding: const EdgeInsets.all(8),
-            color: Colors.white,
+            color: CitysideTokens.primitiveWhite,
             child: Row(
               children: [
                 Expanded(
@@ -940,8 +941,8 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                       ? null
                       : () => _sendIntent(_promptController.text),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF285C76),
-                    foregroundColor: Colors.white,
+                    backgroundColor: CitysideTokens.primitiveTeal700,
+                    foregroundColor: CitysideTokens.primitiveWhite,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -965,7 +966,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
           style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
         ),
         onPressed: _requestPending ? null : () => _sendIntent(prompt),
-        backgroundColor: const Color(0xFFF1F5F9),
+        backgroundColor: CitysideTokens.primitiveSlate50,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
     );
@@ -983,7 +984,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                 const Icon(
                   Icons.auto_awesome_outlined,
                   size: 48,
-                  color: Color(0xFF7297AD),
+                  color: CitysideTokens.primitiveBlue63,
                 ),
                 const SizedBox(height: 12),
                 const Text(
@@ -994,7 +995,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                 Text(
                   'From your morning commute to your next move. Ask Rashid and review your options here. City services use simulated data.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                  style: TextStyle(color: CitysideTokens.primitiveGray49, fontSize: 13),
                 ),
               ],
             ),
@@ -1027,9 +1028,9 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
-            side: const BorderSide(color: Color(0xFFE2E8F0)),
+            side: const BorderSide(color: CitysideTokens.primitiveSlate200),
           ),
-          color: Colors.white,
+          color: CitysideTokens.primitiveWhite,
           child: Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
@@ -1050,7 +1051,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
             style: const TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: Color(0xFF0F172A),
+              color: CitysideTokens.primitiveSlate900,
             ),
           ),
         );
@@ -1063,7 +1064,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
             style: const TextStyle(
               fontSize: 13,
               height: 1.5,
-              color: Color(0xFF334155),
+              color: CitysideTokens.primitiveMist27,
             ),
           ),
         );
@@ -1073,9 +1074,9 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: CitysideTokens.primitiveWhite,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
+            border: Border.all(color: CitysideTokens.primitiveSlate200),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1085,7 +1086,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                 style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFF64748B),
+                  color: CitysideTokens.primitiveSlate500,
                 ),
               ),
               Text(
@@ -1093,7 +1094,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
-                  color: Color(0xFF0F172A),
+                  color: CitysideTokens.primitiveSlate900,
                 ),
               ),
             ],
@@ -1113,12 +1114,12 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                 margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: isSelected ? const Color(0xFFEFF6FF) : Colors.white,
+                  color: isSelected ? CitysideTokens.primitiveMist97 : CitysideTokens.primitiveWhite,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
                     color: isSelected
-                        ? const Color(0xFF285C76)
-                        : const Color(0xFFE2E8F0),
+                        ? CitysideTokens.primitiveTeal700
+                        : CitysideTokens.primitiveSlate200,
                     width: isSelected ? 2 : 1,
                   ),
                 ),
@@ -1140,7 +1141,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                             opt['subtitle'] as String,
                             style: const TextStyle(
                               fontSize: 12,
-                              color: Color(0xFF64748B),
+                              color: CitysideTokens.primitiveSlate500,
                             ),
                           ),
                       ],
@@ -1165,15 +1166,15 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
           height: 140,
           margin: const EdgeInsets.only(bottom: 16),
           decoration: BoxDecoration(
-            color: const Color(0xFFE2E8F0),
+            color: CitysideTokens.primitiveSlate200,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFCBD5E1)),
+            border: Border.all(color: CitysideTokens.primitiveMist85),
           ),
           child: const Center(
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.directions_car, color: Color(0xFF285C76)),
+                Icon(Icons.directions_car, color: CitysideTokens.primitiveTeal700),
                 SizedBox(width: 8),
                 Text(
                   '📍 Live GPS Route View (Simulated)',
@@ -1216,8 +1217,8 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                       );
                     },
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF285C76),
-                foregroundColor: Colors.white,
+                backgroundColor: CitysideTokens.primitiveTeal700,
+                foregroundColor: CitysideTokens.primitiveWhite,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),

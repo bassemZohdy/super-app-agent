@@ -135,6 +135,8 @@ export function buildDart(source: Layered): string {
     'abstract final class CitysideTokens {',
     ...Object.keys(source.semantic.light).map(r => `  static const Color ${r} = ${dartColor(resolveToken(source, source.semantic.light[r]))};`),
     ...Object.keys(source.semantic.dark).map(r => `  static const Color dark${r[0].toUpperCase()}${r.slice(1)} = ${dartColor(resolveToken(source, source.semantic.dark[r], 'dark'))};`),
+    // Fixed palette values for the places a semantic role does not fit, named as the CSS custom properties are (primitive-color-mist-95).
+    ...Object.entries(p.color).map(([name, value]) => `  static const Color primitive${dartName(`-${name}`)} = ${dartColor(value)};`),
     ...Object.entries(p.space).map(([name, value]) => `  static const double space${dartName(`-${name}`)} = ${px(value).toFixed(1)};`),
     ...Object.entries(p.radius).filter(([, value]) => px(value) < 1000).map(([name, value]) => `  static const double radius${dartName(`-${name}`)} = ${px(value).toFixed(1)};`),
     '}',

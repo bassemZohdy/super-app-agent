@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 26 October 2026 — P2-13 delivered: no shell has a raw color
+
+The token generator now emits the primitives as Dart constants (`CitysideTokens.primitiveMist95`, named as the CSS custom properties are), and the Flutter shell's 45 raw colors (`Color(0xFF…)`, `Colors.white`, `Colors.black`, `Colors.grey.shade600`) were replaced with them; one new primitive was added for a color with no neighbor within a distance of 4. The raw-color baseline is empty, so `npm run check:tokens` now rejects any raw color in any shell. **Not compiled:** no Dart toolchain is installed here, so the Flutter edit is checked only by text (every token it names exists in the generated file, and no token is written as a `const` constructor, which the first pass got wrong and the check now catches); run `flutter analyze` and `flutter test` where Flutter is installed. Guide: [design tokens](development/design-tokens.md).
+
 ## 26 October 2026 — P2-13 (step): the React and Angular shells use design tokens for every color
 
 The 302 raw colors in the React stylesheet, the A2UI renderer and the Angular component (214 distinct values) now reference primitive tokens. Colors within a CIELAB distance of 4 of each other were merged, which added 61 primitives (named by hue family and lightness, for example `mist-95`) and one emerald (`emerald-600`) used for focus and shadow tints; the six `rgba` shadows use `color-mix` with transparent. The raw-color ratchet's baseline fell from 347 to 45, all in the Flutter shell, and the Dart constants regenerated with the new tokens (uncompiled here). Checked in the browser: fourteen screens on the desktop and phone projects (home, payments, delegated access, settings and the wallet, profile and fines surfaces) before and after, with a PSNR of 38 to 49 dB, and a visual comparison of the profile screen. P2-13 stays open for Flutter. Guide: [design tokens](development/design-tokens.md).

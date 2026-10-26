@@ -117,3 +117,14 @@ test('P2-13: the shells stay within the committed raw-color baseline', () => {
   const verdict = compareToBaseline(countRawColors(collect()), JSON.parse(readFileSync(BASELINE, 'utf8')));
   assert.deepEqual(verdict, { regressions: [], stale: [] });
 });
+
+test('P2-13: every token the Flutter sources name exists in the generated Dart, and none is written as a const constructor', () => {
+  const generated = readFileSync('apps/shell-flutter/lib/theme/tokens.g.dart', 'utf8');
+  const declared = new Set([...generated.matchAll(/static const (?:Color|double) (\w+) =/g)].map(match => match[1]));
+  for (const file of ['main.dart', 'delegation_panel.dart', 'event_stream.dart']) {
+    const text = readFileSync(`apps/shell-flutter/lib/${file}`, 'utf8');
+    for (const match of text.matchAll(/CitysideTokens\.(\w+)/g)) assert.ok(declared.has(match[1]), `${file} uses CitysideTokens.${match[1]}, which is not generated`);
+    assert.doesNotMatch(text, /const CitysideTokens\./, `${file}: a token is a constant value, not a constructor`);
+    assert.doesNotMatch(text, /\bColor\(0x|\bColors\.[a-z]/, `${file} has a raw color`);
+  }
+});
