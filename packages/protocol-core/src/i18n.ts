@@ -88,6 +88,14 @@ const en = {
   'delegation.history': 'View audit history',
   'delegation.historyLabel': 'Delegation audit history',
   'delegation.none': 'No delegated grants for this account.',
+  'payments.eyebrow': 'Your payment setup',
+  'payments.heading': 'Accounts & funding',
+  'payments.close': 'Close payment accounts',
+  'payments.intro': 'Add demo cards, link your own biller accounts and preview a payment. Previews do not move funds.',
+  'payments.loading': 'Loading payment accounts…',
+  'payments.refresh': 'Refresh payment accounts',
+  'payments.walletLabel': 'Current wallet · simulated funds',
+  'payments.walletBreakdown': 'Available {available} · Held {held}',
 } as const;
 
 export type CatalogKey = keyof typeof en;
@@ -174,6 +182,14 @@ const ar: Record<CatalogKey, string> = {
   'delegation.history': 'عرض سجل التدقيق',
   'delegation.historyLabel': 'سجل تدقيق التفويض',
   'delegation.none': 'لا توجد تفويضات لهذا الحساب.',
+  'payments.eyebrow': 'إعداد الدفع الخاص بك',
+  'payments.heading': 'الحسابات والتمويل',
+  'payments.close': 'إغلاق حسابات الدفع',
+  'payments.intro': 'أضف بطاقات تجريبية واربط حسابات الفواتير الخاصة بك وعاين عملية دفع. المعاينة لا تحرّك أي أموال.',
+  'payments.loading': 'جارٍ تحميل حسابات الدفع…',
+  'payments.refresh': 'تحديث حسابات الدفع',
+  'payments.walletLabel': 'المحفظة الحالية · أموال تجريبية',
+  'payments.walletBreakdown': 'المتاح {available} · المحجوز {held}',
 };
 
 export const CATALOGS: Readonly<Record<Locale, Readonly<Record<CatalogKey, string>>>> = { en, ar };

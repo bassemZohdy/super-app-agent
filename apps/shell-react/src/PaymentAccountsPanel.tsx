@@ -14,9 +14,11 @@ import { CheckoutGroupsPanel } from './CheckoutGroupsPanel';
 import { RechargePanel } from './RechargePanel';
 import { WalletFundingPanel } from './WalletFundingPanel';
 import { useEffect, useRef, useState } from 'react';
+import { translate, type CatalogKey, type Locale } from '../../../packages/protocol-core/src/i18n.ts';
 import { formatAED, cardPresets, type PaymentMethod, type PaymentPreview, type BillingAccount, type PaymentOverview, type PaymentAuthorizationReview } from '../../../packages/protocol-core/src/payments.ts';
-type Props = { gateway: string; accountId: string; getToken(): Promise<string>; onClose(): void };
-export function PaymentAccountsPanel({ gateway, accountId, getToken, onClose }: Props) {
+type Props = { gateway: string; accountId: string; getToken(): Promise<string>; onClose(): void; locale?: Locale };
+export function PaymentAccountsPanel({ gateway, accountId, getToken, onClose, locale = 'en' }: Props) {
+  const t = (key: CatalogKey, values?: Record<string, string | number>) => translate(locale, key, values);
   const [data, setData] = useState<PaymentOverview>();
   const [eligibility,setEligibility]=useState<AccountEligibility>(),[lifecycle,setLifecycle]=useState<PaymentLifecycle>();
   const [busy, setBusy] = useState(false), [notice, setNotice] = useState('');
@@ -94,15 +96,15 @@ export function PaymentAccountsPanel({ gateway, accountId, getToken, onClose }: 
     const result=await mutate(`orders/${action}`,{orderId:order.id,...(action==='recover'?{}:{expectedVersion:order.version,...(action==='cancel'?{}:{approvalDigest:order.approvalDigest})}),...extra});
     setNotice(result.order.sourceFinalizationPending?'Provider credit confirmed. Finish recharge confirmation on the original order.':result.order.state==='SETTLED'?'Payment captured and confirmed by the provider.':result.order.fundsCaptured?'Funds captured; provider settlement needs reconciliation. Use the original order.':result.order.state==='CAPTURING'?'Capture admission is pending. Inspect or resume this same order; do not start another payment.':result.order.failureCode?`Authorization stopped: ${result.order.failureCode}. No payment was captured.`:result.order.state==='AUTHORIZED'?'Funds reserved temporarily. No payment captured yet.':result.order.state==='AUTHORIZATION_PENDING'?'Simulated issuer decision pending. Card capacity is reserved; no payment captured.':result.order.state==='REQUIRES_ACTION'?'Complete the bound demo card challenge to continue.':'Authorization review cancelled. Holds released.');
   });
-  return <section id="payment-account-panel" className="payment-accounts" aria-label="Payment accounts">
-    <header><div><p className="payment-eyebrow">Your payment setup</p><h2 ref={heading} tabIndex={-1}>Accounts &amp; funding</h2></div><button className="text-button" onClick={onClose}>Close payment accounts</button></header>
-    <p>Add demo cards, link your own biller accounts and preview a payment. Previews do not move funds.</p>
-    <p role="status" className={notice ? 'payment-notice' : ''}>{busy ? 'Loading payment accounts…' : notice}</p>
-    <button disabled={busy} onClick={() => void work(load)}>Refresh payment accounts</button>
+  return <section id="payment-account-panel" className="payment-accounts" aria-label={t('tools.paymentAccounts')}>
+    <header><div><p className="payment-eyebrow">{t('payments.eyebrow')}</p><h2 ref={heading} tabIndex={-1}>{t('payments.heading')}</h2></div><button className="text-button" onClick={onClose}>{t('payments.close')}</button></header>
+    <p>{t('payments.intro')}</p>
+    <p role="status" className={notice ? 'payment-notice' : ''}>{busy ? t('payments.loading') : notice}</p>
+    <button disabled={busy} onClick={() => void work(load)}>{t('payments.refresh')}</button>
     {eligibility&&!eligibility.active&&<aside role="alert" aria-label="Workspace access restricted" className="payment-review"><h3>Workspace access restricted</h3><p>{eligibility.ownerEnabled?'Your membership in this workspace is restricted.':'The owner is disabled for payment and service access.'} New authorizations and private history access are blocked. Your history and original payment IDs are retained.</p><p>Access changes require the demo operator. Refresh after access is restored. Your workspace and funding source stay selected.</p><p>Workspace {accountId} · permission version {eligibility.epoch}</p></aside>}
     {data && <>
       {lifecycle&&<section aria-label="Payment lifecycle" className="payment-review"><h3>Access &amp; in-flight work</h3><p>Workspace access active · permission version {lifecycle.eligibility.epoch}. Restoring access does not renew old approvals or move a rule to another source.</p><p>Automatic execution remains disabled. Captured payments keep their original IDs for reconciliation.</p><ul>{lifecycle.orders.map(o=><li key={o.id}>Payment {o.id} · {o.state} · Source {o.sourceId}{o.paymentId&&` · Original payment ${o.paymentId}`} · {o.fundsCaptured?'Reconcile the original capture; do not pay again.':o.state==='CAPTURING'?'Inspect the original attempt; do not create another payment.':'Cancel or review again if access or funding changed.'}{o.blockedReasons.length>0&&` · Blocked for new authority: ${o.blockedReasons.join(', ')}`}</li>)}{lifecycle.funding.map(o=><li key={o.id}>Wallet funding {o.id} · {o.state} · Source {o.sourceId}{o.blockedReasons.length>0&&` · Blocked: ${o.blockedReasons.join(', ')}`}</li>)}{lifecycle.mandates.map(m=><li key={m.id}>Rule {m.id} · policy {m.policyVersion} · {m.state} · Automatic execution disabled{m.blockedReasons.length>0&&` · New consent required: ${m.blockedReasons.join(', ')}`}</li>)}</ul>{lifecycle.orders.length+lifecycle.funding.length+lifecycle.mandates.length===0&&<p>No active payment reviews or rules.</p>}<PaymentReservations lifecycle={lifecycle} /></section>}
-      <div className="payment-summary"><strong>{formatAED(data.wallet.balanceMinor)}</strong><span>Current wallet · simulated funds</span><span>Available {formatAED(data.wallet.availableMinor)} · Held {formatAED(data.wallet.heldMinor)}</span></div>
+      <div className="payment-summary"><strong>{formatAED(data.wallet.balanceMinor)}</strong><span>{t('payments.walletLabel')}</span><span>{t('payments.walletBreakdown', { available: formatAED(data.wallet.availableMinor), held: formatAED(data.wallet.heldMinor) })}</span></div>
       <div className="payment-grid">
         <section aria-label="Saved funding methods"><h3>Wallet &amp; demo cards</h3><p>Choose a preset, never enter real card details.</p>
           <form onSubmit={e => { e.preventDefault(); void work(async () => { await mutate('methods', { preset, nickname }); setNotice('Demo card saved for this account.'); }); }}>

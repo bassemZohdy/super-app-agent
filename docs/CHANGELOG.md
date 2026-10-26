@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 26 October 2026 — P2-01 (step): Payment accounts header and wallet summary in Arabic
+
+The Payment accounts panel takes the shell's language for its heading, introduction, loading text, refresh and close controls and the wallet summary, with amounts from the locale formatter. The sections inside it stay English for now because the payment journeys find their controls by name; they follow panel by panel. `arabic.spec.ts` checks the translated header on both projects.
+
 ## 26 October 2026 — P2-01 (step): the Delegated access panel in Arabic
 
 The panel's own text (heading, scope notice, buttons, status line, empty state, revoke notice) and its amounts and times come from the catalogs and formatters; the grant purpose and run result are the gateway's English text. Test: a phone and desktop Arabic journey; the English journeys are unchanged.
