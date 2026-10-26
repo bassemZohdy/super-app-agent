@@ -22,6 +22,8 @@ export const preferencesSchema = object({
   ui: object({ theme: { enum: ['light', 'dark', 'system'] }, denseMode: { type: 'boolean' },
     accentColor: { type: 'string', pattern: '^#[a-fA-F0-9]{6}$' } }),
   conciergeTone: { enum: ['concise', 'friendly', 'formal', 'vip'] },
+  /** The profile revision the resident reviewed; the update is refused if the profile has changed since. */
+  expectedRevision: { type: 'integer', minimum: 1, maximum: 1_000_000_000 },
 });
 const handshake = object({
   platform: { enum: ['react', 'angular', 'flutter', 'web_responsive'] },

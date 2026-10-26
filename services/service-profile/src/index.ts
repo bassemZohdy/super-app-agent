@@ -72,6 +72,10 @@ export let currentPreferences: UserPreferences = {
   conciergeTone: 'vip',
 };
 
+/** Counts every change to the preferences a resident reviewed. A confirmation names the revision it was shown at, so a change
+ *  made anywhere in between forces a new review instead of being overwritten (P1-18). */
+export let profileRevision = 1;
+
 export function generatePromptContext(profile: UserProfile, prefs: UserPreferences): string {
   const dietaryStr = prefs.dietary.length > 0 ? prefs.dietary.join(', ') : 'None';
   const vehicle = profile.smartCityAssets?.vehicles[0]?.plate || 'Dubai B-74892';
@@ -123,6 +127,7 @@ function handleProfileRequest(
       data: {
         success: true,
         profile: currentProfile,
+        revision: profileRevision,
       },
     };
   }
@@ -134,12 +139,16 @@ function handleProfileRequest(
       data: {
         success: true,
         preferences: currentPreferences,
+        revision: profileRevision,
       },
     };
   }
 
   // 4. Update Preferences
   if (normMethod === 'POST' && pathname === '/profile/preferences') {
+    if (body.expectedRevision !== undefined && body.expectedRevision !== profileRevision) {
+      return { status: 409, data: { success: false, code: 'PROFILE_REVISION_CHANGED', error: 'Your profile changed after you reviewed it. Review it again before confirming.', currentRevision: profileRevision } };
+    }
     if (body.dietary && Array.isArray(body.dietary)) {
       currentPreferences.dietary = body.dietary;
     }
@@ -152,6 +161,7 @@ function handleProfileRequest(
     if (body.conciergeTone) {
       currentPreferences.conciergeTone = body.conciergeTone;
     }
+    profileRevision += 1;
 
     return {
       status: 200,
@@ -159,6 +169,7 @@ function handleProfileRequest(
         success: true,
         message: 'Preferences updated successfully',
         preferences: currentPreferences,
+        revision: profileRevision,
         promptContext: generatePromptContext(currentProfile, currentPreferences),
       },
     };
@@ -173,6 +184,7 @@ function handleProfileRequest(
         promptContext: generatePromptContext(currentProfile, currentPreferences),
         profile: currentProfile,
         preferences: currentPreferences,
+        revision: profileRevision,
       },
     };
   }

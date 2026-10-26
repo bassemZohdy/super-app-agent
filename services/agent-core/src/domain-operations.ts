@@ -75,7 +75,7 @@ export function callDomain(service: keyof typeof domainHandlers, method: string,
   }
   const rejected = valid && result.status >= 400 && result.status < 500;
   if (step) step.state = rejected ? 'FAILED' : 'UNKNOWN';
-  const code = rejected ? (result.data.code === 'VALIDATION_ERROR' ? 'VALIDATION_ERROR' : 'DOMAIN_REJECTED')
+  const code = rejected ? (['VALIDATION_ERROR', 'PROFILE_REVISION_CHANGED'].includes(result.data.code) ? result.data.code : 'DOMAIN_REJECTED')
     : mutation ? 'DOMAIN_OUTCOME_UNKNOWN' : 'DOMAIN_UNAVAILABLE';
   throw new DomainOperationError(rejected ? result.status : 503, code, service);
 }
@@ -118,7 +118,7 @@ async function callDomainRequest(service: keyof typeof domainHandlers | 'telecom
   if (succeeded) { if (step) step.state = 'SUCCEEDED'; return result; }
   const rejected = result.status >= 400 && result.status < 500 && result.data?.code !== 'PROVIDER_OUTCOME_UNKNOWN';
   if (step) step.state = rejected ? 'FAILED' : 'UNKNOWN';
-  throw new DomainOperationError(rejected ? result.status : 503, rejected ? 'DOMAIN_REJECTED' : mutation ? 'DOMAIN_OUTCOME_UNKNOWN' : 'DOMAIN_UNAVAILABLE', service);
+  throw new DomainOperationError(rejected ? result.status : 503, rejected ? (result.data?.code === 'PROFILE_REVISION_CHANGED' ? 'PROFILE_REVISION_CHANGED' : 'DOMAIN_REJECTED') : mutation ? 'DOMAIN_OUTCOME_UNKNOWN' : 'DOMAIN_UNAVAILABLE', service);
 }
 
 /** One tool span per domain operation; IDs carry provenance, never authority. */

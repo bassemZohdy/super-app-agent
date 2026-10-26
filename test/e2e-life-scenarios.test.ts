@@ -335,8 +335,10 @@ test('E2E Life Scenario 8: User Profile Personalization & Adaptive AG-UI Surface
   const updateActionRes = await executeCoreRequest('POST', '/api/a2ui/action', {}, {
     sessionId, surfaceRevision: getOrCreateSession(sessionId).currentSurface?.revision,
     action: 'update_preferences',
+    // The confirmation names the profile revision it was reviewed at (P1-18).
     payload: {
       dietary: ['Vegan', 'Gluten-Free'],
+      expectedRevision: executeProfileRequest('GET', '/profile').data.revision,
     },
   });
   assert.strictEqual(updateActionRes.status, 200);

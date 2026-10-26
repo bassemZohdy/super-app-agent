@@ -17,7 +17,7 @@ import type { SuperAppAgentState } from './state.ts';
 import { analyzeIntent, hasTerm } from '../domain-router.ts';
 import { invokeLocalConversation, isLocalModelEnabled, LocalConversationError } from '../local-conversation.ts';
 
-import { callDomainAsync } from '../domain-operations.ts';
+import { callDomainAsync, DomainOperationError } from '../domain-operations.ts';
 import type { UserProfile, UserPreferences } from '../../../service-profile/src/index.ts';
 const executeRideRequest = (method: string, path: string, query: Record<string, string> = {}, body: unknown = {}) => callDomainAsync('ride', method, path, query, body);
 const executeFoodRequest = (method: string, path: string, query: Record<string, string> = {}, body: unknown = {}) => callDomainAsync('food', method, path, query, body);
@@ -308,7 +308,7 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
       }
     } else if (hasProfileIntent) {
       onProgress?.('Retrieving the demo profile and registered resources…');
-      state.currentSurface = this.buildProfileOverviewSurface(state.sessionId, profile, preferences);
+      state.currentSurface = this.buildProfileOverviewSurface(state.sessionId, profile, preferences, Number(profileRes.data.revision) || 1);
       state.messages.push({
         id: `msg_${Date.now() + 1}`,
         role: 'assistant',
@@ -841,16 +841,30 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
     } else if (action === 'update_preferences') {
       onProgress?.('👤 Updating user preferences in Profile Microservice...');
       const { action: _action, ...preferences } = payload;
-      const updateRes = await executeProfileRequest('POST', '/profile/preferences', {}, preferences);
-      const profile = (await executeProfileRequest('GET', '/profile')).data.profile;
+      try {
+        const updateRes = await executeProfileRequest('POST', '/profile/preferences', {}, preferences);
+        const profile = (await executeProfileRequest('GET', '/profile')).data.profile;
 
-      state.currentSurface = this.buildProfileOverviewSurface(state.sessionId, profile, updateRes.data.preferences);
-      state.messages.push({
-        id: `msg_${Date.now()}`,
-        role: 'assistant',
-        content: `Preferences updated successfully! Future ride and food suggestions will immediately reflect these settings.`,
-        timestamp: Date.now(),
-      });
+        state.currentSurface = this.buildProfileOverviewSurface(state.sessionId, profile, updateRes.data.preferences, Number(updateRes.data.revision) || 1);
+        state.messages.push({
+          id: `msg_${Date.now()}`,
+          role: 'assistant',
+          content: `Preferences updated successfully! Future ride and food suggestions will immediately reflect these settings.`,
+          timestamp: Date.now(),
+        });
+      } catch (error) {
+        // The profile changed after the resident reviewed it: nothing was written. The stale surface and its approval are replaced by
+        // the current values and a new confirmation at the current revision.
+        if (!(error instanceof DomainOperationError) || error.code !== 'PROFILE_REVISION_CHANGED') throw error;
+        const current = (await executeProfileRequest('GET', '/profile/prompt-context')).data;
+        state.currentSurface = this.buildProfileOverviewSurface(state.sessionId, current.profile, current.preferences, Number(current.revision) || 1);
+        state.messages.push({
+          id: `msg_${Date.now()}`,
+          role: 'assistant',
+          content: 'Your profile changed after you reviewed it, so nothing was changed. Review the current settings and confirm again.',
+          timestamp: Date.now(),
+        });
+      }
     }
 
     return state;
@@ -1097,7 +1111,9 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
   private static buildProfileOverviewSurface(
     sessionId: string,
     profile: UserProfile,
-    preferences: UserPreferences
+    preferences: UserPreferences,
+    /** The profile revision this surface shows; a confirmation from it names the same revision. */
+    revision: number
   ): AGUISurfacePayload {
     const vehicle = profile.smartCityAssets?.vehicles[0]?.plate || 'Dubai B-74892';
     const premise = profile.smartCityAssets?.premises[0]?.premiseId || 'DEWA-201948201';
@@ -1168,7 +1184,7 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
             type: 'Button',
             id: 'btn_toggle_vegan',
             properties: {
-              label: 'Toggle Vegan / Gluten-Free Filter',
+              label: `Set dietary filter to Vegan and Gluten-Free (reviewed at profile revision ${revision})`,
               variant: 'outline',
               fullWidth: true,
             },
@@ -1179,6 +1195,7 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
                 payload: {
                   action: 'update_preferences',
                   dietary: ['Vegan', 'Gluten-Free'],
+                  expectedRevision: revision,
                 },
               },
             ],

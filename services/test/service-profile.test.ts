@@ -48,3 +48,16 @@ test('service-profile: MCP protocol tool definitions', () => {
   assert.ok(mcp.data.tools.some((t: any) => t.name === 'profile_getPromptContext'));
 });
 
+test('P1-18: the profile has a revision that every change moves, and a stale expected revision is refused without a write', () => {
+  const start = executeProfileRequest('GET', '/profile').data.revision as number;
+  assert.ok(Number.isInteger(start) && start >= 1);
+  assert.equal(executeProfileRequest('GET', '/profile/prompt-context').data.revision, start);
+  const stale = executeProfileRequest('POST', '/profile/preferences', {}, { conciergeTone: 'formal', expectedRevision: start + 5 });
+  assert.deepEqual([stale.status, stale.data.code, stale.data.currentRevision], [409, 'PROFILE_REVISION_CHANGED', start]);
+  assert.equal(executeProfileRequest('GET', '/profile').data.revision, start, 'a refused change leaves the revision');
+  assert.notEqual(executeProfileRequest('GET', '/profile/preferences').data.preferences.conciergeTone, 'formal', 'and the preferences');
+  const changed = executeProfileRequest('POST', '/profile/preferences', {}, { conciergeTone: 'friendly', expectedRevision: start });
+  assert.deepEqual([changed.status, changed.data.revision], [200, start + 1]);
+  assert.equal(executeProfileRequest('POST', '/profile/preferences', {}, { ui: { denseMode: false } }).data.revision, start + 2, 'a change without an expected revision still works and moves it');
+  assert.equal(executeProfileRequest('POST', '/profile/preferences', {}, { expectedRevision: 0 }).status, 400, 'a revision below 1 is not a revision');
+});
