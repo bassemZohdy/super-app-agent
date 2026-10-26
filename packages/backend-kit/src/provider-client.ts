@@ -1,6 +1,7 @@
 import { tracedFetch as fetch } from './observability.ts';
 import { ClientCredentials } from './oauth.ts';
 import type { Actor } from './context.ts';
+import { recordCall } from './connections.ts';
 export class UpstreamError extends Error {
   status: number; code: string;
   constructor(status: number, code: string, message: string) { super(message); this.status = status; this.code = code; }
@@ -20,12 +21,16 @@ export class ProviderClient {
         ...(method === 'POST' ? { 'Idempotency-Key': idempotencyKey || `${actor.requestId}:${provider}:${path}` } : {}) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
+    const started = Date.now();
+    // What was called and what came back, for the Connections view: the owner's own calls, with no account or object id.
+    const record = (status: number, code?: string) => recordCall(actor.sub, { at: started, provider, method, path: url.pathname, status, ...(code ? { code } : {}), ms: Date.now() - started });
     let response: Response;
     try {
       response = await send();
       if (response.status === 401 && !actor.authorization) { this.credentials.invalidate(); response = await send(); }
-    } catch { throw new UpstreamError(503, method === 'POST' ? 'PROVIDER_OUTCOME_UNKNOWN' : 'PROVIDER_UNAVAILABLE', `The ${provider} simulator is unavailable.`); }
+    } catch { record(503, method === 'POST' ? 'PROVIDER_OUTCOME_UNKNOWN' : 'PROVIDER_UNAVAILABLE'); throw new UpstreamError(503, method === 'POST' ? 'PROVIDER_OUTCOME_UNKNOWN' : 'PROVIDER_UNAVAILABLE', `The ${provider} simulator is unavailable.`); }
     const data = await response.json() as any;
+    record(response.status, !response.ok || data.success !== true ? (typeof data.code === 'string' ? data.code : 'PROVIDER_REJECTED') : undefined);
     if (!response.ok || data.success !== true) throw new UpstreamError(response.status, typeof data.code === 'string' ? data.code : 'PROVIDER_REJECTED', typeof data.error === 'string' ? data.error : `The ${provider} request was rejected.`);
     return data;
   }

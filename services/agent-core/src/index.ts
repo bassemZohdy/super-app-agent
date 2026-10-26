@@ -1,4 +1,5 @@
 import { shutdownOnSignal } from '../../../packages/backend-kit/src/shutdown.ts';
+import { ConnectionRegistry, callsFor } from '../../../packages/backend-kit/src/connections.ts';
 import { Telemetry,correlation,enrichCorrelation,operationalEvent } from '../../../packages/backend-kit/src/observability.ts';
 import { handlePaymentAccounts } from './payment-accounts.ts';
 import { EligibilityClient,EligibilityReadError,eligibilityEnforced } from '../../../packages/backend-kit/src/eligibility-client.ts';
@@ -28,6 +29,7 @@ import { localModelStatus } from './local-conversation.ts';
 import { voiceConfig, localSpeech, localTranscription } from './local-voice.ts';
 
 // In-Memory Session and SSE Subscriber Registry
+const connectionRegistry = new ConnectionRegistry();
 export const sessions = new Map<string, SuperAppAgentState>();
 const sessionOwners = new Map<string, string>();
 export const sseClients = new Map<string, Set<(msg: A2UIMessageEnvelope) => void>>();
@@ -148,6 +150,11 @@ async function handleGatewayRequest(
   }
   const paymentAccounts = await handlePaymentAccounts(actor, normMethod, pathname, normMethod==='GET'?query:body);
   if (paymentAccounts) return paymentAccounts;
+  // What the providers advertise and what this owner's calls to them did (P2-11). Reading is cached for 30 seconds; refresh=1 reads again.
+  if (normMethod === 'GET' && pathname === '/api/connections') {
+    const providers = await connectionRegistry.checkAll(query.refresh === '1');
+    return { status: 200, data: { success: true, providers: providers.map(({ provider, ok, checkedAt, operations, problem }) => ({ provider, ok, checkedAt, operations, ...(problem ? { problem } : {}) })), calls: callsFor(actor.sub) } };
+  }
   if (normMethod === 'GET' && pathname === '/api/services') return { status: 200, data: { success: true, services: manualServices.map(({ id, name }) => ({ id, name, route: `/services/${id}`, version: '1.0.0', runtime: 'bundled-surface' })) } };
   if (normMethod === 'GET' && pathname === '/api/accounts') {
     const accounts = process.env.PROVIDER_INTEGRATION === 'true'

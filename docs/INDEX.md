@@ -56,6 +56,7 @@ Payments use synthetic funds only. Automatic execution is disabled; open work is
 | [History/receipts](development/payment-history.md) | Snapshot-paginated journals/activity and original-source details |
 | [Owner/source lifecycle](development/payment-lifecycle.md) | Current permission versions, revocation and retained in-flight state |
 | [Business obligations](development/payment-obligations.md) | Invoice/fine/recharge exclusion and original capture identities; AUTO qualification open |
+| [Connections view](development/connections.md) | Discovered provider operations, refused documents and the owner's recent calls |
 | [Preview simulator](development/simulator.md) | Persisted business clock/due-event preview; no execution authority |
 
 [Payment/automation design](architecture/payment-automation-demo.md) separates implemented payments from planned services. [Automation threat model](architecture/payment-automation-security.md) and [proposed AUTO-03 contract](architecture/automation-permit-contract.md) gate future permits, shared budgets and unattended execution. [Delegation analysis](architecture/secure-identity-delegation.md) preserves the original blueprint assessment; current implementation is in the guide and ADR-0012.

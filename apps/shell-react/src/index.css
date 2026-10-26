@@ -181,3 +181,12 @@ button, select, input:not([type='checkbox']):not([type='radio']), textarea, summ
 button, [role='button'], summary { min-width: 44px; }
 .composer:focus-within { outline: 3px solid var(--color-focus-ring); outline-offset: 3px; }
 .payment-accounts button, .payment-accounts select, .payment-accounts input, .payment-accounts textarea { font-size: var(--font-size-control); }
+
+/* Connections view (P2-11): operations tables scroll inside their own region so the page never scrolls sideways. */
+.connections-panel article { border-top: 1px solid var(--color-surface-border); padding: 12px 0; }
+.connections-panel details > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--color-primary-text); }
+.table-scroll { overflow-x: auto; max-width: 100%; }
+.table-scroll table { border-collapse: collapse; min-width: 100%; font-size: var(--font-size-control); }
+.table-scroll caption { text-align: left; color: var(--color-text-muted); padding: 4px 0; }
+.table-scroll th, .table-scroll td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--color-surface-border); white-space: nowrap; }
+.connections-panel ol { padding-left: 20px; overflow-wrap: anywhere; }
