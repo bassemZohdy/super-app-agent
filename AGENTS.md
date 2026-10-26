@@ -27,6 +27,10 @@ Node 24 is the supported floor (`.nvmrc`). Integration and browser suites need t
 - `README.md#what-exists-today` changes only when a capability appears or disappears. `docs/INDEX.md` changes only when a guide is added. An evidence report in `docs/reports/` is written per milestone, not per slice, and names the revision it ran against.
 - A `TODO.md` bullet states only what is still open, then `Done when`. Anything longer belongs in the guide for that area.
 
+## UI changes
+
+A UI change uses the offline design skills: `.claude/skills/design-system` for tokens and `.claude/skills/ui-ux-pro-max` for accessibility, touch, forms and navigation guidance (scope, edits and hashes are in `.claude/skills/VENDORED.md`). Search the stack data for the shell you touch (`python .claude/skills/ui-ux-pro-max/scripts/search.py "<intent>" --stack react|angular|flutter`), take colors and sizes from `packages/ui-tokens`, and run `npm run check:tokens`; for web shells also run `npm run test:browser`. Do not add a network fetch, hosted font or remote image.
+
 ## Safety rules that must keep holding
 
 - Mandates keep returning `executionEnabled:false` and no worker, credential or scheduled write is enabled until a schedule enqueues jobs and AUTO-15's pause and kill-switch gates pass (the AUTO-03 credential and AUTO-05 worker gates already do).

@@ -35,3 +35,8 @@ Thumbs.db
 *.sqlite-shm
 *.sqlite-wal
 .playwright-mcp/
+
+# Python (vendored design skills)
+__pycache__/
+*.pyc
+.pytest_cache/

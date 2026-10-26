@@ -30,3 +30,7 @@ Do not edit these three files; change the source.
 ## Raw colors in shells
 
 Shell source should use these tokens, not its own hex, rgb or hsl values or Flutter `Color(0x…)` and `Colors.*` literals. Today's raw colors are recorded per file in `packages/ui-tokens/raw-colors.baseline.json`. `npm run check:tokens` fails when a file gains a raw color or a new file has one, and also when a file loses some without the baseline being lowered; after migrating a file run `npm run colors:baseline` and commit the smaller baseline. The baseline is empty when the shells are migrated.
+
+## Design skills for agents
+
+Two agent skills are vendored offline in `.claude/skills/`: `design-system` (token architecture and a hardcoded-value checker) and `ui-ux-pro-max` (searchable accessibility, touch, forms and navigation guidance, with React, Angular and Flutter stack data). `AGENTS.md` says a UI change uses them. What was left out, the three edits, the license status and a hash of every file are in [`.claude/skills/VENDORED.md`](../../.claude/skills/VENDORED.md); `services/test/p212-vendored-skills.test.ts` fails if a file drifts from its hash, if a vendored script could reach the network, or if an omitted part comes back. On Windows run the vendored Python tests with `PYTHONUTF8=1`. `frontend-design` is not vendored: it is a broken link in the source, so use the account-level skill.
