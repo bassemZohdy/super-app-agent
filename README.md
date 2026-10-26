@@ -29,7 +29,7 @@ docker compose -f compose.agent.yml up --build
 
 [Architecture](docs/architecture.md) · [Native graph](docs/agent-flow.md) · [Testing](docs/testing.md). Use one process/replica per SQLite file. The primary React fines route uses this API; other React journeys and the Angular/Flutter shells retain the integrated compatibility path below.
 
-Start `npm run dev:react` in another terminal and open [the fines conversation](http://localhost:3000/services/fines). Sign in with the local `token` field from `AGENT_TEST_IDENTITIES` in private `.env.agent`, then ask to view fines or review a payment. The OpenRouter API key stays on the server. **Swap panes** exchanges conversation and service details; each pane has **Maximize** and **Minimize** controls, and **Restore split view** brings both back. The same layout controls are available in the main concierge. See [browser setup and recovery](docs/integrations.md#react-fines-workspace).
+Start `npm run dev:react` in another terminal and open [the fines conversation](http://localhost:3000/services/fines). Sign in with the local `token` field from `AGENT_TEST_IDENTITIES` in private `.env.agent`, then ask to view fines or review a payment. The OpenRouter API key stays on the server. The **Swap panes** icon exchanges conversation and service details. Each pane’s size icon maximizes it; click that same icon again to restore the split view. The same layout controls are available in the main concierge. See [browser setup and recovery](docs/integrations.md#react-fines-workspace).
 
 [What exists today](#what-exists-today) · [Documentation index](docs/INDEX.md) · [Open work](TODO.md) · [Verification evidence](docs/reports/README.md)
 

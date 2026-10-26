@@ -317,12 +317,12 @@ function CompatibilityApp() {
         <div className="nav-label services-label">Explore services</div>
         <a className="nav-item" href="/services/fines"><ShieldCheck size={18} /> Fines</a>
         <nav>{services.map(service => <button key={service.id} className="nav-item" disabled={pending} onClick={() => openService(service.id)}><service.icon size={18} /> {service.short}<ArrowUpRight size={13} className="nav-arrow" /></button>)}</nav>
-        <button className="nav-item" disabled={pending} onClick={() => send('Show my citizen profile and registered vehicles and premises')}><ShieldCheck size={18} /> My profile</button>
+        <button className="nav-item" disabled={pending} onClick={() => openService('profile')}><ShieldCheck size={18} /> My profile</button>
         <div className="sidebar-bottom">
           {accounts.length > 0 && <label className="account-selector">Current account<select aria-label="Current account" disabled={pending} value={accountId} onChange={e => void switchAccount(e.target.value)}>{accounts.map(account => <option key={account.id} value={account.id}>{account.label}</option>)}</select></label>}
           {auth.current?.signedIn && <button className="text-button" onClick={() => { voice.current?.cancel(); auth.current?.logout(); }}>Sign out</button>}
           <div className="city-location"><MapPin size={17} /><div>Made for life in Dubai<small>City services, one conversation.</small></div></div>
-          <button className="profile-button" disabled={pending} onClick={() => send('Show my citizen profile')}><span className="avatar">{initials}</span><span>{userName}<small>{accounts.find(a => a.id === accountId)?.label || 'Demo account'}</small></span><ChevronDown size={15} /></button>
+          <button className="profile-button" disabled={pending} onClick={() => openService('profile')}><span className="avatar">{initials}</span><span>{userName}<small>{accounts.find(a => a.id === accountId)?.label || 'Demo account'}</small></span><ChevronDown size={15} /></button>
         </div>
       </aside>
       {menuOpen && <button className="menu-scrim" aria-label="Close navigation" onClick={() => setMenuOpen(false)} />}
@@ -345,7 +345,7 @@ function CompatibilityApp() {
                 <article className="message assistant welcome-message"><div className="message-avatar" aria-hidden="true"><Sparkles size={18} /></div><div className="message-body"><span className="message-author">Rashid</span><p>I can help with bills, getting around, and everyday city services. What would you like to take care of?</p></div></article>
                 <div className="suggestion-grid" aria-label="Suggested messages">
                   <button disabled={pending} onClick={() => openService('utilities')}><Zap size={16} aria-hidden="true" />Check my bills</button>
-                  <button disabled={pending} onClick={() => send('Find parking in Downtown Dubai')}><CarFront size={16} aria-hidden="true" />Find parking</button>
+                  <button disabled={pending} onClick={() => openService('parking')}><CarFront size={16} aria-hidden="true" />Find parking</button>
                   <button disabled={pending} onClick={() => openService('wallet')}><CreditCard size={16} aria-hidden="true" />Check my wallet</button>
                 </div>
                 <a className="fines-shortcut" href="/services/fines"><ShieldCheck size={16} aria-hidden="true" />Review your fines<ArrowUpRight size={16} aria-hidden="true" /></a>

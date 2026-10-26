@@ -16,7 +16,7 @@ npm run check
 | Actual process restart | `services/agent-core/test/restart.test.ts`: spawn the real entry point, obtain approval, SIGKILL, restart on the same file, compare restored approval, approve, SIGKILL/restart again, replay the request and retain the same receipt |
 | Lost-response reconciliation | Commit the actual simulator effect over HTTP, inject a lost reply, close/reopen the application database, recover with the original key and assert exactly one simulator payment |
 | Browser fines adoption | `test/browser/focused-agent/fines.spec.ts`: actual React/agent HTTP requests, process restart on the same SQLite file, exact selected-fine review, duplicate/stale/cross-owner refusal, reject/cancel, lost-response recovery and database payment-row assertions |
-| Pane controls | The same browser suite checks swap/read order, maximize/minimize/restore, preserved drafts, automatic review reopening, labelled touch targets/focus and the main concierge controls; the main concierge layout check uses an explicitly stubbed compatibility gateway |
+| Pane controls | The same browser suite checks swap/read order, maximize/restore through the same icon, preserved drafts, automatic review reopening, labelled touch targets/focus, the main concierge width bounds and composer visibility; navigation/reload uses real local identity and APIs, while the main concierge layout check uses an explicitly stubbed compatibility gateway |
 
 Run just the self-contained fines and pane journeys without Docker:
 

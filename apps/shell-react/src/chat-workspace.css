@@ -1,5 +1,5 @@
 /* The concierge keeps a visible conversation and composer inside the viewport. */
-.concierge-app { --workspace-conversation-width: 1.9fr; --workspace-details-width: 1fr; background: var(--color-surface); }
+.city-app.concierge-app { --workspace-conversation-width: minmax(0, 1fr); --workspace-details-width: clamp(20rem, 30vw, 28rem); background: var(--color-surface); }
 .concierge-app .sidebar { width: 232px; padding: var(--spacing-xlarge) var(--spacing-medium) var(--spacing-medium); background: var(--primitive-color-navy-900); border-color: var(--primitive-color-slate-800); color: var(--primitive-color-slate-200); }
 .concierge-app .sidebar .brand { color: var(--primitive-color-white); }
 .concierge-app .sidebar .brand small, .concierge-app .nav-label, .concierge-app .city-location, .concierge-app .account-selector, .concierge-app .profile-button small { color: var(--primitive-color-slate-400); }
@@ -32,12 +32,6 @@
 .concierge-app .workspace-pane-heading .pane-icon { border-color: transparent; background: transparent; color: var(--color-text-muted); }
 .concierge-app .workspace-pane-heading .pane-icon:hover { background: var(--color-surface); color: var(--color-primary-text); }
 .mobile-pane-tabs { display: none; }
-.pane-layout-menu { position: relative; }
-.pane-layout-menu summary { display: flex; align-items: center; justify-content: center; gap: var(--spacing-small); padding: var(--spacing-small); color: var(--color-text-muted); font-size: var(--font-size-control); cursor: pointer; border-radius: var(--radius-sm); list-style: none; }
-.pane-layout-menu summary::-webkit-details-marker { display: none; }
-.pane-layout-menu summary:hover { background: var(--color-surface); }
-.pane-layout-popover { position: absolute; top: calc(100% + var(--spacing-small)); right: 0; z-index: 15; display: flex; flex-direction: column; gap: var(--spacing-small); width: min(264px, calc(100vw - 48px)); padding: var(--spacing-medium); background: var(--color-background); border: 1px solid var(--color-surface-border); border-radius: var(--radius-md); box-shadow: var(--shadow-lg); }
-.pane-layout-popover .pane-layout-status { margin: 0; font-size: var(--font-size-sm); }
 .concierge-app .conversation { min-height: 0; }
 .concierge-app .conversation-scroll { min-height: 0; padding: var(--spacing-large); overflow-y: auto; overscroll-behavior: contain; }
 .concierge-app .conversation-scroll:has(.welcome) { display: flex; }
@@ -81,7 +75,6 @@
 .concierge-app .app-footer { min-height: 44px; border: none; }
 .concierge-app .app-footer button { min-height: 44px; }
 @media (max-width: 1180px) {
-  .concierge-app { --workspace-conversation-width: 1.6fr; }
   .concierge-app .sidebar { width: 208px; }
   .concierge-app .account-tool span { display: none; }
   .concierge-app .account-tool { width: 44px; }
@@ -89,9 +82,8 @@
   .concierge-app .conversation-scroll, .concierge-app .composer-area, .concierge-app .service-panel { padding: var(--spacing-medium); }
   .keyboard-hint { display: none; }
 }
-@media (max-width: 800px) {
+@media (max-width: 1100px) {
   .city-app.concierge-app { height: 100dvh; min-height: 0; overflow: hidden; }
-  .concierge-app .sidebar { width: min(300px, calc(100vw - 32px)); }
   .concierge-app .main-workspace { height: 100%; overflow: hidden; }
   .concierge-app .topbar { min-height: 72px; padding: var(--spacing-small); gap: var(--spacing-small); }
   .chat-header-identity { gap: var(--spacing-small); }.chat-header-identity > .rashid-avatar { display: none; }
@@ -110,7 +102,6 @@
   .chat-layout .workspace-pane-heading > div { gap: 0; }
   .chat-layout .workspace-pane-body { min-height: 0; overflow: hidden; }
   .chat-layout .workspace-pane-body > .conversation { min-height: 0; }
-  .chat-layout .pane-layout-menu summary span { display: none; }
   .concierge-app .conversation-scroll { overflow-y: auto; padding: var(--spacing-medium); }
   .concierge-app .welcome { padding-block: var(--spacing-small); }
   .chat-welcome-mark { width: 48px; height: 48px; margin-bottom: var(--spacing-medium); }
@@ -132,3 +123,5 @@
   .concierge-app .topbar { flex-wrap: nowrap; }
   .concierge-app .workspace-pane-heading strong { font-size: var(--font-size-control); }
 }
+
+@media (max-width: 800px) { .concierge-app .sidebar { width: min(300px, calc(100vw - 32px)); } }

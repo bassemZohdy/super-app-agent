@@ -92,7 +92,7 @@ test('the fines route has labelled controls, touch targets, keyboard focus and n
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
-test('conversation and service panes swap, maximize, minimize and restore without losing the draft', async ({ page, focused }, info) => {
+test('icon controls swap panes and toggle maximize/restore without losing the draft', async ({ page, focused }, info) => {
   await page.goto(focused.url);
   await page.getByLabel('Access token', { exact: true }).fill(focused.token);
   await page.getByRole('button', { name: 'Open my fines' }).click();
@@ -107,16 +107,13 @@ test('conversation and service panes swap, maximize, minimize and restore withou
   await page.getByRole('button', { name: 'Maximize conversation', exact: true }).click();
   await expect(details).toBeHidden(); await expect(draft).toHaveValue('Show outstanding fines');
   await page.screenshot({ path: info.outputPath('conversation-maximized.png'), fullPage: true });
-  await page.getByRole('button', { name: 'Restore split view', exact: true }).click();
-  await page.getByRole('button', { name: 'Minimize conversation', exact: true }).click();
-  await expect(draft).toBeHidden(); await expect(details).toBeVisible();
-  await page.getByRole('button', { name: 'Restore conversation', exact: true }).click();
+  await page.getByRole('button', { name: 'Restore conversation size', exact: true }).click();
   await expect(draft).toHaveValue('Show outstanding fines');
+  await expect(details).toBeVisible();
   await page.getByRole('button', { name: 'Maximize service details', exact: true }).click();
   await expect(conversation).toBeHidden();
   await page.getByRole('button', { name: 'Restore service details size', exact: true }).click();
-  await page.getByRole('button', { name: 'Minimize service details', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Your fines', exact: true })).toBeHidden();
+  await page.getByRole('button', { name: 'Maximize conversation', exact: true }).click();
   await page.getByRole('button', { name: 'Review payment', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Review before you pay' })).toBeVisible();
   expect(await controlsBelowTarget(page)).toEqual([]);
@@ -167,24 +164,33 @@ test('the main concierge also exposes the shared pane layout controls', async ({
     await expect(page.getByRole('button', { name: 'Open navigation', exact: true, includeHidden: true })).toHaveAttribute('aria-expanded', 'false');
     await expect(page.getByRole('main')).not.toHaveAttribute('inert');
   }
-  for (const width of [320, 768, 1024]) {
+  for (const width of [320, 390, 768, 1024, 1280, 1440, 1920]) {
     await page.setViewportSize({ width, height: 1000 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `no overflow at ${width}px`).toBe(true);
     await expect(page.getByRole('textbox', { name: 'Message Rashid', exact: true })).toBeInViewport({ ratio: 1 });
+    if (width > 1100) {
+      const details = await page.getByRole('region', { name: 'service details pane', exact: true }).boundingBox();
+      expect(details!.width).toBeGreaterThanOrEqual(320);
+      expect(details!.width).toBeLessThanOrEqual(448);
+    }
   }
   await page.setViewportSize(originalViewport);
-  await page.locator('summary[aria-label="Workspace layout"]').click();
+  const swap = page.getByRole('button', { name: 'Swap panes', exact: true });
+  await expect(swap).toHaveText('');
+  await expect(page.getByRole('button', { name: 'Restore split view', exact: true })).toHaveCount(0);
+  await expect(page.locator('summary[aria-label="Workspace layout"]')).toHaveCount(0);
+  if (info.project.name === 'desktop') {
+    const chatBox = await page.getByRole('region', { name: 'conversation pane', exact: true }).boundingBox();
+    const detailsBox = await page.getByRole('region', { name: 'service details pane', exact: true }).boundingBox();
+    expect(chatBox!.width).toBeGreaterThan(detailsBox!.width);
+    expect(detailsBox!.width).toBeGreaterThanOrEqual(320);
+    expect(detailsBox!.width).toBeLessThanOrEqual(448);
+  }
   await page.getByRole('button', { name: 'Maximize conversation', exact: true }).click();
   await expect(page.getByRole('region', { name: 'service details pane', exact: true })).toBeHidden();
-  await page.getByRole('button', { name: 'Restore split view', exact: true }).click();
+  await page.getByRole('button', { name: 'Restore conversation size', exact: true }).click();
   await page.getByRole('button', { name: 'Swap panes', exact: true }).click();
   expect(await page.locator('[data-pane]').evaluateAll(nodes => nodes.map(node => node.getAttribute('data-pane')))).toEqual(['details', 'conversation']);
-  await page.locator('summary[aria-label="Workspace layout"]').click();
-  if (info.project.name === 'mobile') await page.getByRole('button', { name: 'Service details', exact: true }).click();
-  await page.getByRole('button', { name: 'Minimize service details', exact: true }).click();
-  await page.getByRole('button', { name: 'Restore service details', exact: true }).click();
-  await expect(page.getByRole('region', { name: 'service details pane', exact: true })).toBeVisible();
-  if (info.project.name === 'mobile') await page.getByRole('button', { name: 'Chat', exact: true }).click();
   await page.getByRole('textbox', { name: 'Message Rashid', exact: true }).fill('Show test service');
   await page.getByRole('button', { name: 'Send message', exact: true }).click();
   await expect(page.getByText('Here are your service details. You can review them in the service workspace.', { exact: true })).toBeVisible();
