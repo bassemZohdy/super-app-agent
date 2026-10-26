@@ -9,6 +9,7 @@ import { startEnvironment } from '../../../scripts/e2e/environment.ts';
 import { JobStore } from '../../../services/automation-worker/src/jobs.ts';
 import { removeTemp } from '../../support/temp-cleanup.ts';
 import { expect, test as base } from '../fixtures.ts';
+import { withAccountSwitcher } from '../layout.ts';
 
 const tokenFor = async (username: string) => {
   const response = await fetch(`${keycloakIssuerUrl}/protocol/openid-connect/token`, { method: 'POST', body: new URLSearchParams({ grant_type: 'password', client_id: 'superapp-shell', username, password: 'demo123' }) });
@@ -36,14 +37,13 @@ const test = base.extend<object, { run: Run }>({
   }, { scope: 'worker' }],
 });
 
-test('an allowlisted operator stops and releases automation; a reason is required and other accounts are refused', async ({ page, run, isMobile }) => {
-  test.skip(isMobile, 'QA-06: at phone width the account switcher is not in the header, so this journey cannot reach it yet.');
+test('an allowlisted operator stops and releases automation; a reason is required and other accounts are refused', async ({ page, run }) => {
   await page.goto(run.appUrl);
   await page.getByRole('button', { name: 'Sign in with Keycloak', exact: true }).click();
   await page.locator('#username').fill('demo-commuter');
   await page.locator('#password').fill('demo123');
   await page.locator('#kc-login').click();
-  const accountId = await page.getByRole('combobox', { name: 'Current account', exact: true }).inputValue();
+  const accountId = await withAccountSwitcher(page, switcher => switcher.inputValue());
 
   // Another signed-in account is refused by the same route.
   const refused = await fetch(`${run.coreUrl}/api/payments/automation-kill-switch?accountId=${accountId}`, { headers: { Authorization: `Bearer ${run.otherToken}` } });

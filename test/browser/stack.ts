@@ -2,6 +2,7 @@
  *  every test still gets its own browser context, signed in through the real Keycloak login. */
 import { startEnvironment } from '../../scripts/e2e/environment.ts';
 import { expect, test as base } from './fixtures.ts';
+import { withAccountSwitcher } from './layout.ts';
 
 type Stack = { appUrl: string; coreUrl: string };
 export const test = base.extend<{ resident: import('playwright/test').Page }, { stack: Stack }>({
@@ -15,7 +16,7 @@ export const test = base.extend<{ resident: import('playwright/test').Page }, { 
     await page.locator('#username').fill('demo-commuter');
     await page.locator('#password').fill('demo123');
     await page.locator('#kc-login').click();
-    await page.getByRole('combobox', { name: 'Current account', exact: true }).waitFor();
+    await withAccountSwitcher(page, async () => {});
     await use(page);
   },
 });
