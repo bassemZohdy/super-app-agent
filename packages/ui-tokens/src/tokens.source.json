@@ -1,0 +1,61 @@
+{
+  "primitive": {
+    "color": {
+      "white": "#ffffff",
+      "slate-50": "#f8fafc",
+      "slate-200": "#e2e8f0",
+      "slate-400": "#94a3b8",
+      "slate-500": "#64748b",
+      "slate-800": "#1e293b",
+      "slate-900": "#0f172a",
+      "navy-900": "#131b2e",
+      "navy-950": "#090d16",
+      "teal-700": "#285c76",
+      "teal-800": "#1e4961",
+      "sage-600": "#4c987d",
+      "amber-500": "#f59e0b",
+      "red-500": "#ef4444"
+    },
+    "font": {
+      "base": "\"Avenir Next\", Avenir, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+      "mono": "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
+    },
+    "size": { "xs": "11px", "sm": "13px", "base": "15px", "lg": "18px", "xl": "22px", "2xl": "28px" },
+    "weight": { "regular": "400", "medium": "500", "semibold": "600", "bold": "700", "extrabold": "800" },
+    "space": { "none": "0px", "small": "8px", "medium": "16px", "large": "24px", "xlarge": "32px" },
+    "radius": { "sm": "6px", "md": "12px", "lg": "16px", "full": "9999px" },
+    "shadow": {
+      "sm": "0 1px 2px 0 rgba(0, 0, 0, 0.05)",
+      "md": "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1)",
+      "lg": "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1)"
+    },
+    "breakpoint": { "mobile": "0px", "tablet": "768px", "desktop": "1024px" }
+  },
+  "semantic": {
+    "light": {
+      "primary": "{primitive.color.teal-700}",
+      "primaryHover": "{primitive.color.teal-800}",
+      "secondary": "{primitive.color.slate-500}",
+      "background": "{primitive.color.white}",
+      "surface": "{primitive.color.slate-50}",
+      "surfaceBorder": "{primitive.color.slate-200}",
+      "text": "{primitive.color.slate-900}",
+      "textMuted": "{primitive.color.slate-500}",
+      "success": "{primitive.color.sage-600}",
+      "warning": "{primitive.color.amber-500}",
+      "danger": "{primitive.color.red-500}"
+    },
+    "dark": {
+      "background": "{primitive.color.navy-950}",
+      "surface": "{primitive.color.navy-900}",
+      "surfaceBorder": "{primitive.color.slate-800}",
+      "text": "{primitive.color.slate-50}",
+      "textMuted": "{primitive.color.slate-400}"
+    }
+  },
+  "component": {
+    "button": { "background": "{semantic.primary}", "backgroundHover": "{semantic.primaryHover}", "text": "{primitive.color.white}", "radius": "{primitive.radius.md}" },
+    "card": { "background": "{semantic.surface}", "border": "{semantic.surfaceBorder}", "text": "{semantic.text}", "radius": "{primitive.radius.lg}" },
+    "input": { "background": "{semantic.background}", "border": "{semantic.surfaceBorder}", "text": "{semantic.text}", "placeholder": "{semantic.textMuted}", "radius": "{primitive.radius.sm}" }
+  }
+}

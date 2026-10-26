@@ -1,0 +1,27 @@
+# Design tokens
+
+One source, `packages/ui-tokens/src/tokens.source.json`, feeds the React, Angular and Flutter shells. Edit it, run `npm run tokens:generate`, and commit the outputs. `npm run check:tokens` (part of `npm run check`) regenerates them in memory and fails if a committed output differs, so a hand edit to a generated file is caught.
+
+## Layers
+
+| Layer | Holds | Rule |
+| --- | --- | --- |
+| Primitive | the palette and the scales: font, size, weight, space, radius, shadow, breakpoint | the only place a color value is written, as lowercase `#rrggbb` |
+| Semantic | roles such as `primary`, `surface`, `text`, in a `light` set and a `dark` set of overrides | each role references a primitive, never repeats a value; a dark role needs a light role |
+| Component | `button`, `card`, `input` | each token references a semantic role or a primitive |
+
+A reference is written `{primitive.color.teal-700}` or `{semantic.primary}`. A missing path or a cycle fails the build. In CSS a component token that references a role is emitted as `var(--color-…)`, so it follows `[data-theme='dark']` without a second definition.
+
+## Outputs
+
+| File | Used by |
+| --- | --- |
+| `packages/ui-tokens/src/theme.css` | React and Angular. Keeps every variable the shells already used (`--color-primary`, `--spacing-small`, …) with the same values, and adds `--primitive-color-*` and component variables such as `--button-background`. |
+| `packages/ui-tokens/src/tokens.json` | the `UI_TOKENS` import. Keeps its original keys and adds `colorsDark` and `components`. |
+| `apps/shell-flutter/lib/theme/tokens.g.dart` | Flutter: `CitysideTokens` colors (light and `dark…`), spacing and radii. It is generated text and is not compiled by any check here because there is no Dart toolchain in this environment. |
+
+Do not edit these three files; change the source.
+
+## Raw colors in shells
+
+Shell source should use these tokens, not its own hex, rgb or hsl values or Flutter `Color(0x…)` and `Colors.*` literals. Today's raw colors are recorded per file in `packages/ui-tokens/raw-colors.baseline.json`. `npm run check:tokens` fails when a file gains a raw color or a new file has one, and also when a file loses some without the baseline being lowered; after migrating a file run `npm run colors:baseline` and commit the smaller baseline. The baseline is empty when the shells are migrated.

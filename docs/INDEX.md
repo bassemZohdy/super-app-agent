@@ -22,6 +22,7 @@ The [README](../README.md) describes what exists today, [TODO.md](../TODO.md) is
 | [Delegation](development/delegation.md) | Supported RFC 7523 broker, exact grants, consent, execution/revocation and rollback |
 | [Local text/voice](development/local-ai.md) | Internal open-source models, setup, licences and troubleshooting |
 | [Voice/conversation design](architecture/voice-and-conversation.md) | Reviewable dictation, opt-in speech and device/language limits |
+| [Design tokens](development/design-tokens.md) | One layered source for React, Angular and Flutter constants, drift check and the raw-color ratchet |
 | [Recording](development/recording.md) | Twelve provider journeys, asserted waits, pacing and artifact retention |
 | [Operations](development/operations.md) | Private telemetry, readiness, SLOs, cold backup, restore and fenced failover |
 
