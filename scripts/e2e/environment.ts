@@ -32,7 +32,7 @@ export async function startEnvironment(options:{authorizationClock?:()=>number;i
     DELEGATION_ENABLED: 'true', DELEGATION_AUTHORITY_URL: 'http://127.0.0.1:1',
     REDIS_URL: redisUrl, SESSION_TTL_SECONDS: '600', DEMO_AUTH: 'false',
     OBSERVABILITY_LOGS:process.env.OBSERVABILITY_LOGS||'false',
-    NODE_ENV: 'development', ENABLE_LIVE_LLM: 'false', ENABLE_LOCAL_LLM: 'false', OPENROUTER_API_KEY: '',
+    NODE_ENV: 'development', ENABLE_LOCAL_LLM: 'false',
     KEYCLOAK_ISSUER: issuer, KEYCLOAK_PUBLIC_ISSUER: issuer, KEYCLOAK_AUDIENCE: 'agent-core',
     KEYCLOAK_JWKS_URL: `${issuer}/protocol/openid-connect/certs`,
     KEYCLOAK_TOKEN_URL: `${issuer}/protocol/openid-connect/token`,

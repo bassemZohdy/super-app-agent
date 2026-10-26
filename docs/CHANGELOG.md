@@ -1,5 +1,11 @@
 # Documentation changelog
 
+## 26 October 2026 — Remove unused workspace experiments (P2-05, P2-06)
+
+User-requested cleanup takes precedence over the adoption critical path for this change. Remove the unreferenced historical OpenRouter connector, its isolated tests and diagnostic command, the unvalidated gateway YAML and obsolete default Compose file, and the duplicate pnpm workspace manifest. Remove their environment hints and update the gateway decision and [local setup guide](development/local-development.md#refreshing-the-workspace). The focused agent, retained compatibility services, payment/security/restart suites and historical evidence remain in place. No TODO acceptance criterion is claimed by deleting unused experiments.
+
+Validation: `npm run check:agent` and `npm run check` pass after refreshing locked dependencies and rebuilding SQLite with the pinned npm version. Docker, browser and native/device suites were not run.
+
 ## 26 October 2026 — Reconcile focused-agent adoption and compatibility planning (P1-03)
 
 PR #9 incorporates the latest main branch, retaining QA-05's delivered revocation/payment fixes and its evidence. The current plan prioritizes primary React adoption of the native SQLite agent, local model qualification and a single-container persistence check; broader shell parity and the historical multi-service simulator remain a separate compatibility track. Agent rules, architecture decisions, overview, setup, README and index now distinguish the focused default from that retained path. PostgreSQL, a separate workflow executor, mandatory gateway infrastructure and mandatory UI-protocol migration are excluded from the minimal demo. Task status remains solely in TODO.md; no UI, business behavior, disabled workflow or unrelated project is changed by this reconciliation. Executed qualification of the published reconciliation revision is recorded in the [milestone evidence](reports/2026-10-26-simple-agent.md#merge-reconciliation-qualification).

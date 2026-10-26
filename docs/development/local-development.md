@@ -80,7 +80,13 @@ For private telemetry, stuck-work signals, SLO/load checks and encrypted cold ba
 
 For offline historical scenarios without Docker: set `DEMO_AUTH=true`, `PROVIDER_INTEGRATION=false`, `DOMAIN_TRANSPORT=local`, `SESSION_STORE=memory`, `ENABLE_LOCAL_LLM=false`, then run `npm run dev:backend`. This runner reads `.env`, boots the five legacy APIs plus agent core, and retains singleton fixtures/process-local sessions. It does not offer integrated user/account isolation. Tests configure this mode explicitly and do not call text/speech inference or use cloud credentials.
 
-The older `docker-compose.yml` and agentgateway YAML are compatibility/reference artifacts. Use `docker-compose.demo.yml` for verified provider integration. No gateway is needed in the verified application-to-provider path.
+Use `compose.agent.yml` for the focused agent or `docker-compose.demo.yml` for retained provider integration. The unused gateway candidate and older default Compose file have been removed; specify the intended Compose file explicitly.
+
+## Refreshing the workspace
+
+Use npm 11.9.0, pinned by `packageManager`, with `package-lock.json`; the repository has no pnpm workspace. After pulling changes, run `npm ci --ignore-scripts` and `npm rebuild better-sqlite3` to replace stale dependencies and prepare the focused SQLite saver. If npm 12 is active, use `npm exec --yes --package=npm@11.9.0 -- npm rebuild better-sqlite3`: npm 12 can report a successful rebuild while blocking the native dependency's install script. Run `npm run check:agent` for the focused boundary and `npm run check` for repository checks before starting the next task in `TODO.md`.
+
+Build output (`dist/`), Turbo/Angular caches and `.playwright-mcp/` are disposable. Remove only those generated paths when cleaning a checkout. Preserve private `.env` files, `.data/`, SQLite databases, Docker volumes and checked-in recording evidence; a blanket `git clean -fdX` would also delete private configuration and local data.
 
 ## Troubleshooting
 
