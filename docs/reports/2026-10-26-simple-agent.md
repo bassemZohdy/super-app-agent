@@ -22,3 +22,13 @@ The first repository run failed only the existing `p212-vendored-skills.test.ts`
 ## Limits
 
 No real LLM, external government service, real funds or real identity-provider fines scopes were used. The compatible-provider test uses a deterministic HTTP mock, not inference. Existing signed-token verification is reused, but the new route still needs its own live Keycloak scope qualification. PostgreSQL was removed from the implementation in response to the later simplification instruction. No container engine is installed here; Docker/Compose and Kubernetes/OpenShift are unverified. Existing shell/browser/device integration and the full legacy Compose stack were not executed for this change. GitHub workflows remain disabled.
+
+## Merge reconciliation qualification
+
+Published reconciliation revision `e810ec3dfec5a089174e91b13329578924beab50` incorporates main revision `76c40783cccb3e9fcc9c8cd78e033926d3fa8ed2`, preserves its QA-05 payment/revocation fixes, and reconciles the default architecture, setup and task order. Both command sets were executed after fetching that exact revision with a clean checkout:
+
+- `npm run check:agent`: strict source/test compilation and all 16 focused tests passed, zero failures/skips.
+- `npm run check`: all repository gates passed; 878 tests discovered, 877 passed, zero failed, one existing optional pytest skip; all 19 workspace builds passed (cached results reused on this repeat).
+- Documentation links, task identifiers, progress generation and diff whitespace checks passed.
+
+The two older remote branches were inspected: both have zero commits ahead of main, so there is no additional implementation to merge from them. PR #9 is the sole implementation PR for this reconciliation. GitHub workflows remain disabled; no hosted CI or independent peer approval is claimed. The merge is explicitly requested by the repository owner. Browser/Compose/physical-device tests were not rerun here; their earlier QA-05 evidence remains scoped to its own revision.
