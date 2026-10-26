@@ -9,6 +9,8 @@ const roots = artifactRoots();
 export default defineConfig({
   testDir: '.',
   testMatch: '**/*.spec.ts',
+  // The readable recordings run with video on through recordings.config.ts (npm run record:journeys), not with the suite.
+  testIgnore: '**/recordings/**',
   outputDir: roots.results,
   reporter: [['list'], ['html', { outputFolder: roots.report, open: 'never' }]],
   // The journeys share one running stack and its accounts, so they run one at a time; isolation is per browser context.

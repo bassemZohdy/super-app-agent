@@ -1,0 +1,17 @@
+WEBVTT
+
+01
+00:00:12.974 --> 00:00:18.980
+The top-up review
+AED 50.00 from the challenge card. Reviewing reserves nothing.
+
+02
+00:00:19.282 --> 00:00:22.303
+The card asks for an answer
+The issuer is waiting for the resident to approve the challenge.
+
+03
+00:00:22.742 --> 00:00:28.755
+Answered too late
+The challenge expired. The issuer record is expired, the order failed, and nothing was captured.
+Simulated time: +60 minutes: the operator advanced this run's clock; the real time was seconds

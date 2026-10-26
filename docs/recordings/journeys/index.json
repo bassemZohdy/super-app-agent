@@ -1,0 +1,40 @@
+{
+  "journeys": [
+    {
+      "scenario": "challenge-expired-unanswered",
+      "title": "a card challenge left for an hour expires and the top-up moves nothing",
+      "revision": "dfc3705",
+      "createdAt": "2026-10-26T08:53:35.848Z",
+      "durationMs": 28756,
+      "chapters": 3,
+      "assertions": 7,
+      "video": "challenge-expired-unanswered/challenge-expired-unanswered.webm",
+      "captions": "challenge-expired-unanswered/challenge-expired-unanswered.vtt",
+      "manifest": "challenge-expired-unanswered/manifest.json"
+    },
+    {
+      "scenario": "fines-paid-from-wallet",
+      "title": "two traffic fines are reviewed, authorized and paid from the wallet",
+      "revision": "dfc3705",
+      "createdAt": "2026-10-26T08:54:07.735Z",
+      "durationMs": 31117,
+      "chapters": 4,
+      "assertions": 11,
+      "video": "fines-paid-from-wallet/fines-paid-from-wallet.webm",
+      "captions": "fines-paid-from-wallet/fines-paid-from-wallet.vtt",
+      "manifest": "fines-paid-from-wallet/manifest.json"
+    },
+    {
+      "scenario": "lost-response-recovered",
+      "title": "the answer is lost after the capture and the original payment is recovered once",
+      "revision": "dfc3705",
+      "createdAt": "2026-10-26T08:54:33.546Z",
+      "durationMs": 25067,
+      "chapters": 2,
+      "assertions": 7,
+      "video": "lost-response-recovered/lost-response-recovered.webm",
+      "captions": "lost-response-recovered/lost-response-recovered.vtt",
+      "manifest": "lost-response-recovered/manifest.json"
+    }
+  ]
+}

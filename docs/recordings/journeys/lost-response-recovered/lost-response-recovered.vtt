@@ -1,0 +1,12 @@
+WEBVTT
+
+01
+00:00:10.658 --> 00:00:16.670
+The answer was lost
+The money was captured but the agency has not confirmed. This is not a receipt, and paying again is blocked.
+Simulated failure: the response was lost after the capture committed
+
+02
+00:00:17.056 --> 00:00:25.066
+Recovered on the original payment
+The same payment completes once: no second debit, one settlement, both fines paid.

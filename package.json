@@ -100,6 +100,7 @@
     "demo:verify:payment-lifecycle": "node --experimental-strip-types scripts/e2e/payment-lifecycle.ts",
     "record:payment-lifecycle": "node --experimental-strip-types scripts/e2e/payment-lifecycle.ts --record",
     "demo:verify:payment-obligations": "node --experimental-strip-types scripts/e2e/payment-obligations.ts",
+    "record:journeys": "node --experimental-strip-types scripts/record-journeys.ts",
     "record:payment-obligations": "node --experimental-strip-types scripts/e2e/payment-obligations.ts --record",
     "ops:init": "node --experimental-strip-types scripts/ops.ts init",
     "ops:inspect": "node --env-file-if-exists=.env --experimental-strip-types scripts/ops.ts inspect",

@@ -1,0 +1,47 @@
+{
+  "scenario": "lost-response-recovered",
+  "title": "the answer is lost after the capture and the original payment is recovered once",
+  "revision": "dfc3705",
+  "createdAt": "2026-10-26T08:54:33.546Z",
+  "provenance": {
+    "stack": "in-process payments, providers, gateway and operator on this machine; real local Keycloak sign-in; the issuer run clock is simulated only where a chapter says so",
+    "browser": "chrome",
+    "viewport": {
+      "width": 1280,
+      "height": 800
+    },
+    "synthetic": true
+  },
+  "video": "lost-response-recovered.webm",
+  "durationMs": 25067,
+  "chapters": [
+    {
+      "id": "unknown",
+      "kind": "recovery",
+      "title": "The answer was lost",
+      "caption": "The money was captured but the agency has not confirmed. This is not a receipt, and paying again is blocked.",
+      "failure": "the response was lost after the capture committed",
+      "startMs": 10658,
+      "endMs": 16670,
+      "assertions": [
+        "one sealed PAYMENT of -42000 already exists",
+        "no settlement applied and both fines unpaid at the agency",
+        "no confirmed receipt is shown"
+      ]
+    },
+    {
+      "id": "recovered",
+      "kind": "receipt",
+      "title": "Recovered on the original payment",
+      "caption": "The same payment completes once: no second debit, one settlement, both fines paid.",
+      "startMs": 17056,
+      "endMs": 25066,
+      "assertions": [
+        "still one PAYMENT of -42000",
+        "one applied settlement",
+        "both fines PAID",
+        "wallet is AED 1080.00"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "scenario": "challenge-expired-unanswered",
+  "title": "a card challenge left for an hour expires and the top-up moves nothing",
+  "revision": "dfc3705",
+  "createdAt": "2026-10-26T08:53:35.848Z",
+  "provenance": {
+    "stack": "in-process payments, providers, gateway and operator on this machine; real local Keycloak sign-in; the issuer run clock is simulated only where a chapter says so",
+    "browser": "chrome",
+    "viewport": {
+      "width": 1280,
+      "height": 800
+    },
+    "synthetic": true
+  },
+  "video": "challenge-expired-unanswered.webm",
+  "durationMs": 28756,
+  "chapters": [
+    {
+      "id": "review",
+      "kind": "review",
+      "title": "The top-up review",
+      "caption": "AED 50.00 from the challenge card. Reviewing reserves nothing.",
+      "startMs": 12974,
+      "endMs": 18980,
+      "assertions": [
+        "no journal entry",
+        "no issuer authorization yet"
+      ]
+    },
+    {
+      "id": "challenge",
+      "kind": "state",
+      "title": "The card asks for an answer",
+      "caption": "The issuer is waiting for the resident to approve the challenge.",
+      "startMs": 19282,
+      "endMs": 22303,
+      "assertions": [
+        "issuer record is REQUIRES_ACTION",
+        "still no journal entry"
+      ]
+    },
+    {
+      "id": "expired",
+      "kind": "recovery",
+      "title": "Answered too late",
+      "caption": "The challenge expired. The issuer record is expired, the order failed, and nothing was captured.",
+      "simulatedTime": "+60 minutes: the operator advanced this run's clock; the real time was seconds",
+      "startMs": 22742,
+      "endMs": 28755,
+      "assertions": [
+        "the late answers are refused",
+        "issuer record is EXPIRED with AUTHORIZATION_EXPIRED",
+        "no journal entry and the wallet is unchanged"
+      ]
+    }
+  ]
+}

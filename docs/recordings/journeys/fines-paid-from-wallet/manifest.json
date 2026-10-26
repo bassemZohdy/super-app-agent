@@ -1,0 +1,70 @@
+{
+  "scenario": "fines-paid-from-wallet",
+  "title": "two traffic fines are reviewed, authorized and paid from the wallet",
+  "revision": "dfc3705",
+  "createdAt": "2026-10-26T08:54:07.735Z",
+  "provenance": {
+    "stack": "in-process payments, providers, gateway and operator on this machine; real local Keycloak sign-in; the issuer run clock is simulated only where a chapter says so",
+    "browser": "chrome",
+    "viewport": {
+      "width": 1280,
+      "height": 800
+    },
+    "synthetic": true
+  },
+  "video": "fines-paid-from-wallet.webm",
+  "durationMs": 31117,
+  "chapters": [
+    {
+      "id": "start",
+      "kind": "state",
+      "title": "Before paying",
+      "caption": "The wallet holds AED 1500.00 and the ledger has no payment yet.",
+      "startMs": 9476,
+      "endMs": 12494,
+      "assertions": [
+        "wallet is AED 1500.00",
+        "no journal entry"
+      ]
+    },
+    {
+      "id": "review",
+      "kind": "review",
+      "title": "The review",
+      "caption": "Both fines, the exact total and the wallet as the source. Nothing has moved yet.",
+      "startMs": 13310,
+      "endMs": 19322,
+      "assertions": [
+        "review quotes AED 420.00",
+        "no journal entry and no hold yet",
+        "both fines still unpaid at the agency"
+      ]
+    },
+    {
+      "id": "authorized",
+      "kind": "state",
+      "title": "Authorized",
+      "caption": "The wallet holds AED 420.00 for this payment. It is reserved, not spent.",
+      "startMs": 19639,
+      "endMs": 22652,
+      "assertions": [
+        "one active hold of 42000",
+        "still no journal entry"
+      ]
+    },
+    {
+      "id": "receipt",
+      "kind": "receipt",
+      "title": "The receipt",
+      "caption": "One payment of AED 420.00 in the ledger, the hold released, both fines paid at the agency.",
+      "startMs": 23104,
+      "endMs": 31116,
+      "assertions": [
+        "one sealed PAYMENT of -42000",
+        "the hold is consumed",
+        "both fines PAID",
+        "wallet is AED 1080.00"
+      ]
+    }
+  ]
+}
