@@ -1,0 +1,22 @@
+services:
+  agent:
+    build:
+      context: .
+      dockerfile: services/agent-core/Dockerfile.simple
+    env_file: .env.agent
+    environment:
+      AGENT_HOST: 0.0.0.0
+      AGENT_DB_PATH: /app/.data/agent.sqlite
+      AGENT_SIMULATOR_URL: http://127.0.0.1:4300/
+    ports:
+      - "127.0.0.1:4300:4300"
+    volumes:
+      - agent-data:/app/.data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4300/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    stop_grace_period: 35s
+volumes:
+  agent-data:

@@ -2,6 +2,10 @@
 
 This register records what was verified, when, against which revision and with which limits. It does not track tasks (open work is only in [TODO.md](../../TODO.md)) and does not describe the system (see the [README](../../README.md#what-exists-today)). The latest dated evidence is [P1 parity slices and the AUTO-03 preparation checkpoint](2026-10-25-p1-parity-automation-preparation.md) (25 October 2026, focused tests only). Application checkpoint **`cd3c7d5`**, 24 October 2026, is the latest executed full qualification: **533 Node tests and 18 workspace builds**, ESLint, E2E TypeScript, Markdown links and source-secret checks. Documentation maintenance does not rerun or extend that application evidence; later slices carry their own focused evidence.
 
+## Focused agent milestone
+
+[One-process LangGraph/SQLite agent](2026-10-26-simple-agent.md) records the fines slice, native checkpoint/restart and duplicate-effect verification. It is separate from the legacy Compose operating qualification below.
+
 ## Latest operating qualification
 
 | Evidence | Verified scope | Limit |

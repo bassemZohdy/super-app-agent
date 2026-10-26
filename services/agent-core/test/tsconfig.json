@@ -1,0 +1,4 @@
+{
+  "extends": "../tsconfig.json",
+  "include": ["../src/orchestrator/**/*.ts", "./**/*.ts", "../../test/simple-agent.test.ts"]
+}

@@ -2,6 +2,10 @@
 
 The [README](../README.md) describes what exists today, [TODO.md](../TODO.md) is the only tracker of open work, the [changelog](CHANGELOG.md) is the delivered record and the [evidence register](reports/README.md) says what was verified and when. Dated reports and recordings preserve their own checkpoint facts.
 
+## Focused agent
+
+[Architecture](architecture.md), [agent flow](agent-flow.md), [integrations/API](integrations.md), [security](security.md) and [testing](testing.md) describe the one-process SQLite implementation. The guides below continue to describe the preserved integrated compatibility demo where indicated.
+
 ## Reading order
 
 1. [README](../README.md) — purpose and quickstart.

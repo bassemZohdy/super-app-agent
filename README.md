@@ -1,6 +1,31 @@
 # Cityside — Super App Agent
 
-A runnable city-services demo with a conversational concierge, independently persisted provider APIs, Keycloak authentication, Redis sessions, and a checkpointed LangGraph approval flow. RTA, DEWA, Etisalat, du, Dubai Police and Dubai Land Department are **simulated entities**. Payments use simulated funds; no real government or financial system is connected.
+An agent-centric TypeScript application using first-party LangGraph.js. The focused demo runs as **one Node.js process with embedded SQLite**, a configurable OpenAI-compatible planner, and a JSON-fixture government REST simulator. It retrieves fines, pauses for explicit approval, and completes an idempotent simulated payment. No real government records or funds are connected.
+
+## Start the focused agent
+
+Requires Node.js 24 and npm. No Docker, PostgreSQL, Redis, Keycloak or model download is required for the deterministic local demo.
+
+```bash
+npm ci --ignore-scripts
+npm rebuild better-sqlite3
+npm run agent:init
+npm start
+# In another terminal:
+npm run agent:client
+```
+
+Try **Show outstanding fines** or **Retrieve my fines and pay them**. Review the exact total before typing `approve`, `reject` or `cancel` in the executable client. To resume after restarting the agent, run `npm run agent:client -- <threadId>` with the interaction ID printed by the client. Data and native LangGraph checkpoints persist in `.data/agent.sqlite`; private random test credentials are generated in `.env.agent` and never printed. Test identities expire after seven days.
+
+Set `AGENT_PLANNER=compatible` plus a local/self-hosted `AGENT_LLM_BASE_URL` and `AGENT_LLM_MODEL` for model-selected plans. Fixture mode is deterministic simulation; a provider outage never silently selects it. Keep `AGENT_AUTH=test` for the isolated local demo, or configure the existing Keycloak verifier and explicit fines scopes. See [API/configuration](docs/integrations.md) and [security](docs/security.md).
+
+```bash
+npm run check:agent
+# Optional single-container demo (not needed for local execution):
+docker compose -f compose.agent.yml up --build
+```
+
+[Architecture](docs/architecture.md) · [Native graph](docs/agent-flow.md) · [Testing](docs/testing.md). Use one process/replica per SQLite file. The existing React/Angular/Flutter shells and integrated provider/payment/delegation demo are preserved below as a compatibility path; they are not yet wired to the focused API. No frontend rewrite is included.
 
 [What exists today](#what-exists-today) · [Documentation index](docs/INDEX.md) · [Open work](TODO.md) · [Verification evidence](docs/reports/README.md)
 
@@ -8,7 +33,8 @@ A runnable city-services demo with a conversational concierge, independently per
 
 | Area | Implemented in the local demo | Not claimed |
 | --- | --- | --- |
-| Runtime | Concierge plus six application APIs and seven account-scoped provider simulators; real HTTP boundaries and SQLite persistence | Real agency, UAE PASS, bank or PSP integration; records and funds are synthetic |
+| Focused agent | One Node.js process, official SQLite LangGraph checkpoints, bounded model-selected plans, REST fines simulator, durable approval and deduplicated simulated payment | Real-model quality, production identity/delegation, shell migration or multi-replica operation |
+| Integrated compatibility runtime | Concierge plus six application APIs and seven account-scoped provider simulators; real HTTP boundaries and SQLite persistence | Real agency, UAE PASS, bank or PSP integration; records and funds are synthetic |
 | Identity | Keycloak 26.6.4 pinned by digest; browser PKCE, signed ownership checks, introspection, separate RFC 7523 delegation broker | Production identity, custom actor mapper, multi-hop authority; local HTTP with seeded credentials |
 | Conversation | Bounded LangGraph review/execute flow, Redis ownership/leases/checkpoints/replay, explicit approval and cancellation, authenticated MCP | Model-selected tool plans, general workflow engine or compensation |
 | Text and voice | Internal local Qwen/llama.cpp, KittenTTS and Whisper; React/Angular voice settings, reviewable English/Arabic dictation | Arabic speech, physical device and native evaluation |
@@ -20,7 +46,7 @@ A runnable city-services demo with a conversational concierge, independently per
 
 Open work is tracked only in [TODO.md](TODO.md); the delivered record is the [changelog](docs/CHANGELOG.md); what was verified, when and against which revision is the [evidence register](docs/reports/README.md). Dated reports and recordings state what was true at their own checkpoint.
 
-## Run the integrated demo
+## Run the integrated compatibility demo
 
 Requires Node.js 24+, npm, and Docker Compose. Install dependencies before starting the containers: the demo mounts this checkout and its installed backend dependencies read-only.
 
@@ -105,7 +131,7 @@ The food-named application service still owns utilities for compatibility. `serv
 
 Each exposes `/health`, `/live`, `/ready` and `/openapi.json`; `/ready` runs a SQLite check on the provider. The integrated application APIs have their own generated contract, `packages/backend-kit/openapi/application-apis.openapi.json`, described in the [application API guide](docs/development/application-api.md). Protected resources use `/v1/accounts/{accountId}/…`; writes require `Idempotency-Key`. See [provider integration guide](docs/demo/provider-backends.md) for grants, examples, exact payment semantics and limits.
 
-## Model behavior and limits
+## Integrated compatibility model behavior and limits
 
 Local Qwen2.5-1.5B-Instruct replies use bounded recent messages and current service results. llama.cpp runs CPU-only behind the authenticated core; model errors stay visible. `/health` probes actual model readiness. Requests enforce a 24 KiB context budget, 192 output tokens, a 45-second timeout and per-actor call/concurrency limits. The retained OpenRouter diagnostic/helper is historical and unused by application inference; an existing private key is neither needed nor forwarded by the demo.
 

@@ -2,7 +2,7 @@
 
 > Current demo implementation update (24 October 2026): see [ADR-0010](ADR-0010-provider-simulators-and-redis-demo.md) and the [provider guide](../demo/provider-backends.md). The implementation sections below describe the retained fixture path and integrated path where applicable. The integrated demo now has REST provider adapters, Keycloak browser/service authentication and Redis sessions. A real LangGraph approval graph with Redis checkpoints and authenticated core MCP now run; model-selected planning, production consent and UI standards migration remain targets.
 
-**Status:** **Proposed** for architectural review (23 October 2026). Does not authorize production implementation or merging major runtime changes.
+**Status:** Superseded for the agent runtime by the explicit implementation assignment of 26 October 2026 and its embedded-database simplification. See [implemented architecture](../architecture.md). The proposal below is historical: its separate workflow executor, registry service and mandatory UI protocol migration are not requirements for the focused application.
 **Related:** ADR-0001, ADR-0002, ADR-0003, ADR-0006, ADR-0007.
 
 ## Context

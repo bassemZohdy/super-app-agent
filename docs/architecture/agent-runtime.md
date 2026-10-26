@@ -1,5 +1,7 @@
 # Agent runtime
 
+The focused entry point now runs the [native SQLite agent flow](../agent-flow.md) described in [architecture](../architecture.md). The following guide describes only the preserved integrated compatibility entry point (`src/index.ts`), not the new default `npm start` path.
+
 `services/agent-core/src/langgraph/runtime.ts` compiles a real LangGraph `StateGraph`: prepare → review interrupt → execute. The prepare node invokes the retained deterministic service router; optional model text explains the result. The graph never treats model prose or chat assent as authority to execute a mutation. [LangGraph documentation](https://docs.langchain.com/oss/javascript/langgraph/thinking-in-langgraph).
 
 Integrated mode uses `RedisGraphSaver` for the single root checkpoint namespace. Each proposal gets a fresh opaque thread ID; checkpoint entries expire with session TTL and the ID list is capped at 32. Replacement, cancellation and successful execution delete the relevant continuation. Fixture tests use `MemorySaver`. The core separately persists subject/account ownership, surface revision, transcript and approval before returning. Normal container restart tests resume a saved interrupt and execute one approved simulated top-up.
