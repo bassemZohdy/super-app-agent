@@ -133,7 +133,7 @@ Offline tests cover trace isolation/parent links/redaction, protected operations
 
 ## Fast signed-issuer suite
 
-`test/support/test-issuer.ts` starts a test-only OIDC issuer on a loopback port so auth negatives run in `npm test` without Docker: `services/test/p210-test-issuer.test.ts` exercises the real `verifyJwt` and `ClientCredentials` against it. It is **not Keycloak evidence**. It does not model Keycloak policy, mappers or realm configuration, and the real-Keycloak suites (`npm run demo:verify:security` and the delegation checks) remain the release gate.
+`test/support/test-issuer.ts` starts a test-only OIDC issuer on a loopback port so auth negatives run in `npm test` without Docker: `services/test/p210-test-issuer.test.ts` exercises the real `verifyJwt` and `ClientCredentials` against it, and `services/test/p210-delegation-exchange.test.ts` runs the broker's grant, runner, exchange, provider-authorization and kill-switch role checks through it. It is **not Keycloak evidence**. It does not model Keycloak policy, mappers or realm configuration, and the real-Keycloak suites (`npm run demo:verify:security` and the delegation checks) remain the release gate.
 
 ## Windows test notes
 

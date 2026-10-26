@@ -131,7 +131,7 @@ export async function startTestIssuer(options: TestIssuerOptions): Promise<TestI
         if (usedAssertions.has(id)) return oauthError(res, 400, 'invalid_grant', 'assertion already used');
         usedAssertions.add(id);
         const scope = form.get('scope') || String(claims.scope || ''), subject = claims.sub.replace(/^cityside:/, '');
-        const body = { token_type: 'Bearer', expires_in: accessTtl, scope, access_token: access(clientId, subject, { scope, aud: client.audience ?? ['provider-api'], preferred_username: subject, realm_access: { roles: client.roles ?? [] } }) };
+        const body = { token_type: 'Bearer', expires_in: accessTtl, scope, access_token: access(clientId, subject, { scope, exp: Math.min(seconds() + accessTtl, claims.exp), aud: client.audience ?? ['provider-api'], preferred_username: subject, realm_access: { roles: client.roles ?? [] } }) };
         return void res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(body));
       }
       return oauthError(res, 400, 'unsupported_grant_type');
@@ -147,4 +147,22 @@ export async function startTestIssuer(options: TestIssuerOptions): Promise<TestI
     mintForeign: (claims = {}) => signJwt(foreign.privateKey, kid, { iss: base, aud: ['agent-core'], sub: 'test-user', typ: 'Bearer', iat: seconds(), exp: seconds() + accessTtl, ...claims }),
     close: () => new Promise<void>(done => { server.closeAllConnections(); server.close(() => done()); }),
   };
+}
+
+/** The browser's authorization-code flow with S256 PKCE, run against the test issuer for one named user. */
+export async function signInWithPkce(issuer: TestIssuer, clientId: string, redirectUri: string, loginHint: string): Promise<{ access_token: string; refresh_token?: string }> {
+  const verifier = randomBytes(32).toString('base64url');
+  const redirect = await fetch(`${issuer.authorizeUrl}?${new URLSearchParams({ response_type: 'code', client_id: clientId, redirect_uri: redirectUri, state: randomUUID(), code_challenge: s256(verifier), code_challenge_method: 'S256', login_hint: loginHint, scope: 'openid' })}`, { redirect: 'manual' });
+  const code = new URL(redirect.headers.get('location') || 'http://invalid.test/').searchParams.get('code');
+  if (!code) throw new Error('The test issuer did not issue a code.');
+  const response = await fetch(issuer.tokenUrl, { method: 'POST', body: new URLSearchParams({ grant_type: 'authorization_code', client_id: clientId, code, redirect_uri: redirectUri, code_verifier: verifier }) });
+  if (!response.ok) throw new Error(`The test issuer refused the code (${response.status}).`);
+  return await response.json() as { access_token: string; refresh_token?: string };
+}
+
+/** A client_credentials token for a service client, from the test issuer. */
+export async function serviceToken(issuer: TestIssuer, clientId: string, secret: string, scope = ''): Promise<string> {
+  const response = await fetch(issuer.tokenUrl, { method: 'POST', body: new URLSearchParams({ grant_type: 'client_credentials', client_id: clientId, client_secret: secret, ...(scope ? { scope } : {}) }) });
+  if (!response.ok) throw new Error(`The test issuer refused the client (${response.status}).`);
+  return (await response.json() as { access_token: string }).access_token;
 }
