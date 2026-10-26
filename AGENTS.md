@@ -4,8 +4,8 @@ Cityside is a local, synthetic city-services demo (ADR-0011). Nothing here touch
 
 ## The loop
 
-1. Read [TODO.md](TODO.md) only. It is the single tracker of open work and is short on purpose. Do not load the changelog, reports or ADRs unless the task needs them.
-2. Take the first unfinished step on the **critical path** (`AUTO-14` → `AUTO-15` → …). Work off the path only when it is blocked, and say why in the commit message.
+1. Read [TODO.md](TODO.md) for the next task and [the implemented architecture](docs/architecture.md) for its boundaries. TODO.md is the single tracker. Load historical reports or ADRs only when needed.
+2. Follow the **critical path in TODO.md**, beginning with focused-agent adoption. Compatibility and production work are separate tracks; work off the selected path only when blocked or explicitly requested, and state the reason in the commit.
 3. Make the smallest change that completes one sub-step. Write the test first for security and money behavior.
 4. Run the narrowest test while iterating, then the checks below before you stop.
 5. In the **same commit**: tick the sub-step in `TODO.md` (or delete the task when its `Done when` holds) and run `npm run progress`, add one entry to `docs/CHANGELOG.md`, and update the guide you changed.
@@ -30,6 +30,14 @@ Node 24 is the supported floor (`.nvmrc`). Integration and browser suites need t
 ## UI changes
 
 A UI change uses the offline design skills: `.claude/skills/design-system` for tokens and `.claude/skills/ui-ux-pro-max` for accessibility, touch, forms and navigation guidance (scope, edits and hashes are in `.claude/skills/VENDORED.md`). Search the stack data for the shell you touch (`python .claude/skills/ui-ux-pro-max/scripts/search.py "<intent>" --stack react|angular|flutter`), take colors and sizes from `packages/ui-tokens`, and run `npm run check:tokens`; for web shells also run `npm run test:browser`. Do not add a network fetch, hosted font or remote image.
+
+## Architecture boundaries
+
+- Default demo: one Node.js/TypeScript/LangGraph.js agent, official SQLite checkpoints, and JSON-fixture REST handlers in the same process. Prefer native nodes, edges, interrupts and checkpoints.
+- Keep authorization and business idempotency deterministic. Keep credentials outside graph state. A checkpoint does not guarantee one external business effect.
+- Preserve React/Angular/Flutter and their current contracts. Migrate a concrete journey at a time; do not rewrite shells or delete the compatibility stack while retained journeys depend on it.
+- Do not add OWS, Quarkus Flow, LangGraph4j, a generic DSL, separate workflow engine, registry service or mandatory gateway. Add another adapter only for a real service requirement.
+- This repository is independent. Do not import code, work packages or architecture from other agent/workflow projects. PostgreSQL and distributed infrastructure need a demonstrated requirement beyond the local demo.
 
 ## Safety rules that must keep holding
 

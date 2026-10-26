@@ -1,5 +1,7 @@
 # Security boundaries
 
+The focused `npm start` entry point has its own [security boundary](docs/security.md). This document otherwise describes the preserved integrated compatibility demo.
+
 This repository is a local demo. The reference stack uses known users/client secrets, local HTTP, single-node Redis and embedded SQLite. The named entities and all money are simulated. Do not deploy this realm/configuration publicly or use real personal/card/government records.
 
 ## Identity and service authorization

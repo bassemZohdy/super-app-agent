@@ -2,15 +2,19 @@
 
 The [README](../README.md) describes what exists today, [TODO.md](../TODO.md) is the only tracker of open work, the [changelog](CHANGELOG.md) is the delivered record and the [evidence register](reports/README.md) says what was verified and when. Dated reports and recordings preserve their own checkpoint facts.
 
+## Focused agent
+
+[Architecture](architecture.md), [agent flow](agent-flow.md), [integrations/API](integrations.md), [security](security.md) and [testing](testing.md) describe the one-process SQLite implementation. The guides below continue to describe the preserved integrated compatibility demo where indicated.
+
 ## Reading order
 
-1. [README](../README.md) — purpose and quickstart.
-2. [What exists today](../README.md#what-exists-today) — implemented scope and its explicit limits.
-3. [Local development](development/local-development.md) and [testing](development/testing.md).
-4. [System overview](architecture/system-overview.md), [service contracts](architecture/service-contracts.md), [agent runtime](architecture/agent-runtime.md) and [frontend shells](architecture/frontend-and-miniapps.md).
-5. [Custom protocol inventory](architecture/protocol-ag-ui-a2-ui.md) and [authenticated event stream](architecture/event-stream.md).
-6. [Operations/recovery](development/operations.md), [security](../SECURITY.md) and [evidence register](reports/README.md).
-7. [Target architecture](architecture/target-architecture.md), [payment/automation plan](architecture/payment-automation-demo.md) and [backlog](../TODO.md) for proposed work.
+1. [README](../README.md) — focused quickstart and implemented boundaries.
+2. [Architecture](architecture.md) and [agent flow](agent-flow.md) — one native LangGraph.js agent and embedded persistence.
+3. [Integrations/API](integrations.md), [security](security.md) and [testing](testing.md) — actual contracts, authority and verification limits.
+4. [TODO.md](../TODO.md) — current adoption order and acceptance criteria; the sole task tracker.
+5. [Local development](development/local-development.md), [system overview](architecture/system-overview.md) and [legacy testing](development/testing.md) — the optional integrated compatibility path.
+6. [Service contracts](architecture/service-contracts.md), [frontend shells](architecture/frontend-and-miniapps.md), [protocol inventory](architecture/protocol-ag-ui-a2-ui.md) and [event stream](architecture/event-stream.md) — preserved contracts for incremental migration.
+7. [Operations](development/operations.md), [delegation](development/delegation.md) and [evidence register](reports/README.md) — scoped compatibility/production evidence, not prerequisites for the minimal demo.
 
 ## Setup, identity and local AI
 

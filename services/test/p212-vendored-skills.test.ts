@@ -86,7 +86,8 @@ test('P2-12: the search runs offline for each kept stack and domain and refuses 
   assert.match(domain.stdout, /Found:\*\* [1-9]\d* results/);
   const omitted = search('list', '--stack', 'vue');
   assert.notEqual(omitted.status, 0);
-  assert.match(omitted.stderr, /invalid choice: 'vue' \(choose from 'react', 'angular', 'flutter'\)/);
+  // Python 3.14 omits quotes around argparse choices; both formats enforce the same allowed stacks.
+  assert.match(omitted.stderr, /invalid choice: 'vue' \(choose from '?react'?, '?angular'?, '?flutter'?\)/);
   const design = search('civic services wallet payments', '--design-system', '-p', 'Cityside');
   assert.equal(design.status, 0, design.stderr);
   assert.match(design.stdout, /Cityside - RECOMMENDED DESIGN SYSTEM/);

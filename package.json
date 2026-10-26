@@ -106,7 +106,12 @@
     "ops:backup": "node --env-file-if-exists=.env --experimental-strip-types scripts/ops.ts backup",
     "ops:restore": "node --env-file-if-exists=.env --experimental-strip-types scripts/ops.ts restore",
     "ops:verify": "node --experimental-strip-types scripts/verify-operations.ts",
-    "ops:verify:recovery": "node --experimental-strip-types scripts/verify-operations-recovery.ts"
+    "ops:verify:recovery": "node --experimental-strip-types scripts/verify-operations-recovery.ts",
+    "start": "node --env-file=.env.agent --experimental-strip-types services/agent-core/src/orchestrator/main.ts",
+    "agent:init": "node --experimental-strip-types scripts/init-simple-agent.ts",
+    "agent:client": "node --env-file=.env.agent --experimental-strip-types scripts/simple-agent-client.ts",
+    "test:agent": "node --experimental-strip-types --test services/test/simple-agent.test.ts services/agent-core/test/*.test.ts",
+    "check:agent": "npm run build --workspace services/agent-core && tsc -p services/agent-core/test/tsconfig.json && npm run test:agent"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^13.1.0",

@@ -1,0 +1,4 @@
+[
+  { "id": "fine-1", "description": "Simulated parking fine", "amountMinor": 15000, "version": 1 },
+  { "id": "fine-2", "description": "Simulated traffic fine", "amountMinor": 30000, "version": 1 }
+]
