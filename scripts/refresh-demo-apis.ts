@@ -2,6 +2,7 @@
 import { spawnSync } from 'node:child_process';
 
 const services = [
+  'edge-relay',
   'delegation-broker',
   'provider-rta', 'provider-dewa', 'provider-etisalat', 'provider-du', 'provider-police', 'provider-dld', 'provider-payments',
   'service-ride', 'service-food', 'service-wallet', 'service-catalog', 'service-profile', 'service-telecom',

@@ -21,6 +21,18 @@ export function parseRoutes(value: string | undefined): Route[] {
   });
 }
 
+/** Optional fixed TLS route for explicitly selected hosted LiteLLM. No key is needed by this relay. */
+export function parseModelRoute(env: NodeJS.ProcessEnv): Route | undefined {
+  if (env.CONVERSATION_PROVIDER !== 'litellm') return;
+  try {
+    const url = new URL(env.LITELLM_BASE_URL?.trim() || env.LITELLM_URL?.trim() || '');
+    if (url.username || url.password || url.search || url.hash) throw new Error();
+    if (url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]', 'host.docker.internal', 'litellm'].includes(url.hostname)) return;
+    if (url.protocol !== 'https:') throw new Error();
+    return { listen: 4443, host: url.hostname, port: Number(url.port || 443) };
+  } catch { throw new Error('Invalid LiteLLM relay endpoint'); }
+}
+
 /** One forwarding listener. Connections are piped both ways and torn down together; an idle one is closed after `idleMs`. */
 export function listen(route: Route, idleMs = 120_000, bind = '0.0.0.0'): Promise<net.Server> {
   const server = net.createServer(client => {
@@ -33,6 +45,11 @@ export function listen(route: Route, idleMs = 120_000, bind = '0.0.0.0'): Promis
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const routes = parseRoutes(process.env.RELAY_ROUTES);
+  const modelRoute = parseModelRoute(process.env);
+  if (modelRoute) {
+    if (routes.some(route => route.listen === modelRoute.listen)) throw new Error('Model relay port already routed');
+    routes.push(modelRoute);
+  }
   const servers = await Promise.all(routes.map(route => listen(route)));
   console.log(`relay ready: ${routes.map(route => `${route.listen}->${route.host}:${route.port}`).join(' ')}`);
   const stop = () => { for (const server of servers) server.close(); setTimeout(() => process.exit(0), 500).unref(); };

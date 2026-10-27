@@ -2,6 +2,7 @@ import { tracedFetch } from '../../../packages/backend-kit/src/observability.ts'
 import { conversationServiceUrl } from '../../../packages/backend-kit/src/local-endpoints.ts';
 import { acquireModelBudget, boundedMessages } from './model-budget.ts';
 import { requireFreeModel } from './orchestrator/planner.ts';
+import { fetchViaModelRelay } from './model-relay.ts';
 
 export class ConversationModelError extends Error {
   readonly code: string;
@@ -73,7 +74,8 @@ export async function invokeConversationModel(messages: Array<{ role: string; co
   const release = acquireModelBudget(messages, cfg.maxTokens);
   try {
     // Hosted requests contain no internal correlation, workflow, approval or user-token headers.
-    const request = cfg.provider === 'llama.cpp' ? tracedFetch : globalThis.fetch;
+    const relay = cfg.provider === 'litellm' && cfg.endpoint.protocol === 'https:' ? process.env.LITELLM_TLS_RELAY : undefined;
+    const request = relay ? (url: URL, init: RequestInit) => fetchViaModelRelay(url, init, relay) : cfg.provider === 'llama.cpp' ? tracedFetch : globalThis.fetch;
     const response = await request(cfg.endpoint, { method: 'POST', redirect: 'error', signal: AbortSignal.timeout(45000),
       headers: { 'Content-Type': 'application/json', ...(cfg.key ? { Authorization: `Bearer ${cfg.key}` } : {}) },
       body: JSON.stringify({ model: cfg.model, messages: boundedMessages(messages), max_tokens: cfg.maxTokens, temperature: 0.35, stream: false,

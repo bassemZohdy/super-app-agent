@@ -337,6 +337,7 @@ services:
       LITELLM_API_KEY: ${LITELLM_API_KEY:-}
       LITELLM_MODEL: ${LITELLM_MODEL:-glm-5.3}
       LITELLM_MAX_TOKENS: ${LITELLM_MAX_TOKENS:-512}
+      LITELLM_TLS_RELAY: edge-relay:4443
       CONVERSATION_SERVICE_URL: http://conversation:4201
       SERVICE_RIDE_URL: http://service-ride:4001
       SERVICE_FOOD_URL: http://service-food:4002
@@ -362,6 +363,9 @@ services:
     # both that network and an edge network, and forwards each loopback port to one fixed service (see scripts/port-relay.ts).
     command: [node, --experimental-strip-types, scripts/port-relay.ts]
     environment:
+      CONVERSATION_PROVIDER: ${CONVERSATION_PROVIDER:-local}
+      LITELLM_BASE_URL: ${LITELLM_BASE_URL:-}
+      LITELLM_URL: ${LITELLM_URL:-}
       RELAY_ROUTES: 4010=delegation-broker:4010,6379=redis:6379,8080=keycloak:8080,4101=provider-rta:4101,4102=provider-dewa:4102,4103=provider-etisalat:4103,4104=provider-du:4104,4105=provider-police:4105,4106=provider-dld:4106,4107=provider-payments:4107,4001=service-ride:4001,4002=service-food:4002,4003=service-wallet:4003,4004=service-catalog:4004,4005=service-profile:4005,4006=service-telecom:4006,4000=agent-core:4000
     ports:
       - '127.0.0.1:${PORT_BROKER:-4010}:4010'
