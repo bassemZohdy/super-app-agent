@@ -13,9 +13,9 @@ export function estimateTokens(bytes: number, outputTokens = OUTPUT_TOKEN_RESERV
 }
 
 const usage = new Map<string, { until: number; calls: number; tokens: number; active: number }>();
-export function acquireModelBudget(messages: Array<{ role: string; content: string }> = [], outputTokens = OUTPUT_TOKEN_RESERVATION) {
+export function acquireModelBudget(messages: Array<{ role: string; content: string }> = [], outputTokens = OUTPUT_TOKEN_RESERVATION, owner?: string) {
   const actor = actorContext.getStore();
-  const key = actor ? `${actor.sub}:${actor.accountId}` : 'local-demo';
+  const key = owner || (actor ? `${actor.sub}:${actor.accountId}` : 'local-demo');
   const now = Date.now();
   let inputBytes = 0;
   try { inputBytes = boundedMessages(messages).reduce((sum, item) => sum + Buffer.byteLength(item.content), 0); } catch { inputBytes = 0; }

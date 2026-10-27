@@ -73,3 +73,5 @@ The conversation container explicitly probes `http://127.0.0.1:4201/health`; the
 For a readiness failure inspect `docker compose -f docker-compose.demo.yml logs voice conversation agent-core`. Missing models: rerun `local-ai:up`. Busy: wait or type. Permission denied: allow microphone only for the local app. Unsupported Arabic speech: use text. Do not publish inference ports or send real customer audio to this demo.
 
 [Voice architecture](../architecture/voice-and-conversation.md) · [Executed evidence](../reports/2026-10-24-local-ai.md) · [Original generated preview](../assets/voice/rashid-preview.wav).
+
+The focused planner shares the LiteLLM configuration validator, identifier minimizer and per-owner budget implementation. It always withholds assistant amounts and keeps exact user-selected fine references outside provider input, binding them back to the validated plan server-side. Its owner key is subject/workload; the concierge uses actor/account. Budgets are process-local. The two paths preserve separate prompts and authority contracts.

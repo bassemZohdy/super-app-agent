@@ -1,3 +1,4 @@
+import { litellmSettings } from './litellm-config.ts';
 import { tracedFetch } from '../../../packages/backend-kit/src/observability.ts';
 import { conversationServiceUrl } from '../../../packages/backend-kit/src/local-endpoints.ts';
 import { acquireModelBudget, boundedMessages } from './model-budget.ts';
@@ -23,21 +24,10 @@ function configuration(): ModelConfig {
     return { provider: 'openrouter', model, endpoint: new URL('https://openrouter.ai/api/v1/chat/completions'), key, prefix: 'OPENROUTER', label: 'OpenRouter', maxTokens: 192 };
   }
   if (provider === 'litellm') {
-    let base: URL;
     try {
-      const raw = process.env.LITELLM_BASE_URL?.trim() || process.env.LITELLM_URL?.trim();
-      if (!raw) throw new Error('Missing endpoint');
-      base = new URL(raw.endsWith('/') ? raw : `${raw}/`);
-      const local = ['localhost', '127.0.0.1', '[::1]', 'host.docker.internal', 'litellm'].includes(base.hostname);
-      if ((base.protocol !== 'https:' && !(base.protocol === 'http:' && local)) || base.username || base.password || base.search || base.hash) throw new Error('Invalid endpoint');
-    } catch { throw new ConversationModelError('LITELLM_CONFIG', 'The LiteLLM endpoint is not configured.'); }
-    const key = process.env.LITELLM_API_KEY?.trim();
-    if (!key) throw new ConversationModelError('LITELLM_CONFIG', 'The LiteLLM key is not configured on the server.');
-    const model = process.env.LITELLM_MODEL?.trim() || 'glm-5.3';
-    if (model.length > 160) throw new ConversationModelError('LITELLM_CONFIG', 'The LiteLLM model is not configured.');
-    const maxTokens = Number(process.env.LITELLM_MAX_TOKENS || 512);
-    if (!Number.isInteger(maxTokens) || maxTokens < 64 || maxTokens > 1024) throw new ConversationModelError('LITELLM_CONFIG', 'Choose a LiteLLM output limit from 64 to 1024 tokens.');
-    return { provider: 'litellm', model, endpoint: new URL('chat/completions', base), key, prefix: 'LITELLM', label: 'LiteLLM', maxTokens };
+      const { base, key, model, maxTokens } = litellmSettings();
+      return { provider: 'litellm', model, endpoint: new URL('chat/completions', base), key, prefix: 'LITELLM', label: 'LiteLLM', maxTokens };
+    } catch { throw new ConversationModelError('LITELLM_CONFIG', 'The LiteLLM endpoint, key or model is not configured.'); }
   }
   if (provider !== 'local') throw new ConversationModelError('MODEL_PROVIDER_CONFIG', 'The conversation provider is not configured.');
   let base: URL;

@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 27 October 2026 — Share selected-planner input and configuration policies (P1-05, step)
+
+Focused planning and compatibility chat now share LiteLLM endpoint/model/output validation, identifier minimization and bounded per-owner model budgets. Exact fine references stay outside provider input and are bound back to the validated plan, preventing redaction from broadening a selection. Regression tests cover withheld identifiers/assistant amounts, absence of user tokens, exact selection and owner-isolated quota enforcement. The graph retains deterministic authority, consent and approval gates. [Model input boundary](development/local-ai.md#what-the-model-sees).
+
 ## 27 October 2026 — Treat requests to review paying fines as an approval review (P1-05, step)
 
 GLM 5.3 classified “Retrieve my fines and review paying them” as a list-only request in the live smoke check. The planner prompt now distinguishes preparing a payment review from executing it, explains combined retrieve/review requests and preserves read-only/negated-payment intent. The smoke command adds a negated-payment case. An HTTP/SQLite regression with the compatible model adapter proves a model-selected payment review creates an exact approval without a payment effect, and typed assent is refused. Deterministic scopes, consent and execution checks are unchanged. The live GLM smoke check passes all nine English/Arabic cases, the running API returns an approval review without a receipt, and focused/privacy browser regressions pass on desktop and phone. Repository and focused-agent checks pass. Broader selected-model qualification remains separate from these bounded smoke cases. [Intent and approval contract](integrations.md).

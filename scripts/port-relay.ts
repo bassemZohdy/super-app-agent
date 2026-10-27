@@ -1,3 +1,4 @@
+import { litellmBase } from '../services/agent-core/src/litellm-config.ts';
 /** A fixed-destination TCP relay (P2-07). The backends sit on an internal Compose network with no route out and no published ports;
  *  this one container is attached to that network and to an edge network, and publishes loopback ports that forward to exactly the
  *  destinations in RELAY_ROUTES ("listenPort=service:port,…"). A client chooses nothing: there is no protocol, header or address that
@@ -25,10 +26,8 @@ export function parseRoutes(value: string | undefined): Route[] {
 export function parseModelRoute(env: NodeJS.ProcessEnv): Route | undefined {
   if (env.CONVERSATION_PROVIDER !== 'litellm') return;
   try {
-    const url = new URL(env.LITELLM_BASE_URL?.trim() || env.LITELLM_URL?.trim() || '');
-    if (url.username || url.password || url.search || url.hash) throw new Error();
-    if (url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]', 'host.docker.internal', 'litellm'].includes(url.hostname)) return;
-    if (url.protocol !== 'https:') throw new Error();
+    const url = litellmBase(env);
+    if (url.protocol === 'http:') return;
     return { listen: 4443, host: url.hostname, port: Number(url.port || 443) };
   } catch { throw new Error('Invalid LiteLLM relay endpoint'); }
 }

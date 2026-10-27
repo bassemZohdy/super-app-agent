@@ -1,3 +1,4 @@
+import { litellmBase, litellmSettings } from '../litellm-config.ts';
 import { z } from 'zod/v4';
 import { AgentError } from './contracts.ts';
 import { TestIdentity } from './auth.ts';
@@ -11,13 +12,11 @@ const Endpoint = z.string().url().transform(raw => {
 export function config(env: NodeJS.ProcessEnv = process.env) {
   let liteBase: URL | undefined;
   if (env.AGENT_LLM_PROVIDER === 'litellm') {
-    try {
-      const raw = env.LITELLM_BASE_URL?.trim() || env.LITELLM_URL?.trim();
-      if (!raw) throw new Error('Missing endpoint');
-      liteBase = new URL(raw.endsWith('/') ? raw : `${raw}/`);
-      const local = ['localhost', '127.0.0.1', '[::1]', 'host.docker.internal', 'litellm'].includes(liteBase.hostname);
-      if ((liteBase.protocol !== 'https:' && !(liteBase.protocol === 'http:' && local)) || liteBase.username || liteBase.password || liteBase.search || liteBase.hash) throw new Error('Invalid endpoint');
-    } catch { throw new AgentError('LITELLM_ENDPOINT_REQUIRED'); }
+    try { liteBase = litellmBase(env); } catch { throw new AgentError('LITELLM_ENDPOINT_REQUIRED'); }
+    if (env.AGENT_PLANNER !== 'fixture') {
+      try { litellmSettings({ ...env, LITELLM_MODEL: env.AGENT_LLM_MODEL || env.LITELLM_MODEL, LITELLM_MAX_TOKENS: env.AGENT_LLM_MAX_TOKENS || env.LITELLM_MAX_TOKENS }); }
+      catch (error) { throw new AgentError(error instanceof Error ? error.message : 'LITELLM_CONFIG_REQUIRED'); }
+    }
   }
   const input = liteBase ? { ...env, AGENT_LLM_BASE_URL: env.AGENT_LLM_BASE_URL || liteBase.href, AGENT_LLM_MODEL: env.AGENT_LLM_MODEL || env.LITELLM_MODEL || 'glm-5.3', AGENT_LLM_MAX_TOKENS: env.AGENT_LLM_MAX_TOKENS || env.LITELLM_MAX_TOKENS || '512', AGENT_LLM_TIMEOUT_MS: env.AGENT_LLM_TIMEOUT_MS || '45000', AGENT_LLM_RESPONSE_FORMAT: env.AGENT_LLM_RESPONSE_FORMAT || 'prompt' } : env;
   const parsed = z.object({
@@ -31,7 +30,7 @@ export function config(env: NodeJS.ProcessEnv = process.env) {
     AGENT_SIMULATOR_URL: Endpoint.optional(),
     AGENT_LLM_PROVIDER: z.enum(['compatible', 'openrouter', 'litellm']).optional(),
     AGENT_LLM_BASE_URL: Endpoint.optional(),
-    AGENT_LLM_MODEL: z.string().min(1).optional(),
+    AGENT_LLM_MODEL: z.string().min(1).max(160).optional(),
     AGENT_LLM_KEY: z.string().optional(),
     AGENT_LLM_MAX_TOKENS: z.coerce.number().int().min(64).max(1024).default(200),
     AGENT_LLM_TIMEOUT_MS: z.coerce.number().int().min(100).max(60000).default(15000),
