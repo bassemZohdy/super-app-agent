@@ -41,8 +41,13 @@ export class CompatiblePlanner implements Planner {
           ...(isOpenRouter(this.base) ? { provider: { max_price: { prompt: 0, completion: 0 } }, reasoning: { enabled: false } } : {}), messages: safeMessages }),
       });
       if (!response.ok) throw new Error('Provider unavailable');
-      const data = await boundedJson(response) as { choices?: Array<{ message?: { content?: string } }> };
-      const content = data.choices?.[0]?.message?.content;
+      const data = await boundedJson(response) as { choices?: Array<{ finish_reason?: unknown; message?: { content?: string } }>; usage?: { completion_tokens?: unknown } };
+      const choice = data.choices?.[0];
+      // A syntactically valid prefix is not a completed plan. Older compatible servers may omit metadata.
+      if (choice && 'finish_reason' in choice && choice.finish_reason !== 'stop') throw new Error('Incomplete plan');
+      const used = data.usage?.completion_tokens;
+      if (used !== undefined && (typeof used !== 'number' || !Number.isSafeInteger(used) || used < 0 || used > this.maxTokens)) throw new Error('Completion budget exceeded');
+      const content = choice?.message?.content;
       if (!content || content.length > 4000) throw new Error('Invalid plan');
       const plan = Plan.parse(JSON.parse(content));
       if (plan.fineIds.some(id => !selected.includes(id))) throw new Error('Unbound fine selection');

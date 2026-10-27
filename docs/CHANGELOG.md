@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 28 October 2026 — Refuse incomplete and over-budget planner replies (P1-05, step)
+
+The compatible planner previously accepted parseable JSON despite provider-reported truncation/filtering. It now refuses any supplied finish reason other than `stop` and rejects invalid or over-budget reported completion-token counts. Failure regressions exercise malformed/invented plans, oversized responses, real HTTP stalls before headers and during body reads, and the actual graph/SQLite boundary: a truncated plan creates no consent or business effect and cannot trigger a fixture fallback. [Failure verification](testing.md).
+
 ## 27 October 2026 — Synchronize shared shell journeys and model policies (QA-06, step)
 
 Angular and Flutter now adopt the focused fines/renewal API with private in-memory tokens, exact approvals, saved-thread recovery and blocked replacement after uncertain effects. Their concierge workspaces add equal resizable panes, swap/maximize/restore, phone views, hinge clearance, Connections, service selection, profile-sharing and saved conversations. Generic surfaces collect forms and multiple choice groups with server binding precedence. Flutter web PKCE, catalogs, provider-status cases and request deadlines are generated from shared TypeScript contracts; local fonts and engine assets keep the build independent of remote assets. Optional renewal enrollment creates a separate demo persona without widening existing identities. Verification covers offline contracts, Flutter analysis/widgets/web compilation and the shared phone/desktop approval journeys. Full specialized payment-panel parity and physical/native device qualification remain separate. [Client boundaries](integrations.md#angular-and-flutter-adoption), [verification](testing.md#cross-shell-verification).
