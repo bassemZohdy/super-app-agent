@@ -1,4 +1,12 @@
 {
   "extends": "../tsconfig.json",
-  "include": ["../src/orchestrator/**/*.ts", "./**/*.ts", "../../test/simple-agent.test.ts", "../../test/agent-model-config.test.ts", "../../test/focused-agent-client.test.ts", "../../../scripts/verify-agent-model.ts"]
+  "include": [
+    "../src/orchestrator/**/*.ts",
+    "./**/*.ts",
+    "../../test/simple-agent.test.ts",
+    "../../test/agent-model-config.test.ts",
+    "../../test/focused-agent-client.test.ts",
+    "../../../scripts/verify-agent-model.ts",
+    "../../../scripts/verify-agent-qualification.ts"
+  ]
 }

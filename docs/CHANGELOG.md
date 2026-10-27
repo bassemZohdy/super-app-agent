@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 28 October 2026 — Add reproducible selected-planner qualification (P1-05, step)
+
+A separate opt-in qualification command evaluates a versioned synthetic English/Arabic corpus against declared intent, exact-selection and latency thresholds. It then exercises the same live planner through disposable HTTP/graph/SQLite approval, owner and idempotency checks, including the separate fines/renewal reviews. Safe artifacts record code/corpus/tool provenance and distinguish scored, unavailable and unrun cases; provider errors stop without retry or fallback. Controlled tests verify the evaluator and authority checks, without claiming real inference. The attempted live LiteLLM run could not connect; broader live qualification remains open. [Runner and acceptance boundary](testing.md#selected-planner-qualification).
+
 ## 28 October 2026 — Refuse incomplete and over-budget planner replies (P1-05, step)
 
 The compatible planner previously accepted parseable JSON despite provider-reported truncation/filtering. It now refuses any supplied finish reason other than `stop` and rejects invalid or over-budget reported completion-token counts. Failure regressions exercise malformed/invented plans, oversized responses, real HTTP stalls before headers and during body reads, and the actual graph/SQLite boundary: a truncated plan creates no consent or business effect and cannot trigger a fixture fallback. [Failure verification](testing.md).

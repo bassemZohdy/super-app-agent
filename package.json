@@ -122,7 +122,8 @@
     "generate:shell-contracts": "node --experimental-strip-types scripts/generate-shell-contracts.ts",
     "check:shell-contracts": "node --experimental-strip-types scripts/generate-shell-contracts.ts --check",
     "build:flutter": "cd apps/shell-flutter && flutter build web --no-web-resources-cdn && cd ../.. && node --experimental-strip-types scripts/localize-flutter-assets.ts",
-    "demo:flutter": "node --experimental-strip-types scripts/serve-flutter-web.ts"
+    "demo:flutter": "node --experimental-strip-types scripts/serve-flutter-web.ts",
+    "agent:qualify:model": "node --env-file=.env.agent --experimental-strip-types scripts/verify-agent-qualification.ts"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^13.1.0",

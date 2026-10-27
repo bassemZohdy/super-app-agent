@@ -71,4 +71,6 @@ The compatible planner reads `OPENROUTER_API_KEY` only for the exact HTTPS OpenR
 
 Compatible planners reject provider-reported truncation, filtering and tool-call finish reasons, even if the JSON parses. Reported completion-token use must be a non-negative safe integer within the requested allowance. Servers that omit these optional metadata fields still undergo strict plan, content-size and response-byte validation. The same request deadline covers headers and body consumption; errors remain sanitized and never select a fixture fallback.
 
+`npm run agent:qualify:model` performs broader versioned English/Arabic intent, exact-selection and latency evaluation, then checks the live planner against exact approvals in disposable simulator state. It requires the selected real compatible planner and refuses to qualify incomplete or unavailable runs. [Qualification scope and artifacts](testing.md#selected-planner-qualification).
+
 `AGENT_AUTH=keycloak` reuses the existing verified JWT contract and its `KEYCLOAK_*` settings. Required user scopes are `fines:read` and, for payment, `fines:pay`; the existing demo realm is not automatically broadened. `AGENT_WORKLOAD_KEY` protects the internal simulator calls, and `AGENT_WORKLOAD_ID` identifies the configured acting application. See [security](security.md) for the demo identity boundary.
