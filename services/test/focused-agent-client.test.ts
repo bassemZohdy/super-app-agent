@@ -27,6 +27,22 @@ test('focused client uses authenticated POST SSE, preserves event types and wait
   assert.equal(result.threadId, id); assert.deepEqual(nodes, ['list']);
 });
 
+test('a renewal approval and receipt are validated, and a server that sends neither yields null', async t => {
+  const client = new FocusedAgentClient('local-test-value');
+  const respond = (body: unknown) => t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify(body), { headers: { 'Content-Type': 'application/json' } }));
+  respond(value);
+  const plain = await client.inspect(id, signal);
+  assert.equal(plain.renewalApproval, null); assert.equal(plain.renewal, null);
+  const renewalApproval = { id, quote: { vehicleId: 'veh-1', amountMinor: 40000, currency: 'AED' }, expiresAt: Date.now() + 1000 };
+  respond({ ...value, renewalApproval, renewal: { id, simulated: true, quote: { amountMinor: 40000, currency: 'AED' } } });
+  const renewing = await client.inspect(id, signal);
+  assert.equal(renewing.renewalApproval?.quote.vehicleId, 'veh-1'); assert.equal(renewing.renewal?.simulated, true);
+  for (const bad of [{ renewalApproval: { ...renewalApproval, quote: { ...renewalApproval.quote, amountMinor: 0 } } }, { renewalApproval: { ...renewalApproval, quote: { amountMinor: 40000, currency: 'AED' } } }, { renewalApproval: { ...renewalApproval, expiresAt: 'soon' } }, { renewal: { id, simulated: false, quote: { amountMinor: 40000, currency: 'AED' } } }]) {
+    respond({ ...value, ...bad });
+    await assert.rejects(client.inspect(id, signal), AgentClientError);
+  }
+});
+
 test('named SSE events reset at frame boundaries without changing unnamed event compatibility', async () => {
   const frames = [];
   for await (const frame of readEventStream(new Response('event: progress\r\ndata: one\r\n\r\ndata: two\n\n'))) frames.push(frame);
