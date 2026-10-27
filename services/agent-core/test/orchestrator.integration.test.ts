@@ -2,6 +2,31 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { harness } from './support.ts';
+import http from 'node:http';
+import { CompatiblePlanner } from '../src/orchestrator/planner.ts';
+
+test('a model-selected payment review pauses for approval and chat assent cannot execute it', async () => {
+  const model = http.createServer((request, response) => {
+    request.resume(); response.setHeader('Content-Type', 'application/json');
+    response.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ intent: 'pay_fines', fineIds: [] }) } }] }));
+  });
+  await new Promise<void>(resolve => model.listen(0, '127.0.0.1', resolve));
+  const base = new URL(`http://127.0.0.1:${(model.address() as { port: number }).port}/v1/`);
+  const h = await harness({ planner: new CompatiblePlanner(base, 'test-model') });
+  try {
+    const root = `/api/agent/threads/${await h.thread()}`;
+    const review = await h.req(`${root}/messages`, { message: 'Retrieve my fines and review paying them' });
+    assert.equal(review.status, 200); assert.equal(review.data.status, 'awaiting_approval');
+    assert.equal(review.data.approval.quote.amountMinor, 45000);
+    const count = () => (h.store.db.prepare('SELECT count(*) AS n FROM sa_sim_payments').get() as { n: number }).n;
+    assert.equal(count(), 0);
+    assert.equal((await h.req(`${root}/messages`, { message: 'yes' })).status, 409);
+    assert.equal(count(), 0);
+  } finally {
+    await h.close();
+    await new Promise<void>(resolve => { model.close(() => resolve()); model.closeIdleConnections(); });
+  }
+});
 import { quoteFor, digest } from '../src/orchestrator/contracts.ts';
 import { validateAGUISurface } from '../../../packages/protocol-core/src/ag-ui.ts';
 

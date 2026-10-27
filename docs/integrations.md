@@ -21,7 +21,7 @@ All `/api/agent` calls use `Authorization: Bearer ...`. Every transition needs a
 | `GET /live` | Process liveness |
 | `GET /ready` | SQLite accessibility and successful startup configuration; does not claim model availability |
 
-Results contain `threadId`, `status`, `reply`, `fines`, `receipt`, `approval`, `next`, `uiContract` and `surface`. Fine/quote/receipt money is integer fils, currency AED. A receipt always includes `simulated:true`. `approval` is non-null only while the native graph is interrupted; all quote fields must be displayed before confirmation.
+Results contain `threadId`, `status`, `reply`, `fines`, `receipt`, `approval`, `next`, `uiContract` and `surface`. Fine/quote/receipt money is integer fils, currency AED. The planner intent `pay_fines` means prepare an exact review, including requests to retrieve fines and review paying them. It grants no execution authority; read-only or negated payment requests should select the list path. A receipt always includes `simulated:true`. `approval` is non-null only while the native graph is interrupted; all quote fields must be displayed before confirmation.
 
 `Accept: text/event-stream` on transitions emits `progress` events with `{node,correlationId}`, then `result` with the same result object. `error` terminates a started stream safely. This is bounded application SSE, not official AG-UI, token streaming or replayable event sourcing. After disconnect, inspect the thread rather than assuming cancellation; executing requests can finish after the transport disconnects.
 

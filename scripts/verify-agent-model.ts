@@ -10,6 +10,7 @@ async function verify() {
   const planner = new CompatiblePlanner(cfg.AGENT_LLM_BASE_URL, cfg.AGENT_LLM_MODEL, cfg.AGENT_LLM_KEY, cfg.AGENT_LLM_TIMEOUT_MS, cfg.AGENT_LLM_MAX_TOKENS, cfg.AGENT_LLM_RESPONSE_FORMAT === 'json_object');
   const cases: Array<{ name: string; text: string; intent: Plan['intent']; prior?: boolean }> = [
     { name: 'English list', text: 'Show outstanding fines', intent: 'list_fines' },
+    { name: 'English read-only with payment refused', text: 'Show outstanding fines, but do not pay them', intent: 'list_fines' },
     { name: 'English pay', text: 'Retrieve my fines and review paying them', intent: 'pay_fines' },
     { name: 'English clarification', text: 'Hello', intent: 'clarify' },
     { name: 'English unsupported service', text: 'Order a pizza', intent: 'out_of_scope' },
