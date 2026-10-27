@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 27 October 2026 — P1-04 (step): governed vehicle renewal adapter
+
+`vehicles.list` and `vehicles.renew` are typed tools on a simulator client shared with the fines tools. Each call checks its own permission, the renewal requires an idempotency key, and a refused renewal keeps the simulator's reason (`FINES_OUTSTANDING`). The graph does not call them yet; the second approval and restart recovery are the remaining sub-steps.
+
 ## 27 October 2026 — P1-04 (step): vehicle renewal simulator
 
 The in-process simulator gained vehicles and renewals for the fines-then-renewal journey: a renewal is refused while fines are outstanding, renews a vehicle once, replays its original receipt for a repeated key, and needs consent bound to the exact quote. The renewal consent check shares one helper with fines. The adapter, the graph's second approval and restart recovery are the remaining sub-steps. `package.json` now lists `better-sqlite3@12.11.1` under `allowScripts` so its native binding can be built.

@@ -6,6 +6,7 @@ import { SqliteSaver } from '@langchain/langgraph-checkpoint-sqlite';
 import { TestAuthenticator, type TestIdentity } from '../src/orchestrator/auth.ts';
 import { FixturePlanner, type Planner } from '../src/orchestrator/planner.ts';
 import { FinesAdapter } from '../src/orchestrator/fines-adapter.ts';
+import { VehiclesAdapter } from '../src/orchestrator/vehicles-adapter.ts';
 import { Store } from '../src/orchestrator/store.ts';
 import { createGraph } from '../src/orchestrator/graph.ts';
 import { AgentService } from '../src/orchestrator/service.ts';
@@ -22,6 +23,7 @@ export async function harness(options: { planner?: Planner; approvalTtlMs?: numb
   const workloadKey = randomBytes(32).toString('hex');
   const base = new URL('http://127.0.0.1/');
   const tools = new FinesAdapter(base, workloadKey, options.timeoutMs);
+  const vehicles = new VehiclesAdapter(base, workloadKey, options.timeoutMs);
   const graph = createGraph(options.planner || new FixturePlanner(), tools, store, saver, options.approvalTtlMs);
   const service = new AgentService(graph, store);
   const server = createServer(service, new TestAuthenticator(identities, 'super-app-agent'), workloadKey);
@@ -35,5 +37,5 @@ export async function harness(options: { planner?: Planner; approvalTtlMs?: numb
   }
   async function thread(token?: string) { const result = await req('/api/agent/threads', {}, { token }); return result.data.threadId as string; }
   async function close() { await new Promise<void>((resolve, reject) => { server.close(error => error ? reject(error) : resolve()); server.closeIdleConnections(); }); saver.db.close(); if (dir) rmSync(dir, { recursive: true, force: true }); }
-  return { base, file, saver, store, tools, graph, identities, workloadKey, req, thread, close };
+  return { base, file, saver, store, tools, vehicles, graph, identities, workloadKey, req, thread, close };
 }
