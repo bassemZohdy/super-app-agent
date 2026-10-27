@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 27 October 2026 — P1-04 (step): vehicle renewal simulator
+
+The in-process simulator gained vehicles and renewals for the fines-then-renewal journey: a renewal is refused while fines are outstanding, renews a vehicle once, replays its original receipt for a repeated key, and needs consent bound to the exact quote. The renewal consent check shares one helper with fines. The adapter, the graph's second approval and restart recovery are the remaining sub-steps. `package.json` now lists `better-sqlite3@12.11.1` under `allowScripts` so its native binding can be built.
+
 ## 27 October 2026 — P2-01 (step): Angular status and messages in Arabic
 
 The Angular shell's welcome message, connection status, default user name, request progress text and error messages follow the language through more `ng.*` keys. The connection status is stored as what happened and worded when shown, so it follows a language change; an untouched welcome message is re-worded too. Gateway-supplied surface content and grant text stay English. The Angular build passes; no browser spec has run it in Arabic.

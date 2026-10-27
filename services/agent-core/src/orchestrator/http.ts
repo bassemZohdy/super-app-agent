@@ -1,7 +1,7 @@
 import http from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod/v4';
-import { AgentError, Decision, Id, Message, Quote, authorize, execution, type ExecutionContext } from './contracts.ts';
+import { AgentError, Decision, Id, Message, Quote, RenewalQuote, authorize, execution, type ExecutionContext } from './contracts.ts';
 import { equalSecret, type Authenticator } from './auth.ts';
 import type { AgentService } from './service.ts';
 import { logEvent } from '../../../../packages/backend-kit/src/redact.ts';
@@ -32,6 +32,13 @@ export function createServer(service: AgentService, auth: Authenticator, workloa
             const body = z.object({ quote: Quote, consentId: z.string().uuid() }).strict().parse(await readBody(req));
             const key = z.string().regex(/^[a-f0-9]{64}$/).parse(req.headers['idempotency-key']);
             return send(200, await service.store.simulatePayment(principal, key, body.quote, body.consentId));
+          }
+          if (req.method === 'GET' && path === '/simulator/v1/vehicles') { authorize(principal, 'vehicles:read'); return send(200, service.store.vehicles(principal.subject)); }
+          if (req.method === 'POST' && path === '/simulator/v1/renewals') {
+            authorize(principal, 'vehicles:renew');
+            const body = z.object({ quote: RenewalQuote, consentId: z.string().uuid() }).strict().parse(await readBody(req));
+            const key = z.string().regex(/^[a-f0-9]{64}$/).parse(req.headers['idempotency-key']);
+            return send(200, service.store.simulateRenewal(principal, key, body.quote, body.consentId));
           }
           throw new AgentError('NOT_FOUND', 404);
         }

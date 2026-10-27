@@ -22,6 +22,12 @@ export const Quote = z.object({ fineIds: z.array(Id).min(1).max(10), amountMinor
 export type Quote = z.infer<typeof Quote>;
 export const Receipt = z.object({ id: z.string().uuid(), simulated: z.literal(true), quote: Quote, idempotencyKey: z.string().length(64) }).strict();
 export type Receipt = z.infer<typeof Receipt>;
+export const Vehicle = z.object({ id: Id, description: z.string().max(200), renewalFeeMinor: z.number().int().positive().max(10000000), version: z.number().int().positive() }).strict();
+export type Vehicle = z.infer<typeof Vehicle>;
+export const RenewalQuote = z.object({ vehicleId: Id, amountMinor: z.number().int().positive().max(10000000), currency: z.literal('AED'), version: z.number().int().positive() }).strict();
+export type RenewalQuote = z.infer<typeof RenewalQuote>;
+export const RenewalReceipt = z.object({ id: z.string().uuid(), simulated: z.literal(true), quote: RenewalQuote, idempotencyKey: z.string().length(64) }).strict();
+export type RenewalReceipt = z.infer<typeof RenewalReceipt>;
 export const Decision = z.object({ approvalId: z.string().uuid(), decision: z.enum(['approve', 'reject', 'cancel']) }).strict();
 export type Decision = z.infer<typeof Decision>;
 export interface Principal { subject: string; workload: string; permissions: string[]; expiresAt: number }

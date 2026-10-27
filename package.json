@@ -149,5 +149,8 @@
   "packageManager": "npm@11.9.0",
   "engines": {
     "node": ">=24"
+  },
+  "allowScripts": {
+    "better-sqlite3@12.11.1": true
   }
 }

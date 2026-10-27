@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import type { Database } from 'better-sqlite3';
 import { z } from 'zod/v4';
-import { AgentError, Fine, Quote, Receipt, authorize, digest, quoteFor, type Principal } from './contracts.ts';
+import { AgentError, Fine, Quote, Receipt, RenewalQuote, RenewalReceipt, Vehicle, authorize, digest, quoteFor, type Principal } from './contracts.ts';
 
 type Thread = { subject: string; workload: string; expires_at: number; cancelled: number };
 type Consent = { quote: string; expires_at: number };
@@ -33,6 +33,12 @@ export class Store {
         subject TEXT NOT NULL, id TEXT NOT NULL, fine TEXT NOT NULL,
         receipt_id TEXT, PRIMARY KEY(subject,id));
       CREATE TABLE IF NOT EXISTS sa_sim_payments (
+        key TEXT PRIMARY KEY, subject TEXT NOT NULL, quote TEXT NOT NULL, receipt TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS sa_sim_vehicle_accounts (subject TEXT PRIMARY KEY);
+      CREATE TABLE IF NOT EXISTS sa_sim_vehicles (
+        subject TEXT NOT NULL, id TEXT NOT NULL, vehicle TEXT NOT NULL,
+        renewal_id TEXT, PRIMARY KEY(subject,id));
+      CREATE TABLE IF NOT EXISTS sa_sim_renewals (
         key TEXT PRIMARY KEY, subject TEXT NOT NULL, quote TEXT NOT NULL, receipt TEXT NOT NULL);
     `);
   }
@@ -70,8 +76,21 @@ export class Store {
   }
   verifyConsent(id: string, principal: Principal, key: string, quote: Quote) {
     authorize(principal, 'fines:pay');
+    this.checkConsent(id, principal, key, Quote, quote);
+  }
+  renewalConsent(id: string, principal: Principal, key: string, quote: RenewalQuote, expiresAt: number) {
+    authorize(principal, 'vehicles:renew');
+    if (expiresAt <= Date.now()) throw new AgentError('APPROVAL_EXPIRED', 410);
+    this.db.prepare('INSERT INTO sa_consents VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING').run(id, principal.subject, principal.workload, key, JSON.stringify(quote), expiresAt);
+  }
+  verifyRenewalConsent(id: string, principal: Principal, key: string, quote: RenewalQuote) {
+    authorize(principal, 'vehicles:renew');
+    this.checkConsent(id, principal, key, RenewalQuote, quote);
+  }
+  /** The stored quote must equal the quote being executed, whichever service it is for. */
+  private checkConsent<T>(id: string, principal: Principal, key: string, schema: z.ZodType<T>, quote: T) {
     const row = this.db.prepare('SELECT quote,expires_at FROM sa_consents WHERE id=? AND subject=? AND workload=? AND operation_key=?').get(id, principal.subject, principal.workload, key) as Consent | undefined;
-    if (!row || row.expires_at <= Date.now() || digest(Quote.parse(JSON.parse(row.quote))) !== digest(quote)) throw new AgentError('CONSENT_REQUIRED_OR_EXPIRED', 403);
+    if (!row || row.expires_at <= Date.now() || digest(schema.parse(JSON.parse(row.quote))) !== digest(schema.parse(quote))) throw new AgentError('CONSENT_REQUIRED_OR_EXPIRED', 403);
   }
   operation(key: string, subject: string, quote: Quote): Receipt | undefined {
     this.db.prepare("INSERT INTO sa_operations VALUES(?,?,?,'pending',NULL) ON CONFLICT(key) DO NOTHING").run(key, subject, JSON.stringify(quote));
@@ -108,6 +127,36 @@ export class Store {
       const receipt = Receipt.parse({ id: randomUUID(), simulated: true, quote, idempotencyKey: key });
       for (const id of quote.fineIds) this.db.prepare('UPDATE sa_sim_fines SET receipt_id=? WHERE subject=? AND id=?').run(receipt.id, principal.subject, id);
       this.db.prepare('INSERT INTO sa_sim_payments VALUES(?,?,?,?)').run(key, principal.subject, JSON.stringify(quote), JSON.stringify(receipt));
+      return receipt;
+    }).immediate();
+  }
+  vehicles(subject: string): Vehicle[] {
+    return this.db.transaction(() => {
+      const created = this.db.prepare('INSERT INTO sa_sim_vehicle_accounts VALUES(?) ON CONFLICT DO NOTHING').run(subject);
+      if (created.changes) {
+        const fixtures = z.array(Vehicle).parse(JSON.parse(readFileSync(new URL('../../fixtures/vehicles.json', import.meta.url), 'utf8')));
+        for (const vehicle of fixtures) this.db.prepare('INSERT INTO sa_sim_vehicles VALUES(?,?,?,NULL)').run(subject, vehicle.id, JSON.stringify(vehicle));
+      }
+      const rows = this.db.prepare('SELECT vehicle FROM sa_sim_vehicles WHERE subject=? AND renewal_id IS NULL ORDER BY id').all(subject) as Array<{ vehicle: string }>;
+      return rows.map(row => Vehicle.parse(JSON.parse(row.vehicle)));
+    })();
+  }
+  /** Renewal is a separate effect from fines payment: it commits on its own and only while no fine is outstanding. */
+  simulateRenewal(principal: Principal, key: string, quote: RenewalQuote, consentId: string): RenewalReceipt {
+    return this.db.transaction(() => {
+      this.verifyRenewalConsent(consentId, principal, key, quote);
+      const existing = this.db.prepare('SELECT * FROM sa_sim_renewals WHERE key=?').get(key) as Operation | undefined;
+      if (existing) {
+        if (existing.subject !== principal.subject || digest(RenewalQuote.parse(JSON.parse(existing.quote))) !== digest(quote)) throw new AgentError('IDEMPOTENCY_CONFLICT', 409);
+        return RenewalReceipt.parse(JSON.parse(existing.receipt!));
+      }
+      const row = this.db.prepare('SELECT vehicle,renewal_id FROM sa_sim_vehicles WHERE subject=? AND id=?').get(principal.subject, quote.vehicleId) as { vehicle: string; renewal_id: string | null } | undefined;
+      const vehicle = row && Vehicle.parse(JSON.parse(row.vehicle));
+      if (!row || row.renewal_id || !vehicle || vehicle.renewalFeeMinor !== quote.amountMinor || vehicle.version !== quote.version) throw new AgentError('QUOTE_STALE', 409);
+      if (this.fines(principal.subject).length) throw new AgentError('FINES_OUTSTANDING', 409);
+      const receipt = RenewalReceipt.parse({ id: randomUUID(), simulated: true, quote, idempotencyKey: key });
+      this.db.prepare('UPDATE sa_sim_vehicles SET renewal_id=? WHERE subject=? AND id=?').run(receipt.id, principal.subject, quote.vehicleId);
+      this.db.prepare('INSERT INTO sa_sim_renewals VALUES(?,?,?,?)').run(key, principal.subject, JSON.stringify(quote), JSON.stringify(receipt));
       return receipt;
     }).immediate();
   }
