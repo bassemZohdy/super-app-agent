@@ -2,9 +2,12 @@ import { validateAGUISurface, type AGUISurfacePayload } from './ag-ui.ts';
 import { readEventStream } from './sse-client.ts';
 
 export class AgentClientError extends Error {}
+/** Covers the bounded 60s planner setting plus governed local service calls. */
+export const FOCUSED_REQUEST_TIMEOUT_MS = 75000;
 
 export type AgentAction = 'messages' | 'resume' | 'cancel' | 'recover';
 export interface AgentResult {
+  fines?: Array<{ id: string; description: string; amountMinor: number }>;
   threadId: string;
   status: string;
   reply: string;
@@ -26,6 +29,7 @@ function result(value: unknown, expected: string): AgentResult {
   const validated = validateAGUISurface(value.surface);
   if (!validated.success || validated.data?.sessionId !== expected) throw new AgentClientError('The fines service returned an invalid service panel.');
   if (!Array.isArray(value.messages) || !value.messages.every(m => record(m) && ['user', 'assistant'].includes(String(m.role)) && typeof m.content === 'string')) throw new AgentClientError('The fines service returned an invalid conversation.');
+  if (value.fines !== undefined && (!Array.isArray(value.fines) || !value.fines.every(fine => record(fine) && typeof fine.id === 'string' && typeof fine.description === 'string' && Number.isSafeInteger(fine.amountMinor) && Number(fine.amountMinor) > 0))) throw new AgentClientError('The fines service returned invalid fine amounts.');
   const renewalApproval = value.renewalApproval ?? null, renewal = value.renewal ?? null;
   for (const item of [value.approval, value.receipt, renewalApproval, renewal]) {
     if (item === null) continue;

@@ -27,7 +27,7 @@ npm run check:agent
 docker compose -f compose.agent.yml up --build
 ```
 
-[Architecture](docs/architecture.md) · [Native graph](docs/agent-flow.md) · [Testing](docs/testing.md). Use one process/replica per SQLite file. The primary React fines route uses this API; other React journeys and the Angular/Flutter shells retain the integrated compatibility path below.
+[Architecture](docs/architecture.md) · [Native graph](docs/agent-flow.md) · [Testing](docs/testing.md). Use one process/replica per SQLite file. The React, Angular and Flutter fines routes use this API; other journeys retain the integrated compatibility path below.
 
 Start `npm run dev:react` in another terminal and open [the fines conversation](http://localhost:3000/services/fines). Sign in with the local `token` field from `AGENT_TEST_IDENTITIES` in private `.env.agent`, then ask to view fines or review a payment. The OpenRouter API key stays on the server. The **Swap panes** icon exchanges conversation and service details. Each pane’s size icon maximizes it; click that same icon again to restore the split view. The split starts at 50/50; drag the divider to resize it, or focus it and use the arrow keys (Enter resets). The same controls are available in the main concierge, with progressive book/clamshell fold layouts. See [browser setup and recovery](docs/integrations.md#react-fines-workspace).
 
@@ -39,7 +39,7 @@ The main concierge can use the existing LiteLLM server with **GLM 5.3** or **MiM
 
 | Area | Implemented in the local demo | Not claimed |
 | --- | --- | --- |
-| Focused agent | One Node.js process, official SQLite LangGraph checkpoints, bounded model-selected plans, REST fines simulator, primary React fines conversation, durable approval and deduplicated simulated payment, plus a fines-then-vehicle-renewal journey with two approvals and truthful partial or unknown outcomes | Real-model quality, production identity/delegation, Angular/Flutter migration or multi-replica operation |
+| Focused agent | One Node.js process, official SQLite LangGraph checkpoints, bounded model-selected plans, REST fines simulator, React/Angular/Flutter fines conversations, durable approval and deduplicated simulated payment, plus a fines-then-vehicle-renewal journey with two approvals and truthful partial or unknown outcomes | Real-model quality, production identity/delegation or multi-replica operation |
 | Integrated compatibility runtime | Concierge plus six application APIs and seven account-scoped provider simulators; real HTTP boundaries and SQLite persistence | Real agency, UAE PASS, bank or PSP integration; records and funds are synthetic |
 | Identity | Keycloak 26.6.4 pinned by digest; browser PKCE, signed ownership checks, introspection, separate RFC 7523 delegation broker | Production identity, custom actor mapper, multi-hop authority; local HTTP with seeded credentials |
 | Compatibility conversation | Bounded LangGraph review/execute flow, Redis ownership/leases/checkpoints/replay, explicit approval and cancellation, authenticated MCP | Model-selected tool plans, general workflow engine or compensation |
@@ -47,7 +47,7 @@ The main concierge can use the existing LiteLLM server with **GLM 5.3** or **MiM
 | Payments | Linked billers and synthetic saved cards; finite wallet/card reviews; bills, exact fines, prepaid/toll recharges, wallet funding, grouped checkout, original-source refunds, signed events, recovery and statements | Real cards or money; atomic multi-provider settlement (cross-provider effects are sequential with truthful partial and unknown states) |
 | Automation | Finite versioned consent records that can be paused (one rule or all at once), resumed, skipped and revoked in the React panel; run-scoped preparation, a read-only preview of what a rule would do, per-execution credentials and settlement of automatic executions in isolated simulator runs, an off-by-default persistent job worker with a scheduler for calendar, invoice-due and balance-threshold rules, and an owner inbox of what each rule did, skipped or is waiting on ([guide](docs/development/automation-worker.md)) | Execution: nothing schedules unless both worker flags are set, nothing runs outside an isolated run, and mandates return `executionEnabled:false` |
 | Simulator | Persistent business clock, eight isolated issuer outcomes, guarded run-scoped failpoint controls, read-only run inspector, partial lifecycle fixtures | Network admin panel, full lifecycle event generation |
-| Shells | React primary with fines adoption and swappable/maximizable conversation and service panes; Angular and Flutter comparison shells | Full payment, accessibility, localization and native-device parity |
+| Shells | React, Angular and Flutter web with focused fines/renewal, equal resizable panes, shared model status, profile-sharing controls and Connections | Full payment, accessibility, localization and native-device parity |
 | Compatibility operations | Fifteen Node processes with private telemetry, correlation IDs, dependency readiness, bounded shutdown, encrypted cold restore and fenced single-writer rehearsal | Replicated HA, scheduled off-host backup, immutable audit archive |
 
 Open work is tracked only in [TODO.md](TODO.md); the delivered record is the [changelog](docs/CHANGELOG.md); what was verified, when and against which revision is the [evidence register](docs/reports/README.md). Dated reports and recordings state what was true at their own checkpoint.
@@ -67,7 +67,7 @@ Open [React](http://localhost:3000), sign in with Keycloak, and choose **bassem*
 
 Open **Delegated access** to approve bounded wallet reads or one exact AED 1 synthetic credit, run the approved operation, inspect audit history and revoke consent. A separate trusted broker uses supported Keycloak RFC 7523, private-key client authentication and current provider-side grant checks. No preview features or custom actor mapper are used. [Delegation guide](docs/development/delegation.md) · [Decision](docs/adr/ADR-0012-secure-delegation-demo.md) · [Verification](docs/reports/2026-10-24-delegation-demo.md) · [Paced recording](docs/recordings/delegation/index.html).
 
-`npm run dev:angular` serves the Angular shell at http://localhost:3001. Flutter has local-demo sign-in and account/history controls. Use Flutter 3.47+ and Dart 3.13+; web compilation and widget checks are covered in the current report. Native execution remains unverified.
+`npm run dev:angular` serves the Angular shell at http://localhost:3001. Flutter web uses the shared Keycloak PKCE sign-in and account/history controls; build with `npm run build:flutter` and serve with `npm run demo:flutter` at http://localhost:3002. Use Flutter 3.47+ and Dart 3.13+; web compilation, client contracts and pane widget tests are verified separately from native execution. Native execution remains unverified.
 
 ```bash
 npm run demo:wait       # readiness only; also run automatically by demo:up

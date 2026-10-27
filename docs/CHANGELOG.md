@@ -1,8 +1,13 @@
 # Documentation changelog
 
+## 27 October 2026 — Synchronize shared shell journeys and model policies (QA-06, step)
+
+Angular and Flutter now adopt the focused fines/renewal API with private in-memory tokens, exact approvals, saved-thread recovery and blocked replacement after uncertain effects. Their concierge workspaces add equal resizable panes, swap/maximize/restore, phone views, hinge clearance, Connections, service selection, profile-sharing and saved conversations. Generic surfaces collect forms and multiple choice groups with server binding precedence. Flutter web PKCE, catalogs, provider-status cases and request deadlines are generated from shared TypeScript contracts; local fonts and engine assets keep the build independent of remote assets. Optional renewal enrollment creates a separate demo persona without widening existing identities. Verification covers offline contracts, Flutter analysis/widgets/web compilation and the shared phone/desktop approval journeys. Full specialized payment-panel parity and physical/native device qualification remain separate. [Client boundaries](integrations.md#angular-and-flutter-adoption), [verification](testing.md#cross-shell-verification).
+
 ## 27 October 2026 — Share selected-planner input and configuration policies (P1-05, step)
 
 Focused planning and compatibility chat now share LiteLLM endpoint/model/output validation, identifier minimization and bounded per-owner model budgets. Exact fine references stay outside provider input and are bound back to the validated plan, preventing redaction from broadening a selection. Regression tests cover withheld identifiers/assistant amounts, absence of user tokens, exact selection and owner-isolated quota enforcement. The graph retains deterministic authority, consent and approval gates. [Model input boundary](development/local-ai.md#what-the-model-sees).
+
 
 ## 27 October 2026 — Treat requests to review paying fines as an approval review (P1-05, step)
 

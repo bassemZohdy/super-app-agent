@@ -12,13 +12,17 @@ The stylesheet uses logical properties (`margin-inline-start`, `inset-inline-end
 
 The shell's chrome is translated with the same catalogs (`ng.*` keys): the sign-in screen, header, language selector, concierge title, suggestion chips, composer, workspace titles and empty state, then the delegated access panel, the voice settings, the welcome message, connection status, the default user name, and the request and error messages. Status is stored as what happened and worded when shown, and an untouched welcome message is re-worded on a language change. It reads and writes the same saved choice (`cityside.locale`) as the React shell and sets `lang` and `dir` on the page. Its stylesheet uses logical properties, so English pixels are unchanged. The suggestion chips still send their English requests to the gateway; only the labels change. The grant purposes and results and the surface content from the gateway stay English for now, and no browser spec has run it in Arabic yet.
 
+## Flutter web catalogs
+
+`npm run generate:shell-contracts` generates Dart catalogs, provider-status conformance vectors, the request deadline and the PKCE web bridge from protocol-core. `npm run check:shell-contracts` rejects drift. Flutter settings save the same language choice and apply right-to-left direction; provider status and Connections use the shared English/Arabic messages. Remaining hardcoded panels and gateway-supplied service prose are not represented as fully translated. Bundled Noto Naskh Arabic supports local Arabic rendering.
+
 ## Money, dates and times
 
 `formatMoney(locale, minor, currency)` takes whole minor units (a non-integer is refused, so a float never carries an amount) and prints `AED 1,500.00` in English and `1,500٫00 د.إ` in Arabic with Latin digits, so an amount reads the same on screen, in a receipt and in a statement. `formatAED`, which every amount in the shells already calls, follows the chosen language through `setAmountLocale` (set by the React shell's `useLocale`): English keeps `AED 1500.00`, Arabic shows `1500٫00 د.إ`, and neither groups thousands, so no screen changes its width unexpectedly. `formatDateTime` and `formatTime` use the Dubai time zone and the locale's tag.
 
 ## Not yet translated
 
-The grant purposes and results the gateway sends for delegation, and the provider problem messages, the assistant's replies and the surfaces it builds, the rest of the Angular shell and the Flutter shell. A journey that must run in either language matches names with both spellings (`test/browser/layout.ts`).
+The grant purposes and results the gateway sends for delegation, and the provider problem messages, the assistant's replies and the surfaces it builds, the remaining Angular and Flutter panels and focused journey labels. A journey that must run in either language matches names with both spellings (`test/browser/layout.ts`).
 
 ## Checked
 

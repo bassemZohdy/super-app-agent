@@ -8,6 +8,11 @@
   <title>Cityside — Your city concierge</title>
 </head>
 <body>
-  <script src="flutter_bootstrap.js" async></script>
+  <script type="module">
+    import "./cityside-auth.js";
+    const bootstrap = document.createElement("script");
+    bootstrap.src = "flutter_bootstrap.js";
+    document.body.appendChild(bootstrap);
+  </script>
 </body>
 </html>

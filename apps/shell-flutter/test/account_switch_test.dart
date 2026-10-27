@@ -107,7 +107,13 @@ void main() {
           'household',
         ]);
         expect(intents[0]['sessionId'], isNot(intents[1]['sessionId']));
-        await tester.tap(find.byTooltip('Saved conversations'));
+        if (find.byTooltip('Saved conversations').evaluate().isNotEmpty) {
+          await tester.tap(find.byTooltip('Saved conversations'));
+        } else {
+          await tester.tap(find.byTooltip('Workspace tools'));
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('Saved conversations'));
+        }
         await tester.pumpAndSettle();
         await tester.tap(find.text('Saved household chat'));
         await tester.pumpAndSettle();

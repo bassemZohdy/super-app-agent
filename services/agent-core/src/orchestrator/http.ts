@@ -5,6 +5,7 @@ import { AgentError, Decision, Id, Message, Quote, RenewalQuote, authorize, exec
 import { equalSecret, type Authenticator } from './auth.ts';
 import type { AgentService } from './service.ts';
 import { logEvent } from '../../../../packages/backend-kit/src/redact.ts';
+import { corsOrigins } from '../../../../packages/backend-kit/src/local-endpoints.ts';
 
 async function readBody(req: http.IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = []; let bytes = 0;
@@ -18,6 +19,15 @@ export function createServer(service: AgentService, auth: Authenticator, workloa
     res.setHeader('X-Correlation-ID', correlationId); res.setHeader('Cache-Control', 'no-store');
     const send = (status: number, value: unknown) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(value)); };
     const run = async () => {
+      const origin = req.headers.origin;
+      const allowed = corsOrigins();
+      if (origin) {
+        if (!allowed.includes(origin)) throw new AgentError('ORIGIN_NOT_ALLOWED', 403);
+        res.setHeader('Access-Control-Allow-Origin', origin); res.setHeader('Vary', 'Origin');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, Idempotency-Key, Accept');
+        if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
+      }
       const path = new URL(req.url || '/', 'http://localhost').pathname;
       if (req.method === 'GET' && path === '/live') return send(200, { live: true });
       if (req.method === 'GET' && path === '/ready') { service.store.ready(); return send(200, { ready: true, dependencies: ['sqlite'], plannerConfigured: true }); }

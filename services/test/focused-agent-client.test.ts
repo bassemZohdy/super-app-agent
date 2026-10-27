@@ -68,3 +68,11 @@ test('HTTP authorization failures discard upstream details', async t => {
   t.mock.method(globalThis, 'fetch', async () => new Response('private-upstream-detail', { status: 403 }));
   await assert.rejects(new FocusedAgentClient('local-test-value').inspect(id, signal), failure => failure instanceof AgentClientError && !failure.message.includes('private-upstream-detail'));
 });
+
+test('comparison shells never display malformed fine money from a focused result', async t => {
+  const client = new FocusedAgentClient('local-test-value');
+  for (const amountMinor of [1.5, -1, '15000']) {
+    t.mock.method(globalThis, 'fetch', async () => Response.json({ ...value, fines: [{ id: 'fine-1', description: 'Synthetic fine', amountMinor }] }));
+    await assert.rejects(client.inspect(id, signal), AgentClientError);
+  }
+});

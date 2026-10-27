@@ -30,6 +30,21 @@ test('a model-selected payment review pauses for approval and chat assent cannot
 import { quoteFor, digest } from '../src/orchestrator/contracts.ts';
 import { validateAGUISurface } from '../../../packages/protocol-core/src/ag-ui.ts';
 
+test('local comparison shells can preflight the focused API while untrusted browser origins are refused', async () => {
+  const h = await harness();
+  try {
+    for (const origin of ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002']) {
+      const preflight = await fetch(new URL('/api/agent/threads', h.base), { method: 'OPTIONS', headers: { Origin: origin, 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'authorization,content-type,idempotency-key' } });
+      assert.equal(preflight.status, 204); assert.equal(preflight.headers.get('Access-Control-Allow-Origin'), origin);
+      const denied = await fetch(new URL('/api/agent/threads', h.base), { method: 'POST', headers: { Origin: origin }, body: '{}' });
+      assert.equal(denied.status, 401, 'CORS never grants identity or authority');
+    }
+    const untrusted = await h.req('/api/agent/threads', {}, { headers: { Origin: 'https://untrusted.invalid' } });
+    assert.equal(untrusted.status, 403);
+    assert.equal((h.store.db.prepare('SELECT count(*) AS n FROM sa_threads').get() as { n: number }).n, 0);
+  } finally { await h.close(); }
+});
+
 test('HTTP vertical slice: list → multi-turn pay → durable interrupt → approval → exactly one simulated effect', async () => {
   const h = await harness();
   try {

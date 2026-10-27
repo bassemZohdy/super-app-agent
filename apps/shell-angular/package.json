@@ -4,7 +4,7 @@
   "private": true,
   "description": "Cityside Angular reference shell with Keycloak login and a custom UI renderer",
   "scripts": {
-    "dev": "ng serve --port 3001",
+    "dev": "ng serve --port 3001 --proxy-config proxy.config.cjs",
     "build": "node --experimental-strip-types ../../scripts/angular-environment.ts && ng build"
   },
   "dependencies": {

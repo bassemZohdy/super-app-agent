@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Building2, ShieldCheck } from 'lucide-react';
-import { FocusedAgentClient, AgentClientError, type AgentAction, type AgentResult } from '../../../packages/protocol-core/src/focused-agent-client.ts';
+import { FocusedAgentClient, FOCUSED_REQUEST_TIMEOUT_MS, AgentClientError, type AgentAction, type AgentResult } from '../../../packages/protocol-core/src/focused-agent-client.ts';
 import { WorkspacePanes } from './components/WorkspacePanes.tsx';
 import { A2UIRenderer } from './components/A2UIRenderer.tsx';
 import './focused-fines.css';
@@ -43,7 +43,7 @@ export default function FocusedFinesWorkspace() {
     if (busy.current) return;
     busy.current = true; setPending(true); setError(''); setProgress('Connecting to your fines service…');
     const active = new AbortController(); controller.current = active;
-    const timeout = setTimeout(() => active.abort(), 30000);
+    const timeout = setTimeout(() => active.abort(), FOCUSED_REQUEST_TIMEOUT_MS);
     try { await operation(active.signal); }
     catch (failure) {
       if (mutation) setUncertain(true);

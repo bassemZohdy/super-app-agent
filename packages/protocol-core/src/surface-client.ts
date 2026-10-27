@@ -60,13 +60,15 @@ export function checkedSurface(surface: unknown, sessionId: string): AGUISurface
 /** Read error bodies as well as successes so the caller can show warning surfaces. */
 export async function readCoreResponse(response: Response, sessionId: string): Promise<{
   surface?: AGUISurfacePayload; error?: string;
+  inference?: { status?: string; provider?: string };
 }> {
   const data = await response.json();
   if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Invalid gateway response.');
   const surface = data.surface === undefined ? undefined : checkedSurface(data.surface, sessionId);
+  const inference = data.inference && typeof data.inference === 'object' ? { status: typeof data.inference.status === 'string' ? data.inference.status : undefined, provider: typeof data.inference.provider === 'string' ? data.inference.provider : undefined } : undefined;
   if (!response.ok || data.success !== true) {
-    return { surface, error: typeof data.error === 'string' ? data.error : `Request failed (${response.status}).` };
+    return { surface, inference, error: typeof data.error === 'string' ? data.error : `Request failed (${response.status}).` };
   }
   if (!surface) throw new Error('The gateway returned no surface.');
-  return { surface };
+  return { surface, inference };
 }

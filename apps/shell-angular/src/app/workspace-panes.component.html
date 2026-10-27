@@ -1,0 +1,16 @@
+<div class="mobile-tabs" role="group" aria-label="Workspace views">
+  <button type="button" [attr.aria-pressed]="mobile() === 'conversation'" (click)="mobile.set('conversation'); maximized.set(null)">Chat</button>
+  <button type="button" [attr.aria-pressed]="mobile() === 'details'" (click)="mobile.set('details'); maximized.set(null)">Service details</button>
+</div>
+<div #grid class="pane-grid" [class.maximized]="maximized()" [style.grid-template-columns]="template()">
+  <ng-container *ngFor="let pane of order(); let index = index; trackBy: track">
+    <section class="pane" [attr.data-pane]="pane" [class.mobile-inactive]="mobile() !== pane" [hidden]="maximized() && maximized() !== pane" [attr.aria-label]="name(pane) + ' pane'">
+      <header><strong>{{ title(pane) }}</strong><div>
+        <button *ngIf="pane === 'conversation'" type="button" aria-label="Swap panes" title="Swap panes" (click)="swap()"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16m-4-4 4 4-4 4M20 17H4m4-4-4 4 4 4" /></svg></button>
+        <button type="button" [attr.aria-label]="(maximized() === pane ? 'Restore ' : 'Maximize ') + name(pane)" [attr.aria-pressed]="maximized() === pane" (click)="size(pane)"><svg viewBox="0 0 24 24" aria-hidden="true"><path *ngIf="maximized() !== pane" d="M14 3h7v7m0-7-7 7M10 21H3v-7m0 7 7-7"/><path *ngIf="maximized() === pane" d="M3 10h7V3m0 7L3 3m18 11h-7v7m0-7 7 7"/></svg></button>
+      </div></header>
+      <div class="pane-body"><ng-container [ngTemplateOutlet]="pane === 'conversation' ? conversation : details" /></div>
+    </section>
+    <div *ngIf="index === 0 && !maximized()" class="pane-divider" role="separator" tabindex="0" aria-label="Resize conversation and service details" aria-orientation="vertical" [attr.aria-valuemin]="minimum()" [attr.aria-valuemax]="100 - minimum()" [attr.aria-valuenow]="leftShare()" [attr.aria-valuetext]="split() + '% conversation'" (pointerdown)="start($event)" (pointermove)="move($event)" (keydown)="key($event)" (dblclick)="split.set(50)"><span aria-hidden="true">⋮</span></div>
+  </ng-container>
+</div>

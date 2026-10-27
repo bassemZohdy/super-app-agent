@@ -38,3 +38,11 @@ The official saver has a native `better-sqlite3` dependency. `npm rebuild better
 Container/Compose, Kubernetes/OpenShift, live-provider inference and Angular/Flutter adoption remain distinct verification boundaries. The React fines browser suite qualifies that route; it does not qualify every retained shell journey or real identity-provider behavior.
 
 Execution results for the implementation milestone belong in the dated [evidence report](reports/2026-10-26-simple-agent.md).
+
+## Cross-shell verification
+
+`npm run check:shell-contracts` checks generated Flutter catalogs, PKCE bridge, provider-status vectors and the shared request deadline against TypeScript sources. Backend policy regressions cover shared model minimization/budgets, exact fine selection, response bounds and CORS without widening authority. `services/test/demo-renewal-identity.test.ts` verifies optional renewal enrollment preserves existing identities and configuration.
+
+With Flutter 3.47+ and Dart 3.13+ installed, run `flutter analyze` and `flutter test` from `apps/shell-flutter`, then `npm run build:flutter` at the root. The build disables remote engine resources and localizes the engine font fallback; fonts and licenses are bundled. Flutter is a separate toolchain and is not implied by the npm workspace build.
+
+After building Angular and Flutter and starting the compatibility Compose stack, run `npm run test:browser -- parity`. These suites check web PKCE, provider labels, Angular pane/fold behavior, focused payments and separate fines/renewal approvals across all three shells on desktop and phone. The focused business paths use isolated temporary SQLite files and test personas; compatibility Keycloak login uses the local demo realm. Flutter widget tests separately exercise hinge bounds, resize/swap/restore, phone drafts, client validation and server binding precedence. This qualifies these shared web journeys, not every specialized React payment-account panel or native device behavior.

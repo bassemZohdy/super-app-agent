@@ -32,7 +32,7 @@
     "check:any": "node --experimental-strip-types scripts/check-any-types.ts",
     "any:baseline": "node --experimental-strip-types scripts/check-any-types.ts --update",
     "check:local-only": "node --experimental-strip-types scripts/check-local-only.ts",
-    "check": "npm run lint && npm run check:e2e && npm run check:docs && npm run check:secrets && npm run check:local-only && npm run check:any && npm run check:tokens && npm test && npm run build -- --concurrency=2",
+    "check": "npm run lint && npm run check:e2e && npm run check:docs && npm run check:secrets && npm run check:local-only && npm run check:any && npm run check:shell-contracts && npm run check:tokens && npm test && npm run build -- --concurrency=2",
     "test:keycloak": "node --experimental-strip-types scripts/test-keycloak.ts",
     "demo:up": "docker compose -f docker-compose.demo.yml up -d && npm run demo:wait && npm run demo:delegation:realm && npm run local-ai:up",
     "demo:refresh": "npm run demo:delegation:realm && node --experimental-strip-types scripts/refresh-demo-apis.ts && npm run demo:wait",
@@ -118,7 +118,11 @@
     "agent:client": "node --env-file=.env.agent --experimental-strip-types scripts/simple-agent-client.ts",
     "agent:verify:model": "node --env-file=.env.agent --experimental-strip-types scripts/verify-agent-model.ts",
     "test:agent": "node --experimental-strip-types --test services/test/simple-agent.test.ts services/test/agent-model-config.test.ts services/test/focused-agent-client.test.ts services/agent-core/test/*.test.ts",
-    "check:agent": "npm run build --workspace services/agent-core && tsc -p services/agent-core/test/tsconfig.json && npm run test:agent"
+    "check:agent": "npm run build --workspace services/agent-core && tsc -p services/agent-core/test/tsconfig.json && npm run test:agent",
+    "generate:shell-contracts": "node --experimental-strip-types scripts/generate-shell-contracts.ts",
+    "check:shell-contracts": "node --experimental-strip-types scripts/generate-shell-contracts.ts --check",
+    "build:flutter": "cd apps/shell-flutter && flutter build web --no-web-resources-cdn && cd ../.. && node --experimental-strip-types scripts/localize-flutter-assets.ts",
+    "demo:flutter": "node --experimental-strip-types scripts/serve-flutter-web.ts"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^13.1.0",

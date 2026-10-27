@@ -1,0 +1,190 @@
+[
+  {
+    "locale": "en",
+    "model": {
+      "enabled": false
+    },
+    "expected": "Demo mode"
+  },
+  {
+    "locale": "en",
+    "model": {
+      "provider": "llama.cpp",
+      "enabled": true,
+      "configured": false
+    },
+    "expected": "Local model needs configuration"
+  },
+  {
+    "locale": "en",
+    "model": {
+      "provider": "llama.cpp",
+      "enabled": true,
+      "configured": true,
+      "ready": false
+    },
+    "expected": "Local model warming up"
+  },
+  {
+    "locale": "en",
+    "model": {
+      "provider": "llama.cpp",
+      "enabled": true,
+      "configured": true,
+      "ready": true
+    },
+    "expected": "Local model ready"
+  },
+  {
+    "locale": "en",
+    "model": {
+      "provider": "litellm",
+      "enabled": true,
+      "configured": false
+    },
+    "expected": "LiteLLM needs configuration"
+  },
+  {
+    "locale": "en",
+    "model": {
+      "provider": "litellm",
+      "enabled": true,
+      "configured": true,
+      "ready": false
+    },
+    "expected": "LiteLLM configured"
+  },
+  {
+    "locale": "en",
+    "model": {
+      "provider": "litellm",
+      "enabled": true,
+      "configured": true,
+      "ready": true
+    },
+    "expected": "LiteLLM ready"
+  },
+  {
+    "locale": "en",
+    "model": {
+      "provider": "openrouter",
+      "enabled": true,
+      "configured": false
+    },
+    "expected": "OpenRouter needs configuration"
+  },
+  {
+    "locale": "en",
+    "model": {
+      "provider": "openrouter",
+      "enabled": true,
+      "configured": true,
+      "ready": false
+    },
+    "expected": "OpenRouter configured"
+  },
+  {
+    "locale": "en",
+    "model": {
+      "provider": "openrouter",
+      "enabled": true,
+      "configured": true,
+      "ready": true
+    },
+    "expected": "OpenRouter ready"
+  },
+  {
+    "locale": "ar",
+    "model": {
+      "enabled": false
+    },
+    "expected": "الوضع التجريبي"
+  },
+  {
+    "locale": "ar",
+    "model": {
+      "provider": "llama.cpp",
+      "enabled": true,
+      "configured": false
+    },
+    "expected": "النموذج المحلي يحتاج إلى إعداد"
+  },
+  {
+    "locale": "ar",
+    "model": {
+      "provider": "llama.cpp",
+      "enabled": true,
+      "configured": true,
+      "ready": false
+    },
+    "expected": "جارٍ تهيئة النموذج المحلي"
+  },
+  {
+    "locale": "ar",
+    "model": {
+      "provider": "llama.cpp",
+      "enabled": true,
+      "configured": true,
+      "ready": true
+    },
+    "expected": "النموذج المحلي جاهز"
+  },
+  {
+    "locale": "ar",
+    "model": {
+      "provider": "litellm",
+      "enabled": true,
+      "configured": false
+    },
+    "expected": "LiteLLM يحتاج إلى إعداد"
+  },
+  {
+    "locale": "ar",
+    "model": {
+      "provider": "litellm",
+      "enabled": true,
+      "configured": true,
+      "ready": false
+    },
+    "expected": "تم إعداد LiteLLM"
+  },
+  {
+    "locale": "ar",
+    "model": {
+      "provider": "litellm",
+      "enabled": true,
+      "configured": true,
+      "ready": true
+    },
+    "expected": "LiteLLM جاهز"
+  },
+  {
+    "locale": "ar",
+    "model": {
+      "provider": "openrouter",
+      "enabled": true,
+      "configured": false
+    },
+    "expected": "OpenRouter يحتاج إلى إعداد"
+  },
+  {
+    "locale": "ar",
+    "model": {
+      "provider": "openrouter",
+      "enabled": true,
+      "configured": true,
+      "ready": false
+    },
+    "expected": "تم إعداد OpenRouter"
+  },
+  {
+    "locale": "ar",
+    "model": {
+      "provider": "openrouter",
+      "enabled": true,
+      "configured": true,
+      "ready": true
+    },
+    "expected": "OpenRouter جاهز"
+  }
+]

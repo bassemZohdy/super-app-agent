@@ -1,3 +1,4 @@
+import 'shared/contracts.g.dart';
 import 'dart:convert';
 import 'dart:async';
 
@@ -6,7 +7,14 @@ import 'delegation_panel.dart';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+
 import 'theme/tokens.g.dart';
+import 'workspace_panes.dart';
+import 'focused_workspace.dart';
+import 'connections_panel.dart';
+import 'shared/locale.dart';
+import 'shared/surface_payload.dart';
+import 'shared/browser_auth.dart';
 
 void main() {
   runApp(const SuperAppFlutter());
@@ -20,9 +28,12 @@ class SuperAppFlutter extends StatelessWidget {
     return MaterialApp(
       title: 'Cityside — Your city concierge',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: CitysideTokens.primitiveTeal700),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: CitysideTokens.primitiveTeal700,
+        ),
         scaffoldBackgroundColor: CitysideTokens.primitiveSlate50,
-        fontFamily: 'Avenir Next',
+        fontFamily: 'Roboto',
+        fontFamilyFallback: const ['Noto Naskh Arabic'],
         appBarTheme: const AppBarTheme(elevation: 0, centerTitle: false),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
@@ -31,7 +42,9 @@ class SuperAppFlutter extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: const SuperAppHomeScreen(),
+      home: Uri.base.path.replaceFirst(RegExp(r'/$'), '') == '/services/fines'
+          ? const FocusedWorkspace()
+          : const SuperAppHomeScreen(),
     );
   }
 }
@@ -54,8 +67,12 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
   Map<String, dynamic>? _currentSurface;
   String? _thinkingDelta;
   final Map<String, String> _choices = {};
+  final Map<String, String> _formValues = {};
   bool _requestPending = false;
-  bool _showDetails = false;
+  Map<String, dynamic>? _model;
+  String _locale = 'en';
+  bool _shareProfile = true;
+  String t(String key) => citysideText(_locale, key);
   String _connectionLabel = 'Connecting…';
   CitizenEventStream? _events;
   bool _streamEnabled = false;
@@ -66,21 +83,23 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
     defaultValue: 'http://localhost:4000',
   );
   String _keycloakToken = 'demo-local'; // local demo only
-  String? _refreshToken;
-  DateTime? _tokenExpiry;
   bool _loginRequired = false;
   bool _authReady = false;
   String _userName = 'Demo citizen';
   String _accountId = '';
-  String _demoUsername = 'bassem';
   String? _authError;
-  String _issuer = 'http://localhost:8085/realms/superapp';
   List<Map<String, dynamic>> _accounts = [];
   final TextEditingController _promptController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+    if (browserAuthAvailable) {
+      _locale = readBrowserLocale().toLowerCase().startsWith('ar')
+          ? 'ar'
+          : 'en';
+    }
+    _messages.first['text'] = t('ng.welcome');
     WidgetsBinding.instance.addObserver(this);
     _checkConnection();
     _initializeAuth();
@@ -92,13 +111,19 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
         Uri.parse('$_gatewayUrl/api/auth/config'),
       );
       final config = jsonDecode(response.body) as Map<String, dynamic>;
-      _issuer = config['issuer'] as String? ?? _issuer;
       _streamEnabled = config['enabled'] == true;
       if (config['enabled'] == true) {
+        final signedIn =
+            browserAuthAvailable && await configureBrowserAuth(config);
+        if (signedIn) {
+          await _loadAccounts();
+          _connectStream();
+        }
         if (mounted) {
           setState(() {
-            _loginRequired = true;
+            _loginRequired = !signedIn;
             _authReady = true;
+            if (!browserAuthAvailable) _authError = 'Use the web build for Keycloak PKCE sign-in. Native sign-in is not configured.';
           });
         }
       } else {
@@ -117,7 +142,6 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
     }
   }
 
-  // Local demo grant only. Browser shells use authorization code + PKCE.
   Future<void> _signIn() async {
     if (_requestPending) return;
     setState(() {
@@ -125,36 +149,10 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
       _authError = null;
     });
     try {
-      final response = await http.post(
-        Uri.parse('$_issuer/protocol/openid-connect/token'),
-        body: {
-          'grant_type': 'password',
-          'client_id': 'superapp-shell',
-          'username': _demoUsername,
-          'password': 'demo123',
-          'scope': 'openid profile',
-        },
-      );
-      if (response.statusCode != 200) {
-        throw const FormatException('Demo sign-in failed.');
-      }
-      _acceptTokens(jsonDecode(response.body) as Map<String, dynamic>);
-      await _loadAccounts();
-      if (mounted) {
-        setState(() {
-          _loginRequired = false;
-          _messages.clear();
-          _currentSurface = null;
-          _sessionId = 'flutter_${DateTime.now().microsecondsSinceEpoch}';
-        });
-      }
-      _connectStream();
+      await loginBrowserAuth();
     } catch (_) {
       if (mounted) {
-        setState(
-          () =>
-              _authError = 'Demo sign-in failed. Check that Keycloak is ready.',
-        );
+        setState(() => _authError = 'Could not start Keycloak sign-in.');
       }
     } finally {
       if (mounted) setState(() => _requestPending = false);
@@ -226,6 +224,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
     if (_requestPending) return;
     setState(() {
       _accountId = value;
+      _shareProfile = true;
       _sessionId = 'flutter_${DateTime.now().microsecondsSinceEpoch}';
       _messages.clear();
       _currentSurface = null;
@@ -235,33 +234,8 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
     _connectStream();
   }
 
-  void _acceptTokens(Map<String, dynamic> tokens) {
-    _keycloakToken = tokens['access_token'] as String;
-    _refreshToken = tokens['refresh_token'] as String?;
-    _tokenExpiry = DateTime.now().add(
-      Duration(seconds: tokens['expires_in'] as int),
-    );
-  }
-
   Future<String> _authorization() async {
-    if (_tokenExpiry != null &&
-        DateTime.now()
-            .add(const Duration(seconds: 30))
-            .isAfter(_tokenExpiry!)) {
-      final response = await http.post(
-        Uri.parse('$_issuer/protocol/openid-connect/token'),
-        body: {
-          'grant_type': 'refresh_token',
-          'client_id': 'superapp-shell',
-          'refresh_token': _refreshToken ?? '',
-        },
-      );
-      if (response.statusCode != 200) {
-        if (mounted) setState(() => _loginRequired = true);
-        throw const FormatException('Sign in again.');
-      }
-      _acceptTokens(jsonDecode(response.body) as Map<String, dynamic>);
-    }
+    if (_streamEnabled) return 'Bearer ${await browserAuthToken()}';
     return 'Bearer $_keycloakToken';
   }
 
@@ -279,9 +253,53 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
         _accounts = (data['accounts'] as List<dynamic>)
             .cast<Map<String, dynamic>>();
         _accountId = _accounts.first['id'] as String;
-        _userName = data['user']?['name'] as String? ?? _demoUsername;
+        _userName = data['user']?['name'] as String? ?? 'Demo citizen';
       });
     }
+    await _restoreConversation();
+  }
+
+  Future<void> _restoreConversation() async {
+    final saved = readBrowserConversation(_accountId);
+    if (saved.isEmpty) return;
+    final response = await http.get(
+      Uri.parse('$_gatewayUrl/api/sessions/$saved'),
+      headers: {'Authorization': await _authorization()},
+    );
+    if (response.statusCode != 200 || !mounted) return;
+    final value = jsonDecode(response.body) as Map<String, dynamic>;
+    setState(() {
+      _sessionId = saved;
+      _shareProfile = value['modelPersonalContext'] != false;
+      _messages.clear();
+      for (final item in (value['messages'] as List? ?? [])) {
+        if (item is Map &&
+            ['user', 'assistant'].contains(item['role']) &&
+            item['content'] is String) {
+          _messages.add({
+            'role': item['role'] as String,
+            'text': item['content'] as String,
+          });
+        }
+      }
+      if (value['surface'] != null) {
+        _applySurface(value['surface'], appendMessage: false);
+      }
+    });
+  }
+
+  void _newConversation() {
+    if (_requestPending) return;
+    setState(() {
+      _sessionId = 'flutter_${DateTime.now().microsecondsSinceEpoch}';
+      _messages.clear();
+      _currentSurface = null;
+      _choices.clear();
+      _shareProfile = true;
+      _promptController.clear();
+    });
+    writeBrowserConversation(_accountId, '');
+    _connectStream();
   }
 
   Future<void> _showSessions() async {
@@ -330,6 +348,8 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
     final restoredData = jsonDecode(restored.body) as Map<String, dynamic>;
     setState(() {
       _sessionId = selected;
+      writeBrowserConversation(_accountId, selected);
+      _shareProfile = restoredData['modelPersonalContext'] != false;
       _currentSurface = null;
       _messages.clear();
       for (final message
@@ -351,22 +371,257 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
 
   Future<void> _signOut() async {
     _events?.close();
-    final refresh = _refreshToken;
     setState(() {
       _keycloakToken = '';
-      _refreshToken = null;
-      _tokenExpiry = null;
       _loginRequired = true;
       _messages.clear();
       _currentSurface = null;
       _accounts = [];
     });
-    if (refresh != null) {
-      await http.post(
-        Uri.parse('$_issuer/protocol/openid-connect/logout'),
-        body: {'client_id': 'superapp-shell', 'refresh_token': refresh},
+    if (browserAuthAvailable && _streamEnabled) logoutBrowserAuth();
+  }
+
+  Future<void> _showServices() async {
+    if (_requestPending) return;
+    try {
+      final response = await http.get(
+        Uri.parse('$_gatewayUrl/api/services'),
+        headers: {'Authorization': await _authorization()},
       );
+      if (response.statusCode != 200) {
+        throw const FormatException('Services unavailable');
+      }
+      final services =
+          (jsonDecode(response.body) as Map<String, dynamic>)['services']
+              as List<dynamic>;
+      if (!mounted) return;
+      final selected = await showDialog<String>(
+        context: context,
+        builder: (dialog) => SimpleDialog(
+          title: Text(t('nav.exploreServices')),
+          children: [
+            for (final service in services)
+              SimpleDialogOption(
+                onPressed: () => Navigator.pop(dialog, service['id'] as String),
+                child: Text(
+                  service['name'] as String? ?? service['id'] as String,
+                ),
+              ),
+          ],
+        ),
+      );
+      if (selected == null || !mounted) return;
+      await _prepareService(selected);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Services could not be opened.')),
+        );
+      }
     }
+  }
+
+  Future<void> _prepareService(String serviceId) async {
+    if (_requestPending) return;
+    if (serviceId == 'fines') {
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute<void>(builder: (_) => const FocusedWorkspace()));
+      return;
+    }
+    setState(() => _requestPending = true);
+    try {
+      final response = await http.post(
+        Uri.parse('$_gatewayUrl/api/manual/prepare'),
+        headers: {
+          'Authorization': await _authorization(),
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'sessionId': _sessionId,
+          'accountId': _accountId,
+          'serviceId': serviceId,
+        }),
+      );
+      if (mounted) _readResponse(response);
+    } finally {
+      if (mounted) setState(() => _requestPending = false);
+    }
+  }
+
+  void _openMiniApp(String id) {
+    final service = <String, String>{
+      'org.superapp.ride': 'parking',
+      'org.superapp.food': 'food',
+      'org.superapp.wallet': 'wallet',
+      'org.superapp.housing': 'housing',
+      'gov.smartcity.mobility': 'parking',
+      'gov.smartcity.utilities': 'utilities',
+      'gov.smartcity.citizenpay': 'wallet',
+      'gov.smartcity.housing': 'housing',
+    }[id];
+    if (service == null) {
+      setState(
+        () => _messages.add({
+          'role': 'assistant',
+          'text': 'This service is unavailable.',
+        }),
+      );
+      return;
+    }
+    unawaited(
+      _prepareService(service).catchError((Object _) {
+        if (mounted) {
+          setState(
+            () => _messages.add({
+              'role': 'assistant',
+              'text': 'The service could not be opened. Inspect the original request.',
+            }),
+          );
+        }
+      }),
+    );
+  }
+
+  void _openTool(String value) {
+    if (_requestPending) return;
+    switch (value) {
+      case 'services':
+        _showServices();
+      case 'settings':
+        _showSettings();
+      case 'connections':
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => ConnectionsPanel(
+              gateway: _gatewayUrl,
+              authorization: _authorization,
+              locale: _locale,
+            ),
+          ),
+        );
+      case 'fines':
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => const FocusedWorkspace()),
+        );
+      case 'delegation':
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => DelegationPanel(
+              gateway: _gatewayUrl,
+              accountId: _accountId,
+              authorization: _authorization,
+            ),
+          ),
+        );
+      case 'history':
+        _showSessions();
+      case 'logout':
+        _signOut();
+    }
+  }
+
+  Future<void> _showSettings() async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, update) => AlertDialog(
+          title: Text(t('settings.title')),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(modelStatusLabel(_model, locale: _locale)),
+                DropdownButtonFormField<String>(
+                  initialValue: _locale,
+                  decoration: InputDecoration(
+                    labelText: t('settings.language'),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'en', child: Text('English')),
+                    DropdownMenuItem(value: 'ar', child: Text('العربية')),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() {
+                      _locale = value;
+                      _connectionLabel = modelStatusLabel(
+                        _model,
+                        locale: _locale,
+                      );
+                    });
+                    writeBrowserLocale(value);
+                    update(() {});
+                  },
+                ),
+                SwitchListTile(
+                  title: Text(t('settings.shareProfile')),
+                  value: _shareProfile,
+                  onChanged: _requestPending
+                      ? null
+                      : (value) async {
+                          setState(() => _requestPending = true);
+                          update(() {});
+                          try {
+                            final response = await http.post(
+                              Uri.parse('$_gatewayUrl/api/a2ui/model-privacy'),
+                              headers: {
+                                'Authorization': await _authorization(),
+                                'Content-Type': 'application/json',
+                              },
+                              body: jsonEncode({
+                                'sessionId': _sessionId,
+                                'accountId': _accountId,
+                                'modelPersonalContext': value,
+                              }),
+                            );
+                            if (response.statusCode != 200) {
+                              throw const FormatException(
+                                'Privacy setting was not saved.',
+                              );
+                            }
+                            writeBrowserConversation(_accountId, _sessionId);
+                            if (mounted) {
+                              setState(
+                                () => _shareProfile =
+                                    (jsonDecode(response.body)
+                                        as Map<
+                                          String,
+                                          dynamic
+                                        >)['modelPersonalContext'] ==
+                                    true,
+                              );
+                            }
+                          } catch (_) {
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Could not save privacy settings. Your previous setting remains active.',
+                                  ),
+                                ),
+                              );
+                            }
+                          } finally {
+                            if (mounted) {
+                              setState(() => _requestPending = false);
+                            }
+                            if (dialogContext.mounted) update(() {});
+                          }
+                        },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(t('settings.close')),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _checkConnection() async {
@@ -379,16 +634,21 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
       }
       final data = jsonDecode(response.body);
       if (mounted) {
-        setState(
-          () => _connectionLabel = data['llm']?['enabled'] == true
-              ? (data['llm']?['ready'] == true
-                    ? 'Local model ready'
-                    : 'Local model warming up')
-              : 'Demo mode',
-        );
+        setState(() {
+          _model = data['llm'] as Map<String, dynamic>?;
+          _connectionLabel = modelStatusLabel(_model, locale: _locale);
+        });
       }
     } catch (_) {
-      if (mounted) setState(() => _connectionLabel = 'Gateway offline');
+      if (mounted) {
+        setState(
+          () => _connectionLabel = modelStatusLabel(
+            null,
+            locale: _locale,
+            connection: 'offline',
+          ),
+        );
+      }
     }
   }
 
@@ -454,6 +714,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
 
     walk(value['view'], 0);
     if (_currentSurface?['revision'] == value['revision']) return;
+    _formValues.clear();
     _choices
       ..clear()
       ..addAll(choices);
@@ -472,6 +733,11 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
       throw const FormatException('Invalid response');
     }
     setState(() {
+      _connectionLabel = modelStatusLabel(
+        _model,
+        locale: _locale,
+        inference: data['inference']?['status'] as String?,
+      );
       if (data['surface'] != null) _applySurface(data['surface']);
       if (response.statusCode < 200 ||
           response.statusCode >= 300 ||
@@ -486,6 +752,9 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
         throw const FormatException('Missing response surface');
       }
     });
+    if (response.statusCode == 200) {
+      writeBrowserConversation(_accountId, _sessionId);
+    }
   }
 
   Future<void> _sendIntent(String text) async {
@@ -511,15 +780,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
           'handshake': {
             'platform': 'flutter',
             'viewport': {'width': 400, 'height': 800, 'category': 'mobile'},
-            'supportedComponents': [
-              'SurfaceCard',
-              'Heading',
-              'Text',
-              'ChoiceGroup',
-              'Button',
-              'MetricWidget',
-              'MapViewer',
-            ],
+            'supportedComponents': supportedComponentTypes,
           },
         }),
       );
@@ -554,14 +815,15 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
     });
 
     try {
-      if (_choices.length > 1) {
-        throw const FormatException('Ambiguous action choices');
-      }
-      final bodyPayload = Map<String, dynamic>.from(payload ?? {});
-      bodyPayload.remove('selectedChoice');
-      if (_choices.length == 1) {
-        bodyPayload['selectedChoice'] = _choices.values.first;
-      }
+      final bodyPayload = surfaceActionPayload(
+        _currentSurface!['view'] as Map<String, dynamic>,
+        {
+          'actionType': 'AGENT_ACTION_DISPATCH',
+          'payload': payload ?? <String, dynamic>{},
+        },
+        _choices,
+        _formValues,
+      );
 
       final res = await http.post(
         Uri.parse('$_gatewayUrl/api/a2ui/action'),
@@ -596,7 +858,12 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => Directionality(
+    textDirection: _locale == 'ar' ? TextDirection.rtl : TextDirection.ltr,
+    child: _buildScreen(context),
+  );
+
+  Widget _buildScreen(BuildContext context) {
     if (!_authReady) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
@@ -621,23 +888,8 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                     style: TextStyle(fontSize: 30, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 18),
-                  const Text('Local demo sign-in through Keycloak'),
+                  Text(t('ng.signin.hint')),
                   const SizedBox(height: 18),
-                  DropdownButtonFormField<String>(
-                    initialValue: _demoUsername,
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'bassem',
-                        child: Text('Bassem Zohdy'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'demo-commuter',
-                        child: Text('Alex Commuter'),
-                      ),
-                    ],
-                    onChanged: (value) =>
-                        setState(() => _demoUsername = value!),
-                  ),
                   if (_authError != null)
                     Padding(
                       padding: const EdgeInsets.all(12),
@@ -647,7 +899,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                   FilledButton(
                     onPressed: _requestPending ? null : _signIn,
                     child: Text(
-                      _requestPending ? 'Signing in…' : 'Sign in to demo',
+                      _requestPending ? 'Signing in…' : t('ng.signin.button'),
                     ),
                   ),
                 ],
@@ -660,11 +912,23 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
     return Scaffold(
       appBar: AppBar(
         toolbarHeight: 76,
+        bottom: MediaQuery.sizeOf(context).width < 900
+            ? PreferredSize(
+                preferredSize: const Size.fromHeight(28),
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Text(
+                    _connectionLabel,
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                ),
+              )
+            : null,
         titleSpacing: 22,
-        title: const Column(
+        title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            const Text(
               'cityside',
               style: TextStyle(
                 fontWeight: FontWeight.w700,
@@ -673,46 +937,111 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
               ),
             ),
             Text(
-              'Your everyday, connected.',
-              style: TextStyle(fontSize: 10, color: CitysideTokens.primitiveMist62),
+              t('ng.tagline'),
+              style: const TextStyle(
+                fontSize: 14,
+                color: CitysideTokens.primitiveMist62,
+              ),
             ),
           ],
         ),
         backgroundColor: CitysideTokens.primitiveWhite,
         foregroundColor: CitysideTokens.primitiveTeal700,
         actions: [
-          IconButton(
-            tooltip: 'Delegated access',
-            onPressed: _requestPending
-                ? null
-                : () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => DelegationPanel(
-                        gateway: _gatewayUrl,
-                        accountId: _accountId,
-                        authorization: _authorization,
+          if (MediaQuery.sizeOf(context).width < 900)
+            PopupMenuButton<String>(
+              tooltip: 'Workspace tools',
+              onSelected: _openTool,
+              itemBuilder: (_) => [
+                for (final entry in {
+                  'services': t('nav.exploreServices'),
+                  'settings': t('settings.title'),
+                  'connections': t('tools.connections'),
+                  'fines': 'Fines & renewal',
+                  'delegation': t('tools.delegatedAccess'),
+                  'history': 'Saved conversations',
+                  'logout': t('nav.signOut'),
+                }.entries)
+                  PopupMenuItem(
+                    value: entry.key,
+                    enabled: !_requestPending,
+                    child: Text(entry.value),
+                  ),
+              ],
+            )
+          else ...[
+            IconButton(
+              tooltip: t('nav.exploreServices'),
+              onPressed: _requestPending ? null : _showServices,
+              icon: const Icon(Icons.apps),
+            ),
+            IconButton(
+              tooltip: t('tools.connections'),
+              onPressed: _requestPending
+                  ? null
+                  : () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => ConnectionsPanel(
+                          gateway: _gatewayUrl,
+                          authorization: _authorization,
+                          locale: _locale,
+                        ),
                       ),
                     ),
-                  ),
-            icon: const Icon(Icons.verified_user_outlined),
-          ),
-          IconButton(
-            tooltip: 'Saved conversations',
-            onPressed: _requestPending ? null : _showSessions,
-            icon: const Icon(Icons.history),
-          ),
-          IconButton(
-            tooltip: 'Sign out',
-            onPressed: _requestPending ? null : _signOut,
-            icon: const Icon(Icons.logout),
-          ),
-          Center(
-            child: Text(
-              _connectionLabel,
-              style: const TextStyle(fontSize: 10, color: CitysideTokens.primitiveGreen55),
+              icon: const Icon(Icons.link),
             ),
-          ),
-          const SizedBox(width: 18),
+            IconButton(
+              tooltip: 'Fines & renewal',
+              onPressed: _requestPending
+                  ? null
+                  : () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const FocusedWorkspace(),
+                      ),
+                    ),
+              icon: const Icon(Icons.receipt_long),
+            ),
+            IconButton(
+              tooltip: t('settings.title'),
+              onPressed: _requestPending ? null : _showSettings,
+              icon: const Icon(Icons.tune),
+            ),
+            IconButton(
+              tooltip: t('tools.delegatedAccess'),
+              onPressed: _requestPending
+                  ? null
+                  : () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => DelegationPanel(
+                          gateway: _gatewayUrl,
+                          accountId: _accountId,
+                          authorization: _authorization,
+                        ),
+                      ),
+                    ),
+              icon: const Icon(Icons.verified_user_outlined),
+            ),
+            IconButton(
+              tooltip: 'Saved conversations',
+              onPressed: _requestPending ? null : _showSessions,
+              icon: const Icon(Icons.history),
+            ),
+            IconButton(
+              tooltip: t('nav.signOut'),
+              onPressed: _requestPending ? null : _signOut,
+              icon: const Icon(Icons.logout),
+            ),
+            Center(
+              child: Text(
+                _connectionLabel,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: CitysideTokens.successText,
+                ),
+              ),
+            ),
+            const SizedBox(width: 18),
+          ],
         ],
       ),
       body: Column(
@@ -726,7 +1055,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                     child: Text(
                       _userName,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12),
+                      style: const TextStyle(fontSize: 14),
                     ),
                   ),
                   DropdownButton<String>(
@@ -737,7 +1066,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                             value: account['id'] as String,
                             child: Text(
                               account['label'] as String,
-                              style: const TextStyle(fontSize: 12),
+                              style: const TextStyle(fontSize: 14),
                             ),
                           ),
                         )
@@ -752,47 +1081,9 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
               ),
             ),
           Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                if (constraints.maxWidth >= 850) {
-                  return Row(
-                    children: [
-                      Expanded(flex: 5, child: _buildAgentPane()),
-                      const VerticalDivider(width: 1, color: CitysideTokens.primitiveSlate200),
-                      Expanded(flex: 5, child: _buildCanvasPane()),
-                    ],
-                  );
-                }
-                return Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: SegmentedButton<bool>(
-                        segments: const [
-                          ButtonSegment(
-                            value: false,
-                            icon: Icon(Icons.chat_bubble_outline),
-                            label: Text('Concierge'),
-                          ),
-                          ButtonSegment(
-                            value: true,
-                            icon: Icon(Icons.explore_outlined),
-                            label: Text('Service details'),
-                          ),
-                        ],
-                        selected: {_showDetails},
-                        onSelectionChanged: (value) =>
-                            setState(() => _showDetails = value.first),
-                      ),
-                    ),
-                    Expanded(
-                      child: _showDetails
-                          ? _buildCanvasPane()
-                          : _buildAgentPane(),
-                    ),
-                  ],
-                );
-              },
+            child: WorkspacePanes(
+              conversation: _buildAgentPane(),
+              details: _buildCanvasPane(),
             ),
           ),
         ],
@@ -809,18 +1100,18 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             color: CitysideTokens.primitiveWhite,
             width: double.infinity,
-            child: const Text(
-              'Rashid, your city concierge',
-              style: TextStyle(
+            child: Text(
+              t('ng.pane'),
+              style: const TextStyle(
                 fontWeight: FontWeight.bold,
-                fontSize: 13,
+                fontSize: 14,
                 color: CitysideTokens.primitiveSlate900,
               ),
             ),
           ),
           const Divider(height: 1, color: CitysideTokens.primitiveSlate200),
           if (_streamEnabled)
-            Text(_streamStatus, style: const TextStyle(fontSize: 10)),
+            Text(_streamStatus, style: const TextStyle(fontSize: 14)),
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.all(12),
@@ -840,14 +1131,18 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                     ),
                     constraints: const BoxConstraints(maxWidth: 320),
                     decoration: BoxDecoration(
-                      color: isUser ? CitysideTokens.primitiveTeal700 : CitysideTokens.primitiveWhite,
+                      color: isUser
+                          ? CitysideTokens.primitiveTeal700
+                          : CitysideTokens.primitiveWhite,
                       borderRadius: BorderRadius.circular(12),
                       border: isUser
                           ? null
                           : Border.all(color: CitysideTokens.primitiveSlate200),
                       boxShadow: [
                         BoxShadow(
-                          color: CitysideTokens.primitiveSlate900.withValues(alpha: 0.03),
+                          color: CitysideTokens.primitiveSlate900.withValues(
+                            alpha: 0.03,
+                          ),
                           blurRadius: 4,
                           offset: const Offset(0, 2),
                         ),
@@ -856,8 +1151,10 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                     child: SelectableText(
                       msg['text'] ?? '',
                       style: TextStyle(
-                        color: isUser ? CitysideTokens.primitiveWhite : CitysideTokens.primitiveSlate900,
-                        fontSize: 13,
+                        color: isUser
+                            ? CitysideTokens.primitiveWhite
+                            : CitysideTokens.primitiveSlate900,
+                        fontSize: 14,
                         height: 1.4,
                       ),
                     ),
@@ -879,7 +1176,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                 style: const TextStyle(
                   fontStyle: FontStyle.italic,
                   color: CitysideTokens.primitiveAmber38,
-                  fontSize: 12,
+                  fontSize: 14,
                 ),
               ),
             ),
@@ -889,14 +1186,21 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             child: Row(
               children: [
-                _buildChip('Find parking', 'Park in Zone 302A Downtown Dubai'),
+                ActionChip(
+                  label: Text(t('app.newConversation')),
+                  onPressed: _requestPending ? null : _newConversation,
+                ),
                 _buildChip(
-                  'Check my bills',
-                  'Check my DEWA electricity and water bill for premise DEWA-201948201',
+                  t('ng.chip.parking'),
+                  'Show parking zones in Downtown Dubai',
+                ),
+                _buildChip(
+                  t('ng.chip.bills'),
+                  'Check my DEWA electricity and water bill',
                 ),
                 _buildChip(
                   'Traffic fines',
-                  'Check my Dubai Police traffic radar fines for plate Dubai B-74892',
+                  'Show my outstanding traffic fines',
                 ),
                 _buildChip(
                   'Moving in',
@@ -947,7 +1251,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  child: const Text('Send'),
+                  child: Text(t('ng.send')),
                 ),
               ],
             ),
@@ -963,7 +1267,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
       child: ActionChip(
         label: Text(
           label,
-          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
         ),
         onPressed: _requestPending ? null : () => _sendIntent(prompt),
         backgroundColor: CitysideTokens.primitiveSlate50,
@@ -974,28 +1278,31 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
 
   Widget _buildCanvasPane() {
     if (_currentSurface == null) {
-      return SingleChildScrollView(
+      return const SingleChildScrollView(
         child: Center(
           child: Padding(
-            padding: const EdgeInsets.all(24.0),
+            padding: EdgeInsets.all(24.0),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(
+                Icon(
                   Icons.auto_awesome_outlined,
                   size: 48,
                   color: CitysideTokens.primitiveBlue63,
                 ),
-                const SizedBox(height: 12),
-                const Text(
+                SizedBox(height: 12),
+                Text(
                   'A little help. A lot more city.',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
-                const SizedBox(height: 6),
+                SizedBox(height: 6),
                 Text(
                   'From your morning commute to your next move. Ask Rashid and review your options here. City services use simulated data.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: CitysideTokens.primitiveGray49, fontSize: 13),
+                  style: TextStyle(
+                    color: CitysideTokens.primitiveGray49,
+                    fontSize: 14,
+                  ),
                 ),
               ],
             ),
@@ -1062,13 +1369,75 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
           child: Text(
             props['text'] as String? ?? '',
             style: const TextStyle(
-              fontSize: 13,
+              fontSize: 14,
               height: 1.5,
               color: CitysideTokens.primitiveMist27,
             ),
           ),
         );
 
+      case 'Badge':
+        return Chip(
+          label: Text(
+            props['text'] as String? ?? props['label'] as String? ?? '',
+          ),
+          backgroundColor: CitysideTokens.surface,
+        );
+      case 'DataTable':
+        final columns = (props['columns'] as List? ?? [])
+            .cast<Map<String, dynamic>>();
+        final rows = (props['rows'] as List? ?? [])
+            .cast<Map<String, dynamic>>();
+        if (columns.isEmpty) return const Text('No service data columns.');
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: DataTable(
+            columns: [
+              for (final column in columns)
+                DataColumn(label: Text(column['title'] as String)),
+            ],
+            rows: [
+              for (final row in rows)
+                DataRow(
+                  cells: [
+                    for (final column in columns)
+                      DataCell(
+                        Text(
+                          row[column['key']] is Map ||
+                                  row[column['key']] is List
+                              ? jsonEncode(row[column['key']])
+                              : row[column['key']]?.toString() ?? '',
+                        ),
+                      ),
+                  ],
+                ),
+            ],
+          ),
+        );
+      case 'FormInput':
+        final name = props['name'] as String? ?? node['id'] as String;
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: TextFormField(
+            key: ValueKey('${_currentSurface?['revision']}:$name'),
+            initialValue:
+                _formValues[name] ?? props['defaultValue'] as String? ?? '',
+            enabled: !_requestPending && props['disabled'] != true,
+            obscureText: props['inputType'] == 'password',
+            decoration: InputDecoration(
+              labelText: props['label'] as String? ?? name,
+              hintText: props['placeholder'] as String?,
+            ),
+            onChanged: (value) => _formValues[name] = value,
+          ),
+        );
+      case 'MiniAppEmbed':
+        return OutlinedButton(
+          onPressed: _requestPending
+              ? null
+              : () => _openMiniApp(props['miniAppId'] as String? ?? ''),
+          child: Text('Open ${props['miniAppId'] ?? 'city services'}'),
+        );
       case 'MetricWidget':
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
@@ -1084,7 +1453,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
               Text(
                 props['label'] as String? ?? '',
                 style: const TextStyle(
-                  fontSize: 12,
+                  fontSize: 14,
                   fontWeight: FontWeight.w600,
                   color: CitysideTokens.primitiveSlate500,
                 ),
@@ -1114,7 +1483,9 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                 margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: isSelected ? CitysideTokens.primitiveMist97 : CitysideTokens.primitiveWhite,
+                  color: isSelected
+                      ? CitysideTokens.primitiveMist97
+                      : CitysideTokens.primitiveWhite,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
                     color: isSelected
@@ -1140,7 +1511,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                           Text(
                             opt['subtitle'] as String,
                             style: const TextStyle(
-                              fontSize: 12,
+                              fontSize: 14,
                               color: CitysideTokens.primitiveSlate500,
                             ),
                           ),
@@ -1174,11 +1545,14 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.directions_car, color: CitysideTokens.primitiveTeal700),
+                Icon(
+                  Icons.directions_car,
+                  color: CitysideTokens.primitiveTeal700,
+                ),
                 SizedBox(width: 8),
                 Text(
                   '📍 Live GPS Route View (Simulated)',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                 ),
               ],
             ),

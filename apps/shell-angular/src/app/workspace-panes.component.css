@@ -1,0 +1,16 @@
+:host { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
+.pane-grid { display: grid; flex: 1; min-height: 0; overflow: hidden; }
+.pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; border: 1px solid var(--color-surface-border); border-radius: var(--radius-md); background: var(--color-surface); overflow: hidden; }
+.pane[hidden] { display: none; }
+header { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-small); padding: var(--spacing-small); border-bottom: 1px solid var(--color-surface-border); font-size: var(--font-size-control); }
+header > div { display: flex; } button { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; min-width: 44px; border: 0; background: transparent; color: var(--color-primary-text); font: inherit; cursor: pointer; }
+button:focus-visible, .pane-divider:focus-visible { outline: 3px solid var(--color-focus-ring); outline-offset: -3px; }
+svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+.pane-body { display: flex; flex: 1; min-height: 0; min-width: 0; overflow: auto; }
+.pane-divider { display: flex; position: relative; align-items: center; justify-content: center; cursor: col-resize; touch-action: none; color: var(--color-text-muted); }
+.pane-divider::before { content: ''; position: absolute; width: 44px; height: 100%; }
+.pane-divider span { border: 1px solid var(--color-surface-border); border-radius: var(--radius-full); padding: var(--spacing-small) 0; }
+.mobile-tabs { display: none; }
+@media (max-width: 679px) { .mobile-tabs { display: flex; padding-block-end: var(--spacing-small); } .mobile-tabs button { flex: 1; font-size: var(--font-size-control); } .mobile-tabs button[aria-pressed=true] { background: var(--color-surface); border-radius: var(--radius-md); } .pane-grid { display: flex; } .pane { flex: 1; } .pane.mobile-inactive, .pane-divider { display: none; } }
+@media (horizontal-viewport-segments: 2) { .pane-grid { grid-template-columns: env(viewport-segment-width 0 0) calc(env(viewport-segment-left 1 0) - env(viewport-segment-right 0 0)) env(viewport-segment-width 1 0) !important; } .pane-grid.maximized { grid-template-columns: env(viewport-segment-width 0 0) !important; } .pane:not([hidden]) { display: flex; margin-inline: var(--spacing-small); } .pane-divider { display: block; visibility: hidden; pointer-events: none; } .mobile-tabs { display: none; } }
+@media (vertical-viewport-segments: 2) { .pane-grid { display: grid; grid-template-columns: minmax(0, 1fr) !important; grid-template-rows: calc(env(viewport-segment-height 0 0) - var(--workspace-top, 116px)) calc(env(viewport-segment-top 0 1) - env(viewport-segment-bottom 0 0)) env(viewport-segment-height 0 1); } .pane:not([hidden]) { display: flex; } .pane-divider { display: block; visibility: hidden; pointer-events: none; } .mobile-tabs { display: none; } }

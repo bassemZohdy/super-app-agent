@@ -1,3 +1,4 @@
+import { modelStatusLabel, type ModelStatus } from '../../../packages/protocol-core/src/model-status.ts';
 import { PaymentAccountsPanel } from './PaymentAccountsPanel.tsx';
 import { BrowserAuth, type BrowserAuthConfig } from '../../../packages/protocol-core/src/oidc-client.ts';
 import { DelegationPanel } from './DelegationPanel.tsx';
@@ -23,7 +24,6 @@ const services = [
   { id: 'telecom', name: 'Stay connected', short: 'Telecom', detail: 'Etisalat & du', icon: Wifi, color: 'blue', prompt: 'Show my Etisalat subscriptions and bills' },
   { id: 'housing', name: 'A place to call home', short: 'Housing', detail: 'Ejari & moving in', icon: House, color: 'teal', prompt: 'I just signed my Ejari lease, help me move in' },
 ];
-type ModelStatus = { provider?: string; ready?: boolean; model: string; enabled: boolean; configured: boolean; mode: string };
 type ChatMessage = { id: string; role: 'user' | 'assistant'; text: string; error?: boolean; retry?: string };
 
 
@@ -320,9 +320,7 @@ function CompatibilityApp() {
     setPaymentAccountsOpen(false); setDelegationOpen(false);
     voice.current?.cancel(); resetConversation(); history.replaceState(null, '', '/'); input.current?.focus();
   };
-  const modelLabel = model?.provider === 'litellm' ? 'LiteLLM' : model?.provider === 'openrouter' ? 'OpenRouter' : 'Local model';
-  const statusLabel = connection === 'offline' ? 'Gateway offline' : connection === 'checking' ? 'Connecting…'
-    : inference === 'error' ? 'Model needs attention' : model?.enabled ? inference === 'connected' ? `${modelLabel} connected` : !model.configured ? `${modelLabel} needs configuration` : model.ready ? `${modelLabel} ready` : model?.provider === 'llama.cpp' ? 'Local model warming up' : `${modelLabel} configured` : t('status.demoMode');
+  const statusLabel = modelStatusLabel(model, { locale, connection: connection === 'offline' ? 'offline' : connection === 'checking' ? 'checking' : 'online', inference: inference === 'connected' || inference === 'error' ? inference : undefined });
 
   if (loginRequired) return <main className="login-screen"><div className="login-card"><span className="brand-mark"><Building2 size={30} /></span><h1>Your city.<br />Your account.</h1><p>Sign in to manage your personal and household services with Rashid.</p>{authError && <p role="alert" className="login-error">{authError}</p>}<button className="login-button" onClick={() => void auth.current?.login().catch(error => setAuthError(error.message))}>Sign in with Keycloak</button><small>Demo accounts: bassem or demo-commuter.<br />Password: demo123</small></div></main>;
   if (!authReady) return <main className="login-screen"><p role="status">Preparing your city workspace…</p></main>;
