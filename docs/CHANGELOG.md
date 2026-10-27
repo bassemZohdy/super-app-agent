@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 27 October 2026 — P1-04 (step): fines then renewal in the focused graph
+
+A renewal request now runs the native graph through fines (existing review and approval) and then a second persisted interrupt for the renewal, with its own approval ID and operation key. The outcome is truthful: `complete`, `partial` (fines paid, renewal declined, expired, refused or unauthorized) or `unknown` (renewal response lost; replacement blocked until recovery with the original key). A resident without the renew permission is refused before any payment. `createGraph` takes the vehicles adapter; the surface and the process-restart check for the second step are the remaining sub-step.
+
 ## 27 October 2026 — P1-04 (step): governed vehicle renewal adapter
 
 `vehicles.list` and `vehicles.renew` are typed tools on a simulator client shared with the fines tools. Each call checks its own permission, the renewal requires an idempotency key, and a refused renewal keeps the simulator's reason (`FINES_OUTSTANDING`). The graph does not call them yet; the second approval and restart recovery are the remaining sub-steps.

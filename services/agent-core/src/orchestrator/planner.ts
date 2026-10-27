@@ -26,7 +26,7 @@ export class CompatiblePlanner implements Planner {
         headers: { 'Content-Type': 'application/json', ...(this.key ? { Authorization: `Bearer ${this.key}` } : {}) },
         body: JSON.stringify({ model: this.model, temperature: 0, max_tokens: this.maxTokens, stream: false, ...(this.jsonFormat ? { response_format: { type: 'json_object' } } : {}),
           ...(isOpenRouter(this.base) ? { provider: { max_price: { prompt: 0, completion: 0 } }, reasoning: { enabled: false } } : {}), messages: [
-          { role: 'system', content: `Select a bounded fines plan using only these services: ${JSON.stringify(tools)}. Return ONLY one JSON object, without markdown or explanation. It must have keys intent (list_fines, pay_fines, clarify or out_of_scope) and fineIds (an array of strings). Example: {"intent":"list_fines","fineIds":[]}. Pay only if requested. Use exact fine IDs requested by the user; empty IDs means all currently outstanding fines. Unclear requests need clarify. You cannot authorize, consent or execute. Never echo user text or credentials.` },
+          { role: 'system', content: `Select a bounded plan using only these services: ${JSON.stringify(tools)}. Return ONLY one JSON object, without markdown or explanation. It must have keys intent (list_fines, pay_fines, renew_registration, clarify or out_of_scope) and fineIds (an array of strings); add vehicleId only when the user names a vehicle. Example: {"intent":"list_fines","fineIds":[]}. Use renew_registration when the user asks to renew a vehicle registration; the agent itself handles any fines that must be paid first. Pay only if requested. Use exact fine IDs requested by the user; empty IDs means all currently outstanding fines. Unclear requests need clarify. You cannot authorize, consent or execute. Never echo user text or credentials.` },
           ...messages.slice(-12),
         ] }),
       });
@@ -43,6 +43,7 @@ export class FixturePlanner implements Planner {
   async plan(messages: Array<{ role: 'user' | 'assistant'; content: string }>): Promise<Plan> {
     const text = messages.at(-1)?.content.toLowerCase() || '';
     const prior = messages.slice(0, -1).some(m => /fine/.test(m.content));
+    if (/renew/.test(text) && /(registration|vehicle|car)/.test(text)) return { intent: 'renew_registration', fineIds: [] };
     return { intent: /pay/.test(text) && (/fine/.test(text) || prior) ? 'pay_fines' : /fine/.test(text) ? 'list_fines' : /^(hi|hello)/.test(text) ? 'clarify' : 'out_of_scope', fineIds: [...text.matchAll(/\bfine-\d+\b/g)].map(m => m[0]) };
   }
 }

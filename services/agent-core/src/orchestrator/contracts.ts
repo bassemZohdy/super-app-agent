@@ -12,8 +12,9 @@ export const Message = z.string().trim().min(1).max(2000).refine(
   'Do not submit credentials in conversation text',
 );
 export const Plan = z.object({
-  intent: z.enum(['list_fines', 'pay_fines', 'clarify', 'out_of_scope']),
+  intent: z.enum(['list_fines', 'pay_fines', 'renew_registration', 'clarify', 'out_of_scope']),
   fineIds: z.array(Id).max(10).default([]),
+  vehicleId: Id.optional(),
 }).strict();
 export type Plan = z.infer<typeof Plan>;
 export const Fine = z.object({ id: Id, description: z.string().max(200), amountMinor: z.number().int().positive().max(10000000), version: z.number().int().positive() }).strict();

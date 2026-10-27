@@ -24,7 +24,7 @@ export async function harness(options: { planner?: Planner; approvalTtlMs?: numb
   const base = new URL('http://127.0.0.1/');
   const tools = new FinesAdapter(base, workloadKey, options.timeoutMs);
   const vehicles = new VehiclesAdapter(base, workloadKey, options.timeoutMs);
-  const graph = createGraph(options.planner || new FixturePlanner(), tools, store, saver, options.approvalTtlMs);
+  const graph = createGraph(options.planner || new FixturePlanner(), tools, vehicles, store, saver, options.approvalTtlMs);
   const service = new AgentService(graph, store);
   const server = createServer(service, new TestAuthenticator(identities, 'super-app-agent'), workloadKey);
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));

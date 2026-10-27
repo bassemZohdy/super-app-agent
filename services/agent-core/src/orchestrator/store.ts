@@ -98,7 +98,13 @@ export class Store {
     if (row.subject !== subject || digest(Quote.parse(JSON.parse(row.quote))) !== digest(quote)) throw new AgentError('IDEMPOTENCY_CONFLICT', 409);
     return row.receipt ? Receipt.parse(JSON.parse(row.receipt)) : undefined;
   }
-  finish(key: string, receipt?: Receipt) {
+  renewalOperation(key: string, subject: string, quote: RenewalQuote): RenewalReceipt | undefined {
+    this.db.prepare("INSERT INTO sa_operations VALUES(?,?,?,'pending',NULL) ON CONFLICT(key) DO NOTHING").run(key, subject, JSON.stringify(quote));
+    const row = this.db.prepare('SELECT * FROM sa_operations WHERE key=?').get(key) as Operation;
+    if (row.subject !== subject || digest(RenewalQuote.parse(JSON.parse(row.quote))) !== digest(quote)) throw new AgentError('IDEMPOTENCY_CONFLICT', 409);
+    return row.receipt ? RenewalReceipt.parse(JSON.parse(row.receipt)) : undefined;
+  }
+  finish(key: string, receipt?: Receipt | RenewalReceipt) {
     if (receipt) this.db.prepare("UPDATE sa_operations SET status='complete',receipt=? WHERE key=?").run(JSON.stringify(receipt), key);
     else this.db.prepare("UPDATE sa_operations SET status='unknown' WHERE key=? AND status!='complete'").run(key);
   }
