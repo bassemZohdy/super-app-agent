@@ -1,53 +1,52 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn, type ChildProcess } from 'node:child_process';
-import { once } from 'node:events';
-import { randomBytes } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import net from 'node:net';
-import { harness } from './support.ts';
+import { agentProcess, harness } from './support.ts';
 
 test('actual process kill/restart preserves SQLite approval and duplicate payment receipt', { timeout: 30000 }, async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'agent-restart-'));
-  const reserve = net.createServer(); await new Promise<void>(resolve => reserve.listen(0, '127.0.0.1', resolve));
-  const port = (reserve.address() as net.AddressInfo).port;
-  await new Promise<void>(resolve => reserve.close(() => resolve()));
-  const base = `http://127.0.0.1:${port}`, token = randomBytes(32).toString('hex');
-  const env = { ...process.env, NODE_ENV: 'test', AGENT_DB_PATH: join(dir, 'agent.sqlite'), AGENT_PORT: String(port), AGENT_SIMULATOR_URL: `${base}/`, AGENT_AUTH: 'test', AGENT_PLANNER: 'fixture', AGENT_WORKLOAD_KEY: randomBytes(32).toString('hex'), AGENT_TEST_IDENTITIES: JSON.stringify([{ token, subject: 'restart-owner', permissions: ['fines:read', 'fines:pay'], expiresAt: Date.now() + 3600000 }]) };
-  let child: ChildProcess | undefined;
-  async function start() {
-    child = spawn(process.execPath, ['--experimental-strip-types', 'services/agent-core/src/orchestrator/main.ts'], { env, stdio: ['ignore', 'pipe', 'pipe'] });
-    let ready = false;
-    child.stdout!.on('data', chunk => { if (String(chunk).includes('agent.ready')) ready = true; });
-    // Never publish subprocess logs: configuration or provider failures must not expose secrets.
-    child.stderr!.resume();
-    const until = Date.now() + 10000;
-    while (!ready && child.exitCode === null && Date.now() < until) await new Promise(resolve => setTimeout(resolve, 20));
-    assert.equal(ready, true, 'Agent process did not become ready');
-  }
-  async function stop() { if (child && child.exitCode === null) { const ended = once(child, 'exit'); child.kill('SIGKILL'); await ended; } }
-  async function req(path: string, body?: unknown, key = randomBytes(8).toString('hex')) {
-    const res = await fetch(`${base}${path}`, { method: body === undefined ? 'GET' : 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'Idempotency-Key': key }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
-    assert.equal(res.status >= 200 && res.status < 300, true);
-    return await res.json() as Record<string, any>;
-  }
+  const agent = agentProcess(['fines:read', 'fines:pay']);
   try {
-    await start();
-    const id = (await req('/api/agent/threads', {})).threadId, root = `/api/agent/threads/${id}`;
-    const review = await req(`${root}/messages`, { message: 'retrieve fines and pay them' });
+    await agent.start();
+    const id = (await agent.req('/api/agent/threads', {})).threadId, root = `/api/agent/threads/${id}`;
+    const review = await agent.req(`${root}/messages`, { message: 'retrieve fines and pay them' });
     assert.equal(review.status, 'awaiting_approval');
-    await stop(); await start();
-    const restored = await req(root); assert.deepEqual(restored.approval, review.approval);
+    await agent.stop(); await agent.start();
+    const restored = await agent.req(root); assert.deepEqual(restored.approval, review.approval);
     const command = { approvalId: restored.approval.id, decision: 'approve' };
-    const paid = await req(`${root}/resume`, command, 'approve-once');
+    const paid = await agent.req(`${root}/resume`, command, 'approve-once');
     assert.equal(paid.status, 'complete'); assert.equal(paid.receipt.simulated, true);
-    await stop(); await start();
-    const duplicate = await req(`${root}/resume`, command, 'approve-once');
+    await agent.stop(); await agent.start();
+    const duplicate = await agent.req(`${root}/resume`, command, 'approve-once');
     assert.deepEqual(duplicate, paid);
-    assert.equal((await req(`${root}/messages`, { message: 'list fines' })).fines.length, 0);
-  } finally { await stop(); rmSync(dir, { recursive: true, force: true }); }
+    assert.equal((await agent.req(`${root}/messages`, { message: 'list fines' })).fines.length, 0);
+  } finally { await agent.close(); }
+});
+
+test('actual process kill/restart keeps both renewal approvals and the single effect behind each', { timeout: 45000 }, async () => {
+  const agent = agentProcess(['fines:read', 'fines:pay', 'vehicles:read', 'vehicles:renew']);
+  try {
+    await agent.start();
+    const id = (await agent.req('/api/agent/threads', {})).threadId, root = `/api/agent/threads/${id}`;
+    const review = await agent.req(`${root}/messages`, { message: 'renew my car registration' });
+    assert.deepEqual(review.next, ['approval']);
+    await agent.stop(); await agent.start();
+    assert.deepEqual((await agent.req(root)).approval, review.approval);
+    const paid = await agent.req(`${root}/resume`, { approvalId: review.approval.id, decision: 'approve' }, 'pay-once');
+    assert.deepEqual(paid.next, ['renewApproval']); assert.equal(paid.receipt.simulated, true);
+    await agent.stop(); await agent.start();
+    const restored = await agent.req(root);
+    assert.deepEqual(restored.renewalApproval, paid.renewalApproval); assert.equal(restored.approval, null);
+    assert.equal(restored.surface.revision, paid.renewalApproval.id);
+    const command = { approvalId: restored.renewalApproval.id, decision: 'approve' };
+    const renewed = await agent.req(`${root}/resume`, command, 'renew-once');
+    assert.equal(renewed.status, 'complete'); assert.equal(renewed.renewal.idempotencyKey, paid.renewalApproval.key);
+    await agent.stop(); await agent.start();
+    assert.deepEqual(await agent.req(`${root}/resume`, command, 'renew-once'), renewed);
+    assert.deepEqual((await agent.req(root)).renewal, renewed.renewal);
+    assert.equal((await agent.req(`${root}/messages`, { message: 'renew my car registration' })).status, 'complete', 'an already renewed vehicle is not offered again');
+  } finally { await agent.close(); }
 });
 
 test('lost payment response reconciles original operation after reopening SQLite without a second effect', async () => {

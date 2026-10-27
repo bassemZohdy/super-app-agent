@@ -15,12 +15,18 @@ export class AgentService {
     const approval = state.next.includes('approval') ? values.pending : null;
     const renewalApproval = state.next.includes('renewApproval') ? values.renewalPending : null;
     const shownFines = (values.fines || []).filter(fine => !approval || approval.quote.fineIds.includes(fine.id));
-    const children: UIComponentNode[] = [
-      { id: 'reply', type: 'Text', properties: { text: values.reply || 'Send a request about outstanding fines.' } },
-      { id: 'fines', type: 'DataTable', properties: { columns: [{ key: 'id', title: 'Fine' }, { key: 'description', title: 'Details' }, { key: 'amount', title: 'Amount (AED)' }], rows: shownFines.map(f => ({ id: f.id, description: f.description, amount: (f.amountMinor / 100).toFixed(2) })) } },
-    ];
-    if (approval) children.push({ id: 'total', type: 'Text', properties: { text: `Simulated total: AED ${(approval.quote.amountMinor / 100).toFixed(2)}` } }, ...(['approve', 'reject', 'cancel'] as const).map(decision => ({ id: decision, type: 'Button' as const, properties: { label: decision === 'approve' ? 'Confirm simulated payment' : decision === 'reject' ? 'Reject payment' : 'Cancel review', variant: decision === 'approve' ? 'primary' as const : 'outline' as const }, onEvents: [{ event: 'onPress' as const, actionType: 'AGENT_ACTION_DISPATCH' as const, payload: { action: 'agent.resume', approvalId: approval.id, decision } }] })));
-    const surface: AGUISurfacePayload = { version: '1.0.0', sessionId: id, revision: approval?.id, timestamp: Date.now(), view: { id: 'fines-service', type: 'SurfaceCard', children } };
+    const children: UIComponentNode[] = [{ id: 'reply', type: 'Text', properties: { text: values.reply || 'Send a request about outstanding fines.' } }];
+    // Fines already paid earlier in a renewal are not shown as outstanding while the renewal waits.
+    if (!renewalApproval) children.push({ id: 'fines', type: 'DataTable', properties: { columns: [{ key: 'id', title: 'Fine' }, { key: 'description', title: 'Details' }, { key: 'amount', title: 'Amount (AED)' }], rows: shownFines.map(f => ({ id: f.id, description: f.description, amount: (f.amountMinor / 100).toFixed(2) })) } });
+    const decisions = (approvalId: string, labels: { approve: string; reject: string; cancel: string }) => (['approve', 'reject', 'cancel'] as const).map(decision => ({ id: decision, type: 'Button' as const, properties: { label: labels[decision], variant: decision === 'approve' ? 'primary' as const : 'outline' as const }, onEvents: [{ event: 'onPress' as const, actionType: 'AGENT_ACTION_DISPATCH' as const, payload: { action: 'agent.resume', approvalId, decision } }] }));
+    if (approval) children.push({ id: 'total', type: 'Text', properties: { text: `Simulated total: AED ${(approval.quote.amountMinor / 100).toFixed(2)}` } }, ...decisions(approval.id, { approve: 'Confirm simulated payment', reject: 'Reject payment', cancel: 'Cancel review' }));
+    if (renewalApproval) {
+      const vehicles = (values.vehicles || []).filter(vehicle => vehicle.id === renewalApproval.quote.vehicleId);
+      children.push({ id: 'vehicles', type: 'DataTable', properties: { columns: [{ key: 'id', title: 'Vehicle' }, { key: 'description', title: 'Details' }, { key: 'fee', title: 'Renewal fee (AED)' }], rows: vehicles.map(v => ({ id: v.id, description: v.description, fee: (v.renewalFeeMinor / 100).toFixed(2) })) } },
+        { id: 'total', type: 'Text', properties: { text: `Simulated renewal fee: AED ${(renewalApproval.quote.amountMinor / 100).toFixed(2)}` } },
+        ...decisions(renewalApproval.id, { approve: 'Confirm simulated renewal', reject: 'Reject renewal', cancel: 'Cancel review' }));
+    }
+    const surface: AGUISurfacePayload = { version: '1.0.0', sessionId: id, revision: approval?.id ?? renewalApproval?.id, timestamp: Date.now(), view: { id: 'fines-service', type: 'SurfaceCard', children } };
     return { threadId: id, status: thread.cancelled ? 'cancelled' : values.status || 'new', reply: values.reply || '', messages: values.messages || [], fines: values.fines || [], receipt: values.receipt || null, approval, vehicles: values.vehicles || [], renewal: values.renewal || null, renewalApproval: renewalApproval || null, next: state.next, uiContract: 'cityside-compat-v1', surface };
   }
   async transition(id: string, requestId: string, action: 'message' | 'resume' | 'recover' | 'cancel', body: unknown) {

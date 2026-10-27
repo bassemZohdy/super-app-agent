@@ -39,7 +39,7 @@ The main concierge can use the existing LiteLLM server with **GLM 5.3** or **MiM
 
 | Area | Implemented in the local demo | Not claimed |
 | --- | --- | --- |
-| Focused agent | One Node.js process, official SQLite LangGraph checkpoints, bounded model-selected plans, REST fines simulator, primary React fines conversation, durable approval and deduplicated simulated payment | Real-model quality, production identity/delegation, Angular/Flutter migration or multi-replica operation |
+| Focused agent | One Node.js process, official SQLite LangGraph checkpoints, bounded model-selected plans, REST fines simulator, primary React fines conversation, durable approval and deduplicated simulated payment, plus a fines-then-vehicle-renewal journey with two approvals and truthful partial or unknown outcomes | Real-model quality, production identity/delegation, Angular/Flutter migration or multi-replica operation |
 | Integrated compatibility runtime | Concierge plus six application APIs and seven account-scoped provider simulators; real HTTP boundaries and SQLite persistence | Real agency, UAE PASS, bank or PSP integration; records and funds are synthetic |
 | Identity | Keycloak 26.6.4 pinned by digest; browser PKCE, signed ownership checks, introspection, separate RFC 7523 delegation broker | Production identity, custom actor mapper, multi-hop authority; local HTTP with seeded credentials |
 | Compatibility conversation | Bounded LangGraph review/execute flow, Redis ownership/leases/checkpoints/replay, explicit approval and cancellation, authenticated MCP | Model-selected tool plans, general workflow engine or compensation |

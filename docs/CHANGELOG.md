@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 27 October 2026 — P1-04 delivered: fines then registration renewal
+
+The focused agent now runs a second concrete journey across two simulated services. A renewal request lists vehicles and fines, takes the fines through the existing review and approval, then waits at a second persisted interrupt for the renewal; each step has its own approval ID, operation key and exactly one effect. Outcomes are truthful: `complete`, `partial` (fines paid, renewal declined, expired, refused or unauthorized, with the fines receipt kept) or `unknown` (renewal response lost; replacement blocked until recovery with the original key). The surface shows the vehicle and fee and binds its buttons to the pending approval, the shared client validates the renewal approval and receipt, and the React fines workspace treats a pending renewal as an approval, not as a recovery state. A real process kill and restart is covered at both approvals and after the receipt. The renewal restart test shares one spawn helper with the existing restart test. The browser journeys for the React workspace need the Compose stack and were not run.
+
 ## 27 October 2026 — P1-04 (step): fines then renewal in the focused graph
 
 A renewal request now runs the native graph through fines (existing review and approval) and then a second persisted interrupt for the renewal, with its own approval ID and operation key. The outcome is truthful: `complete`, `partial` (fines paid, renewal declined, expired, refused or unauthorized) or `unknown` (renewal response lost; replacement blocked until recovery with the original key). A resident without the renew permission is refused before any payment. `createGraph` takes the vehicles adapter; the surface and the process-restart check for the second step are the remaining sub-step.

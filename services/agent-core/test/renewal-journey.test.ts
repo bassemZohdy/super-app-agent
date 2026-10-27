@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { harness } from './support.ts';
 import { digest, quoteFor, type Principal } from '../src/orchestrator/contracts.ts';
+import { validateAGUISurface } from '../../../packages/protocol-core/src/ag-ui.ts';
 
 const all = ['fines:read', 'fines:pay', 'vehicles:read', 'vehicles:renew'] as const;
 const identity = (subject: string, granted: readonly string[] = all) => ({ token: randomBytes(32).toString('hex'), subject, permissions: [...granted] as typeof all[number][], expiresAt: Date.now() + 3600000 });
@@ -150,4 +151,26 @@ test('renewal journey: a lost renewal response is an unknown outcome that recove
     assert.equal(recovered.data.renewal.idempotencyKey, paid.data.renewalApproval.key);
     assert.equal(count(h, 'sa_sim_renewals'), 1); assert.equal(count(h, 'sa_sim_payments'), 1);
   } finally { await h.close(); rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('renewal journey: the surface shows the vehicle and the fee, binds its buttons to the renewal approval and drops the paid fines', async () => {
+  const { h, say, decide } = await journey();
+  try {
+    const review = await say('renew my car registration');
+    const finesSurface = review.data.surface.view.children;
+    assert.ok(finesSurface.some((node: { id: string }) => node.id === 'fines'));
+    assert.ok(finesSurface.every((node: { id: string }) => node.id !== 'vehicles'));
+    const paid = await decide(review.data.approval.id, 'approve');
+    const { surface, renewalApproval } = paid.data;
+    assert.equal(validateAGUISurface(surface).success, true);
+    assert.equal(surface.revision, renewalApproval.id);
+    const byId = (id: string) => surface.view.children.find((node: { id: string }) => node.id === id);
+    assert.equal(byId('fines'), undefined, 'fines already paid are not shown as outstanding');
+    assert.deepEqual(byId('vehicles').properties.rows, [{ id: 'veh-1', description: 'Simulated sedan', fee: '400.00' }]);
+    assert.equal(byId('total').properties.text, 'Simulated renewal fee: AED 400.00');
+    for (const decision of ['approve', 'reject', 'cancel']) assert.deepEqual(byId(decision).onEvents[0].payload, { action: 'agent.resume', approvalId: renewalApproval.id, decision });
+    const done = await decide(renewalApproval.id, 'approve');
+    assert.equal(byId('approve') && done.data.surface.view.children.some((node: { id: string }) => node.id === 'approve'), false, 'no approval buttons remain once renewed');
+    assert.equal(count(h, 'sa_sim_renewals'), 1);
+  } finally { await h.close(); }
 });

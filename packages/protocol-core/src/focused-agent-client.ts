@@ -11,6 +11,9 @@ export interface AgentResult {
   messages: Array<{ role: 'user' | 'assistant'; content: string }>;
   approval: { id: string; quote: { amountMinor: number; fineIds: string[]; currency: 'AED' }; expiresAt: number } | null;
   receipt: { id: string; simulated: true; quote: { amountMinor: number; currency: 'AED' } } | null;
+  /** The renewal step of a fines-then-renewal request; both are null for a plain fines conversation. */
+  renewalApproval: { id: string; quote: { amountMinor: number; vehicleId: string; currency: 'AED' }; expiresAt: number } | null;
+  renewal: { id: string; simulated: true; quote: { amountMinor: number; currency: 'AED' } } | null;
   next: string[];
   surface: AGUISurfacePayload;
 }
@@ -23,13 +26,16 @@ function result(value: unknown, expected: string): AgentResult {
   const validated = validateAGUISurface(value.surface);
   if (!validated.success || validated.data?.sessionId !== expected) throw new AgentClientError('The fines service returned an invalid service panel.');
   if (!Array.isArray(value.messages) || !value.messages.every(m => record(m) && ['user', 'assistant'].includes(String(m.role)) && typeof m.content === 'string')) throw new AgentClientError('The fines service returned an invalid conversation.');
-  for (const item of [value.approval, value.receipt]) {
+  const renewalApproval = value.renewalApproval ?? null, renewal = value.renewal ?? null;
+  for (const item of [value.approval, value.receipt, renewalApproval, renewal]) {
     if (item === null) continue;
     if (!record(item) || typeof item.id !== 'string' || !record(item.quote) || !Number.isSafeInteger(item.quote.amountMinor) || Number(item.quote.amountMinor) <= 0 || item.quote.currency !== 'AED') throw new AgentClientError('The fines service returned an invalid payment review.');
   }
   if (value.approval !== null && (!record(value.approval) || !Array.isArray(value.approval.quote && (value.approval.quote as Record<string, unknown>).fineIds) || !Number.isFinite(value.approval.expiresAt))) throw new AgentClientError('The fines service returned an invalid approval.');
   if (value.receipt !== null && (!record(value.receipt) || value.receipt.simulated !== true)) throw new AgentClientError('The fines service returned an invalid receipt.');
-  return { ...value, surface: validated.data } as unknown as AgentResult;
+  if (renewalApproval !== null && (!record(renewalApproval) || !record(renewalApproval.quote) || typeof renewalApproval.quote.vehicleId !== 'string' || !Number.isFinite(renewalApproval.expiresAt))) throw new AgentClientError('The fines service returned an invalid renewal approval.');
+  if (renewal !== null && (!record(renewal) || renewal.simulated !== true)) throw new AgentClientError('The fines service returned an invalid renewal receipt.');
+  return { ...value, renewalApproval, renewal, surface: validated.data } as unknown as AgentResult;
 }
 
 export class FocusedAgentClient {
