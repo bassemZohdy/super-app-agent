@@ -1,5 +1,5 @@
 import { removeTemp } from '../../test/support/temp-cleanup.ts';
-import test from 'node:test';
+import test, { beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdtempSync } from 'node:fs';
@@ -17,6 +17,8 @@ import type { ProviderClient } from '../../packages/backend-kit/src/provider-cli
 // AUTO-08: an eligible current utility or telecom invoice settles once within limits; paid, withdrawn, over-cap
 // and expired-source cases skip with a reason; declines, challenges and short funds stay visible and never fall back.
 type Bills = 'dewa' | 'etisalat' | 'du';
+// Seeded month-end invoices must not enter this suite's due window as the wall clock advances.
+beforeEach(t => t.mock.timers.enable({ apis: ['Date'], now: Date.UTC(2026, 9, 24, 12) }));
 const owner = { sub: 'auto-owner', authorization: 'Bearer broker-bound' };
 const prepared = (r: AutomationPreparation | AutomationSkip) => { assert.equal((r as AutomationSkip).skipped, undefined, `skip ${(r as AutomationSkip).reason}`); return r as AutomationPreparation; };
 const skipped = (r: AutomationPreparation | AutomationSkip) => { assert.equal((r as AutomationSkip).skipped, true, 'expected a skip'); return r as AutomationSkip; };

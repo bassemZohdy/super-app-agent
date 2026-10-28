@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 28 October 2026 — Stabilize invoice-automation time fixtures (P2-05, step)
+
+Month-end seeded invoices entered the due-soon window as the calendar advanced, breaking isolated invoice expectations and causing an unexpected cooldown. The AUTO-08 suite now freezes its test clock before constructing providers. Runtime invoice selection, payment caps, cooldowns and scopes are unchanged. This work was taken off the planner critical path because the existing failures blocked its required repository verification. [Deterministic test time](testing.md).
+
 ## 28 October 2026 — Add reproducible selected-planner qualification (P1-05, step)
 
 A separate opt-in qualification command evaluates a versioned synthetic English/Arabic corpus against declared intent, exact-selection and latency thresholds. It then exercises the same live planner through disposable HTTP/graph/SQLite approval, owner and idempotency checks, including the separate fines/renewal reviews. Safe artifacts record code/corpus/tool provenance and distinguish scored, unavailable and unrun cases; provider errors stop without retry or fallback. Controlled tests verify the evaluator and authority checks, without claiming real inference. The attempted live LiteLLM run could not connect; broader live qualification remains open. [Runner and acceptance boundary](testing.md#selected-planner-qualification).
