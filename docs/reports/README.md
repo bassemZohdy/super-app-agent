@@ -1,8 +1,10 @@
 # Execution evidence register
 
-This register records what was verified, when, against which revision and with which limits. It does not track tasks (open work is only in [TODO.md](../../TODO.md)) and does not describe the system (see the [README](../../README.md#what-exists-today)). The latest focused application evidence is [React fines and workspace panes](2026-10-26-react-fines.md), implementation **`9041913`**, including repository offline checks/builds and the self-contained desktop/phone browser journeys. It does not extend the full compatibility operating qualification at **`cd3c7d5`**, 24 October 2026, whose real Compose/identity/operations boundary is recorded below. Earlier [P1 parity and AUTO-03 preparation evidence](2026-10-25-p1-parity-automation-preparation.md) remains a dated focused checkpoint.
+This register records what was verified, when, against which revision and with which limits. It does not track tasks (open work is only in [TODO.md](../../TODO.md)) and does not describe the system (see the [README](../../README.md#what-exists-today)). The latest focused planner evidence is [local selected-planner qualification](2026-10-28-local-planner.md), implementation **`44e2d16`**. Earlier frontend adoption evidence is [React fines and workspace panes](2026-10-26-react-fines.md), implementation **`9041913`**, including repository offline checks/builds and the self-contained desktop/phone browser journeys. It does not extend the full compatibility operating qualification at **`cd3c7d5`**, 24 October 2026, whose real Compose/identity/operations boundary is recorded below. Earlier [P1 parity and AUTO-03 preparation evidence](2026-10-25-p1-parity-automation-preparation.md) remains a dated focused checkpoint.
 
 ## Focused agent milestone
+
+[Local selected-planner qualification](2026-10-28-local-planner.md) records clean implementation `44e2d16`, the pinned local model, the declared English/Arabic quality/latency gates and actual isolated authority checks. It does not extend the older full compatibility operating qualification.
 
 [One-process LangGraph/SQLite agent](2026-10-26-simple-agent.md) records the fines slice, native checkpoint/restart and duplicate-effect verification. It is separate from the legacy Compose operating qualification below.
 

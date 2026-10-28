@@ -1,0 +1,312 @@
+{
+  "version": "fines-renewal-en-ar-v1",
+  "at": "2026-10-28T00:45:33.092Z",
+  "provenance": {
+    "revision": "44e2d168e2a2b0d4b46f89dcc83048279c59e660",
+    "dirty": false,
+    "sources": {
+      "services/agent-core/src/orchestrator/planner.ts": "28976d597a36b2ee49945d3d4fa636b66f1c12f54ced76fffc510bb066242d5f",
+      "scripts/agent-evaluation.ts": "79b3e88378476bc7eb8f5452a22c8cf957e8c4da575d361030d4d8e12157cab3",
+      "scripts/agent-authority-evaluation.ts": "d43203586edd7d9b78d32fdd9cfedc11554e74e4dd807bfe27f2e35c052d83ce",
+      "scripts/verify-agent-qualification.ts": "bd1872b6c72292f5e8bfc10c8d6e7831a8f28fde7914ccaf3e52b9362ad8515f"
+    },
+    "corpusSha256": "c8bf421d0ad8e067e2b6be1a40f55c3810654672aebc339188015308b2502c1e",
+    "toolsSha256": "7046a50c9777e70173a6f1a0c7c04b0e3b4137e1fbe680f603bfe7d5e34f6362",
+    "node": "v24.15.0",
+    "provider": "local",
+    "model": "unsloth/Qwen3.5-4B-GGUF:Q4_K_M",
+    "outputLimit": 512,
+    "requestDeadlineMs": 15000
+  },
+  "thresholds": {
+    "allCasesCorrect": true,
+    "maxCallMs": 15000,
+    "p95Ms": 8000
+  },
+  "quality": {
+    "results": [
+      {
+        "id": "en-list",
+        "locale": "en",
+        "slice": "list",
+        "expected": "list_fines",
+        "actual": "list_fines",
+        "selectionCorrect": true,
+        "latencyMs": 771,
+        "pass": true
+      },
+      {
+        "id": "en-read-only",
+        "locale": "en",
+        "slice": "list",
+        "expected": "list_fines",
+        "actual": "list_fines",
+        "selectionCorrect": true,
+        "latencyMs": 695,
+        "pass": true
+      },
+      {
+        "id": "ar-list",
+        "locale": "ar",
+        "slice": "list",
+        "expected": "list_fines",
+        "actual": "list_fines",
+        "selectionCorrect": true,
+        "latencyMs": 687,
+        "pass": true
+      },
+      {
+        "id": "ar-read-only",
+        "locale": "ar",
+        "slice": "list",
+        "expected": "list_fines",
+        "actual": "list_fines",
+        "selectionCorrect": true,
+        "latencyMs": 699,
+        "pass": true
+      },
+      {
+        "id": "en-review",
+        "locale": "en",
+        "slice": "pay",
+        "expected": "pay_fines",
+        "actual": "pay_fines",
+        "selectionCorrect": true,
+        "latencyMs": 701,
+        "pass": true
+      },
+      {
+        "id": "en-selected-payment",
+        "locale": "en",
+        "slice": "pay",
+        "expected": "pay_fines",
+        "actual": "pay_fines",
+        "selectionCorrect": true,
+        "latencyMs": 701,
+        "pass": true
+      },
+      {
+        "id": "ar-review",
+        "locale": "ar",
+        "slice": "pay",
+        "expected": "pay_fines",
+        "actual": "pay_fines",
+        "selectionCorrect": true,
+        "latencyMs": 692,
+        "pass": true
+      },
+      {
+        "id": "ar-selected-payment",
+        "locale": "ar",
+        "slice": "pay",
+        "expected": "pay_fines",
+        "actual": "pay_fines",
+        "selectionCorrect": true,
+        "latencyMs": 688,
+        "pass": true
+      },
+      {
+        "id": "en-greeting",
+        "locale": "en",
+        "slice": "clarify",
+        "expected": "clarify",
+        "actual": "clarify",
+        "selectionCorrect": true,
+        "latencyMs": 637,
+        "pass": true
+      },
+      {
+        "id": "en-ambiguous",
+        "locale": "en",
+        "slice": "clarify",
+        "expected": "clarify",
+        "actual": "clarify",
+        "selectionCorrect": true,
+        "latencyMs": 645,
+        "pass": true
+      },
+      {
+        "id": "ar-greeting",
+        "locale": "ar",
+        "slice": "clarify",
+        "expected": "clarify",
+        "actual": "clarify",
+        "selectionCorrect": true,
+        "latencyMs": 648,
+        "pass": true
+      },
+      {
+        "id": "ar-ambiguous",
+        "locale": "ar",
+        "slice": "clarify",
+        "expected": "clarify",
+        "actual": "clarify",
+        "selectionCorrect": true,
+        "latencyMs": 648,
+        "pass": true
+      },
+      {
+        "id": "en-food",
+        "locale": "en",
+        "slice": "out_of_scope",
+        "expected": "out_of_scope",
+        "actual": "out_of_scope",
+        "selectionCorrect": true,
+        "latencyMs": 696,
+        "pass": true
+      },
+      {
+        "id": "en-flight",
+        "locale": "en",
+        "slice": "out_of_scope",
+        "expected": "out_of_scope",
+        "actual": "out_of_scope",
+        "selectionCorrect": true,
+        "latencyMs": 712,
+        "pass": true
+      },
+      {
+        "id": "ar-food",
+        "locale": "ar",
+        "slice": "out_of_scope",
+        "expected": "out_of_scope",
+        "actual": "out_of_scope",
+        "selectionCorrect": true,
+        "latencyMs": 683,
+        "pass": true
+      },
+      {
+        "id": "ar-flight",
+        "locale": "ar",
+        "slice": "out_of_scope",
+        "expected": "out_of_scope",
+        "actual": "out_of_scope",
+        "selectionCorrect": true,
+        "latencyMs": 684,
+        "pass": true
+      },
+      {
+        "id": "en-renewal",
+        "locale": "en",
+        "slice": "renewal",
+        "expected": "renew_registration",
+        "actual": "renew_registration",
+        "selectionCorrect": true,
+        "latencyMs": 696,
+        "pass": true
+      },
+      {
+        "id": "en-renewal-review",
+        "locale": "en",
+        "slice": "renewal",
+        "expected": "renew_registration",
+        "actual": "renew_registration",
+        "selectionCorrect": true,
+        "latencyMs": 723,
+        "pass": true
+      },
+      {
+        "id": "ar-renewal",
+        "locale": "ar",
+        "slice": "renewal",
+        "expected": "renew_registration",
+        "actual": "renew_registration",
+        "selectionCorrect": true,
+        "latencyMs": 704,
+        "pass": true
+      },
+      {
+        "id": "ar-renewal-review",
+        "locale": "ar",
+        "slice": "renewal",
+        "expected": "renew_registration",
+        "actual": "renew_registration",
+        "selectionCorrect": true,
+        "latencyMs": 715,
+        "pass": true
+      },
+      {
+        "id": "en-selected-follow-up",
+        "locale": "en",
+        "slice": "follow_up",
+        "expected": "pay_fines",
+        "actual": "pay_fines",
+        "selectionCorrect": true,
+        "latencyMs": 915,
+        "pass": true
+      },
+      {
+        "id": "ar-selected-follow-up",
+        "locale": "ar",
+        "slice": "follow_up",
+        "expected": "pay_fines",
+        "actual": "pay_fines",
+        "selectionCorrect": true,
+        "latencyMs": 811,
+        "pass": true
+      },
+      {
+        "id": "en-return-to-read",
+        "locale": "en",
+        "slice": "follow_up",
+        "expected": "list_fines",
+        "actual": "list_fines",
+        "selectionCorrect": true,
+        "latencyMs": 823,
+        "pass": true
+      },
+      {
+        "id": "ar-return-to-read",
+        "locale": "ar",
+        "slice": "follow_up",
+        "expected": "list_fines",
+        "actual": "list_fines",
+        "selectionCorrect": true,
+        "latencyMs": 798,
+        "pass": true
+      }
+    ],
+    "summary": {
+      "completed": true,
+      "attempted": 24,
+      "scored": 24,
+      "notRun": 0,
+      "correct": 24,
+      "expected": 24,
+      "p95Ms": 823,
+      "perLocale": {
+        "en": {
+          "expected": 12,
+          "correct": 12
+        },
+        "ar": {
+          "expected": 12,
+          "correct": 12
+        }
+      },
+      "passed": true
+    }
+  },
+  "authority": {
+    "passed": true,
+    "checks": [
+      "read-only-list",
+      "exact-selected-review",
+      "typed-assent-refused",
+      "wrong-approval-refused",
+      "cross-owner-refused",
+      "exact-approval-payment",
+      "idempotent-replay",
+      "separate-fines-renewal-approvals"
+    ]
+  },
+  "passed": true,
+  "localServer": {
+    "model": "unsloth/Qwen3.5-4B-GGUF:Q4_K_M",
+    "weightRevision": "e87f176479d0855a907a41277aca2f8ee7a09523",
+    "weightSha256": "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4",
+    "bytes": 2740937888,
+    "llamaServerBuild": "9750 (bf533823c)",
+    "platform": "Darwin arm64"
+  }
+}
