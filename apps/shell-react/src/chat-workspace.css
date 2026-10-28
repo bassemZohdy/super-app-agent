@@ -118,7 +118,8 @@
 @media (max-width: 679px) {
   .chat-layout .mobile-pane-tabs { display: flex; flex-shrink: 0; gap: var(--spacing-small); padding-bottom: var(--spacing-small); }
   .mobile-pane-tabs button { flex: 1; display: flex; align-items: center; justify-content: center; gap: var(--spacing-small); border: 1px solid transparent; border-radius: var(--radius-md); color: var(--color-text-muted); background: transparent; min-height: 44px; font-size: var(--font-size-control); }
-  .mobile-pane-tabs button[aria-pressed='true'] { color: var(--color-primary-text); border-color: var(--color-surface-border); background: var(--color-background); font-weight: 600; }
+  .mobile-pane-tabs button[aria-pressed='true'] { color: var(--button-text); border-color: var(--color-primary); background: var(--color-primary); font-weight: 600; }
+  .chat-layout .pane-swap-details { display: inline-flex; }
   .details-ready { font-size: var(--font-size-xs); color: var(--color-success-text); }
   .chat-layout .workspace-pane-grid { display: flex; flex-direction: column; min-height: 0; overflow: visible; }
   .chat-layout .workspace-pane { flex: 1; flex-shrink: 1; min-height: 0; }
@@ -146,6 +147,7 @@
 }
 /* Physical segments take priority over the adjustable continuous-screen split. */
 @media (horizontal-viewport-segments: 2) {
+  .chat-layout .pane-swap-details { display: none; }
   .city-app.concierge-app { height: 100dvh; min-height: 0; overflow: hidden; --workspace-grid-template: env(viewport-segment-width 0 0) calc(env(viewport-segment-left 1 0) - env(viewport-segment-right 0 0)) env(viewport-segment-width 1 0); }
   .concierge-app .workspace-layout { padding: 0 0 var(--spacing-small); }
   .concierge-app .chat-layout .workspace-pane-grid { display: grid; }
@@ -157,6 +159,7 @@
   .concierge-app .workspace-pane-grid.has-maximized-pane .service-panel { max-width: calc(env(viewport-segment-width 0 0) - 16px); }
 }
 @media (vertical-viewport-segments: 2) {
+  .chat-layout .pane-swap-details { display: none; }
   .city-app.concierge-app { height: 100dvh; min-height: 0; overflow: hidden; }
   .concierge-app .topbar { height: 72px; min-height: 72px; }
   .concierge-app .workspace-layout { padding: 0; }

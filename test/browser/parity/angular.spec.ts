@@ -31,6 +31,12 @@ test('Angular names the shared provider and preserves drafts through pane contro
   await angular.getByRole('button', { name: 'Maximize conversation', exact: true }).click(); await expect(details).toBeHidden();
   await angular.getByRole('button', { name: 'Restore conversation', exact: true }).click(); await expect(details).toBeVisible(); await expect(draft).toHaveValue('Preserve this draft');
   await angular.setViewportSize({ width: 390, height: 800 }); await angular.getByRole('button', { name: 'Service details', exact: true }).click(); await expect(details).toBeVisible(); await angular.getByRole('button', { name: 'Chat', exact: true }).click(); await expect(draft).toHaveValue('Preserve this draft');
+  await chat.getByRole('button', { name: 'Swap panes', exact: true }).click();
+  await expect(angular.getByRole('button', { name: 'Service details', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(details).toBeVisible(); await expect(chat).toBeHidden();
+  await details.getByRole('button', { name: 'Swap panes', exact: true }).click();
+  await expect(angular.getByRole('button', { name: 'Chat', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(draft).toHaveValue('Preserve this draft');
 });
 
 test('Angular focused fines use the same exact approval and restart recovery contract', async ({ page, angularUrl, focused }) => {

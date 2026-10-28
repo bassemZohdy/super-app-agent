@@ -19,6 +19,7 @@ export class WorkspacePanesComponent implements AfterViewInit, OnDestroy {
     setTimeout(() => this.grid?.nativeElement.querySelector<HTMLElement>('[data-pane="details"] h2')?.focus(), 0);
   }
   @ViewChild('grid') grid?: ElementRef<HTMLDivElement>;
+  @ViewChild('mobileTabs') mobileTabs?: ElementRef<HTMLDivElement>;
   first = signal<Pane>('conversation'); maximized = signal<Pane | null>(null); mobile = signal<Pane>('conversation'); split = signal(50); minimum = signal(25);
   order = computed<Pane[]>(() => this.first() === 'conversation' ? ['conversation', 'details'] : ['details', 'conversation']);
   template = computed(() => this.maximized() ? 'minmax(0, 1fr)' : `var(--workspace-grid-template, minmax(0, ${this.leftShare()}fr) 24px minmax(0, ${100 - this.leftShare()}fr))`);
@@ -26,7 +27,11 @@ export class WorkspacePanesComponent implements AfterViewInit, OnDestroy {
   name = (pane: Pane) => pane === 'conversation' ? 'conversation' : 'service details';
   title = (pane: Pane) => pane === 'conversation' ? 'Conversation' : 'Service details';
   track = (_index: number, pane: Pane) => pane;
-  swap() { this.first.set(this.first() === 'conversation' ? 'details' : 'conversation'); this.maximized.set(null); }
+  swap(pane: Pane) {
+    if (this.mobileTabs && getComputedStyle(this.mobileTabs.nativeElement).display !== 'none') this.mobile.set(pane === 'conversation' ? 'details' : 'conversation');
+    else this.first.set(this.first() === 'conversation' ? 'details' : 'conversation');
+    this.maximized.set(null);
+  }
   size(pane: Pane) { this.mobile.set(pane); this.maximized.set(this.maximized() === pane ? null : pane); }
   resize(left: number) {
     const width = (this.grid?.nativeElement.clientWidth || 1200) - 24;

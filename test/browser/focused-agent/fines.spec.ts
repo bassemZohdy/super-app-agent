@@ -181,7 +181,12 @@ test('the main concierge also exposes the shared pane layout controls', async ({
   await expect(page.getByRole('region', { name: 'service details pane', exact: true })).toBeHidden();
   await page.getByRole('button', { name: 'Restore conversation size', exact: true }).click();
   await page.getByRole('button', { name: 'Swap panes', exact: true }).click();
-  expect(await page.locator('[data-pane]').evaluateAll(nodes => nodes.map(node => node.getAttribute('data-pane')))).toEqual(['details', 'conversation']);
+  if ((page.viewportSize()?.width ?? 0) < 680) {
+    await expect(page.getByRole('button', { name: /Service details/ })).toHaveAttribute('aria-pressed', 'true');
+    await page.getByRole('button', { name: 'Chat', exact: true }).click();
+  } else {
+    expect(await page.locator('[data-pane]').evaluateAll(nodes => nodes.map(node => node.getAttribute('data-pane')))).toEqual(['details', 'conversation']);
+  }
   await page.getByRole('textbox', { name: 'Message Rashid', exact: true }).fill('Show test service');
   await page.getByRole('button', { name: 'Send message', exact: true }).click();
   await expect(page.getByText('Here are your service details. You can review them in the service workspace.', { exact: true })).toBeVisible();
@@ -227,6 +232,26 @@ async function stubConcierge(page: Page, url: string) {
     return route.fulfill({ status: 200, contentType: 'application/json', headers, body: JSON.stringify(value) });
   });
 }
+
+test('phone swap switches the visible view and highlights it without losing the draft', async ({ page, focused }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await stubConcierge(page, focused.url);
+  await page.goto(new URL('/', focused.url).href);
+  const chat = page.getByRole('button', { name: 'Chat', exact: true });
+  const details = page.getByRole('button', { name: 'Service details', exact: true });
+  const conversation = page.getByRole('region', { name: 'conversation pane', exact: true });
+  const service = page.getByRole('region', { name: 'service details pane', exact: true });
+  await page.getByRole('textbox', { name: 'Message Rashid', exact: true }).fill('Keep this draft');
+  await expect(chat).toHaveAttribute('aria-pressed', 'true');
+  await conversation.getByRole('button', { name: 'Swap panes' }).click();
+  await expect(details).toHaveAttribute('aria-pressed', 'true');
+  await expect(service).toBeVisible();
+  await expect(conversation).toBeHidden();
+  expect(await details.evaluate(element => getComputedStyle(element).backgroundColor)).not.toBe(await chat.evaluate(element => getComputedStyle(element).backgroundColor));
+  await service.getByRole('button', { name: 'Swap panes' }).click();
+  await expect(chat).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('textbox', { name: 'Message Rashid', exact: true })).toHaveValue('Keep this draft');
+});
 
 test('the divider starts at 50/50 and supports drag, keyboard, touch and swap without losing drafts', async ({ page, focused }, info) => {
   await page.setViewportSize({ width: info.project.name === 'mobile' ? 824 : 1440, height: 1000 });

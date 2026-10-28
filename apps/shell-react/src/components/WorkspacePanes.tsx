@@ -13,6 +13,7 @@ export function WorkspacePanes({ conversation, details, revealDetailsKey, chatLa
   const [minimum, setMinimum] = useState(25);
   const [dragging, setDragging] = useState(false);
   const grid = useRef<HTMLDivElement>(null);
+  const mobileTabs = useRef<HTMLDivElement>(null);
   const paneId = useId();
   const detailsPane = useRef<HTMLElement>(null);
   const previousDetails = useRef(revealDetailsKey);
@@ -55,7 +56,7 @@ export function WorkspacePanes({ conversation, details, revealDetailsKey, chatLa
   const order: Pane[] = first === 'conversation' ? ['conversation', 'details'] : ['details', 'conversation'];
   const track = (pane: Pane) => `minmax(0, ${pane === 'conversation' ? split : 100 - split}fr)`;
   return <div className={`workspace-layout${chatLayout ? ' chat-layout' : ''}`}>
-    {chatLayout && <div className="mobile-pane-tabs" role="group" aria-label="Workspace views">
+    {chatLayout && <div ref={mobileTabs} className="mobile-pane-tabs" role="group" aria-label="Workspace views">
       <button type="button" aria-pressed={mobilePane === 'conversation'} onClick={() => { setMaximized(null); setMobilePane('conversation'); }}>Chat</button>
       <button type="button" aria-pressed={mobilePane === 'details'} onClick={() => { setMaximized(null); setMobilePane('details'); }}>Service details{revealDetailsKey && <span className="details-ready">Updated</span>}</button>
     </div>}
@@ -69,7 +70,16 @@ export function WorkspacePanes({ conversation, details, revealDetailsKey, chatLa
             <header className="workspace-pane-heading">
               <strong>{pane === 'conversation' ? 'Conversation' : 'Service details'}</strong>
               <div role="group" aria-label={`${name} controls`}>
-                {pane === 'conversation' && <button type="button" className="pane-control pane-icon" aria-label="Swap panes" title="Swap panes" onClick={() => { setFirst(first === 'conversation' ? 'details' : 'conversation'); setMaximized(null); }}><ArrowLeftRight size={18} aria-hidden="true" /></button>}
+                <button type="button" className={`pane-control pane-icon${pane === 'details' ? ' pane-swap-details' : ''}`} aria-label="Swap panes" title="Swap panes" onClick={() => {
+                  setMaximized(null);
+                  if (mobileTabs.current && getComputedStyle(mobileTabs.current).display !== 'none') {
+                    setMobilePane(pane === 'conversation' ? 'details' : 'conversation');
+                  } else {
+                    const next = first === 'conversation' ? 'details' : 'conversation';
+                    setFirst(next);
+                    if (!chatLayout && matchMedia('(max-width: 800px)').matches) requestAnimationFrame(() => grid.current?.querySelector(`[data-pane="${next}"]`)?.scrollIntoView({ block: 'start', behavior: 'instant' }));
+                  }
+                }}><ArrowLeftRight size={18} aria-hidden="true" /></button>
                 <button type="button" className="pane-control pane-icon" aria-label={sizeLabel} title={sizeLabel} aria-pressed={maximized === pane} onClick={() => setMaximized(maximized === pane ? null : pane)}>{maximized === pane ? <Minimize2 size={18} aria-hidden="true" /> : <Maximize2 size={18} aria-hidden="true" />}</button>
               </div>
             </header>

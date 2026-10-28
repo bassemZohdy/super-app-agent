@@ -40,7 +40,7 @@ class _WorkspacePanesState extends State<WorkspacePanes> {
     }
   }
 
-  Widget pane(bool conversation) {
+  Widget pane(bool conversation, {bool phone = false}) {
     final id = conversation ? 'conversation' : 'service details';
     return Semantics(
       container: true,
@@ -66,7 +66,7 @@ class _WorkspacePanesState extends State<WorkspacePanes> {
                     ),
                   ),
                 ),
-                if (conversation)
+                if (conversation || phone)
                   IconButton(
                     tooltip: 'Swap panes',
                     style: IconButton.styleFrom(
@@ -76,7 +76,11 @@ class _WorkspacePanesState extends State<WorkspacePanes> {
                       ),
                     ),
                     onPressed: () => setState(() {
-                      conversationFirst = !conversationFirst;
+                      if (phone) {
+                        mobileConversation = !conversation;
+                      } else {
+                        conversationFirst = !conversationFirst;
+                      }
                       maximized = null;
                     }),
                     icon: const Icon(Icons.swap_horiz),
@@ -165,7 +169,6 @@ class _WorkspacePanesState extends State<WorkspacePanes> {
           );
         }
       }
-      if (maximized != null) return pane(maximized == 'conversation');
       if (constraints.maxWidth < 680) {
         return Column(
           children: [
@@ -185,14 +188,17 @@ class _WorkspacePanesState extends State<WorkspacePanes> {
                   ),
                 ],
                 selected: {mobileConversation},
-                onSelectionChanged: (values) =>
-                    setState(() => mobileConversation = values.first),
+                onSelectionChanged: (values) => setState(() {
+                  mobileConversation = values.first;
+                  maximized = null;
+                }),
               ),
             ),
-            Expanded(child: pane(mobileConversation)),
+            Expanded(child: pane(mobileConversation, phone: true)),
           ],
         );
       }
+      if (maximized != null) return pane(maximized == 'conversation');
       const dividerWidth = CitysideTokens.spaceLarge * 2;
       final width = constraints.maxWidth - dividerWidth;
       final minimum = math.max(.25, math.min(.45, 280 / width));

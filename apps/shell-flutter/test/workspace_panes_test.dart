@@ -8,6 +8,43 @@ import 'package:superapp_flutter/workspace_panes.dart';
 import 'package:superapp_flutter/theme/tokens.g.dart';
 
 void main() {
+  testWidgets('phone swap changes the selected view and can switch back', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: WorkspacePanes(
+            conversation: Text('Chat content'),
+            details: Text('Details content'),
+          ),
+        ),
+      ),
+    );
+    expect(find.text('Chat content'), findsOneWidget);
+    await tester.tap(find.byTooltip('Swap panes'));
+    await tester.pumpAndSettle();
+    expect(find.text('Details content'), findsOneWidget);
+    expect(
+      tester
+          .widget<SegmentedButton<bool>>(find.byType(SegmentedButton<bool>))
+          .selected,
+      {false},
+    );
+    await tester.tap(find.byTooltip('Swap panes'));
+    await tester.pumpAndSettle();
+    expect(find.text('Chat content'), findsOneWidget);
+    expect(
+      tester
+          .widget<SegmentedButton<bool>>(find.byType(SegmentedButton<bool>))
+          .selected,
+      {true},
+    );
+  });
   testWidgets('divider has a 44px target and a visible keyboard focus ring', (
     tester,
   ) async {
