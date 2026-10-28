@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 28 October 2026 — Improve Flutter connections refresh focus (P2-14, step)
+
+The connections refresh action now uses a token-based touch target and a theme-aware keyboard focus border. Widget checks cover English and Arabic, enlarged text and refresh behavior; browser checks measure the exposed action. [Design details](development/design-tokens.md).
+
 ## 28 October 2026 — Improve Flutter review control focus (P2-14, step)
 
 Focused review actions now have token-based touch targets and visible theme-aware keyboard focus. Phone widget checks cover standard and enlarged text, reduced motion and the exact approval sent on activation. Browser checks measure the simulated payment review controls. [Design details](development/design-tokens.md).

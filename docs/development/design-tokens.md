@@ -60,3 +60,5 @@ The focused fines sign-in form uses token-based 48px action targets and a theme-
 The focused Flutter conversation keeps a scrollable composer and horizontally scrollable actions inside the available pane space. Its message field uses the theme's focus token and its actions have token-based 48px minimum targets. Widget checks exercise short phones with regular and doubled text and verify that the actions can be reached without overflow.
 
 The focused Flutter review's confirm, reject and cancel actions use 48px minimum targets and a theme-aware focus border. Phone widget checks cover enlarged text, reduced motion and exact approval binding; browser checks measure the exposed payment-review controls. Physical screen-reader testing remains separate.
+
+The Flutter connections refresh action uses a 48px token-based minimum and a theme-aware keyboard focus border. Phone widget checks exercise refresh and expanded connection details in English and Arabic with enlarged text and reduced motion; browser checks measure the exposed control.

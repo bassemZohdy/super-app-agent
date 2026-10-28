@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import 'shared/locale.dart';
+import 'theme/tokens.g.dart';
 
 class ConnectionsPanel extends StatefulWidget {
   const ConnectionsPanel({
@@ -75,6 +76,24 @@ class _ConnectionsPanelState extends State<ConnectionsPanel> {
         children: [
           Text(t('connections.intro')),
           FilledButton(
+            style:
+                FilledButton.styleFrom(
+                  minimumSize: const Size(
+                    CitysideTokens.spaceLarge * 2,
+                    CitysideTokens.spaceLarge * 2,
+                  ),
+                  visualDensity: VisualDensity.standard,
+                ).copyWith(
+                  side: WidgetStateProperty.resolveWith((states) {
+                    if (!states.contains(WidgetState.focused)) return null;
+                    return BorderSide(
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? CitysideTokens.darkFocusRing
+                          : CitysideTokens.focusRing,
+                      width: 3,
+                    );
+                  }),
+                ),
             onPressed: busy ? null : () => load(true),
             child: Text(t('connections.check')),
           ),

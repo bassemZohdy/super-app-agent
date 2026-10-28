@@ -76,6 +76,15 @@ test('Flutter web shows the selected provider and exposes the new workspace tool
     await page.setViewportSize({ width: 1440, height: 1000 });
     await expect(slider).toBeVisible();
   }
+  if (page.viewportSize()!.width < 900) await page.getByRole('menuitem', { name: 'Connections', exact: true }).click();
+  else await page.getByRole('button', { name: 'Connections', exact: true }).click();
+  const check = page.getByRole('button', { name: 'Check connections', exact: true });
+  await expect(check).toBeVisible();
+  const size = (await check.boundingBox())!;
+  expect(size.width).toBeGreaterThanOrEqual(44);
+  expect(size.height).toBeGreaterThanOrEqual(44);
+  await check.focus();
+  await expect(check).toBeFocused();
 });
 
 test('Flutter web uses the same exact focused approval before making a simulated payment', async ({ page, flutterUrl, focused }) => {
