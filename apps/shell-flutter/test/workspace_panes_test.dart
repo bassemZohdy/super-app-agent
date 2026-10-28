@@ -5,8 +5,116 @@ import 'dart:ui' show DisplayFeature, DisplayFeatureType, DisplayFeatureState;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:superapp_flutter/workspace_panes.dart';
+import 'package:superapp_flutter/theme/tokens.g.dart';
 
 void main() {
+  testWidgets('divider has a 44px target and a visible keyboard focus ring', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: WorkspacePanes(
+            conversation: Text('Chat content'),
+            details: Text('Details content'),
+          ),
+        ),
+      ),
+    );
+    final divider = find.byKey(const ValueKey('pane-divider'));
+    expect(tester.getSize(divider).width, greaterThanOrEqualTo(44));
+    expect(tester.getSize(divider).height, greaterThanOrEqualTo(44));
+    for (final label in [
+      'Swap panes',
+      'Maximize conversation',
+      'Maximize service details',
+    ]) {
+      final size = tester.getSize(find.byTooltip(label));
+      expect(size.width, greaterThanOrEqualTo(44), reason: label);
+      expect(size.height, greaterThanOrEqualTo(44), reason: label);
+    }
+    var reached = false;
+    for (var i = 0; i < 10 && !reached; i++) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      reached = Focus.of(tester.element(find.byIcon(Icons.drag_indicator)))
+          .hasPrimaryFocus;
+    }
+    expect(
+      reached,
+      isTrue,
+      reason: 'the divider must be reachable by keyboard',
+    );
+    final decoration =
+        tester
+                .widget<DecoratedBox>(
+                  find.byKey(const ValueKey('pane-divider-focus')),
+                )
+                .decoration
+            as BoxDecoration;
+    final border = decoration.border! as Border;
+    expect(border.top.color, CitysideTokens.focusRing);
+    expect(border.top.width, greaterThanOrEqualTo(2));
+    final before = tester
+        .getSize(find.byKey(const ValueKey('conversation')))
+        .width;
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.pump();
+    expect(
+      tester.getSize(find.byKey(const ValueKey('conversation'))).width - before,
+      closeTo((1200 - tester.getSize(divider).width) * .10, 2),
+    );
+    await tester.tap(find.byTooltip('Maximize conversation'));
+    await tester.pump();
+    await tester.tap(find.byTooltip('Restore conversation'));
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 3));
+  });
+  testWidgets('divider focus uses the dark token with reduced motion', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(brightness: Brightness.dark),
+        home: const MediaQuery(
+          data: MediaQueryData(size: Size(1200, 900), disableAnimations: true),
+          child: Scaffold(
+            body: WorkspacePanes(
+              conversation: Text('Chat'),
+              details: Text('Details'),
+            ),
+          ),
+        ),
+      ),
+    );
+    Focus.of(tester.element(find.byIcon(Icons.drag_indicator))).requestFocus();
+    await tester.pump();
+    final decoration =
+        tester
+                .widget<DecoratedBox>(
+                  find.byKey(const ValueKey('pane-divider-focus')),
+                )
+                .decoration
+            as BoxDecoration;
+    expect(
+      (decoration.border! as Border).top.color,
+      CitysideTokens.darkFocusRing,
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 3));
+  });
   for (final vertical in [true, false]) {
     testWidgets(
       'keeps both panes clear of a ${vertical ? 'book' : 'clamshell'} hinge',

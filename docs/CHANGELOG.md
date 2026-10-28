@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 28 October 2026 — Make Flutter workspace pane controls easier to use (P2-14, step)
+
+The pane divider and header actions now have larger token-based touch targets, and the divider shows a theme-aware focus ring when focused. Keyboard users can use Shift with the arrow keys for larger resize steps; the existing bounds, reset, swap, restore and fold behavior remain. Widget tests measure control size, keyboard traversal and focus in light and dark/reduced-motion settings; a web regression checks the exposed divider. Other Flutter panels retain their separate acceptance work. [Design details](development/design-tokens.md).
+
 ## 28 October 2026 — P1-05 delivered for the selected local planner
 
 The configured local llama-server passed the declared English/Arabic intent, exact-selection and latency gates against clean implementation `44e2d16`, then passed live HTTP/graph/SQLite approval, owner and idempotency checks including separate fines/renewal reviews. The evidence pins model weights, server build, source/corpus/tool hashes and configured limits; deterministic provider-failure regressions remain passing. The focused agent now uses the explicit local provider while preserving its private identities, hosted credentials and persisted demo state. This closes the finite local selected-planner acceptance task; broader model, hosted-provider, native-device and production qualification are not implied. [Milestone evidence](reports/2026-10-28-local-planner.md).

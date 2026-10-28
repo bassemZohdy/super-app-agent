@@ -26,6 +26,7 @@ class _WorkspacePanesState extends State<WorkspacePanes> {
   bool mobileConversation = true;
   String? maximized;
   double split = .5;
+  bool dividerFocused = false;
   @override
   void didUpdateWidget(covariant WorkspacePanes oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -65,6 +66,12 @@ class _WorkspacePanesState extends State<WorkspacePanes> {
                 if (conversation)
                   IconButton(
                     tooltip: 'Swap panes',
+                    style: IconButton.styleFrom(
+                      minimumSize: const Size(
+                        CitysideTokens.spaceLarge * 2,
+                        CitysideTokens.spaceLarge * 2,
+                      ),
+                    ),
                     onPressed: () => setState(() {
                       conversationFirst = !conversationFirst;
                       maximized = null;
@@ -73,6 +80,12 @@ class _WorkspacePanesState extends State<WorkspacePanes> {
                   ),
                 IconButton(
                   tooltip: '${maximized == id ? 'Restore' : 'Maximize'} $id',
+                  style: IconButton.styleFrom(
+                    minimumSize: const Size(
+                      CitysideTokens.spaceLarge * 2,
+                      CitysideTokens.spaceLarge * 2,
+                    ),
+                  ),
                   onPressed: () => setState(() {
                     maximized = maximized == id ? null : id;
                     mobileConversation = conversation;
@@ -177,7 +190,8 @@ class _WorkspacePanesState extends State<WorkspacePanes> {
           ],
         );
       }
-      final width = constraints.maxWidth - 24;
+      const dividerWidth = CitysideTokens.spaceLarge * 2;
+      final width = constraints.maxWidth - dividerWidth;
       final minimum = math.max(.25, math.min(.45, 280 / width));
       void resize(double left) => setState(() {
         final value = left.clamp(minimum, 1 - minimum);
@@ -197,6 +211,16 @@ class _WorkspacePanesState extends State<WorkspacePanes> {
                   resize(left - .05),
               const SingleActivator(LogicalKeyboardKey.arrowRight): () =>
                   resize(left + .05),
+              const SingleActivator(
+                LogicalKeyboardKey.arrowLeft,
+                shift: true,
+              ): () =>
+                  resize(left - .10),
+              const SingleActivator(
+                LogicalKeyboardKey.arrowRight,
+                shift: true,
+              ): () =>
+                  resize(left + .10),
               const SingleActivator(LogicalKeyboardKey.home): () =>
                   resize(minimum),
               const SingleActivator(LogicalKeyboardKey.end): () =>
@@ -205,6 +229,9 @@ class _WorkspacePanesState extends State<WorkspacePanes> {
                   setState(() => split = .5),
             },
             child: Focus(
+              onFocusChange: (focused) {
+                if (mounted) setState(() => dividerFocused = focused);
+              },
               child: Semantics(
                 label: 'Resize conversation and service details',
                 value: '${(visibleSplit * 100).round()}% conversation',
@@ -226,12 +253,28 @@ class _WorkspacePanesState extends State<WorkspacePanes> {
                     ),
                     onDoubleTap: () => setState(() => split = .5),
                     child: SizedBox(
-                      width: 24,
+                      key: const ValueKey('pane-divider'),
+                      width: dividerWidth,
                       height: constraints.maxHeight,
-                      child: const Icon(
-                        Icons.drag_indicator,
-                        size: 20,
-                        color: CitysideTokens.textMuted,
+                      child: DecoratedBox(
+                        key: const ValueKey('pane-divider-focus'),
+                        decoration: BoxDecoration(
+                          border: dividerFocused
+                              ? Border.all(
+                                  color:
+                                      Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? CitysideTokens.darkFocusRing
+                                      : CitysideTokens.focusRing,
+                                  width: 3,
+                                )
+                              : null,
+                        ),
+                        child: const Icon(
+                          Icons.drag_indicator,
+                          size: 20,
+                          color: CitysideTokens.textMuted,
+                        ),
                       ),
                     ),
                   ),

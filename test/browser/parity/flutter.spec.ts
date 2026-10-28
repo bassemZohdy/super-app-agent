@@ -28,7 +28,16 @@ test('Flutter web shows the selected provider and exposes the new workspace tool
   await page.locator('flt-semantics-placeholder').waitFor(); await page.locator('flt-semantics-placeholder').evaluate((element: HTMLElement) => element.click());
   await expect(page.getByText('LiteLLM ready', { exact: true })).toBeVisible();
   if (page.viewportSize()!.width < 900) { await page.getByRole('button', { name: 'Workspace tools' }).click(); await expect(page.getByRole('menuitem', { name: 'Connections', exact: true })).toBeVisible(); }
-  else await expect(page.getByRole('button', { name: 'Connections', exact: true })).toBeVisible();
+  else {
+    await expect(page.getByRole('button', { name: 'Connections', exact: true })).toBeVisible();
+    const divider = page.getByLabel('Resize conversation and service details', { exact: false });
+    await expect(divider).toBeVisible();
+    expect((await divider.boundingBox())!.width).toBeGreaterThanOrEqual(44);
+    const slider = divider.getByRole('slider');
+    await expect(slider).toHaveAttribute('aria-valuetext', '50% conversation');
+    await slider.focus(); await slider.press('ArrowRight');
+    await expect(slider).toHaveAttribute('aria-valuetext', '55% conversation');
+  }
 });
 
 test('Flutter web uses the same exact focused approval before making a simulated payment', async ({ page, flutterUrl, focused }) => {
