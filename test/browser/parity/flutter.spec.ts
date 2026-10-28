@@ -3,6 +3,23 @@ import { test as flutterTest, expect, enterFlutterAccessToken } from '../flutter
 import { test as focusedTest } from '../focused-agent/fixtures.ts';
 const test = mergeTests(flutterTest, focusedTest);
 
+test('Flutter fines sign-in controls expose labels and touch targets', async ({ page, flutterUrl }) => {
+  await page.goto(`${flutterUrl}/services/fines`);
+  await page.locator('flt-semantics-placeholder').waitFor();
+  await page.locator('flt-semantics-placeholder').evaluate((element: HTMLElement) => element.click());
+  const input = page.getByLabel('Access token', { exact: true });
+  const open = page.getByRole('button', { name: 'Open my fines', exact: true });
+  const forget = page.getByRole('button', { name: 'Forget saved conversation reference', exact: true });
+  for (const [name, control] of [['input', input], ['open', open], ['forget', forget]] as const) {
+    await expect(control).toBeVisible();
+    const rect = await control.boundingBox();
+    expect(rect!.width).toBeGreaterThanOrEqual(44);
+    expect(rect!.height, `height of ${name}`).toBeGreaterThanOrEqual(44);
+  }
+  await input.focus();
+  await expect(input).toBeFocused();
+});
+
 test('Flutter web completes the same Keycloak authorization-code sign-in as the TypeScript shells', async ({ page, flutterUrl }) => {
   let passwordGrant = false, authorizationCode = false;
   page.on('request', request => { if (new URL(request.url()).pathname.endsWith('/token')) { const body = new URLSearchParams(request.postData() || ''); passwordGrant ||= body.get('grant_type') === 'password'; authorizationCode ||= body.get('grant_type') === 'authorization_code'; } });

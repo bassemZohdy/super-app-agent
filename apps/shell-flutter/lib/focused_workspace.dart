@@ -181,47 +181,82 @@ class _FocusedWorkspaceState extends State<FocusedWorkspace> {
         if (pending) const LinearProgressIndicator(),
         if (client == null)
           Expanded(
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 520),
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text(
-                        'Your fines. Your decision.',
-                        style: TextStyle(fontSize: 28),
-                      ),
-                      const Text(
-                        'Demo records and payments are simulated. Review the exact amount before confirming.',
-                      ),
-                      TextField(
-                        controller: token,
-                        obscureText: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Access token',
+            child: LayoutBuilder(
+              builder: (context, constraints) => SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 520),
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              'Your fines. Your decision.',
+                              style: TextStyle(fontSize: 28),
+                            ),
+                            const Text(
+                              'Demo records and payments are simulated. Review the exact amount before confirming.',
+                            ),
+                            TextField(
+                              controller: token,
+                              obscureText: true,
+                              enabled: !pending,
+                              decoration: InputDecoration(
+                                labelText: 'Access token',
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(
+                                    CitysideTokens.radiusMd,
+                                  ),
+                                  borderSide: BorderSide(
+                                    color:
+                                        Theme.of(context).brightness ==
+                                            Brightness.dark
+                                        ? CitysideTokens.darkFocusRing
+                                        : CitysideTokens.focusRing,
+                                    width: 3,
+                                  ),
+                                ),
+                              ),
+                              onSubmitted: (_) => signIn(),
+                            ),
+                            FilledButton(
+                              style: FilledButton.styleFrom(
+                                visualDensity: VisualDensity.standard,
+                                minimumSize: const Size(
+                                  CitysideTokens.spaceLarge * 2,
+                                  CitysideTokens.spaceLarge * 2,
+                                ),
+                              ),
+                              onPressed: pending ? null : signIn,
+                              child: const Text('Open my fines'),
+                            ),
+                            TextButton(
+                              style: TextButton.styleFrom(
+                                visualDensity: VisualDensity.standard,
+                                minimumSize: const Size(
+                                  CitysideTokens.spaceLarge * 2,
+                                  CitysideTokens.spaceLarge * 2,
+                                ),
+                              ),
+                              onPressed: pending
+                                  ? null
+                                  : () {
+                                      writeBrowserConversation('focused', '');
+                                      setState(
+                                        () => error = 'Saved reference cleared. Sign in to start a new conversation.',
+                                      );
+                                    },
+                              child: const Text(
+                                'Forget saved conversation reference',
+                              ),
+                            ),
+                          ],
                         ),
-                        onSubmitted: (_) => signIn(),
                       ),
-                      FilledButton(
-                        onPressed: pending ? null : signIn,
-                        child: const Text('Open my fines'),
-                      ),
-                      TextButton(
-                        onPressed: pending
-                            ? null
-                            : () {
-                                writeBrowserConversation('focused', '');
-                                setState(
-                                  () => error = 'Saved reference cleared. Sign in to start a new conversation.',
-                                );
-                              },
-                        child: const Text(
-                          'Forget saved conversation reference',
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ),
