@@ -47,6 +47,25 @@ The focused API accepts only exact `CORS_ORIGINS` (default localhost ports 3000,
 
 All three main workspaces expose Connections, service selection, saved-conversation restoration and the per-conversation profile-sharing setting. Angular and Flutter render the same current Cityside component types and collect form/choice values with server binding precedence. This does not claim adoption of every specialized React payment-account panel. Their panes begin equally sized, resize with pointer/keyboard controls, swap, maximize/restore and switch views on phones. Angular uses browser viewport segments; Flutter also accepts native display-feature bounds. Physical foldables remain unqualified.
 
+### Local llama-server planner
+
+An already running local llama-server can supply focused planning directly; it needs neither LiteLLM nor the compatibility Compose stack. Read its exact model ID from `GET http://127.0.0.1:8080/v1/models`, then select it explicitly in private `.env.agent`:
+
+```dotenv
+AGENT_PLANNER=compatible
+AGENT_LLM_PROVIDER=local
+AGENT_LLM_BASE_URL=http://127.0.0.1:8080/v1/
+AGENT_LLM_MODEL=your-advertised-local-model-id
+AGENT_LLM_KEY=
+AGENT_LLM_RESPONSE_FORMAT=json_object
+AGENT_LLM_MAX_TOKENS=512
+AGENT_LLM_TIMEOUT_MS=15000
+```
+
+The local provider restricts endpoints to loopback or explicit Docker-local hostnames, never inherits hosted-provider keys, disables thinking for these bounded intent-selection requests and supplies a JSON schema generated from the authoritative `Plan` validator. The existing `json_object` setting enables structured output; hosted compatible clients keep their existing JSON-object format. A local server must support llama-server's `chat_template_kwargs.enable_thinking` and JSON-schema response format. Generic compatible mode retains its previous behavior. An explicitly supplied local server key is separate from hosted credentials.
+
+Run `npm run agent:verify:model`, then `npm run agent:qualify:model`; restart `npm start` after changing configuration. Choosing a local planner affects the focused API and its three fines clients; the compatibility concierge has its own `CONVERSATION_PROVIDER` configuration. The provider remains explicit and unavailable replies do not fall back to hosted inference or fixtures. Approvals and idempotency stay deterministic.
+
 ### Existing LiteLLM server
 
 The main concierge supports `CONVERSATION_PROVIDER=litellm` with exported `LITELLM_BASE_URL`/`LITELLM_URL` and `LITELLM_API_KEY`. Set `LITELLM_MODEL=glm-5.3` or another advertised identifier such as `MiMo-V2.6-Flash-RL`; [conversation setup](development/local-ai.md#select-a-conversation-provider) describes limits and the local/OpenRouter alternatives. Server keys and internal correlation/approval headers never enter hosted request bodies or the browser.

@@ -2,7 +2,7 @@ import { litellmBase, litellmSettings } from '../litellm-config.ts';
 import { z } from 'zod/v4';
 import { AgentError } from './contracts.ts';
 import { TestIdentity } from './auth.ts';
-import { isOpenRouter, requireFreeModel } from './planner.ts';
+import { isOpenRouter, isLocalModelEndpoint, requireFreeModel } from './planner.ts';
 
 const Endpoint = z.string().url().transform(raw => {
   const url = new URL(raw);
@@ -28,7 +28,7 @@ export function config(env: NodeJS.ProcessEnv = process.env) {
     AGENT_AUTH: z.enum(['keycloak', 'test']).default('keycloak'),
     AGENT_PLANNER: z.enum(['compatible', 'fixture']).default('compatible'),
     AGENT_SIMULATOR_URL: Endpoint.optional(),
-    AGENT_LLM_PROVIDER: z.enum(['compatible', 'openrouter', 'litellm']).optional(),
+    AGENT_LLM_PROVIDER: z.enum(['compatible', 'local', 'openrouter', 'litellm']).optional(),
     AGENT_LLM_BASE_URL: Endpoint.optional(),
     AGENT_LLM_MODEL: z.string().min(1).max(160).optional(),
     AGENT_LLM_KEY: z.string().optional(),
@@ -43,6 +43,7 @@ export function config(env: NodeJS.ProcessEnv = process.env) {
     parsed.AGENT_SIMULATOR_URL = new URL(`http://${host.includes(':') && !host.startsWith('[') ? `[${host}]` : host}:${parsed.AGENT_PORT}/`);
   }
   if (parsed.AGENT_PLANNER === 'compatible' && (!parsed.AGENT_LLM_BASE_URL || !parsed.AGENT_LLM_MODEL || !parsed.AGENT_LLM_BASE_URL.pathname.endsWith('/'))) throw new AgentError('LLM_CONFIG_REQUIRED');
+  if (parsed.AGENT_LLM_PROVIDER === 'local' && parsed.AGENT_PLANNER === 'compatible' && (!parsed.AGENT_LLM_BASE_URL || !isLocalModelEndpoint(parsed.AGENT_LLM_BASE_URL))) throw new AgentError('LOCAL_MODEL_ENDPOINT_REQUIRED');
   if (parsed.AGENT_PLANNER === 'compatible' && liteBase) {
     if (parsed.AGENT_LLM_BASE_URL?.href !== liteBase.href) throw new AgentError('LITELLM_ENDPOINT_REQUIRED');
     parsed.AGENT_LLM_KEY = env.LITELLM_API_KEY?.trim();

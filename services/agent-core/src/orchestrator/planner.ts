@@ -1,6 +1,9 @@
 import { Plan, AgentError, boundedJson, execution } from './contracts.ts';
 import { acquireModelBudget, boundedMessages } from '../model-budget.ts';
 import { minimiseHistory } from '../model-input.ts';
+import { z } from 'zod/v4';
+
+const localPlanSchema = z.toJSONSchema(Plan);
 
 export interface Planner {
   plan(messages: Array<{ role: 'user' | 'assistant'; content: string }>, tools: Array<{ id: string; description: string }>): Promise<Plan>;
@@ -14,12 +17,17 @@ export function isOpenRouter(base: URL): boolean {
 export function requireFreeModel(model: string) {
   if (model !== 'openrouter/free' && !model.endsWith(':free')) throw new AgentError('FREE_MODEL_REQUIRED');
 }
+export function isLocalModelEndpoint(base: URL): boolean {
+  return ['http:', 'https:'].includes(base.protocol) && ['localhost', '127.0.0.1', '[::1]', 'conversation', 'host.docker.internal'].includes(base.hostname)
+    && !base.username && !base.password && !base.search && !base.hash && base.port !== '0' && base.pathname.endsWith('/');
+}
 /** No hosted SDK or fallback. The endpoint is deployment configuration, never model/user input. */
 export class CompatiblePlanner implements Planner {
-  private readonly base: URL; private readonly model: string; private readonly key?: string; private readonly timeoutMs: number; private readonly maxTokens: number; private readonly jsonFormat: boolean;
-  constructor(base: URL, model: string, key?: string, timeoutMs = 15000, maxTokens = 200, jsonFormat = true) {
+  private readonly base: URL; private readonly model: string; private readonly key?: string; private readonly timeoutMs: number; private readonly maxTokens: number; private readonly jsonFormat: boolean; private readonly localMode: boolean;
+  constructor(base: URL, model: string, key?: string, timeoutMs = 15000, maxTokens = 200, jsonFormat = true, localMode = false) {
     if (isOpenRouter(base)) requireFreeModel(model);
-    this.base = base; this.model = model; this.key = key; this.timeoutMs = timeoutMs; this.maxTokens = maxTokens; this.jsonFormat = jsonFormat;
+    if (localMode && !isLocalModelEndpoint(base)) throw new AgentError('LOCAL_MODEL_ENDPOINT_REQUIRED');
+    this.base = base; this.model = model; this.key = key; this.timeoutMs = timeoutMs; this.maxTokens = maxTokens; this.jsonFormat = jsonFormat; this.localMode = localMode;
   }
   async plan(messages: Array<{ role: 'user' | 'assistant'; content: string }>, tools: Array<{ id: string; description: string }>): Promise<Plan> {
     let release: (() => void) | undefined;
@@ -31,13 +39,14 @@ export class CompatiblePlanner implements Planner {
         if (prior) selected = references(prior.content);
       }
       const modelTurns = messages.map(item => ({ ...item, content: item.content.replace(/\bfine-[a-z0-9_-]+\b/gi, 'the selected fine') }));
-      const safeMessages = boundedMessages([{ role: 'system', content: `Select a bounded plan using only these services: ${JSON.stringify(tools)}. Return ONLY one JSON object, without markdown or explanation. It must have keys intent (list_fines, pay_fines, renew_registration, clarify or out_of_scope) and fineIds (an array of strings); add vehicleId only when the user names a vehicle. Example: {"intent":"list_fines","fineIds":[]}. Use renew_registration when the user asks to renew a vehicle registration; the agent itself handles any fines that must be paid first. Intent meanings: list_fines only reads fines. pay_fines prepares a payment REVIEW and waits for separate explicit approval; it never executes payment. Choose pay_fines when the user asks to pay, prepare payment or review paying fines, including a combined retrieve/list-and-pay request. For example, "Retrieve my fines and review paying them" means {"intent":"pay_fines","fineIds":[]}; "Show outstanding fines" means {"intent":"list_fines","fineIds":[]}. A follow-up "Pay them" after a fines list also means pay_fines. Do not choose payment review for a read-only request or a negated payment request. Return fineIds as an empty array. Exact fine references are withheld from this prompt and bound by the server to the user selection; without an explicit selection the server lists all currently outstanding fines. Unclear requests need clarify. You cannot authorize, consent or execute. Never echo user text or credentials.` }, ...minimiseHistory(modelTurns, { personalContext: false })]);
+      const safeMessages = boundedMessages([{ role: 'system', content: `Select a bounded plan using only these services: ${JSON.stringify(tools)}. Return ONLY one JSON object, without markdown or explanation. It must have keys intent (list_fines, pay_fines, renew_registration, clarify or out_of_scope) and fineIds (an array of strings); omit vehicleId unless the user names an exact vehicle reference. Never invent vehicle references or use null. Example: {"intent":"list_fines","fineIds":[]}. Use renew_registration for a request to renew, prepare or review renewal of vehicle registration (تجديد تسجيل المركبة). This intent prepares a review and never executes renewal. The agent itself handles any fines that must be paid first. Classify the whole requested task: polite wording such as help me or review does not make an explicit renewal request unclear. Examples: "Can you help me extend my registration?" and "ساعدني في إجراءات تجديد رخصة المركبة" both mean renew_registration. Intent meanings: list_fines only reads fines. pay_fines prepares a payment REVIEW and waits for separate explicit approval; it never executes payment. Choose pay_fines when the user asks to pay, prepare payment or review paying fines, including a combined retrieve/list-and-pay request. For example, "Retrieve my fines and review paying them" means {"intent":"pay_fines","fineIds":[]}; "Show outstanding fines" means {"intent":"list_fines","fineIds":[]}. A follow-up "Pay them" after a fines list also means pay_fines. Do not choose payment review for a read-only request or a negated payment request. Return fineIds as an empty array. Exact fine references are withheld from this prompt and bound by the server to the user selection; without an explicit selection the server lists all currently outstanding fines. Use clarify only for greetings or requests whose intended task is genuinely missing. An explicit request to review, prepare or get help with a supported task already identifies the intent and must not become clarify. A clear request for an unsupported service must use out_of_scope, even if you cannot help with it. Viewing/paying fines and renewing vehicle registration are the only supported tasks. You cannot authorize, consent or execute. Never echo user text or credentials.` }, ...minimiseHistory(modelTurns, { personalContext: false })]);
       const principal = execution.getStore()?.principal;
       release = acquireModelBudget(safeMessages, this.maxTokens, principal ? `focused:${principal.subject}:${principal.workload}` : undefined);
       const response = await fetch(new URL('chat/completions', this.base), {
         method: 'POST', redirect: 'error', signal: AbortSignal.timeout(this.timeoutMs),
         headers: { 'Content-Type': 'application/json', ...(this.key ? { Authorization: `Bearer ${this.key}` } : {}) },
-        body: JSON.stringify({ model: this.model, temperature: 0, max_tokens: this.maxTokens, stream: false, ...(this.jsonFormat ? { response_format: { type: 'json_object' } } : {}),
+        body: JSON.stringify({ model: this.model, temperature: 0, max_tokens: this.maxTokens, stream: false, ...(this.jsonFormat ? { response_format: this.localMode ? { type: 'json_schema', json_schema: { name: 'cityside_plan', strict: true, schema: localPlanSchema } } : { type: 'json_object' } } : {}),
+          ...(this.localMode ? { chat_template_kwargs: { enable_thinking: false } } : {}),
           ...(isOpenRouter(this.base) ? { provider: { max_price: { prompt: 0, completion: 0 } }, reasoning: { enabled: false } } : {}), messages: safeMessages }),
       });
       if (!response.ok) throw new Error('Provider unavailable');

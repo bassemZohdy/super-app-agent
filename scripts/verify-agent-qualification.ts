@@ -12,7 +12,7 @@ import { evaluatePlannerAuthority } from './agent-authority-evaluation.ts';
 async function qualify() {
   const cfg = config();
   if (cfg.AGENT_PLANNER !== 'compatible' || !cfg.AGENT_LLM_BASE_URL || !cfg.AGENT_LLM_MODEL) throw new Error('COMPATIBLE_PLANNER_REQUIRED');
-  const planner = new CompatiblePlanner(cfg.AGENT_LLM_BASE_URL, cfg.AGENT_LLM_MODEL, cfg.AGENT_LLM_KEY, cfg.AGENT_LLM_TIMEOUT_MS, cfg.AGENT_LLM_MAX_TOKENS, cfg.AGENT_LLM_RESPONSE_FORMAT === 'json_object');
+  const planner = new CompatiblePlanner(cfg.AGENT_LLM_BASE_URL, cfg.AGENT_LLM_MODEL, cfg.AGENT_LLM_KEY, cfg.AGENT_LLM_TIMEOUT_MS, cfg.AGENT_LLM_MAX_TOKENS, cfg.AGENT_LLM_RESPONSE_FORMAT === 'json_object', cfg.AGENT_LLM_PROVIDER === 'local');
   const fines = new FinesAdapter(cfg.AGENT_SIMULATOR_URL, cfg.AGENT_WORKLOAD_KEY), vehicles = new VehiclesAdapter(cfg.AGENT_SIMULATOR_URL, cfg.AGENT_WORKLOAD_KEY);
   const tools = [fines.list, fines.pay, vehicles.list, vehicles.renew].map(({ id, description }) => ({ id, description }));
   const hash = (text: string) => createHash('sha256').update(text).digest('hex');

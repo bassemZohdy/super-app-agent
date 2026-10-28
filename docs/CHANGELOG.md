@@ -1,8 +1,13 @@
 # Documentation changelog
 
+## 28 October 2026 — Select local llama-server for bounded planning (P1-05, step)
+
+The focused agent can explicitly select an existing local llama-server without sending hosted credentials. Local requests disable reasoning and use a schema generated from the shared plan validator; arbitrary remote endpoints cannot be selected as local. Runtime, smoke and qualification commands use the same mode. Planner instructions distinguish preparing/reviewing a renewal from an unclear request and clarify unsupported tasks, while retaining exact approvals and input minimization. Provider-isolation/configuration regressions and focused checks cover this boundary. [Local planner setup](integrations.md#local-llama-server-planner).
+
 ## 28 October 2026 — Stabilize invoice-automation time fixtures (P2-05, step)
 
 Month-end seeded invoices entered the due-soon window as the calendar advanced, breaking isolated invoice expectations and causing an unexpected cooldown. The AUTO-08 suite now freezes its test clock before constructing providers. Runtime invoice selection, payment caps, cooldowns and scopes are unchanged. This work was taken off the planner critical path because the existing failures blocked its required repository verification. [Deterministic test time](testing.md).
+
 
 ## 28 October 2026 — Add reproducible selected-planner qualification (P1-05, step)
 

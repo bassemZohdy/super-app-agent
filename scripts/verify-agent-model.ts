@@ -7,7 +7,7 @@ import type { Plan } from '../services/agent-core/src/orchestrator/contracts.ts'
 async function verify() {
   const cfg = config();
   if (cfg.AGENT_PLANNER !== 'compatible' || !cfg.AGENT_LLM_BASE_URL || !cfg.AGENT_LLM_MODEL) throw new Error('CONFIGURE_COMPATIBLE_PLANNER');
-  const planner = new CompatiblePlanner(cfg.AGENT_LLM_BASE_URL, cfg.AGENT_LLM_MODEL, cfg.AGENT_LLM_KEY, cfg.AGENT_LLM_TIMEOUT_MS, cfg.AGENT_LLM_MAX_TOKENS, cfg.AGENT_LLM_RESPONSE_FORMAT === 'json_object');
+  const planner = new CompatiblePlanner(cfg.AGENT_LLM_BASE_URL, cfg.AGENT_LLM_MODEL, cfg.AGENT_LLM_KEY, cfg.AGENT_LLM_TIMEOUT_MS, cfg.AGENT_LLM_MAX_TOKENS, cfg.AGENT_LLM_RESPONSE_FORMAT === 'json_object', cfg.AGENT_LLM_PROVIDER === 'local');
   const cases: Array<{ name: string; text: string; intent: Plan['intent']; prior?: boolean }> = [
     { name: 'English list', text: 'Show outstanding fines', intent: 'list_fines' },
     { name: 'English read-only with payment refused', text: 'Show outstanding fines, but do not pay them', intent: 'list_fines' },

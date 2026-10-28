@@ -65,3 +65,25 @@ test('the focused planner reuses the LiteLLM environment only for its explicitly
   assert.throws(() => config({ ...env, AGENT_LLM_BASE_URL: 'https://other.example.invalid/v1/' }), /LITELLM_ENDPOINT_REQUIRED/);
   assert.throws(() => config({ ...env, LITELLM_API_KEY: '' }), /LITELLM_KEY_REQUIRED/);
 });
+
+test('explicit local planning stays on local endpoints and never inherits a hosted key', async t => {
+  const selected = config({ ...base, AGENT_LLM_PROVIDER: 'local', AGENT_LLM_BASE_URL: 'http://127.0.0.1:8080/v1/', AGENT_LLM_MODEL: 'local-test', LITELLM_API_KEY: 'synthetic-other-provider-key' });
+  assert.equal(selected.AGENT_LLM_KEY, undefined);
+  for (const endpoint of ['https://remote.example.invalid/v1/', 'http://localhost.example.invalid/v1/']) {
+    assert.throws(() => config({ ...base, AGENT_LLM_PROVIDER: 'local', AGENT_LLM_BASE_URL: endpoint }), /LOCAL_MODEL_ENDPOINT_REQUIRED/);
+  }
+  assert.throws(() => new CompatiblePlanner(new URL(base.AGENT_LLM_BASE_URL), base.AGENT_LLM_MODEL, undefined, 15000, 200, true, true), /LOCAL_MODEL_ENDPOINT_REQUIRED/);
+  t.mock.method(globalThis, 'fetch', async (url: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+    assert.equal(String(url), 'http://127.0.0.1:8080/v1/chat/completions');
+    assert.equal(new Headers(init?.headers).has('Authorization'), false);
+    const body = JSON.parse(String(init?.body));
+    assert.deepEqual(body.chat_template_kwargs, { enable_thinking: false });
+    assert.equal(body.response_format.type, 'json_schema');
+    assert.equal(body.response_format.json_schema.schema.additionalProperties, false);
+    assert.equal(body.response_format.json_schema.schema.properties.vehicleId.type, 'string');
+    assert.deepEqual(body.response_format.json_schema.schema.properties.intent.enum, ['list_fines', 'pay_fines', 'renew_registration', 'clarify', 'out_of_scope']);
+    return Response.json({ choices: [{ message: { content: '{"intent":"list_fines","fineIds":[]}' }, finish_reason: 'stop' }], usage: { completion_tokens: 12 } });
+  });
+  const planner = new CompatiblePlanner(selected.AGENT_LLM_BASE_URL!, selected.AGENT_LLM_MODEL!, selected.AGENT_LLM_KEY, selected.AGENT_LLM_TIMEOUT_MS, selected.AGENT_LLM_MAX_TOKENS, true, true);
+  assert.equal((await planner.plan([{ role: 'user', content: 'Show fines' }], [])).intent, 'list_fines');
+});
