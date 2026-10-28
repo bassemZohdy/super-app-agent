@@ -58,3 +58,5 @@ Flutter web links its generated divider slider to the labeled semantics containe
 The focused fines sign-in form uses token-based 48px action targets and a theme-aware input focus border. Its content scrolls on short screens at large text sizes, keeping both sign-in actions reachable. Widget checks cover keyboard focus, dark mode, reduced motion and large text; web checks measure the exposed controls.
 
 The focused Flutter conversation keeps a scrollable composer and horizontally scrollable actions inside the available pane space. Its message field uses the theme's focus token and its actions have token-based 48px minimum targets. Widget checks exercise short phones with regular and doubled text and verify that the actions can be reached without overflow.
+
+The focused Flutter review's confirm, reject and cancel actions use 48px minimum targets and a theme-aware focus border. Phone widget checks cover enlarged text, reduced motion and exact approval binding; browser checks measure the exposed payment-review controls. Physical screen-reader testing remains separate.

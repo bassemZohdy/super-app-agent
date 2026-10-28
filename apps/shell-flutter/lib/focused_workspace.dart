@@ -143,6 +143,33 @@ class _FocusedWorkspaceState extends State<FocusedWorkspace> {
 
   String amount(int minor) =>
       'AED ${minor ~/ 100}.${(minor % 100).toString().padLeft(2, '0')}';
+  ButtonStyle reviewButtonStyle({required bool primary}) {
+    const size = Size(
+      CitysideTokens.spaceLarge * 2,
+      CitysideTokens.spaceLarge * 2,
+    );
+    final base = primary
+        ? FilledButton.styleFrom(
+            minimumSize: size,
+            visualDensity: VisualDensity.standard,
+          )
+        : TextButton.styleFrom(
+            minimumSize: size,
+            visualDensity: VisualDensity.standard,
+          );
+    return base.copyWith(
+      side: WidgetStateProperty.resolveWith((states) {
+        if (!states.contains(WidgetState.focused)) return null;
+        return BorderSide(
+          color: Theme.of(context).brightness == Brightness.dark
+              ? CitysideTokens.darkFocusRing
+              : CitysideTokens.focusRing,
+          width: 3,
+        );
+      }),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
@@ -471,6 +498,7 @@ class _FocusedWorkspaceState extends State<FocusedWorkspace> {
           'Review expires at ${DateTime.fromMillisecondsSinceEpoch(active!['expiresAt'] as int).toLocal()}. Typed “yes” does not confirm.',
         ),
         FilledButton(
+          style: reviewButtonStyle(primary: true),
           onPressed: pending || needsRecovery ? null : () => decide('approve'),
           child: Text(
             data?['renewalApproval'] != null
@@ -479,6 +507,7 @@ class _FocusedWorkspaceState extends State<FocusedWorkspace> {
           ),
         ),
         TextButton(
+          style: reviewButtonStyle(primary: false),
           onPressed: pending || needsRecovery ? null : () => decide('reject'),
           child: Text(
             data?['renewalApproval'] != null
@@ -487,6 +516,7 @@ class _FocusedWorkspaceState extends State<FocusedWorkspace> {
           ),
         ),
         TextButton(
+          style: reviewButtonStyle(primary: false),
           onPressed: pending || needsRecovery ? null : () => decide('cancel'),
           child: const Text('Cancel review'),
         ),

@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 28 October 2026 — Improve Flutter review control focus (P2-14, step)
+
+Focused review actions now have token-based touch targets and visible theme-aware keyboard focus. Phone widget checks cover standard and enlarged text, reduced motion and the exact approval sent on activation. Browser checks measure the simulated payment review controls. [Design details](development/design-tokens.md).
+
 ## 28 October 2026 — Keep Flutter conversation actions reachable (P2-14, step)
 
 The focused conversation now contains its composer and actions within scrollable areas, avoiding short-phone overflow at regular and enlarged text sizes. Action targets use shared spacing tokens and the message field has a theme-aware focus border. Widget checks measure the controls and their scroll reachability. [Design details](development/design-tokens.md).

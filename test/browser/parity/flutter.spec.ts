@@ -96,6 +96,13 @@ test('Flutter web uses the same exact focused approval before making a simulated
   expect(sendSize.height).toBeGreaterThanOrEqual(44);
   await page.getByRole('button', { name: 'Review payment', exact: true }).click();
   await expect(page.getByText('Simulated total: AED 450.00', { exact: true })).toBeVisible(); expect(focused.payments()).toBe(0);
+  for (const name of ['Confirm simulated payment', 'Reject payment', 'Cancel review']) {
+    const button = page.getByRole('button', { name, exact: true });
+    await button.scrollIntoViewIfNeeded();
+    const bounds = (await button.boundingBox())!;
+    expect(bounds.width).toBeGreaterThanOrEqual(44);
+    expect(bounds.height).toBeGreaterThanOrEqual(44);
+  }
   await page.getByRole('button', { name: 'Confirm simulated payment', exact: true }).click();
   await expect(page.getByText('Your simulated receipt', { exact: true })).toBeVisible(); expect(focused.payments()).toBe(1);
 });
