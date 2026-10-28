@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 28 October 2026 — Improve Flutter delegated-access controls (P2-14, step)
+
+Delegated-access actions now use token-based touch targets and theme-aware focus borders. Large-text widget checks cover control reachability and revocation disabling execution, while browser checks measure the initial consent actions without sending a mutation. [Design details](development/design-tokens.md).
+
 ## 28 October 2026 — Improve Flutter connections refresh focus (P2-14, step)
 
 The connections refresh action now uses a token-based touch target and a theme-aware keyboard focus border. Widget checks cover English and Arabic, enlarged text and refresh behavior; browser checks measure the exposed action. [Design details](development/design-tokens.md).

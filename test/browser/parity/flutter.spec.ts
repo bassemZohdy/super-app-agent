@@ -115,3 +115,31 @@ test('Flutter web uses the same exact focused approval before making a simulated
   await page.getByRole('button', { name: 'Confirm simulated payment', exact: true }).click();
   await expect(page.getByText('Your simulated receipt', { exact: true })).toBeVisible(); expect(focused.payments()).toBe(1);
 });
+
+test('Flutter delegated access controls have accessible touch targets', async ({ page, flutterUrl }) => {
+  let mutations = 0;
+  await page.route('http://localhost:4000/**', route => {
+    const path = new URL(route.request().url()).pathname;
+    const headers = { 'access-control-allow-origin': flutterUrl, 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' };
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
+    if (path.startsWith('/api/delegation/grants') && route.request().method() !== 'GET') mutations++;
+    const value = path === '/api/auth/config' ? { enabled: false } : path === '/api/accounts' ? { accounts: [{ id: 'test-account', label: 'Personal account' }], user: { name: 'Demo resident' } } : path === '/api/delegation/grants' ? { grants: [] } : { success: true };
+    return route.fulfill({ json: value, headers });
+  });
+  await page.goto(flutterUrl);
+  await page.locator('flt-semantics-placeholder').waitFor();
+  await page.locator('flt-semantics-placeholder').evaluate((element: HTMLElement) => element.click());
+  if (page.viewportSize()!.width < 900) {
+    await page.getByRole('button', { name: 'Workspace tools' }).click();
+    await page.getByRole('menuitem', { name: 'Delegated access', exact: true }).click();
+  } else await page.getByRole('button', { name: 'Delegated access', exact: true }).click();
+  for (const name of ['Allow up to 3 wallet balance checks', 'Approve one AED 1 demo wallet credit']) {
+    const button = page.getByRole('button', { name, exact: true });
+    await expect(button).toBeVisible();
+    const bounds = (await button.boundingBox())!;
+    expect(bounds.width).toBeGreaterThanOrEqual(44);
+    expect(bounds.height).toBeGreaterThanOrEqual(44);
+    await button.focus(); await expect(button).toBeFocused();
+  }
+  expect(mutations).toBe(0);
+});

@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
+import 'theme/tokens.g.dart';
+
 class DelegationPanel extends StatefulWidget {
   const DelegationPanel({
     super.key,
@@ -21,6 +23,21 @@ class _DelegationPanelState extends State<DelegationPanel> {
   List<Map<String, dynamic>> _grants = [];
   String _notice = '';
   bool _busy = false;
+  ButtonStyle _buttonStyle(ButtonStyle base) => base.copyWith(
+    side: WidgetStateProperty.resolveWith((states) {
+      if (!states.contains(WidgetState.focused)) return null;
+      return BorderSide(
+        color: Theme.of(context).brightness == Brightness.dark
+            ? CitysideTokens.darkFocusRing
+            : CitysideTokens.focusRing,
+        width: 3,
+      );
+    }),
+  );
+  static const _target = Size(
+    CitysideTokens.spaceLarge * 2,
+    CitysideTokens.spaceLarge * 2,
+  );
   @override
   void initState() {
     super.initState();
@@ -98,10 +115,22 @@ class _DelegationPanelState extends State<DelegationPanel> {
           'Cityside demo broker · current account only · five-minute consent. Review the exact operation before allowing it.',
         ),
         FilledButton(
+          style: _buttonStyle(
+            FilledButton.styleFrom(
+              minimumSize: _target,
+              visualDensity: VisualDensity.standard,
+            ),
+          ),
           onPressed: _busy ? null : () => _work(() => _create(false)),
           child: const Text('Allow up to 3 wallet balance checks'),
         ),
         OutlinedButton(
+          style: _buttonStyle(
+            OutlinedButton.styleFrom(
+              minimumSize: _target,
+              visualDensity: VisualDensity.standard,
+            ),
+          ),
           onPressed: _busy ? null : () => _work(() => _create(true)),
           child: const Text('Approve one AED 1 demo wallet credit'),
         ),
@@ -122,6 +151,12 @@ class _DelegationPanelState extends State<DelegationPanel> {
                         : 'Active'}',
                   ),
                   TextButton(
+                    style: _buttonStyle(
+                      TextButton.styleFrom(
+                        minimumSize: _target,
+                        visualDensity: VisualDensity.standard,
+                      ),
+                    ),
                     onPressed:
                         _busy ||
                             grant['revokedAt'] != null ||
@@ -150,6 +185,12 @@ class _DelegationPanelState extends State<DelegationPanel> {
                     child: const Text('Run approved operation'),
                   ),
                   TextButton(
+                    style: _buttonStyle(
+                      TextButton.styleFrom(
+                        minimumSize: _target,
+                        visualDensity: VisualDensity.standard,
+                      ),
+                    ),
                     onPressed: _busy || grant['revokedAt'] != null
                         ? null
                         : () => _work(() async {
@@ -159,6 +200,12 @@ class _DelegationPanelState extends State<DelegationPanel> {
                     child: const Text('Revoke consent'),
                   ),
                   TextButton(
+                    style: _buttonStyle(
+                      TextButton.styleFrom(
+                        minimumSize: _target,
+                        visualDensity: VisualDensity.standard,
+                      ),
+                    ),
                     onPressed: _busy
                         ? null
                         : () => _work(() async {
