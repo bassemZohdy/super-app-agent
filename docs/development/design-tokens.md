@@ -56,3 +56,5 @@ The Flutter workspace divider and pane action buttons use 48px targets derived f
 Flutter web links its generated divider slider to the labeled semantics container with `aria-labelledby`. The link follows label changes and is recreated when layouts rebuild, while any name supplied by the engine takes precedence. Browser checks verify the computed slider name, target size, value and keyboard operation; physical screen-reader testing remains separate.
 
 The focused fines sign-in form uses token-based 48px action targets and a theme-aware input focus border. Its content scrolls on short screens at large text sizes, keeping both sign-in actions reachable. Widget checks cover keyboard focus, dark mode, reduced motion and large text; web checks measure the exposed controls.
+
+The focused Flutter conversation keeps a scrollable composer and horizontally scrollable actions inside the available pane space. Its message field uses the theme's focus token and its actions have token-based 48px minimum targets. Widget checks exercise short phones with regular and doubled text and verify that the actions can be reached without overflow.

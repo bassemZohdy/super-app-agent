@@ -89,6 +89,11 @@ test('Flutter web uses the same exact focused approval before making a simulated
   await page.locator('flt-semantics-placeholder').waitFor(); await page.locator('flt-semantics-placeholder').evaluate((element: HTMLElement) => element.click());
   await enterFlutterAccessToken(page, focused.token);
   await page.getByRole('button', { name: 'Open my fines', exact: true }).click();
+  const send = page.getByRole('button', { name: 'Send message', exact: true });
+  await expect(send).toBeVisible();
+  const sendSize = (await send.boundingBox())!;
+  expect(sendSize.width).toBeGreaterThanOrEqual(44);
+  expect(sendSize.height).toBeGreaterThanOrEqual(44);
   await page.getByRole('button', { name: 'Review payment', exact: true }).click();
   await expect(page.getByText('Simulated total: AED 450.00', { exact: true })).toBeVisible(); expect(focused.payments()).toBe(0);
   await page.getByRole('button', { name: 'Confirm simulated payment', exact: true }).click();

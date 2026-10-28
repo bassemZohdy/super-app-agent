@@ -263,24 +263,26 @@ class _FocusedWorkspaceState extends State<FocusedWorkspace> {
             ),
           ),
         if (client != null) ...[
-          Wrap(
-            spacing: 8,
-            children: [
-              TextButton(
-                onPressed: pending || active != null || needsRecovery
-                    ? null
-                    : start,
-                child: const Text('Start a new conversation'),
-              ),
-              TextButton(
-                onPressed: pending ? null : inspect,
-                child: const Text('Inspect saved conversation'),
-              ),
-              TextButton(
-                onPressed: pending ? null : () => transition('recover'),
-                child: const Text('Recover saved operation'),
-              ),
-            ],
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                TextButton(
+                  onPressed: pending || active != null || needsRecovery
+                      ? null
+                      : start,
+                  child: const Text('Start a new conversation'),
+                ),
+                TextButton(
+                  onPressed: pending ? null : inspect,
+                  child: const Text('Inspect saved conversation'),
+                ),
+                TextButton(
+                  onPressed: pending ? null : () => transition('recover'),
+                  child: const Text('Recover saved operation'),
+                ),
+              ],
+            ),
           ),
           Expanded(
             child: WorkspacePanes(
@@ -293,87 +295,155 @@ class _FocusedWorkspaceState extends State<FocusedWorkspace> {
       ],
     ),
   );
-  Widget conversation() => Padding(
-    padding: const EdgeInsets.all(12),
-    child: Column(
-      children: [
-        Expanded(
-          child: ListView(
-            children: [
-              for (final message in (data?['messages'] as List? ?? []))
-                ListTile(
-                  title: Text(message['role'] == 'user' ? 'You' : 'Rashid'),
-                  subtitle: SelectableText(message['content'] as String),
-                ),
-              if ((data?['reply'] as String? ?? '').isNotEmpty)
-                Text(data!['reply'] as String),
-              if (needsRecovery)
-                const Text(
-                  'Inspect and recover the original operation before continuing.',
-                ),
-            ],
+  Widget conversation() => LayoutBuilder(
+    builder: (context, constraints) => Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        children: [
+          Expanded(
+            child: ListView(
+              children: [
+                for (final message in (data?['messages'] as List? ?? []))
+                  ListTile(
+                    title: Text(message['role'] == 'user' ? 'You' : 'Rashid'),
+                    subtitle: SelectableText(message['content'] as String),
+                  ),
+                if ((data?['reply'] as String? ?? '').isNotEmpty)
+                  Text(data!['reply'] as String),
+                if (needsRecovery)
+                  const Text(
+                    'Inspect and recover the original operation before continuing.',
+                  ),
+              ],
+            ),
           ),
-        ),
-        TextField(
-          controller: draft,
-          enabled: canMessage,
-          maxLength: 2000,
-          minLines: 1,
-          maxLines: 3,
-          decoration: const InputDecoration(labelText: 'Message about fines'),
-          onSubmitted: (value) {
-            if (canMessage && value.trim().isNotEmpty) {
-              transition('messages', {'message': value.trim()});
-            }
-          },
-        ),
-        Wrap(
-          spacing: 8,
-          children: [
-            FilledButton(
-              onPressed: canMessage
-                  ? () {
-                      if (draft.text.trim().isNotEmpty) {
-                        transition('messages', {'message': draft.text.trim()});
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight:
+                  (constraints.maxHeight - 24).clamp(0, double.infinity) * .85,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  TextField(
+                    controller: draft,
+                    enabled: canMessage,
+                    maxLength: 2000,
+                    minLines: 1,
+                    maxLines: 3,
+                    decoration: InputDecoration(
+                      labelText: 'Message about fines',
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(
+                          CitysideTokens.radiusMd,
+                        ),
+                        borderSide: BorderSide(
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? CitysideTokens.darkFocusRing
+                              : CitysideTokens.focusRing,
+                          width: 3,
+                        ),
+                      ),
+                    ),
+                    onSubmitted: (value) {
+                      if (canMessage && value.trim().isNotEmpty) {
+                        transition('messages', {'message': value.trim()});
                       }
-                    }
-                  : null,
-              child: const Text('Send message'),
+                    },
+                  ),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        FilledButton(
+                          style: FilledButton.styleFrom(
+                            visualDensity: VisualDensity.standard,
+                            minimumSize: const Size(
+                              CitysideTokens.spaceLarge * 2,
+                              CitysideTokens.spaceLarge * 2,
+                            ),
+                          ),
+                          onPressed: canMessage
+                              ? () {
+                                  if (draft.text.trim().isNotEmpty) {
+                                    transition('messages', {
+                                      'message': draft.text.trim(),
+                                    });
+                                  }
+                                }
+                              : null,
+                          child: const Text('Send message'),
+                        ),
+                        TextButton(
+                          style: TextButton.styleFrom(
+                            visualDensity: VisualDensity.standard,
+                            minimumSize: const Size(
+                              CitysideTokens.spaceLarge * 2,
+                              CitysideTokens.spaceLarge * 2,
+                            ),
+                          ),
+                          onPressed: canMessage
+                              ? () => transition('messages', {
+                                  'message': 'Show outstanding fines',
+                                })
+                              : null,
+                          child: const Text('Show outstanding fines'),
+                        ),
+                        TextButton(
+                          style: TextButton.styleFrom(
+                            visualDensity: VisualDensity.standard,
+                            minimumSize: const Size(
+                              CitysideTokens.spaceLarge * 2,
+                              CitysideTokens.spaceLarge * 2,
+                            ),
+                          ),
+                          onPressed: canMessage
+                              ? () => transition('messages', {
+                                  'message': 'Pay my outstanding fines',
+                                })
+                              : null,
+                          child: const Text('Review payment'),
+                        ),
+                        TextButton(
+                          style: TextButton.styleFrom(
+                            visualDensity: VisualDensity.standard,
+                            minimumSize: const Size(
+                              CitysideTokens.spaceLarge * 2,
+                              CitysideTokens.spaceLarge * 2,
+                            ),
+                          ),
+                          onPressed: canMessage
+                              ? () => transition('messages', {
+                                  'message': 'Renew my car registration',
+                                })
+                              : null,
+                          child: const Text('Renew vehicle registration'),
+                        ),
+                        TextButton(
+                          style: TextButton.styleFrom(
+                            visualDensity: VisualDensity.standard,
+                            minimumSize: const Size(
+                              CitysideTokens.spaceLarge * 2,
+                              CitysideTokens.spaceLarge * 2,
+                            ),
+                          ),
+                          onPressed:
+                              pending ||
+                                  needsRecovery ||
+                                  data?['status'] == 'cancelled'
+                              ? null
+                              : () => transition('cancel'),
+                          child: const Text('Cancel conversation'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
-            TextButton(
-              onPressed: canMessage
-                  ? () => transition('messages', {
-                      'message': 'Show outstanding fines',
-                    })
-                  : null,
-              child: const Text('Show outstanding fines'),
-            ),
-            TextButton(
-              onPressed: canMessage
-                  ? () => transition('messages', {
-                      'message': 'Pay my outstanding fines',
-                    })
-                  : null,
-              child: const Text('Review payment'),
-            ),
-            TextButton(
-              onPressed: canMessage
-                  ? () => transition('messages', {
-                      'message': 'Renew my car registration',
-                    })
-                  : null,
-              child: const Text('Renew vehicle registration'),
-            ),
-            TextButton(
-              onPressed:
-                  pending || needsRecovery || data?['status'] == 'cancelled'
-                  ? null
-                  : () => transition('cancel'),
-              child: const Text('Cancel conversation'),
-            ),
-          ],
-        ),
-      ],
+          ),
+        ],
+      ),
     ),
   );
   Widget details() => ListView(

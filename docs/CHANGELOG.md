@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 28 October 2026 — Keep Flutter conversation actions reachable (P2-14, step)
+
+The focused conversation now contains its composer and actions within scrollable areas, avoiding short-phone overflow at regular and enlarged text sizes. Action targets use shared spacing tokens and the message field has a theme-aware focus border. Widget checks measure the controls and their scroll reachability. [Design details](development/design-tokens.md).
+
 ## 28 October 2026 — Make phone pane switching visible (QA-06, step)
 
 The swap icon now changes the visible view on single-pane phones in React, Angular and Flutter and remains available to switch back. The active web workspace control has a stronger token-based highlight. React's stacked fines layout scrolls to the pane moved to the top. Phone checks cover both directions, selection and draft retention; split and fold layouts keep their existing behavior. [Design details](development/design-tokens.md).
