@@ -51,4 +51,4 @@ Angular and Flutter use the same equal split, bounded resize, swap and maximize/
 
 The Flutter workspace divider and pane action buttons use 48px targets derived from the shared spacing scale. The divider exposes increase/decrease semantics, Left/Right steps, Shift for larger steps, Home/End bounds and Enter reset. A 3px focus border uses the theme-appropriate focus token and appears without animation, including when reduced motion is requested. Widget and web checks cover the pane controls; other Flutter panels remain separate.
 
-Flutter web places the divider label on a surrounding semantics node, while its generated slider input has no computed accessible name. Its screen-reader name requires further work; the browser test checks the container label, target size and adjustable value.
+Flutter web links its generated divider slider to the labeled semantics container with `aria-labelledby`. The link follows label changes and is recreated when layouts rebuild, while any name supplied by the engine takes precedence. Browser checks verify the computed slider name, target size, value and keyboard operation; physical screen-reader testing remains separate.

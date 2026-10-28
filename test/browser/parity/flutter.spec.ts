@@ -30,13 +30,34 @@ test('Flutter web shows the selected provider and exposes the new workspace tool
   if (page.viewportSize()!.width < 900) { await page.getByRole('button', { name: 'Workspace tools' }).click(); await expect(page.getByRole('menuitem', { name: 'Connections', exact: true })).toBeVisible(); }
   else {
     await expect(page.getByRole('button', { name: 'Connections', exact: true })).toBeVisible();
-    const divider = page.getByLabel('Resize conversation and service details', { exact: false });
-    await expect(divider).toBeVisible();
-    expect((await divider.boundingBox())!.width).toBeGreaterThanOrEqual(44);
-    const slider = divider.getByRole('slider');
+    const slider = page.getByRole('slider', { name: 'Resize conversation and service details', exact: true });
+    await expect(slider).toBeVisible({ timeout: 5000 });
+    const container = page.locator('flt-semantics[flt-semantics-identifier^="cityside.workspace-divider."]');
+    expect((await container.boundingBox())!.width).toBeGreaterThanOrEqual(44);
+    const input = container.locator('input[type="range"]');
+    await container.evaluate(element => element.setAttribute('aria-label', 'Updated divider label'));
+    await expect(page.getByRole('slider', { name: 'Updated divider label', exact: true })).toBeVisible();
+    await container.evaluate(element => element.setAttribute('aria-label', 'Resize conversation and service details'));
+    await expect(slider).toBeVisible();
+    await input.evaluate(element => element.setAttribute('aria-label', 'Engine-provided name'));
+    await expect(page.getByRole('slider', { name: 'Engine-provided name', exact: true })).toBeVisible();
+    await expect(input).not.toHaveAttribute('aria-labelledby', /.+/);
+    await input.evaluate(element => element.removeAttribute('aria-label'));
+    await expect(slider).toBeVisible();
+    await page.evaluate(() => { const input = document.createElement('input'); input.type = 'range'; input.id = 'unrelated-slider'; document.body.appendChild(input); });
+    await expect(page.locator('#unrelated-slider')).not.toHaveAttribute('aria-labelledby', /.+/);
     await expect(slider).toHaveAttribute('aria-valuetext', '50% conversation');
     await slider.focus(); await slider.press('ArrowRight');
     await expect(slider).toHaveAttribute('aria-valuetext', '55% conversation');
+    await page.getByRole('button', { name: 'Maximize conversation', exact: true }).click();
+    await expect(slider).toHaveCount(0);
+    await page.getByRole('button', { name: 'Restore conversation', exact: true }).click();
+    await expect(slider).toBeVisible();
+    await expect(slider).toHaveAttribute('aria-valuetext', '55% conversation');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(slider).toHaveCount(0);
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await expect(slider).toBeVisible();
   }
 });
 

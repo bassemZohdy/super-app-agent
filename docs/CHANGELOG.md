@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 28 October 2026 — Name the Flutter web divider slider (QA-06, step)
+
+Flutter web generated a labeled divider container but left its focusable range input unnamed. A narrowly scoped web bridge links the input to its existing semantics label, preserves any engine-provided name and reconnects it after pane or viewport changes. Browser checks exercise the computed name, keyboard value, dynamic labels, engine-provided names and an unrelated slider. This follows the P2-14 divider measurement because the missing name blocked accessible use of that control; physical screen-reader testing remains separate. [Design details](development/design-tokens.md).
+
 ## 28 October 2026 — Make Flutter workspace pane controls easier to use (P2-14, step)
 
 The pane divider and header actions now have larger token-based touch targets, and the divider shows a theme-aware focus ring when focused. Keyboard users can use Shift with the arrow keys for larger resize steps; the existing bounds, reset, swap, restore and fold behavior remain. Widget tests measure control size, keyboard traversal and focus in light and dark/reduced-motion settings; a web regression checks the exposed divider. Other Flutter panels retain their separate acceptance work. [Design details](development/design-tokens.md).

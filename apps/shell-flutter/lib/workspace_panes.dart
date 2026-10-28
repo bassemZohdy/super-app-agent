@@ -22,6 +22,9 @@ class WorkspacePanes extends StatefulWidget {
 }
 
 class _WorkspacePanesState extends State<WorkspacePanes> {
+  static int _nextDividerId = 0;
+  final String _dividerSemanticsId =
+      'cityside.workspace-divider.${_nextDividerId++}';
   bool conversationFirst = true;
   bool mobileConversation = true;
   String? maximized;
@@ -233,6 +236,7 @@ class _WorkspacePanesState extends State<WorkspacePanes> {
                 if (mounted) setState(() => dividerFocused = focused);
               },
               child: Semantics(
+                identifier: _dividerSemanticsId,
                 label: 'Resize conversation and service details',
                 value: '${(visibleSplit * 100).round()}% conversation',
                 increasedValue:
