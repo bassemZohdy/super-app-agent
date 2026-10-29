@@ -1,9 +1,10 @@
-/** The local demo addresses services fall back to when their environment variable is unset (P2-06). They live here, once, so a
- *  default is changed in one place and a test can pin them; every function reads the environment at call time. Production
- *  configuration sets the variables, and `checkedEndpoint`-style callers still validate what they get. */
+/** The local demo addresses services and the shells fall back to when their environment variable is unset (P2-06). They live here,
+ *  once, so a default is changed in one place and a test can pin them; every function reads the environment at call time.
+ *  Production configuration sets the variables, and `checkedEndpoint`-style callers still validate what they get. */
 type Env = Record<string, string | undefined>;
 
 export const LOCAL_DEFAULTS = {
+  GATEWAY_URL: 'http://localhost:4000',
   PROVIDER_PAYMENTS_URL: 'http://localhost:4107',
   DELEGATION_AUTHORITY_URL: 'http://localhost:4010',
   DELEGATION_ISSUER: 'http://localhost:4000/api/delegation',

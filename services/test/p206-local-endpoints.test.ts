@@ -34,3 +34,13 @@ test('P2-06: the voice, conversation and CORS defaults and the port tables come 
   assert.deepEqual(Object.values(SERVICE_PORTS), [4001, 4002, 4003, 4004, 4005, 4006]);
   assert.deepEqual(Object.values(PROVIDER_PORTS), [4101, 4102, 4103, 4104, 4105, 4106, 4107]);
 });
+
+test('P2-06: the shells and their generator take the gateway default from the table, not a second copy', () => {
+  assert.equal(LOCAL_DEFAULTS.GATEWAY_URL, 'http://localhost:4000');
+  const app = readFileSync('apps/shell-react/src/App.tsx', 'utf8');
+  assert.match(app, /LOCAL_DEFAULTS\.GATEWAY_URL/, 'the React shell falls back to the shared default');
+  assert.doesNotMatch(app, /'http:\/\/localhost:4000'/, 'the React shell carries no second copy of the default');
+  const generator = readFileSync('scripts/angular-environment.ts', 'utf8');
+  assert.match(generator, /LOCAL_DEFAULTS\.GATEWAY_URL/, 'the Angular generator takes its default from the table');
+  assert.doesNotMatch(generator, /'http:\/\/localhost:4000'/, 'the generator carries no second copy of the default');
+});

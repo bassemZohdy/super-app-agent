@@ -14,9 +14,10 @@ import { connectEventStream } from '../../../packages/protocol-core/src/sse-clie
 import type { AGUISurfacePayload } from '../../../packages/protocol-core/src/index.ts';
 import { WorkspacePanes } from './components/WorkspacePanes.tsx';
 import { A2UIRenderer } from './components/A2UIRenderer.tsx';
+import { LOCAL_DEFAULTS } from '../../../packages/backend-kit/src/local-endpoints.ts';
 import './chat-workspace.css';
 
-const GATEWAY_URL = import.meta.env.VITE_GATEWAY_URL || 'http://localhost:4000';
+const GATEWAY_URL = import.meta.env.VITE_GATEWAY_URL || LOCAL_DEFAULTS.GATEWAY_URL;
 const services = [
   { id: 'mobility', name: 'Getting around', short: 'Mobility', detail: 'Parking, rides & Salik', icon: CarFront, color: 'blue', prompt: 'Show me parking zones and my Salik balance' },
   { id: 'utilities', name: 'Home essentials', short: 'Utilities', detail: 'Electricity & water', icon: Zap, color: 'amber', prompt: 'Check my DEWA electricity and water bill' },

@@ -3,8 +3,9 @@
  *  so a plain build changes nothing. The value must be a bare http(s) origin: no path, query, fragment or credentials. */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { LOCAL_DEFAULTS } from '../packages/backend-kit/src/local-endpoints.ts';
 
-export const DEFAULT_GATEWAY_URL = 'http://localhost:4000';
+export const DEFAULT_GATEWAY_URL = LOCAL_DEFAULTS.GATEWAY_URL;
 
 export function gatewayOrigin(value: string | undefined): string {
   if (value === undefined || value.trim() === '') return DEFAULT_GATEWAY_URL;
