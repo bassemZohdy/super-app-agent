@@ -4,10 +4,12 @@ import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { OFFSET, PORTS, PROJECT, INTERACTIVE_PROJECT, SECRET_VARIABLES, assertIsolated, childEnvironment, endpointEnvironment, ensureEnvironment, portVariables } from '../../scripts/qualification-stack.ts';
+import { CLIENT_SECRET_VARIABLES } from '../../scripts/realm-client-secrets.ts';
 import { portOffset } from '../../scripts/endpoints.ts';
 import { removeTemp } from '../../test/support/temp-cleanup.ts';
 
 const compose = readFileSync('docker-compose.demo.yml', 'utf8');
+const reconcile = readFileSync('scripts/configure-demo-keycloak.ts', 'utf8');
 
 test('P2-09: every published port in the Compose file is a variable whose default is the interactive port', () => {
   const published = [...compose.matchAll(/^\s+- '127\.0\.0\.1:\$\{(PORT_[A-Z_]+):-(\d+)\}:\d+'$/gm)].map(match => [match[1], Number(match[2])] as const);
@@ -64,4 +66,20 @@ test('P2-09: the qualification ports stay clear of the in-process browser journe
   const lowest = Math.min(...Object.values(portVariables()).map(Number)), highest = Math.max(...Object.values(portVariables()).map(Number));
   assert.ok(lowest > 14000 + 200, 'above the E2E_CORE_PORT range (14000 plus its provider offsets)');
   assert.ok(highest < 49152, 'below the dynamic port range');
+});
+
+test('P2-09: every realm client secret is a per-stack credential that reaches its consumer, seeded only as the interactive default', () => {
+  const realm = JSON.parse(readFileSync('services/keycloak/realm-export.json', 'utf8')) as { clients: Array<{ clientId: string; secret?: string }> };
+  const confidential = realm.clients.filter(client => client.secret);
+  assert.ok(confidential.length >= 15, 'every confidential client of the realm is covered');
+  for (const client of confidential) {
+    const entry = CLIENT_SECRET_VARIABLES[client.clientId];
+    assert.ok(entry, `${client.clientId} names the variable that carries its secret`);
+    assert.ok(SECRET_VARIABLES.includes(entry.variable), `${entry.variable} is generated per stack`);
+    if (entry.compose) assert.match(compose, new RegExp(`\\$\\{${entry.variable}:-${client.secret}\\}`), `${entry.variable} reaches the Compose file with the seeded default`);
+    else assert.match(readFileSync('scripts/payment-access.ts', 'utf8'), new RegExp(`process\\.env\\.${entry.variable}`), `${entry.variable} reaches the script that authenticates as ${client.clientId}`);
+  }
+  assert.match(reconcile, /CLIENT_SECRET_VARIABLES\[client\.clientId\]/, 'the realm reconcile sets each client secret from its variable');
+  assert.doesNotMatch(reconcile, /demo-[a-z]+-secret/, 'the reconcile carries no seeded secret of its own');
+  assert.match(readFileSync('scripts/verify-demo-stack.ts', 'utf8'), /process\.env\.SERVICE_WALLET_CLIENT_SECRET/, 'the stack verification reads the generated service secrets');
 });

@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { CLIENT_SECRET_VARIABLES } from './realm-client-secrets.ts';
 
 export const INTERACTIVE_PROJECT = 'cityside-demo';
 export const PROJECT = 'cityside-qualify';
@@ -20,10 +21,11 @@ export const PORTS: Readonly<Record<string, number>> = {
   PORT_PROVIDER_PAYMENTS: 4107, PORT_REDIS: 6379, PORT_KEYCLOAK: 8085,
 };
 const PRODUCERS = ['RTA', 'DEWA', 'ETISALAT', 'DU', 'POLICE', 'PAYMENTS'];
-/** Credentials the Compose file takes from the environment on both sides of a call, so they can be random per stack. Realm client
- *  secrets are fixed by the imported realm and stay the seeded demo values until the realm is generated too. */
-export const SECRET_VARIABLES = ['OPS_API_KEY', 'ELIGIBILITY_READER_SECRET', 'KEYCLOAK_ADMIN_PASSWORD', 'PROVIDER_SETTLEMENT_SECRET',
-  ...PRODUCERS.map(name => `PROVIDER_${name}_CLAIM_SECRET`).filter(name => name !== 'PROVIDER_PAYMENTS_CLAIM_SECRET'), ...PRODUCERS.map(name => `PAYMENT_EVENT_${name}_KEY`)];
+/** Credentials the Compose file takes from the environment on both sides of a call, so they can be random per stack: every realm
+ *  client secret (the reconcile sets it from the same variable), the operator key, the Keycloak admin password and the payment
+ *  event signing keys. */
+export const SECRET_VARIABLES = [...new Set(['OPS_API_KEY', 'KEYCLOAK_ADMIN_PASSWORD',
+  ...Object.values(CLIENT_SECRET_VARIABLES).map(entry => entry.variable), ...PRODUCERS.map(name => `PAYMENT_EVENT_${name}_KEY`)])];
 
 export const portVariables = (offset = OFFSET) => Object.fromEntries(Object.entries(PORTS).map(([name, port]) => [name, String(port + offset)]));
 

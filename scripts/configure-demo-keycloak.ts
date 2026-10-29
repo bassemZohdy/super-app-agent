@@ -1,4 +1,5 @@
 import { keycloakRootUrl } from './endpoints.ts';
+import { CLIENT_SECRET_VARIABLES } from './realm-client-secrets.ts';
 /** Reconcile only the checked-in demo realm configuration; preserve existing user/provider data. */
 import { readFileSync } from 'node:fs';
 import { configureDelegation } from '../services/delegation/src/keycloak-config.ts';
@@ -18,10 +19,8 @@ for (const role of realm.roles.realm) {
 }
 const allRoles = await api('/roles');
 for (const client of realm.clients) {
-  const claimant=/^provider-(rta|dewa|etisalat|du|police)-settlement$/.exec(client.clientId);
-  if(claimant)client.secret=process.env[`PROVIDER_${claimant[1].toUpperCase()}_CLAIM_SECRET`]||client.secret;
-  if(client.clientId==='provider-eligibility')client.secret=process.env.ELIGIBILITY_READER_SECRET||client.secret;
-  if(client.clientId==='eligibility-operator')client.secret=process.env.ELIGIBILITY_OPERATOR_SECRET||client.secret;
+  const carried = CLIENT_SECRET_VARIABLES[client.clientId]?.variable;
+  if (carried && process.env[carried]) client.secret = process.env[carried];
   const existing = await api(`/clients?clientId=${encodeURIComponent(client.clientId)}`);
   if (existing.length) await api(`/clients/${existing[0].id}`, 'PUT', { ...existing[0], ...client });
   else await api('/clients', 'POST', client);
