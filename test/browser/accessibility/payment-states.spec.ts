@@ -2,7 +2,7 @@
  *  masked card, a rule that is paused and one that is approved, a top-up waiting on a card challenge and a payment whose outcome
  *  is unknown. On that crowded screen the journey measures what the resident meets: no card number beyond its last digits, every
  *  control named and at least 44px, nothing wider than the screen, the paused/unknown/challenge states said in words and reachable
- *  with the keyboard, and the account switch leaving none of it behind. */
+ *  with the keyboard, a revoked rule left with nothing to run or resume, and the account switch leaving none of it behind. */
 import { billRulePolicy } from '../../../packages/protocol-core/src/bill-rule.ts';
 import { scenarioTest as test, expect } from '../stack.ts';
 import { withAccountSwitcher } from '../layout.ts';
@@ -88,6 +88,20 @@ test('masked cards, a paused rule, a challenge and an unknown outcome are readab
   await expect(rule(second.id)).toContainText(/Paused/);
   expect(((await call('mandates')).data.mandates as Array<{ state: string }>).map(r => r.state)).toEqual(['PAUSED', 'PAUSED']);
 
+  // Revoking the paused rule is a keyboard action too, and it leaves the rule with nothing to run, resume or revoke again.
+  const revoke = rule(first.id).getByRole('button', { name: 'Revoke rule', exact: true });
+  await revoke.focus();
+  await expect(revoke).toBeFocused();
+  const revoked = resident.waitForResponse(r => new URL(r.url()).pathname === '/api/payments/mandates/revoke' && r.request().method() === 'POST');
+  await resident.keyboard.press('Enter');
+  expect((await revoked).status()).toBe(200);
+  await expect(rule(first.id)).toContainText(/Revoked/);
+  expect(await rule(first.id).getByRole('button', { name: 'Resume rule', exact: true }).count(), 'a revoked rule offers no resume').toBe(0);
+  expect(await rule(first.id).getByRole('button', { name: 'Revoke rule', exact: true }).count(), 'a revoked rule offers no second revoke').toBe(0);
+  await expect(rule(second.id)).toContainText(/Paused/);
+  expect(await rule(second.id).getByRole('button', { name: 'Resume rule', exact: true }).count(), 'the untouched paused rule still resumes').toBe(1);
+  expect(((await call('mandates')).data.mandates as Array<{ state: string }>).map(r => r.state).sort()).toEqual(['PAUSED', 'REVOKED']);
+
   // Switching account leaves none of it behind, and switching back finds it as it was.
   await withAccountSwitcher(resident, async switcher => { const value = await switcher.locator('option').filter({ hasText: 'Household account' }).getAttribute('value'); await switcher.selectOption(value!); });
   await panel.getByText('AED 1500.00', { exact: true }).waitFor();
@@ -95,6 +109,7 @@ test('masked cards, a paused rule, a challenge and an unknown outcome are readab
   for (const leaked of ['Phone card', first.id, second.id, topup.id, lost.data.order.id]) expect(other, `${leaked} does not follow the resident to another account`).not.toContain(leaked);
   await withAccountSwitcher(resident, async switcher => { await switcher.selectOption(accountId); });
   await panel.getByRole('button', { name: 'Load automation rules', exact: true }).click();
-  await expect(rule(first.id)).toContainText(/Paused/);
+  await expect(rule(first.id)).toContainText(/Revoked/);
+  await expect(rule(second.id)).toContainText(/Paused/);
   expect(await text()).toContain('Phone card ·•••• 4242');
 });

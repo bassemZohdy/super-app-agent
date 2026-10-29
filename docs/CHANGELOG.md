@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 29 October 2026 — Revoke a rule from the keyboard in the hardest-states journey (QA-06, step)
+
+The React payments journey that runs on a crowded screen (masked card, a paused and an approved rule, a card challenge, an unknown outcome) now revokes the paused rule with the keyboard as well. The journey verifies the revoked state is said in words, that a revoked rule offers no resume, skip or second revoke while the untouched paused rule still resumes, and that returning from another account finds it still revoked with the other rule untouched. Desktop and phone projects pass; the Flutter panel measure remains a separate toolchain. [Verification](development/testing.md#browser-journeys-under-playwright-test).
+
 ## 28 October 2026 — Improve Flutter delegated-access controls (P2-14, step)
 
 Delegated-access actions now use token-based touch targets and theme-aware focus borders. Large-text widget checks cover control reachability and revocation disabling execution, while browser checks measure the initial consent actions without sending a mutation. [Design details](development/design-tokens.md).
