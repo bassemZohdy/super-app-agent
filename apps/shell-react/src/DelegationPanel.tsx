@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { delegationResult } from '../../../packages/protocol-core/src/delegation-client.ts';
 import { formatMoney, formatTime, translate, type CatalogKey, type Locale } from '../../../packages/protocol-core/src/i18n.ts';
-type Grant = { id: string; purpose: string; provider: string; method: string; path: string; body: { amountMinor?: number }; accountId: string; used: number; maxOperations: number; expiresAt: number; revokedAt?: number };
+type Grant = { id: string; purpose: string; provider: string; method: string; path: string; body: { amountMinor?: number }; accountId: string; used: number; maxOperations: number; expiresAt: number; revokedAt?: number; budgetMinor?: number; spentMinor?: number };
 export function DelegationPanel({ gateway, accountId, getToken, locale = 'en' }: { gateway: string; accountId: string; getToken: () => Promise<string>; locale?: Locale }) {
   const t = (key: CatalogKey, values?: Record<string, string | number>) => translate(locale, key, values);
   const [grants, setGrants] = useState<Grant[]>([]), [busy, setBusy] = useState(false), [notice, setNotice] = useState(''), [history, setHistory] = useState('');
@@ -24,6 +24,7 @@ export function DelegationPanel({ gateway, accountId, getToken, locale = 'en' }:
     {grants.filter(g => g.accountId === accountId).map(g => <article key={g.id}>
       <h3>{g.purpose}</h3><p>{g.method === 'GET' ? t('delegation.readBalance') : t('delegation.creditWallet', { amount: locale === 'ar' ? formatMoney('ar', g.body.amountMinor || 0, 'AED', { grouping: false }) : `AED ${((g.body.amountMinor || 0) / 100).toFixed(2)}` })}</p>
       <p>{t('delegation.status', { state: g.revokedAt ? t('delegation.revoked') : g.expiresAt <= Date.now() ? t('delegation.expired') : t('delegation.active'), used: g.used, max: g.maxOperations, time: locale === 'ar' ? formatTime('ar', g.expiresAt) : new Date(g.expiresAt).toLocaleTimeString() })}</p>
+      {g.budgetMinor !== undefined && <p>{t('delegation.budget', { spent: locale === 'ar' ? formatMoney('ar', g.spentMinor || 0, 'AED', { grouping: false }) : `AED ${((g.spentMinor || 0) / 100).toFixed(2)}`, budget: locale === 'ar' ? formatMoney('ar', g.budgetMinor, 'AED', { grouping: false }) : `AED ${(g.budgetMinor / 100).toFixed(2)}` })}</p>}
       <div className="delegation-actions"><button disabled={busy || Boolean(g.revokedAt) || g.expiresAt <= Date.now() || g.used >= g.maxOperations} onClick={() => void work(async () => { const data = await api(`/${g.id}/execute`, 'POST', { requestKey: crypto.randomUUID() }); setNotice(delegationResult(data.result)); })}>{t('delegation.run')}</button><button disabled={busy || Boolean(g.revokedAt)} onClick={() => void work(async () => { await api(`/${g.id}`, 'DELETE'); setNotice(t('delegation.revokedNotice')); })}>{t('delegation.revoke')}</button><button disabled={busy} onClick={() => void work(async () => { const data = await api(`/${g.id}/history`); setHistory(data.history.map((entry: { at: number; event: string }) => `${new Date(entry.at).toLocaleTimeString()} ${entry.event}`).join('\n')); })}>{t('delegation.history')}</button></div>
     </article>)}
     {!grants.some(g => g.accountId === accountId) && <p>{t('delegation.none')}</p>}

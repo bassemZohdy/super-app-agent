@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 29 October 2026 — Budget spend is visible in the delegated-access panel (P1-10, step)
+
+A grant that carries a spending budget now shows what was spent of it (`Budget: AED x of y spent`, Arabic included) under its status line. The catalog keys pass the every-locale parity check, the React shell builds, and the delegated-access screen keeps its touch, focus and reduced-motion measures on the desktop and phone projects. Guide: [delegation](development/delegation.md).
+
 ## 29 October 2026 — Spending budgets on delegated wallet-credit consent (P1-10, step)
 
 A grant for the approved synthetic wallet credit can now carry an explicit cumulative `budgetMinor`. The policy accepts the budget only for that operation, requires it to cover one operation, allow more than one, and stay inside the bounded AED 100 scale; authorization refuses the operation that would pass the budget (`GRANT_BUDGET_REACHED`) before anything moves, tracks `spentMinor` on the grant and in the audit, and narrowing may lower the budget but never below what was spent and never upward. Grants without a budget behave exactly as before, including the single-operation rule. Taken while the acceptance path's Flutter measures are blocked on this machine. Tests: `services/test/p110-delegation-budget.test.ts`. Guide: [delegation](development/delegation.md).
