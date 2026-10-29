@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 29 October 2026 — Spending budgets on delegated wallet-credit consent (P1-10, step)
+
+A grant for the approved synthetic wallet credit can now carry an explicit cumulative `budgetMinor`. The policy accepts the budget only for that operation, requires it to cover one operation, allow more than one, and stay inside the bounded AED 100 scale; authorization refuses the operation that would pass the budget (`GRANT_BUDGET_REACHED`) before anything moves, tracks `spentMinor` on the grant and in the audit, and narrowing may lower the budget but never below what was spent and never upward. Grants without a budget behave exactly as before, including the single-operation rule. Taken while the acceptance path's Flutter measures are blocked on this machine. Tests: `services/test/p110-delegation-budget.test.ts`. Guide: [delegation](development/delegation.md).
+
 ## 29 October 2026 — One shared gateway default for the shells (P2-06, step)
 
 The gateway origin the shells fall back to now comes from the shared local-endpoints table instead of a second written literal: `local-endpoints.ts` gained the `GATEWAY_URL` default, the React shell's `VITE_GATEWAY_URL` fallback and the Angular build's generator read it from there, and the generated Angular file is byte-for-byte what it was. A regression pins the shell sources to the table and forbids the repeated literal. Taken while the acceptance path's Flutter measures are blocked on this machine (no Flutter toolchain). Both shells build; tests: `services/test/p206-local-endpoints.test.ts`. Guide: [local development](development/local-development.md).

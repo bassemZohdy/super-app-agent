@@ -14,7 +14,7 @@ npm run dev:react
 
 Sign in at localhost:3000 with a seeded demo account. Open **Delegated access**, explicitly approve the displayed wallet-read or AED 1 synthetic-credit grant, review it, then choose **Run approved operation**. Inspect audit history and **Revoke consent**. The Angular shell has the same controls in its Delegated access section. Flutter exposes them through its shield icon; native-device execution remains unverified. These controls are independent of conversation surface approvals.
 
-The user interface presets expire after five minutes. API grants can last 60–3600 seconds; reads allow 1–10 executions. The only delegated write is `payments POST /topups` with the exact body `{amountMinor, source:"demo_approved"}`, AED 1–10, and `maxOperations:1`. The UI approves exactly AED 1. A grant is not a promise that money can be spent generally. Other mutations are denied.
+The user interface presets expire after five minutes. API grants can last 60–3600 seconds; reads allow 1–10 executions. The only delegated write is `payments POST /topups` with the exact body `{amountMinor, source:"demo_approved"}`, AED 1–10, and `maxOperations:1`. With an explicit `budgetMinor` (fils, at least one operation's amount, at most AED 100) the consent may repeat that credit up to `maxOperations` times: authorization refuses the operation that would pass the budget (`GRANT_BUDGET_REACHED`) and tracks `spentMinor` on the grant, and narrowing may lower the budget but never below what was spent and never upward. The UI approves exactly AED 1. A grant is not a promise that money can be spent generally. Other mutations are denied.
 
 ## Components and identity
 
@@ -35,9 +35,9 @@ All browser calls use `/api/delegation` on agent-core with a normal signed user 
 | Method and path | Contract |
 | --- | --- |
 | GET `/grants` | List the signed-in owner's most recent 100 grants |
-| POST `/grants` | Explicit consent: `accountId`, `provider`, `method`, `path`, exact `body`, `purpose`, `expiresInSeconds`, `maxOperations` |
+| POST `/grants` | Explicit consent: `accountId`, `provider`, `method`, `path`, exact `body`, `purpose`, `expiresInSeconds`, `maxOperations`, optional `budgetMinor` for the wallet credit |
 | GET `/grants/{id}` | Inspect an owned grant |
-| POST `/grants/{id}/narrow` | Only reduce `maxOperations` and `expiresAt`; increments version; no expansion |
+| POST `/grants/{id}/narrow` | Only reduce `maxOperations`, `expiresAt` and `budgetMinor` (never below what was spent); increments version; no expansion |
 | DELETE `/grants/{id}` | Revoke owned grant; increments version; repeat withdrawal is safe |
 | GET `/grants/{id}/history` | Last 200 audit events, without credentials |
 | GET `/grants/{id}/operations` | Last 100 execution states/results for owner investigation |

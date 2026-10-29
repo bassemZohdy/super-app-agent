@@ -4,7 +4,7 @@ import { dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { brokerClient, deny, digest, grantInput, type GrantInput, type Operation } from './policy.ts';
 
-export type Grant = GrantInput & { id: string; owner: string; issuer: string; actor: string; version: number; createdAt: number; expiresAt: number; revokedAt?: number; used: number; eligibilityEpoch?:string };
+export type Grant = GrantInput & { id: string; owner: string; issuer: string; actor: string; version: number; createdAt: number; expiresAt: number; revokedAt?: number; used: number; spentMinor: number; eligibilityEpoch?:string };
 type Binding = { grantId: string; version: number; sub: string; actor: string; exp: number; operationId: string; requestDigest: string };
 type Job = { id: string; grantId: string; requestKey: string; state: string; result?: unknown };
 export class GrantStore {
@@ -23,8 +23,8 @@ export class GrantStore {
   create(owner: string, input: GrantInput,eligibilityEpoch?:string): Grant {
     const valid = grantInput(owner, input), now = Date.now();
     if(eligibilityEpoch!==undefined&&!/^[1-9][0-9]{0,6}:[1-9][0-9]{0,6}$/.test(eligibilityEpoch))deny('INVALID_ELIGIBILITY_EPOCH');
-    const grant: Grant = { ...valid,...(eligibilityEpoch?{eligibilityEpoch}:{}), id: randomUUID(), owner, issuer: process.env.KEYCLOAK_ISSUER || 'test-issuer', actor: brokerClient, version: 1, createdAt: now, expiresAt: now + valid.expiresInSeconds * 1000, used: 0 };
-    return this.atomic(() => { this.save(grant, true); this.audit(grant.id, 'consent.created', { owner, actor: brokerClient, operation: digest(valid), purpose: valid.purpose }); return grant; });
+    const grant: Grant = { ...valid,...(eligibilityEpoch?{eligibilityEpoch}:{}), id: randomUUID(), owner, issuer: process.env.KEYCLOAK_ISSUER || 'test-issuer', actor: brokerClient, version: 1, createdAt: now, expiresAt: now + valid.expiresInSeconds * 1000, used: 0, spentMinor: 0 };
+    return this.atomic(() => { this.save(grant, true); this.audit(grant.id, 'consent.created', { owner, actor: brokerClient, operation: digest(valid), purpose: valid.purpose, ...(valid.budgetMinor === undefined ? {} : { budgetMinor: valid.budgetMinor }) }); return grant; });
   }
   private save(grant: Grant, insert = false) { this.db.prepare(insert ? 'INSERT INTO grants(id,owner,body) VALUES(?,?,?)' : 'UPDATE grants SET body=? WHERE id=? AND owner=?').run(...(insert ? [grant.id, grant.owner, JSON.stringify(grant)] : [JSON.stringify(grant), grant.id, grant.owner])); }
   get(id: string, owner?: string): Grant {
@@ -34,17 +34,20 @@ export class GrantStore {
   }
   active(id: string): Grant { const grant = this.get(id); if (grant.issuer !== (process.env.KEYCLOAK_ISSUER || 'test-issuer') || grant.revokedAt || grant.expiresAt <= Date.now()) deny('GRANT_INACTIVE');
     // Retain old consent/audit, but never execute a grant outside today's explicit reviewed profile.
-    grantInput(grant.owner,{accountId:grant.accountId,provider:grant.provider,method:grant.method,path:grant.path,body:grant.body,purpose:grant.purpose,expiresInSeconds:grant.expiresInSeconds,maxOperations:grant.maxOperations});return grant; }
+    grantInput(grant.owner,{accountId:grant.accountId,provider:grant.provider,method:grant.method,path:grant.path,body:grant.body,purpose:grant.purpose,expiresInSeconds:grant.expiresInSeconds,maxOperations:grant.maxOperations,...(grant.budgetMinor===undefined?{}:{budgetMinor:grant.budgetMinor})});return grant; }
   list(owner: string): Grant[] { return this.db.prepare('SELECT body FROM grants WHERE owner=? ORDER BY rowid DESC LIMIT 100').all(owner).map(row => JSON.parse(String(row.body))); }
   history(id: string, owner: string) { this.get(id, owner); return this.db.prepare('SELECT seq,at,event,body FROM audit WHERE grant_id=? ORDER BY seq DESC LIMIT 200').all(id).map(row => ({ ...row, body: JSON.parse(String(row.body)) })); }
   jobs(id: string, owner: string) { this.get(id, owner); return this.db.prepare('SELECT id,request_key,state,result FROM jobs WHERE grant_id=? ORDER BY rowid DESC LIMIT 100').all(id).map(row => ({ ...row, result: row.result ? JSON.parse(String(row.result)) : undefined })); }
   revoke(id: string, owner: string) { return this.atomic(() => { const g = this.get(id, owner); if (!g.revokedAt) { g.revokedAt = Date.now(); g.version++; this.save(g); this.audit(id, 'consent.revoked', { owner, version: g.version }); } return g; }); }
-  narrow(id: string, owner: string, input: { maxOperations: number; expiresAt: number }) {
+  narrow(id: string, owner: string, input: { maxOperations: number; expiresAt: number; budgetMinor?: number }) {
     return this.atomic(() => {
       const g = this.get(id, owner); this.active(id);
-      if (!input || Object.keys(input).sort().join(',') !== 'expiresAt,maxOperations' || !Number.isInteger(input.maxOperations) || input.maxOperations < g.used || input.maxOperations > g.maxOperations || !Number.isSafeInteger(input.expiresAt) || input.expiresAt <= Date.now() || input.expiresAt > g.expiresAt) deny('GRANT_EXPANSION_FORBIDDEN');
-      g.maxOperations = input.maxOperations; g.expiresAt = input.expiresAt; g.version++;
-      this.save(g); this.audit(id, 'consent.narrowed', { owner, version: g.version, maxOperations: g.maxOperations, expiresAt: g.expiresAt }); return g;
+      if (!input || !['expiresAt,maxOperations', 'budgetMinor,expiresAt,maxOperations'].includes(Object.keys(input).sort().join(',')) || !Number.isInteger(input.maxOperations) || input.maxOperations < g.used || input.maxOperations > g.maxOperations || !Number.isSafeInteger(input.expiresAt) || input.expiresAt <= Date.now() || input.expiresAt > g.expiresAt) deny('GRANT_EXPANSION_FORBIDDEN');
+      const lowerBudget = input.budgetMinor !== undefined;
+      if (lowerBudget && (g.budgetMinor === undefined || !Number.isSafeInteger(input.budgetMinor) || (input.budgetMinor as number) > (g.budgetMinor as number))) deny('GRANT_EXPANSION_FORBIDDEN', 'A spending budget cannot be raised.');
+      if (lowerBudget && (input.budgetMinor as number) < g.spentMinor) deny('INVALID_GRANT', 'A spending budget cannot fall below what was already spent.');
+      g.maxOperations = input.maxOperations; g.expiresAt = input.expiresAt; if (lowerBudget) g.budgetMinor = input.budgetMinor; g.version++;
+      this.save(g); this.audit(id, 'consent.narrowed', { owner, version: g.version, maxOperations: g.maxOperations, expiresAt: g.expiresAt, ...(lowerBudget ? { budgetMinor: g.budgetMinor } : {}) }); return g;
     });
   }
   start(id: string, requestKey: string): { job: Job; replay: boolean } {
@@ -74,9 +77,11 @@ export class GrantStore {
       const job = this.db.prepare('SELECT state FROM jobs WHERE id=? AND grant_id=?').get(b.operationId, g.id) as { state: string } | undefined;
       if (!job || job.state !== 'pending') deny('OPERATION_ALREADY_AUTHORIZED');
       if (g.used >= g.maxOperations) deny('GRANT_LIMIT_REACHED');
+      const amount = Number(g.body.amountMinor) || 0;
+      if (g.budgetMinor !== undefined) { if ((g.spentMinor ?? 0) + amount > g.budgetMinor) deny('GRANT_BUDGET_REACHED', 'The spending budget of this consent is used up; no further operation is admitted.'); g.spentMinor = (g.spentMinor ?? 0) + amount; }
       g.used++; this.save(g);
       this.db.prepare("UPDATE jobs SET state='authorized' WHERE id=?").run(b.operationId);
-      this.audit(g.id, 'execution.authorized', { operationId: b.operationId, sub, actor, account, operation: digest(operation), amountMinor: g.body.amountMinor || 0 }); return g;
+      this.audit(g.id, 'execution.authorized', { operationId: b.operationId, sub, actor, account, operation: digest(operation), amountMinor: g.body.amountMinor || 0, ...(g.budgetMinor === undefined ? {} : { budgetMinor: g.budgetMinor, spentMinor: g.spentMinor }) }); return g;
     });
   }
   finish(job: Job, result: unknown, success: boolean) { this.atomic(() => {
