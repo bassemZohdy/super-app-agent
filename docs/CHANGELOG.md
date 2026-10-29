@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 29 October 2026 — React kill switch follows the shell language (P2-01, step)
+
+The automation kill-switch panel's title, operator intro, show control, state and reason terms, reason field, stop/resume actions, and every notice (the operator refusal, the missing-reason warning, the stopped and resumed confirmations, and the unchanged result) moved to shared catalog keys localized for Arabic. English output is unchanged, so the payment-accounts screen keeps its touch, focus and reduced-motion measures on the desktop and phone projects; the every-locale parity check covers the new keys and the generated Flutter catalogs follow them. Tests: `services/test/p201-i18n.test.ts`, `test/browser/accessibility/touch-focus-motion.spec.ts`.
+
 ## 29 October 2026 — React automation inbox follows the shell language (P2-01, step)
 
 Every label of the React automation inbox — the title, intro, load control, entry headlines for all eight worker kinds, the rule/version/occurrence line, the reason/effect/recorded terms, and the card-challenge decision with its notices — moved from hardcoded English to shared catalog keys localized for Arabic. English output is unchanged, so the QA-10 inbox journey passes as before on the desktop and phone projects; the every-locale catalog parity check covers the new keys and the generated Flutter catalogs follow them. The recorded timestamp stays an ISO instant on purpose. Tests: `services/test/p201-i18n.test.ts`, `test/browser/accessibility/automation-screens.spec.ts`.
