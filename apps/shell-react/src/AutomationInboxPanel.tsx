@@ -1,17 +1,19 @@
 import { useState } from 'react';
+import { translate, type CatalogKey, type Locale } from '../../../packages/protocol-core/src/i18n.ts';
 
 type Order={id:string;state:string};
 type Props={busy:boolean;read(path:string,query?:Record<string,string>):Promise<any>;work(fn:()=>Promise<void>):Promise<void>;
   /** The owner's payment orders, from the same overview the payments panel already loads. */
   orders:Order[];
   /** Answers a held order's card challenge through the existing order challenge action. */
-  answer(order:Order,decision:'APPROVE'|'REJECT'):void};
+  answer(order:Order,decision:'APPROVE'|'REJECT'):void;locale?:Locale};
 type Entry={id:string;kind:string;mandateId:string;policyVersion:number;occurrenceKey:string;reason?:string;orderId?:string;effect:string;at:number};
 
 // Headlines mirror the worker's inbox kinds; the worker derives every entry, this panel only shows them.
-const headline:Record<string,string>={UPCOMING_RUN:'Upcoming run',PREPARED:'Payment prepared',SETTLED:'Payment completed',SKIPPED:'Run skipped',FAILED:'Run did not complete',HELD:'Run is on hold',REQUIRES_ACTION:'Your decision is needed',CHALLENGE_ANSWERED:'Card challenge answered'};
+const kinds=['UPCOMING_RUN','PREPARED','SETTLED','SKIPPED','FAILED','HELD','REQUIRES_ACTION','CHALLENGE_ANSWERED'] as const;
 
-export function AutomationInboxPanel({busy,read,work,orders,answer}:Props){
+export function AutomationInboxPanel({busy,read,work,orders,answer,locale='en'}:Props){
+  const t=(key:CatalogKey,values?:Record<string,string|number>)=>translate(locale,key,values);
   const [entries,setEntries]=useState<Entry[]>();
   const [requestId,setRequestId]=useState<string>();
   const load=()=>void work(async()=>{
@@ -23,25 +25,25 @@ export function AutomationInboxPanel({busy,read,work,orders,answer}:Props){
       effect:String(record?.effect??''),at:Number(record?.at??0)})));
     setRequestId(typeof result?.requestId==='string'&&result.requestId?result.requestId:undefined);
   });
-  return <section className="payment-review" aria-labelledby="automation-inbox-heading"><h3 id="automation-inbox-heading">Automation inbox</h3>
-    <p>What your automation rules did or are about to do. Entries come from the worker&apos;s records for your own rules only; reloading or switching account shows only what you own.</p>
-    <div className="payment-actions"><button disabled={busy} onClick={load}>Load automation inbox</button></div>
-    {requestId&&<p>Request {requestId}</p>}
-    {entries&&(entries.length===0?<p>No automation activity yet.</p>:<ol aria-label="Automation inbox entries">{entries.map(entry=><li key={entry.id}>
-      <h4>{headline[entry.kind]??entry.kind}</h4>
-      <p>Rule {entry.mandateId} · version {entry.policyVersion} · occurrence {entry.occurrenceKey}</p>
+  return <section className="payment-review" aria-labelledby="automation-inbox-heading"><h3 id="automation-inbox-heading">{t('auto.title')}</h3>
+    <p>{t('auto.intro')}</p>
+    <div className="payment-actions"><button disabled={busy} onClick={load}>{t('auto.load')}</button></div>
+    {requestId&&<p>{t('auto.request',{id:requestId})}</p>}
+    {entries&&(entries.length===0?<p>{t('auto.empty')}</p>:<ol aria-label={t('auto.entries')}>{entries.map(entry=><li key={entry.id}>
+      <h4>{(kinds as readonly string[]).includes(entry.kind)?t(`auto.headline.${entry.kind}` as CatalogKey):entry.kind}</h4>
+      <p>{t('auto.ruleLine',{id:entry.mandateId,version:entry.policyVersion,occurrence:entry.occurrenceKey})}</p>
       <dl>
-        {entry.reason&&<><dt>Reason</dt><dd>{entry.reason}</dd></>}
-        <dt>Effect</dt><dd>{entry.effect}</dd>
-        <dt>Recorded</dt><dd>{new Date(entry.at).toISOString()}</dd>
+        {entry.reason&&<><dt>{t('auto.reason')}</dt><dd>{entry.reason}</dd></>}
+        <dt>{t('auto.effect')}</dt><dd>{entry.effect}</dd>
+        <dt>{t('auto.recorded')}</dt><dd>{new Date(entry.at).toISOString()}</dd>
       </dl>
       {entry.kind==='REQUIRES_ACTION'&&entry.orderId&&(()=>{
         const order=orders.find(o=>o.id===entry.orderId);
         return order?.state==='REQUIRES_ACTION'
-          ?<div><p>Demo card challenge on this rule&apos;s payment. Approve it to pay the same amount once, or reject it to close the order with nothing paid.</p>
-            <button disabled={busy} onClick={()=>answer(order,'APPROVE')}>Approve card challenge</button>
-            <button disabled={busy} onClick={()=>answer(order,'REJECT')}>Reject card challenge</button></div>
-          :<p>This challenge is no longer waiting for an answer.</p>;
+          ?<div><p>{t('auto.challengeText')}</p>
+            <button disabled={busy} onClick={()=>answer(order,'APPROVE')}>{t('auto.approve')}</button>
+            <button disabled={busy} onClick={()=>answer(order,'REJECT')}>{t('auto.reject')}</button></div>
+          :<p>{t('auto.challengeGone')}</p>;
       })()}
     </li>)}</ol>)}
   </section>;

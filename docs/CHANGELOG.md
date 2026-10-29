@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 29 October 2026 — React automation inbox follows the shell language (P2-01, step)
+
+Every label of the React automation inbox — the title, intro, load control, entry headlines for all eight worker kinds, the rule/version/occurrence line, the reason/effect/recorded terms, and the card-challenge decision with its notices — moved from hardcoded English to shared catalog keys localized for Arabic. English output is unchanged, so the QA-10 inbox journey passes as before on the desktop and phone projects; the every-locale catalog parity check covers the new keys and the generated Flutter catalogs follow them. The recorded timestamp stays an ISO instant on purpose. Tests: `services/test/p201-i18n.test.ts`, `test/browser/accessibility/automation-screens.spec.ts`.
+
 ## 29 October 2026 — Budget spend is visible in the delegated-access panel (P1-10, step)
 
 A grant that carries a spending budget now shows what was spent of it (`Budget: AED x of y spent`, Arabic included) under its status line. The catalog keys pass the every-locale parity check, the React shell builds, and the delegated-access screen keeps its touch, focus and reduced-motion measures on the desktop and phone projects. Guide: [delegation](development/delegation.md).
