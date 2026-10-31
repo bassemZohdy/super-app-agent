@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 1 November 2026 — Localize the React statements and funding history panel (P2-01, step)
+
+The Statements & funding history panel in the React shell now follows the shell language: the snapshot totals, statement entries, payment activity, operation detail and confirmed-receipt lines use shared catalog keys with Arabic text, and entry times use the locale formatter. Amounts and the state codes the gateway sends are unchanged. The Flutter catalog was regenerated. Tests: `services/test/p201-i18n.test.ts`. Guide: [localization](development/localization.md).
+
 ## 1 November 2026 — Localize the React payment recovery panel (P2-01, step)
 
 The Payment recovery panel in the React shell now follows the shell language: its headings, case and evidence lines, the three recovery actions, the saved-reference field and the audit times use shared catalog keys with Arabic text, and the times use the locale formatters. English wording is unchanged and the Flutter catalog was regenerated. Flutter was not run here (no toolchain on this machine), so P2-14 stays open. The AUTO-13 preview test now freezes its clock like the other invoice tests, because it failed once the real date reached month-end renewal. Tests: `services/test/p201-i18n.test.ts` (key and placeholder parity). Guide: [localization](development/localization.md).
