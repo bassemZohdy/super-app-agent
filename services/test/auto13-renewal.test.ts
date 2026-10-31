@@ -134,6 +134,7 @@ test('AUTO-13: an already-paid period is never paid again', async t => {
 });
 
 test('AUTO-13: the preview shows which period would renew, at what price, and why a change waits for the owner', t => {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.UTC(2026, 9, 24, 12) }); // a fixed mid-month day, so the test cannot change with the calendar
   const f = fixture(t), m = f.mandate({ dayOfMonth: 1 });
   const month = new Date().toISOString().slice(0, 7);
   f.invoice(month);

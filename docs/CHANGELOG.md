@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 1 November 2026 — Localize the React payment recovery panel (P2-01, step)
+
+The Payment recovery panel in the React shell now follows the shell language: its headings, case and evidence lines, the three recovery actions, the saved-reference field and the audit times use shared catalog keys with Arabic text, and the times use the locale formatters. English wording is unchanged and the Flutter catalog was regenerated. Flutter was not run here (no toolchain on this machine), so P2-14 stays open. The AUTO-13 preview test now freezes its clock like the other invoice tests, because it failed once the real date reached month-end renewal. Tests: `services/test/p201-i18n.test.ts` (key and placeholder parity). Guide: [localization](development/localization.md).
+
 ## 29 October 2026 — React kill switch follows the shell language (P2-01, step)
 
 The automation kill-switch panel's title, operator intro, show control, state and reason terms, reason field, stop/resume actions, and every notice (the operator refusal, the missing-reason warning, the stopped and resumed confirmations, and the unchanged result) moved to shared catalog keys localized for Arabic. English output is unchanged, so the payment-accounts screen keeps its touch, focus and reduced-motion measures on the desktop and phone projects; the every-locale parity check covers the new keys and the generated Flutter catalogs follow them. Tests: `services/test/p201-i18n.test.ts`, `test/browser/accessibility/touch-focus-motion.spec.ts`.
