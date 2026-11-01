@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 1 November 2026 — Type the grouped-checkout browser script (P2-05, step)
+
+The grouped-checkout browser script no longer uses `any` for its payable, recharge-target and group callbacks: they take the shared `Payable`, `RechargeTarget` and `CheckoutGroupView` types, and the E2E type check passes. The `any` baseline was lowered by eight uses. The browser script itself needs the Compose stack and was not run. Guide: [testing](development/testing.md).
+
 ## 1 November 2026 — Localize the React recharge form and reservations list (P2-01, step)
 
 The toll/mobile recharge form and the business reservations and attempts list now follow the shell language, with Arabic catalog text; the state codes and identifiers stay as the gateway sends them. Every Payment accounts panel in the React shell is now translated. The Flutter catalog was regenerated. Tests: `services/test/p201-i18n.test.ts`. Guide: [localization](development/localization.md).
