@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 1 November 2026 — Type the surfaces and reconciliation browser scripts (P2-05, step)
+
+The payment-surfaces and payment-reconciliation browser scripts type their orders, card balances, groups, refunds, recovery audit rows and the surface envelope (view, session, revision) instead of using `any`; the E2E type check passes and the `any` baseline fell again. The scripts need the Compose stack and were not run. Guide: [testing](development/testing.md).
+
 ## 1 November 2026 — Type the obligations and accounts browser scripts (P2-05, step)
 
 The payment-obligations and payment-accounts browser scripts take their payables, methods, billing accounts, card balances, obligations and token responses from the shared types instead of `any`; the E2E type check passes and the `any` baseline fell again. Raw `api` data stays untyped. The scripts need the Compose stack and were not run. Guide: [testing](development/testing.md).
