@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 1 November 2026 — Localize the Angular focused fines workspace (P2-01, step)
+
+The Angular fines route now reads the saved language (or the browser's), sets `lang` and `dir`, and shows its header, tools, sign-in, conversation, review, receipt and renewal labels from shared catalog keys with Arabic text; English wording is unchanged and the Flutter catalog was regenerated. A new browser spec checks Arabic direction, text, 44px controls and no sideways scroll on phone and desktop, and the focused-agent, localization and renewal-parity journeys (34 tests) pass against the Compose stack. Gateway messages and the requests the suggestion buttons send stay English. Guide: [localization](development/localization.md).
+
 ## 1 November 2026 — Review unused dependencies (P2-05, step)
 
 Every dependency declared in the workspace `package.json` files was checked against the source, scripts and configuration. None is unused: `@angular/compiler`, `@angular/compiler-cli` and `rxjs` are build or peer requirements of the Angular shell, `@types/react` and `@types/react-dom` type the React shell, and `better-sqlite3` is the agent checkpoint store. One mismatch to resolve when dependencies are next updated: `@types/better-sqlite3` is at ^9 while the runtime is 12. [Testing guide](development/testing.md).

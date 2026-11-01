@@ -1,6 +1,7 @@
 import { Component, OnDestroy, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FocusedAgentClient, FOCUSED_REQUEST_TIMEOUT_MS, AgentClientError, type AgentAction, type AgentResult } from '../../../../packages/protocol-core/src/focused-agent-client.ts';
+import { isLocale, preferredLocale, direction, translate, type CatalogKey, type Locale } from '../../../../packages/protocol-core/src/i18n.ts';
 import { WorkspacePanesComponent } from './workspace-panes.component.ts';
 
 @Component({
@@ -9,6 +10,15 @@ import { WorkspacePanesComponent } from './workspace-panes.component.ts';
   styles: [`:host { display: flex; flex-direction: column; height: 100dvh; min-height: 0; color: var(--color-text); background: var(--color-background); font-family: 'Avenir Next', system-ui, sans-serif; } header, nav { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-small); padding: var(--spacing-small); } h1, h2 { font-size: 22px; } button, input, textarea { min-height: 44px; font-size: var(--font-size-control); padding: var(--spacing-small); border: 1px solid var(--color-surface-border); border-radius: var(--radius-sm); background: var(--color-surface); color: var(--color-text); } button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid var(--color-focus-ring); outline-offset: 2px; } button { cursor: pointer; } button:disabled { opacity: .55; cursor: default; } .content { display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; padding: var(--spacing-medium); overflow: auto; } .transcript { flex: 1; min-height: 0; overflow: auto; } article { padding-block: var(--spacing-small); } article p { white-space: pre-wrap; } form { display: flex; flex-direction: column; gap: var(--spacing-small); flex-shrink: 0; } table { width: 100%; border-collapse: collapse; } th, td { padding: var(--spacing-small); text-align: start; border-bottom: 1px solid var(--color-surface-border); } .error { color: var(--color-danger-text); } .login { max-width: 520px; margin: auto; padding: var(--spacing-medium); }`],
 })
 export class FocusedWorkspaceComponent implements OnDestroy {
+  locale: Locale = this.initialLocale();
+  t = (key: CatalogKey, values?: Record<string, string | number>) => translate(this.locale, key, values);
+  private initialLocale(): Locale {
+    let saved: string | null = null;
+    try { saved = localStorage.getItem('cityside.locale'); } catch { /* the browser language still applies */ }
+    const locale = isLocale(saved) ? saved : preferredLocale(navigator.languages);
+    document.documentElement.lang = locale; document.documentElement.dir = direction(locale);
+    return locale;
+  }
   client: FocusedAgentClient | null = null;
   data = signal<AgentResult | null>(null); pending = signal(false); uncertain = signal(false); error = signal(''); progress = signal(''); draft = signal('');
   private controller?: AbortController;
@@ -16,7 +26,7 @@ export class FocusedWorkspaceComponent implements OnDestroy {
   get needsRecovery() { return this.uncertain() || this.data()?.status === 'unknown' || (!!this.data()?.next.length && !this.active); }
   get canMessage() { return !!this.client && !this.pending() && !this.needsRecovery && !this.active && this.data()?.status !== 'cancelled'; }
   value(event: Event) { return (event.target as HTMLInputElement).value; }
-  forgetSaved() { if (!this.client && !this.pending()) { sessionStorage.removeItem('cityside.fines.thread.v1'); this.error.set('Saved reference cleared. Sign in to start a new conversation.'); } }
+  forgetSaved() { if (!this.client && !this.pending()) { sessionStorage.removeItem('cityside.fines.thread.v1'); this.error.set(this.t('fines.cleared')); } }
   amount(minor: number) { return `AED ${(minor / 100).toFixed(2)}`; }
   async run(operation: (signal: AbortSignal) => Promise<void>, mutation = false) {
     if (this.pending()) return;
