@@ -24,7 +24,7 @@
   "scripts/e2e/automation-security.ts": 4,
   "scripts/e2e/checkout-groups.ts": 4,
   "scripts/e2e/fine-checkout.ts": 5,
-  "scripts/e2e/issuer-scenarios.ts": 11,
+  "scripts/e2e/issuer-scenarios.ts": 3,
   "scripts/e2e/legacy-payment-events.ts": 3,
   "scripts/e2e/mandate-change.ts": 7,
   "scripts/e2e/mandate-create.ts": 6,
