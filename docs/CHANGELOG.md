@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 1 November 2026 — Localize the Flutter focused fines workspace (P2-01, step)
+
+The Flutter fines workspace now reads the saved language (else the browser's), lays out right to left in Arabic and shows its header, sign-in, conversation, review, receipt and renewal labels from the same `fines.*` catalog keys the Angular fines route uses, plus two new keys for the review reminder and the unconfirmed-result message; English wording is unchanged and the requests the suggestion buttons send stay English. The Flutter Arabic browser spec gained a fines test (translated headline and token field, 44 px controls, nothing scrolling sideways, no English headline left), and the Flutter parity and focused-agent specs (52 tests with it), all 43 widget tests and `flutter analyze` pass. Guide: [localization](development/localization.md).
+
 ## 1 November 2026 — Localize the Flutter main shell's remaining labels (P2-01, step)
 
 The Flutter main shell no longer has hardcoded English in its header, dialogs or messages: the tool tooltips and menu (workspace tools, fines and renewal, saved conversations, connections), the saved-conversations dialog and its empty and default titles, the sign-in title, the composer hint, the progress, action and unreachable-gateway messages and the mini-app link now use shared catalog keys with Arabic text; English wording is unchanged and the generated Dart catalog was regenerated. The Flutter Arabic browser spec now checks the translated tools on phone and desktop, and the English Flutter parity specs and all 43 widget tests pass. Guide: [localization](development/localization.md).

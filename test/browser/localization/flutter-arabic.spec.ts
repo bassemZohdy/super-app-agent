@@ -41,3 +41,21 @@ test('the Flutter web shell follows a saved Arabic choice and keeps its controls
   }
   expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth), 'nothing scrolls sideways').toBe(false);
 });
+
+test('the Flutter fines workspace follows a saved Arabic choice, with reachable sign-in controls', async ({ page, flutterUrl }) => {
+  await page.addInitScript(() => { try { localStorage.setItem('cityside.locale', 'ar'); } catch { /* the browser language still applies */ } });
+  await page.goto(`${flutterUrl}/services/fines`);
+  await page.locator('flt-semantics-placeholder').waitFor();
+  await page.locator('flt-semantics-placeholder').evaluate((element: HTMLElement) => element.click());
+
+  await expect(page.getByText('المخالفات وتجديد المركبة', { exact: true })).toBeVisible({ timeout: 30000 });
+  await expect(page.getByText('مخالفاتك. قرارك.', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('رمز الوصول', { exact: true })).toBeVisible();
+  for (const name of ['فتح مخالفاتي', 'نسيان مرجع المحادثة المحفوظة']) {
+    const box = await page.getByRole('button', { name, exact: true }).boundingBox();
+    expect(box, `${name} is drawn`).not.toBeNull();
+    expect(box!.height, `${name} is at least 44px tall`).toBeGreaterThanOrEqual(44);
+  }
+  expect(await page.getByText('Your fines. Your decision.').count(), 'no English headline is left behind').toBe(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth), 'nothing scrolls sideways').toBe(false);
+});

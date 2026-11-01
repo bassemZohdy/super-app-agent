@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'focused_client.dart';
 import 'shared/browser_auth.dart';
+import 'shared/locale.dart';
 import 'workspace_panes.dart';
 import 'theme/tokens.g.dart';
 
@@ -12,6 +13,11 @@ class FocusedWorkspace extends StatefulWidget {
 }
 
 class _FocusedWorkspaceState extends State<FocusedWorkspace> {
+  final String locale = readBrowserLocale().toLowerCase().startsWith('ar')
+      ? 'ar'
+      : 'en';
+  String t(String key, [Map<String, Object> values = const {}]) =>
+      citysideText(locale, key, values);
   final token = TextEditingController();
   final draft = TextEditingController();
   FocusedClient? client;
@@ -45,7 +51,7 @@ class _FocusedWorkspaceState extends State<FocusedWorkspace> {
       if (mounted) {
         setState(() {
           if (mutation) uncertain = true;
-          error = 'The result was not confirmed. Inspect or recover the saved conversation before continuing.';
+          error = t('fines.unconfirmed');
         });
       }
     } finally {
@@ -171,116 +177,117 @@ class _FocusedWorkspaceState extends State<FocusedWorkspace> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('Fines & vehicle renewal'),
-      actions: [
-        if (client != null)
-          TextButton(
-            onPressed: pending
-                ? null
-                : () {
-                    client!.close();
-                    setState(() {
-                      client = null;
-                      data = null;
-                      uncertain = false;
-                      draft.clear();
-                    });
-                  },
-            child: const Text('Sign out'),
-          ),
-      ],
-    ),
-    body: Column(
-      children: [
-        if (error.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Semantics(
-              liveRegion: true,
-              child: Text(
-                error,
-                style: const TextStyle(color: CitysideTokens.dangerText),
+  Widget build(BuildContext context) => Directionality(
+    textDirection: locale == 'ar' ? TextDirection.rtl : TextDirection.ltr,
+    child: Scaffold(
+      appBar: AppBar(
+        title: Text(t('fines.title')),
+        actions: [
+          if (client != null)
+            TextButton(
+              onPressed: pending
+                  ? null
+                  : () {
+                      client!.close();
+                      setState(() {
+                        client = null;
+                        data = null;
+                        uncertain = false;
+                        draft.clear();
+                      });
+                    },
+              child: Text(t('fines.signOut')),
+            ),
+        ],
+      ),
+      body: Column(
+        children: [
+          if (error.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Semantics(
+                liveRegion: true,
+                child: Text(
+                  error,
+                  style: const TextStyle(color: CitysideTokens.dangerText),
+                ),
               ),
             ),
-          ),
-        if (pending) const LinearProgressIndicator(),
-        if (client == null)
-          Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) => SingleChildScrollView(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 520),
-                      child: Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Text(
-                              'Your fines. Your decision.',
-                              style: TextStyle(fontSize: 28),
-                            ),
-                            const Text(
-                              'Demo records and payments are simulated. Review the exact amount before confirming.',
-                            ),
-                            TextField(
-                              controller: token,
-                              obscureText: true,
-                              enabled: !pending,
-                              decoration: InputDecoration(
-                                labelText: 'Access token',
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(
-                                    CitysideTokens.radiusMd,
+          if (pending) const LinearProgressIndicator(),
+          if (client == null)
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) => SingleChildScrollView(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: constraints.maxHeight,
+                    ),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 520),
+                        child: Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                t('fines.headline'),
+                                style: const TextStyle(fontSize: 28),
+                              ),
+                              Text(t('fines.simulatedReview')),
+                              TextField(
+                                controller: token,
+                                obscureText: true,
+                                enabled: !pending,
+                                decoration: InputDecoration(
+                                  labelText: t('fines.token'),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(
+                                      CitysideTokens.radiusMd,
+                                    ),
+                                    borderSide: BorderSide(
+                                      color:
+                                          Theme.of(context).brightness ==
+                                              Brightness.dark
+                                          ? CitysideTokens.darkFocusRing
+                                          : CitysideTokens.focusRing,
+                                      width: 3,
+                                    ),
                                   ),
-                                  borderSide: BorderSide(
-                                    color:
-                                        Theme.of(context).brightness ==
-                                            Brightness.dark
-                                        ? CitysideTokens.darkFocusRing
-                                        : CitysideTokens.focusRing,
-                                    width: 3,
+                                ),
+                                onSubmitted: (_) => signIn(),
+                              ),
+                              FilledButton(
+                                style: FilledButton.styleFrom(
+                                  visualDensity: VisualDensity.standard,
+                                  minimumSize: const Size(
+                                    CitysideTokens.spaceLarge * 2,
+                                    CitysideTokens.spaceLarge * 2,
                                   ),
                                 ),
+                                onPressed: pending ? null : signIn,
+                                child: Text(t('fines.open')),
                               ),
-                              onSubmitted: (_) => signIn(),
-                            ),
-                            FilledButton(
-                              style: FilledButton.styleFrom(
-                                visualDensity: VisualDensity.standard,
-                                minimumSize: const Size(
-                                  CitysideTokens.spaceLarge * 2,
-                                  CitysideTokens.spaceLarge * 2,
+                              TextButton(
+                                style: TextButton.styleFrom(
+                                  visualDensity: VisualDensity.standard,
+                                  minimumSize: const Size(
+                                    CitysideTokens.spaceLarge * 2,
+                                    CitysideTokens.spaceLarge * 2,
+                                  ),
                                 ),
+                                onPressed: pending
+                                    ? null
+                                    : () {
+                                        writeBrowserConversation('focused', '');
+                                        setState(
+                                          () => error = t('fines.cleared'),
+                                        );
+                                      },
+                                child: Text(t('fines.forget')),
                               ),
-                              onPressed: pending ? null : signIn,
-                              child: const Text('Open my fines'),
-                            ),
-                            TextButton(
-                              style: TextButton.styleFrom(
-                                visualDensity: VisualDensity.standard,
-                                minimumSize: const Size(
-                                  CitysideTokens.spaceLarge * 2,
-                                  CitysideTokens.spaceLarge * 2,
-                                ),
-                              ),
-                              onPressed: pending
-                                  ? null
-                                  : () {
-                                      writeBrowserConversation('focused', '');
-                                      setState(
-                                        () => error = 'Saved reference cleared. Sign in to start a new conversation.',
-                                      );
-                                    },
-                              child: const Text(
-                                'Forget saved conversation reference',
-                              ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -288,38 +295,38 @@ class _FocusedWorkspaceState extends State<FocusedWorkspace> {
                 ),
               ),
             ),
-          ),
-        if (client != null) ...[
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                TextButton(
-                  onPressed: pending || active != null || needsRecovery
-                      ? null
-                      : start,
-                  child: const Text('Start a new conversation'),
-                ),
-                TextButton(
-                  onPressed: pending ? null : inspect,
-                  child: const Text('Inspect saved conversation'),
-                ),
-                TextButton(
-                  onPressed: pending ? null : () => transition('recover'),
-                  child: const Text('Recover saved operation'),
-                ),
-              ],
+          if (client != null) ...[
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  TextButton(
+                    onPressed: pending || active != null || needsRecovery
+                        ? null
+                        : start,
+                    child: Text(t('fines.start')),
+                  ),
+                  TextButton(
+                    onPressed: pending ? null : inspect,
+                    child: Text(t('fines.inspect')),
+                  ),
+                  TextButton(
+                    onPressed: pending ? null : () => transition('recover'),
+                    child: Text(t('fines.recover')),
+                  ),
+                ],
+              ),
             ),
-          ),
-          Expanded(
-            child: WorkspacePanes(
-              conversation: conversation(),
-              details: details(),
-              revealDetailsKey: active?['id'] as String?,
+            Expanded(
+              child: WorkspacePanes(
+                conversation: conversation(),
+                details: details(),
+                revealDetailsKey: active?['id'] as String?,
+              ),
             ),
-          ),
+          ],
         ],
-      ],
+      ),
     ),
   );
   Widget conversation() => LayoutBuilder(
@@ -332,15 +339,16 @@ class _FocusedWorkspaceState extends State<FocusedWorkspace> {
               children: [
                 for (final message in (data?['messages'] as List? ?? []))
                   ListTile(
-                    title: Text(message['role'] == 'user' ? 'You' : 'Rashid'),
+                    title: Text(
+                      message['role'] == 'user'
+                          ? t('fines.you')
+                          : t('fines.assistant'),
+                    ),
                     subtitle: SelectableText(message['content'] as String),
                   ),
                 if ((data?['reply'] as String? ?? '').isNotEmpty)
                   Text(data!['reply'] as String),
-                if (needsRecovery)
-                  const Text(
-                    'Inspect and recover the original operation before continuing.',
-                  ),
+                if (needsRecovery) Text(t('fines.needRecovery')),
               ],
             ),
           ),
@@ -359,7 +367,7 @@ class _FocusedWorkspaceState extends State<FocusedWorkspace> {
                     minLines: 1,
                     maxLines: 3,
                     decoration: InputDecoration(
-                      labelText: 'Message about fines',
+                      labelText: t('fines.messageLabel'),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(
                           CitysideTokens.radiusMd,
@@ -399,7 +407,7 @@ class _FocusedWorkspaceState extends State<FocusedWorkspace> {
                                   }
                                 }
                               : null,
-                          child: const Text('Send message'),
+                          child: Text(t('fines.send')),
                         ),
                         TextButton(
                           style: TextButton.styleFrom(
@@ -414,7 +422,7 @@ class _FocusedWorkspaceState extends State<FocusedWorkspace> {
                                   'message': 'Show outstanding fines',
                                 })
                               : null,
-                          child: const Text('Show outstanding fines'),
+                          child: Text(t('fines.showOutstanding')),
                         ),
                         TextButton(
                           style: TextButton.styleFrom(
@@ -429,7 +437,7 @@ class _FocusedWorkspaceState extends State<FocusedWorkspace> {
                                   'message': 'Pay my outstanding fines',
                                 })
                               : null,
-                          child: const Text('Review payment'),
+                          child: Text(t('fines.reviewPayment')),
                         ),
                         TextButton(
                           style: TextButton.styleFrom(
@@ -444,7 +452,7 @@ class _FocusedWorkspaceState extends State<FocusedWorkspace> {
                                   'message': 'Renew my car registration',
                                 })
                               : null,
-                          child: const Text('Renew vehicle registration'),
+                          child: Text(t('fines.renew')),
                         ),
                         TextButton(
                           style: TextButton.styleFrom(
@@ -460,7 +468,7 @@ class _FocusedWorkspaceState extends State<FocusedWorkspace> {
                                   data?['status'] == 'cancelled'
                               ? null
                               : () => transition('cancel'),
-                          child: const Text('Cancel conversation'),
+                          child: Text(t('fines.cancelConversation')),
                         ),
                       ],
                     ),
@@ -478,10 +486,10 @@ class _FocusedWorkspaceState extends State<FocusedWorkspace> {
     children: [
       Text(
         data?['renewalApproval'] != null
-            ? 'Review before you renew'
+            ? t('fines.reviewRenew')
             : active != null
-            ? 'Review before you pay'
-            : 'Your fines',
+            ? t('fines.reviewPay')
+            : t('fines.yourFines'),
         style: const TextStyle(fontSize: 24),
       ),
       for (final fine in (data?['fines'] as List? ?? []))
@@ -492,18 +500,21 @@ class _FocusedWorkspaceState extends State<FocusedWorkspace> {
         ),
       if (active != null) ...[
         Text(
-          'Simulated total: ${amount(active!['quote']['amountMinor'] as int)}',
+          '${t('fines.total')} ${amount(active!['quote']['amountMinor'] as int)}',
         ),
         Text(
-          'Review expires at ${DateTime.fromMillisecondsSinceEpoch(active!['expiresAt'] as int).toLocal()}. Typed “yes” does not confirm.',
+          t('fines.expires', {
+            'time':
+                '${DateTime.fromMillisecondsSinceEpoch(active!['expiresAt'] as int).toLocal()}',
+          }),
         ),
         FilledButton(
           style: reviewButtonStyle(primary: true),
           onPressed: pending || needsRecovery ? null : () => decide('approve'),
           child: Text(
             data?['renewalApproval'] != null
-                ? 'Confirm simulated renewal'
-                : 'Confirm simulated payment',
+                ? t('fines.confirmRenewal')
+                : t('fines.confirmPayment'),
           ),
         ),
         TextButton(
@@ -511,23 +522,23 @@ class _FocusedWorkspaceState extends State<FocusedWorkspace> {
           onPressed: pending || needsRecovery ? null : () => decide('reject'),
           child: Text(
             data?['renewalApproval'] != null
-                ? 'Reject renewal'
-                : 'Reject payment',
+                ? t('fines.rejectRenewal')
+                : t('fines.rejectPayment'),
           ),
         ),
         TextButton(
           style: reviewButtonStyle(primary: false),
           onPressed: pending || needsRecovery ? null : () => decide('cancel'),
-          child: const Text('Cancel review'),
+          child: Text(t('fines.cancelReview')),
         ),
       ],
       if (data?['receipt'] != null) ...[
-        const Text('Your simulated receipt'),
+        Text(t('fines.receipt')),
         Text(amount(data!['receipt']['quote']['amountMinor'] as int)),
         SelectableText(data!['receipt']['id'] as String),
       ],
       if (data?['renewal'] != null) ...[
-        const Text('Your simulated renewal'),
+        Text(t('fines.renewalDone')),
         Text(amount(data!['renewal']['quote']['amountMinor'] as int)),
         SelectableText(data!['renewal']['id'] as String),
       ],
