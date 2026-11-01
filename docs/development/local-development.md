@@ -71,6 +71,7 @@ npm run demo:down  # preserves named volumes
 | CONVERSATION_SERVICE_URL | private llama.cpp endpoint; fixed local hosts only |
 | VOICE_SERVICE_URL | private internal speech endpoint; fixed local hosts only |
 | KEYCLOAK_INTROSPECTION_TIMEOUT_MS | limit for the active-token check, 1000–12000 ms (default 8000); past it the request is refused |
+| UV_THREADPOOL_SIZE | Node's lookup thread count for agent-core (Compose default 16; Node's own default is 4); with fewer, a `/health` probe of a model or voice service that is not running can hold the threads and make a concurrent Keycloak check time out, so a valid sign-in is refused |
 | KEYCLOAK_INTROSPECTION_URL / CLIENT_ID / CLIENT_SECRET | authenticated per-request active-token verification; Compose uses cityside-verifier |
 | OPS_API_KEY / OPS_BACKUP_KEY | private diagnostics / CLI-only encrypted backups; generate with `npm run ops:init` |
 | OBSERVABILITY_LOGS / OPS_STUCK_MS | payload-free completion logs / stuck-work threshold (default 120 seconds) |

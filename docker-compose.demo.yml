@@ -328,6 +328,9 @@ services:
       SESSION_TTL_SECONDS: ${SESSION_TTL_SECONDS:-3600}
       KEYCLOAK_PUBLIC_ISSUER: http://localhost:${PORT_KEYCLOAK:-8085}/realms/superapp
       VOICE_SERVICE_URL: http://voice:4200
+      # /health probes the optional model and voice services; when they are not running their host lookups hang for seconds. With
+      # Node's default four lookup threads those waits starve the Keycloak lookups behind them and sign-in requests are refused.
+      UV_THREADPOOL_SIZE: ${UV_THREADPOOL_SIZE:-16}
       ENABLE_LOCAL_LLM: ${ENABLE_LOCAL_LLM:-true}
       CONVERSATION_PROVIDER: ${CONVERSATION_PROVIDER:-local}
       OPENROUTER_MODEL: ${OPENROUTER_MODEL:-openrouter/free}
