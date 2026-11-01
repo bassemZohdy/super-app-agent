@@ -827,6 +827,13 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
 
       if (!mounted) return;
       _readResponse(res);
+    } on FormatException {
+      // The gateway answered, but not with something that can be drawn; it is not an unreachable gateway.
+      if (!mounted) return;
+      setState(() {
+        _thinkingDelta = null;
+        _messages.add({'role': 'assistant', 'text': t('fl.unreadable')});
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -887,7 +894,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
         setState(() {
           _messages.add({
             'role': 'assistant',
-            'text': 'Could not confirm the action result. Check status before retrying.',
+            'text': t('fl.actionUnconfirmed'),
           });
         });
       }
