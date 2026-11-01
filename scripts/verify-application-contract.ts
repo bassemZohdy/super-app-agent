@@ -1,7 +1,7 @@
-import { demoPortOffset, keycloakIssuerUrl } from './endpoints.ts';
+import { demoPortOffset, gatewayUrl, keycloakIssuerUrl } from './endpoints.ts';
 /** Live contract check (P1-14): the running application services answer as their OpenAPI document says. Every documented operation
  *  refuses a request with no token using the documented `Error` shape, and every read that needs no path or query input answers 200
- *  with the keys the document lists as required. Reads only; nothing is created or paid. Needs the Compose stack (`npm run demo:up`). */
+ *  with the keys the document lists as required. Reads only unless `--writes` is given (see section 5); then it also makes one valid write to every mutating operation. Needs the Compose stack (`npm run demo:up`). */
 import assert from 'node:assert/strict';
 import { accountIdFor } from '../packages/backend-kit/src/context.ts';
 import { buildApplicationOpenApi, APPLICATION_OPERATIONS, APPLICATION_SERVICES } from '../packages/backend-kit/src/application-openapi.ts';
@@ -19,6 +19,7 @@ assert.ok(session.access_token, 'a resident can sign in');
 const claims = JSON.parse(Buffer.from(session.access_token.split('.')[1], 'base64url').toString()) as { sub: string };
 const accountId = accountIdFor(claims.sub);
 
+const WRITES = process.argv.includes('--writes');
 const fill = (path: string) => path.replace(/\{[^}]+\}/g, 'x1');
 const failures: string[] = [];
 const TELECOM_PROVIDERS = ['etisalat', 'du'];
@@ -72,13 +73,84 @@ for (const operation of APPLICATION_OPERATIONS) {
     else read++;
   }
 }
+
+// 5. Writes (only with --writes, on a disposable stack such as `npm run qualify -- run -- ...`): a valid write answers 200 with
+//    the keys the document lists. These change demo balances and records and use up the resident's fines, bills and recharge target,
+//    so the default run on the shared stack never does them, and they run once on a fresh stack (`qualify -- down`, then `up`).
+let written = 0;
+if (WRITES) {
+  const call = async (service: keyof typeof APPLICATION_SERVICES, method: string, path: string, body?: unknown) => {
+    const response = await fetch(base(service) + path, { method, headers: signedIn, body: body === undefined ? undefined : JSON.stringify(body) });
+    return { status: response.status, data: await response.json() as Record<string, any> };
+  };
+  const requiredFor = (path: string) => document.paths[path]?.post?.responses['200']?.content?.['application/json']?.schema?.required ?? [];
+  const check = (path: string, result: { status: number; data: Record<string, unknown> }) => {
+    const absent = requiredFor(path).filter(key => !(key in result.data));
+    if (result.status !== 200) failures.push(`POST ${path}: a valid write gave ${result.status} ${JSON.stringify(result.data).slice(0, 80)}`);
+    else if (absent.length) failures.push(`POST ${path}: the 200 body lacks ${absent.join(', ')}`);
+    else written++;
+  };
+  // The account's own plate and the Salik denominations it is offered are read, not guessed.
+  const profile = await call('service-profile', 'GET', '/profile');
+  const plateNumber = profile.data.profile?.smartCityAssets?.vehicles?.[0]?.plate as string | undefined;
+  const overview = await (await fetch(`${gatewayUrl}/api/payments/overview?accountId=${accountId}`, { headers: signedIn })).json() as { rechargeTargets?: { kind: string; denominationsMinor: number[] }[] };
+  const tollMinor = overview.rechargeTargets?.find(target => target.kind === 'TOLL')?.denominationsMinor[0];
+  if (!plateNumber || !tollMinor) failures.push('the resident has no vehicle plate or no Salik denomination to write with');
+  const drivers = await call('service-ride', 'GET', '/rides/options');
+  check('/rides/book', await call('service-ride', 'POST', '/rides/book', { driverId: drivers.data.options[0].id, pickup: 'Business Bay', dropoff: 'Dubai Mall' }));
+  const zones = await call('service-ride', 'GET', '/mobility/parking/zones');
+  const parking = await call('service-ride', 'POST', '/mobility/parking/activate', { zoneId: zones.data.zones[0].id, durationHours: 1, plateNumber });
+  check('/mobility/parking/activate', parking);
+  const ticketId = parking.data.meter?.ticketId as string | undefined;
+  if (ticketId) check('/mobility/parking/extend', await call('service-ride', 'POST', '/mobility/parking/extend', { ticketId, additionalHours: 1 }));
+  else failures.push(`POST /mobility/parking/activate: the answer names no ticket to extend (keys: ${Object.keys(parking.data).join(', ')}; ${JSON.stringify(parking.data).slice(0, 160)})`);
+  const chargers = await call('service-ride', 'GET', '/mobility/ev/chargers');
+  const chargerId = chargers.data.chargers?.[0]?.id;
+  if (chargerId) check('/mobility/ev/start', await call('service-ride', 'POST', '/mobility/ev/start', { chargerId, plateNumber }));
+  else failures.push('GET /mobility/ev/chargers: no charger to start a session on');
+  check('/mobility/salik/recharge', await call('service-ride', 'POST', '/mobility/salik/recharge', { amount: (tollMinor ?? 100) / 100 }));
+  // A top-up is limited to AED 500, so top up in steps until the wallet can cover the payments below.
+  check('/wallet/topup', await call('service-wallet', 'POST', '/wallet/topup', { amount: 500 }));
+  for (let step = 0; step < 6; step++) {
+    const wallet = await call('service-wallet', 'GET', '/wallet/balance');
+    if (wallet.data.balanceMinor >= 200000) break;
+    await call('service-wallet', 'POST', '/wallet/topup', { amount: 500 });
+  }
+  check('/wallet/pay', await call('service-wallet', 'POST', '/wallet/pay', { amount: 1, purpose: 'contract check', referenceId: 'contract-check-1' }));
+  check('/profile/preferences', await call('service-profile', 'POST', '/profile/preferences', { dietary: ['Halal'] }));
+
+  // Writes that pay or settle need a real payable: its id and revision are read from the service first.
+  const ejari = await call('service-catalog', 'GET', '/housing/ejari');
+  check('/housing/move-in', await call('service-catalog', 'POST', '/housing/move-in', { contractNumber: ejari.data.contract?.contractNumber }));
+  const restaurants = await call('service-food', 'GET', '/restaurants/search');
+  const restaurant = restaurants.data.restaurants?.[0];
+  check('/orders/create', await call('service-food', 'POST', '/orders/create', { restaurantId: restaurant?.id, items: [restaurant?.items?.[0]?.id] }));
+  const bill = await call('service-food', 'GET', '/utilities/bill');
+  check('/utilities/pay', await call('service-food', 'POST', '/utilities/pay', { billId: bill.data.bill?.billId, expectedPayableRevision: bill.data.bill?.payableRevision }));
+  const fines = await call('service-wallet', 'GET', '/fines/check');
+  const fine = fines.data.fines?.find((item: { status: string }) => item.status === 'UNPAID');
+  check('/fines/pay', await call('service-wallet', 'POST', '/fines/pay', { fineIds: [fine?.fineId], expectedPayables: [{ payableId: fine?.payableId, expectedRevision: fine?.payableRevision }] }));
+  const items = [{ agency: 'RTA', purpose: 'Contract check', amount: 1 }];
+  check('/pay/unified', await call('service-wallet', 'POST', '/pay/unified', { items }));
+  check('/pay/multi-agency', await call('service-wallet', 'POST', '/pay/multi-agency', { items: [{ agency: 'DEWA', purpose: 'Contract check', amount: 1 }] }));
+  const line = (await call('service-telecom', 'GET', '/telecom/etisalat/prepaid')).data.lines?.[0];
+  check('/telecom/{provider}/prepaid/recharges', await call('service-telecom', 'POST', '/telecom/etisalat/prepaid/recharges', { lineId: line?.lineId, amountMinor: line?.denominationsMinor?.[0], expectedTargetVersion: 1 }));
+  const telecomBill = (await call('service-telecom', 'GET', '/telecom/etisalat/bills')).data.bills?.find((item: { status: string }) => item.status === 'UNPAID');
+  check('/telecom/{provider}/bills/{billId}/payments', await call('service-telecom', 'POST', `/telecom/etisalat/bills/${telecomBill?.billId}/payments`, { expectedPayableRevision: telecomBill?.payableRevision, expectedAmountMinor: telecomBill?.amountMinor }));
+  const subscription = (await call('service-telecom', 'GET', '/telecom/etisalat/subscriptions')).data.subscriptions?.[0];
+  const plans = (await call('service-telecom', 'GET', '/telecom/etisalat/plans')).data.plans as { planId: string }[] | undefined;
+  check('/telecom/{provider}/subscriptions/{subscriptionId}/plan', await call('service-telecom', 'POST', `/telecom/etisalat/subscriptions/${subscription?.subscriptionId}/plan`, { planId: plans?.find(plan => plan.planId !== subscription?.planId)?.planId }));
+}
+
 assert.deepEqual(failures, [], failures.slice(0, 8).join('\n'));
 assert.equal(refused, APPLICATION_OPERATIONS.length, 'every documented operation was checked for the refusal');
+if (WRITES) assert.equal(written, APPLICATION_OPERATIONS.filter(operation => operation.method === 'POST').length, 'every mutating operation was written to and checked');
 assert.ok(invalid >= 10, `at least 10 writes were checked for the invalid-body refusal (${invalid})`);
 assert.equal(missing, APPLICATION_OPERATIONS.filter(operation => operation.method === 'GET' && operation.path.includes('{') && document.paths[operation.path]?.get?.responses['404']).length, 'every documented 404 on a read was checked');
 assert.ok(telecomReads >= 4 && telecomReads % TELECOM_PROVIDERS.length === 0, `each telecom read was checked for every provider (${telecomReads})`);
 assert.ok(read >= 15, `at least 15 parameter-free reads were checked (${read})`);
 console.log(`PASS: all ${refused} documented operations refuse a request with no token using the documented error shape`);
+if (WRITES) console.log(`PASS: ${written} valid writes answer 200 with every key the document requires`);
 console.log(`PASS: ${invalid} writes refuse an invalid body with a documented 400 before any effect`);
 console.log(`PASS: ${missing} reads of an unknown resource answer the documented 404`);
 console.log(`PASS: ${telecomReads} telecom reads (each provider) answer 200 with every key the document requires`);
