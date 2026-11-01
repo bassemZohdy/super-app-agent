@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 1 November 2026 — Draw the focus ring on every Flutter shell button (P2-14, step)
+
+The main Flutter shell previously drew a focus ring only in the delegated-access panel. The theme now gives elevated, filled, outlined, text and icon buttons the 3px token focus ring while focused and leaves them unchanged otherwise. A widget test checks the ring on each button kind and that Tab reaches the send control. After a rebuild of the Flutter web app the parity and accessibility browser specs pass (40), except the live-Keycloak sign-in spec noted in the previous entries. [Design details](development/design-tokens.md).
+
 ## 1 November 2026 — Measure the Flutter surface controls (P2-14, step)
 
 A widget test renders a gateway surface containing a button, a choice group and a form input in the main Flutter shell at desktop, phone (through the Service details view) and 2x text on a 360px phone, and checks each is at least a 44px target. They already were; the test keeps them that way. Not yet measured: the settings dialog and map viewer. [Design details](development/design-tokens.md).

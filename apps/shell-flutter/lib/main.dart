@@ -36,6 +36,11 @@ class SuperAppFlutter extends StatelessWidget {
         fontFamily: 'Roboto',
         fontFamilyFallback: const ['Noto Naskh Arabic'],
         appBarTheme: const AppBarTheme(elevation: 0, centerTitle: false),
+        elevatedButtonTheme: const ElevatedButtonThemeData(style: _focusRing),
+        filledButtonTheme: const FilledButtonThemeData(style: _focusRing),
+        outlinedButtonTheme: const OutlinedButtonThemeData(style: _focusRing),
+        textButtonTheme: const TextButtonThemeData(style: _focusRing),
+        iconButtonTheme: const IconButtonThemeData(style: _focusRing),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
           fillColor: CitysideTokens.primitiveWhite,
@@ -48,6 +53,18 @@ class SuperAppFlutter extends StatelessWidget {
           : const SuperAppHomeScreen(),
     );
   }
+}
+
+/// A keyboard user must always see where focus is, so every button in the shell draws the token focus ring.
+const _focusRing = ButtonStyle(side: _FocusRingSide());
+
+class _FocusRingSide extends WidgetStateBorderSide {
+  const _FocusRingSide();
+  @override
+  BorderSide? resolve(Set<WidgetState> states) =>
+      states.contains(WidgetState.focused)
+      ? const BorderSide(color: CitysideTokens.focusRing, width: 3)
+      : null;
 }
 
 class SuperAppHomeScreen extends StatefulWidget {

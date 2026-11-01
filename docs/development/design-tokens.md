@@ -66,3 +66,5 @@ The Flutter connections refresh action uses a 48px token-based minimum and a the
 The Flutter delegated-access actions use 48px token-based minimum targets and theme-aware focus borders. Phone widget checks cover enlarged text, reduced motion, focus styling and revocation disabling execution; browser checks measure the initial consent controls. Consent and execution remain separate operations.
 
 The Flutter main concierge header is measured the same way: a widget test checks every tool control has a name and at least a 44px target on desktop, on a phone and on a 360px phone at twice the text size, and the account selector flexes and ellipsizes its labels so it cannot overflow its row.
+
+Every button in the Flutter main shell draws the 3px token focus ring while focused (set once in the app theme, so elevated, filled, outlined, text and icon buttons all get it), and a widget test checks the ring and that Tab reaches the send control.
