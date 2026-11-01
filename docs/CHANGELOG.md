@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 1 November 2026 — Type four more browser scripts (P2-05, step)
+
+The fine-checkout, mandate-narrowing and automation-security browser scripts, and the rest of the grouped-checkout script, take their payables, card balances, mandates, billing accounts, accounts and realm clients from shared types instead of `any`; the E2E type check passes and the `any` baseline fell again. The scripts need the Compose stack and were not run. Guide: [testing](development/testing.md).
+
 ## 1 November 2026 — Type five more browser scripts (P2-05, step)
 
 The mandate-change, mandate-create, recharge-checkout, wallet-funding and payment-history browser scripts take their mandates, billing accounts, card balances, recharge targets, payables and orders from the shared types instead of `any`; the E2E type check passes and the `any` baseline fell again. The scripts need the Compose stack and were not run. Guide: [testing](development/testing.md).

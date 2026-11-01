@@ -5,6 +5,7 @@ import { mkdir,copyFile,writeFile } from 'node:fs/promises';
 import { setTimeout as hold } from 'node:timers/promises';
 import { chromium,type Browser,type Page } from 'playwright';
 import { startEnvironment } from './environment.ts';
+import type { CardBalance, Payable } from '../../packages/protocol-core/src/payments.ts';
 const record=process.argv.includes('--record'),stamp=new Date().toISOString().replace(/[:.]/g,'-'),dir=`.data/fine-checkout/${stamp}`;
 let environment:Awaited<ReturnType<typeof startEnvironment>>|undefined,browser:Browser|undefined,page:Page|undefined;
 try{
@@ -23,7 +24,7 @@ try{
       await panel.getByRole('textbox',{name:'Card nickname',exact:true}).fill('My fine payment card');await panel.getByRole('combobox',{name:'Demo card preset',exact:true}).selectOption('challenge');const response=responseFor('methods');await panel.getByRole('button',{name:'Add demo card',exact:true}).click();methodId=(await (await response).json()).method.id;
     }
     let response=responseFor('billing-accounts');await panel.getByRole('button',{name:/^Link Traffic fines/}).click();await response;
-    const snapshot=(await api('overview')).data,fines=snapshot.payables.filter((p:any)=>p.kind==='FINE'&&p.status==='UNPAID');assert.equal(fines.length,2);
+    const snapshot=(await api('overview')).data,fines=snapshot.payables.filter((p:Payable)=>p.kind==='FINE'&&p.status==='UNPAID');assert.equal(fines.length,2);
     const checks=panel.getByRole('group',{name:'Select traffic fines to pay together',exact:true});for(const p of fines)await checks.getByRole('checkbox',{name:new RegExp(p.obligationId)}).check();
     await panel.getByRole('combobox',{name:'Payment source',exact:true}).selectOption(methodId);
     response=responseFor('fine-selection-preview');await checks.getByRole('button',{name:'Review selected fines',exact:true}).click();const preview=(await (await response).json()).preview;assert.equal(preview.totalMinor,42000);assert.equal(preview.payable.items.length,2);
@@ -39,7 +40,7 @@ try{
     await article.getByText('State: AUTHORIZED',{exact:true}).waitFor();await article.scrollIntoViewIfNeeded();assert.equal((await api('overview')).data.wallet.balanceMinor,150000);if(record)await hold(6000);
     response=responseFor('orders/execute');await article.getByRole('button',{name:'Pay AED 420.00',exact:true}).click();const executed=await response,paid=(await executed.json()).order;assert.equal(executed.status(),200);assert.equal(paid.state,'SETTLED');assert.equal(paid.receipt.amountMinor,42000);
     await article.getByRole('region',{name:'Confirmed fine receipt',exact:true}).getByText('Fines paid · AED 420.00',{exact:true}).waitFor();await article.scrollIntoViewIfNeeded();if(record)await hold(8000);
-    const after=(await api('overview')).data;assert.equal(after.wallet.balanceMinor,funding==='wallet'?108000:150000);assert.equal(after.payables.filter((p:any)=>p.kind==='FINE'&&p.status==='PAID').length,2);if(funding!=='wallet')assert.equal(after.cardBalances.find((b:any)=>b.sourceId===methodId).spentMinor,42000);
+    const after=(await api('overview')).data;assert.equal(after.wallet.balanceMinor,funding==='wallet'?108000:150000);assert.equal(after.payables.filter((p:Payable)=>p.kind==='FINE'&&p.status==='PAID').length,2);if(funding!=='wallet')assert.equal(after.cardBalances.find((b:CardBalance)=>b.sourceId===methodId).spentMinor,42000);
     assert.equal((await api('orders/execute',executed.request().postDataJSON())).data.order.paymentId,paid.paymentId);assert.equal((await api('orders/recover',{orderId:paid.id})).data.order.paymentId,paid.paymentId);assert.equal((await api('overview')).data.wallet.balanceMinor,after.wallet.balanceMinor);
     await mkdir('docs/reports/assets',{recursive:true});await article.screenshot({path:`docs/reports/assets/fine-${funding}-receipt.png`});
     await page.reload();await page.getByRole('button',{name:'Payment accounts',exact:true}).click();if(await accounts.inputValue()!==accountId)await accounts.selectOption(accountId);await panel.getByRole('region',{name:'Confirmed fine receipt',exact:true}).waitFor();await panel.getByRole('region',{name:'Confirmed fine receipt',exact:true}).scrollIntoViewIfNeeded();if(record)await hold(8000);

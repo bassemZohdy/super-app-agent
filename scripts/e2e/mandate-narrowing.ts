@@ -6,6 +6,8 @@ import { randomUUID } from 'node:crypto';
 import { chromium, type Browser, type Page } from 'playwright';
 import { startEnvironment } from './environment.ts';
 import { MANDATE_ACTOR, type MandatePolicy } from '../../packages/protocol-core/src/payment-mandates.ts';
+import type { BillingAccount } from '../../packages/protocol-core/src/payments.ts';
+import type { PaymentMandate } from '../../packages/protocol-core/src/payment-mandates.ts';
 
 let environment: Awaited<ReturnType<typeof startEnvironment>> | undefined;
 let browser: Browser | undefined;
@@ -35,10 +37,10 @@ try {
     return { status: r.status, data: await r.json() as any };
   };
   const overview = (await api('overview')).data;
-  const dewa = overview.candidates.find((c: any) => c.provider === 'dewa');
+  const dewa = overview.candidates.find((c: {provider: string; reference: string}) => c.provider === 'dewa');
   assert.ok(dewa, 'a DEWA account is available to the owner');
   const link = await api('billing-accounts', { provider: 'dewa', reference: dewa.reference, nickname: 'Home' });
-  const billing = link.data.billingAccount ?? (await api('overview')).data.billingAccounts.find((b: any) => b.reference === dewa.reference);
+  const billing = link.data.billingAccount ?? (await api('overview')).data.billingAccounts.find((b: BillingAccount) => b.reference === dewa.reference);
   const policy: MandatePolicy = {
     actorClientId: MANDATE_ACTOR, audience: 'provider-api', operation: 'BILL_PAYMENT', purpose: 'Pay my DEWA bill automatically', currency: 'AED',
     target: { kind: 'BILLER', billingAccountId: billing.id, expectedVersion: billing.version, provider: 'dewa', reference: dewa.reference },
@@ -72,7 +74,7 @@ try {
   assert.equal((await revised).status(), 200);
   await page.getByRole('status').filter({ hasText: 'Cap narrowed' }).waitFor();
   const waiting = await api('mandates');
-  const narrowed = waiting.data.mandates.find((m: any) => m.id === rule.id);
+  const narrowed = waiting.data.mandates.find((m: PaymentMandate) => m.id === rule.id);
   assert.equal(narrowed.state, 'AWAITING_APPROVAL', 'the narrowed rule waits for approval');
   assert.equal(narrowed.policy.limits.perPaymentMinor, 12000, 'the revised cap is AED 120');
   // The owner approves the reviewed terms; the rule runs again under the narrower cap.
@@ -81,7 +83,7 @@ try {
   await page.getByRole('listitem').filter({ hasText: `Rule ${rule.id}` }).getByRole('button', { name: 'Approve reviewed terms', exact: true }).click();
   assert.equal((await reviewed).status(), 200);
   await page.getByRole('status').filter({ hasText: 'Narrowed rule approved' }).waitFor();
-  const after = (await api('mandates')).data.mandates.find((m: any) => m.id === rule.id);
+  const after = (await api('mandates')).data.mandates.find((m: PaymentMandate) => m.id === rule.id);
   assert.equal(after.state, 'APPROVED');
   assert.equal(after.policy.limits.perPaymentMinor, 12000);
   console.log('PASS: the owner narrows an approved rule in the browser, a raise is refused without a request, and the narrowed review is approved before the rule runs again.');
