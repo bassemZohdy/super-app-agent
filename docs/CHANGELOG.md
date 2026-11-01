@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 1 November 2026 — Type the delegation realm configuration (P2-05, step)
+
+The Keycloak delegation configuration looked up identity providers, client scopes, executor profiles, policies, links and roles through callbacks typed `any`; they now name the one field each reads (`alias`, `name` or `identityProvider`), the service type check passes and the `any` baseline fell by 12. The admin API's own responses stay untyped at the `api` call. The behavior is unchanged. Guide: [testing](development/testing.md).
+
 ## 1 November 2026 — Localize the React main shell's remaining labels (P1-12, step)
 
 Thirty-four more labels in the React main shell now come from shared catalog keys, 29 of them new with Arabic text and five reused: the voice studio (language, preset, speed, preview, stop and refresh controls), the sign-in screen's text and demo account hint, the three suggestion chips (only the label changes; the message each chip sends stays English), the dismiss, skip-to-workspace and check-again controls, the conversation, navigation and saved-conversation names, and the simulated-data and review notes. English wording is unchanged, so the English journeys that find controls by name are untouched; the Flutter catalog was regenerated. A few labels split across a line break by markup (the keyboard hint and the two-line sign-in headline) are left for a later step. The offline tests, the shell type check, the catalog parity test and the shared-contract check pass; the browser suite was not run against this change (the stack was stopped), so run `npm run test:browser` on the Compose stack before relying on it. Guide: [localization](development/localization.md).
