@@ -110,7 +110,8 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
   Map<String, dynamic>? _model;
   String _locale = 'en';
   bool _shareProfile = true;
-  String t(String key) => citysideText(_locale, key);
+  String t(String key, [Map<String, Object> values = const {}]) =>
+      citysideText(_locale, key, values);
   String _connectionLabel = 'Connecting…';
   CitizenEventStream? _events;
   bool _streamEnabled = false;
@@ -354,12 +355,12 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
     final selected = await showDialog<String>(
       context: context,
       builder: (context) => SimpleDialog(
-        title: const Text('Saved conversations'),
+        title: Text(t('fl.saved')),
         children: sessions.isEmpty
             ? [
-                const Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Text('No conversations yet.'),
+                Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(t('fl.noSaved')),
                 ),
               ]
             : sessions
@@ -370,7 +371,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                         session['sessionId'] as String,
                       ),
                       child: Text(
-                        session['title'] as String? ?? 'Conversation',
+                        session['title'] as String? ?? t('fl.conversation'),
                       ),
                     ),
                   )
@@ -801,7 +802,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
     _requestPending = true;
     setState(() {
       _messages.add({'role': 'user', 'text': text});
-      _thinkingDelta = 'Preparing your request…';
+      _thinkingDelta = t('fl.preparing');
     });
     _promptController.clear();
 
@@ -832,7 +833,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
         _thinkingDelta = null;
         _messages.add({
           'role': 'assistant',
-          'text': 'Could not reach Gateway at $_gatewayUrl',
+          'text': t('fl.unreachable', {'url': _gatewayUrl}),
         });
       });
     } finally {
@@ -850,7 +851,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
     }
     _requestPending = true;
     setState(() {
-      _thinkingDelta = '⚡ Executing action: $action...';
+      _thinkingDelta = t('fl.executing', {'action': action});
     });
 
     try {
@@ -922,9 +923,12 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                     color: CitysideTokens.primitiveTeal700,
                   ),
                   const SizedBox(height: 24),
-                  const Text(
-                    'Your city. Your account.',
-                    style: TextStyle(fontSize: 30, fontWeight: FontWeight.w600),
+                  Text(
+                    t('ng.signin.title'),
+                    style: const TextStyle(
+                      fontSize: 30,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const SizedBox(height: 18),
                   Text(t('ng.signin.hint')),
@@ -989,16 +993,16 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
         actions: [
           if (MediaQuery.sizeOf(context).width < 900)
             PopupMenuButton<String>(
-              tooltip: 'Workspace tools',
+              tooltip: t('fl.tools'),
               onSelected: _openTool,
               itemBuilder: (_) => [
                 for (final entry in {
                   'services': t('nav.exploreServices'),
                   'settings': t('settings.title'),
                   'connections': t('tools.connections'),
-                  'fines': 'Fines & renewal',
+                  'fines': t('fl.fines'),
                   'delegation': t('tools.delegatedAccess'),
-                  'history': 'Saved conversations',
+                  'history': t('fl.saved'),
                   'logout': t('nav.signOut'),
                 }.entries)
                   PopupMenuItem(
@@ -1030,7 +1034,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
               icon: const Icon(Icons.link),
             ),
             IconButton(
-              tooltip: 'Fines & renewal',
+              tooltip: t('fl.fines'),
               onPressed: _requestPending
                   ? null
                   : () => Navigator.of(context).push(
@@ -1061,7 +1065,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
               icon: const Icon(Icons.verified_user_outlined),
             ),
             IconButton(
-              tooltip: 'Saved conversations',
+              tooltip: t('fl.saved'),
               onPressed: _requestPending ? null : _showSessions,
               icon: const Icon(Icons.history),
             ),
@@ -1268,12 +1272,12 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                 Expanded(
                   child: TextField(
                     controller: _promptController,
-                    decoration: const InputDecoration(
-                      hintText: 'Ask Rashid about your city…',
-                      border: OutlineInputBorder(
+                    decoration: InputDecoration(
+                      hintText: t('ng.composer.placeholder'),
+                      border: const OutlineInputBorder(
                         borderRadius: BorderRadius.all(Radius.circular(8)),
                       ),
-                      contentPadding: EdgeInsets.symmetric(
+                      contentPadding: const EdgeInsets.symmetric(
                         horizontal: 12,
                         vertical: 10,
                       ),
@@ -1479,7 +1483,11 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
           onPressed: _requestPending
               ? null
               : () => _openMiniApp(props['miniAppId'] as String? ?? ''),
-          child: Text('Open ${props['miniAppId'] ?? 'city services'}'),
+          child: Text(
+            t('fl.openMiniApp', {
+              'name': (props['miniAppId'] as String?) ?? t('fl.cityServices'),
+            }),
+          ),
         );
       case 'MetricWidget':
         return Container(

@@ -27,11 +27,15 @@ test('the Flutter web shell follows a saved Arabic choice and keeps its controls
   expect(box!.height, 'the send control is at least 44px tall').toBeGreaterThanOrEqual(44);
 
   if (page.viewportSize()!.width < 900) {
-    await page.getByRole('button', { name: 'Workspace tools' }).click();
+    await page.getByRole('button', { name: 'أدوات مساحة العمل', exact: true }).click();
     await expect(page.getByRole('menuitem', { name: 'روابط الخدمات', exact: true })).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: 'المخالفات والتجديد', exact: true })).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: 'المحادثات المحفوظة', exact: true })).toBeVisible();
   } else {
     const connections = page.getByRole('button', { name: 'روابط الخدمات', exact: true });
     await expect(connections).toBeVisible();
+    await expect(page.getByRole('button', { name: 'المخالفات والتجديد', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'المحادثات المحفوظة', exact: true })).toBeVisible();
     const tool = await connections.boundingBox();
     expect(Math.min(tool!.width, tool!.height), 'the Connections tool is at least 44px').toBeGreaterThanOrEqual(44);
   }
