@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 1 November 2026 — Type the payment-refunds browser script (P2-05, step)
+
+The payment-refunds browser script now takes `Payable`, `PaymentAuthorizationReview`, `PaymentRefund`, `CardBalance` and `RechargeTarget` from the shared payment types instead of `any`; the E2E type check passes and the `any` baseline fell by eighteen uses. The script needs the Compose stack and was not run. Guide: [testing](development/testing.md).
+
 ## 1 November 2026 — Type the grouped-checkout browser script (P2-05, step)
 
 The grouped-checkout browser script no longer uses `any` for its payable, recharge-target and group callbacks: they take the shared `Payable`, `RechargeTarget` and `CheckoutGroupView` types, and the E2E type check passes. The `any` baseline was lowered by eight uses. The browser script itself needs the Compose stack and was not run. Guide: [testing](development/testing.md).

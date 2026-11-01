@@ -37,7 +37,7 @@
   "scripts/e2e/payment-mandates.ts": 10,
   "scripts/e2e/payment-obligations.ts": 15,
   "scripts/e2e/payment-reconciliation.ts": 11,
-  "scripts/e2e/payment-refunds.ts": 21,
+  "scripts/e2e/payment-refunds.ts": 3,
   "scripts/e2e/payment-surfaces.ts": 11,
   "scripts/e2e/recharge-checkout.ts": 6,
   "scripts/e2e/runner.ts": 1,
