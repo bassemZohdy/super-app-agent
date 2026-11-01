@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 1 November 2026 — Type the payment-authorization browser script (P2-05, step)
+
+The payment-authorization browser script types its payables, orders, card budgets, realm clients and token responses instead of using `any`; the E2E type check passes and the `any` baseline fell again. Responses that other helpers read untyped (`api` data, one JSON helper) still use `any`. The script needs the Compose stack and was not run. Guide: [testing](development/testing.md).
+
 ## 1 November 2026 — Type the payment-refunds browser script (P2-05, step)
 
 The payment-refunds browser script now takes `Payable`, `PaymentAuthorizationReview`, `PaymentRefund`, `CardBalance` and `RechargeTarget` from the shared payment types instead of `any`; the E2E type check passes and the `any` baseline fell by eighteen uses. The script needs the Compose stack and was not run. Guide: [testing](development/testing.md).

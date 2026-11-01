@@ -30,7 +30,7 @@
   "scripts/e2e/mandate-create.ts": 6,
   "scripts/e2e/mandate-narrowing.ts": 5,
   "scripts/e2e/payment-accounts.ts": 12,
-  "scripts/e2e/payment-authorization.ts": 18,
+  "scripts/e2e/payment-authorization.ts": 2,
   "scripts/e2e/payment-events.ts": 10,
   "scripts/e2e/payment-history.ts": 4,
   "scripts/e2e/payment-lifecycle.ts": 11,
