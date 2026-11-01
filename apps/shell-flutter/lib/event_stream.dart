@@ -4,9 +4,12 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class CitizenFrame {
-  CitizenFrame(this.id, this.envelope);
+  CitizenFrame(this.id, this.envelope, {this.unreadable = false});
   final String? id;
   final Map<String, dynamic> envelope;
+
+  /// The event's data was not a JSON object. It is still reported, with its id, so the stream can move its cursor past it.
+  final bool unreadable;
 }
 
 Stream<CitizenFrame> readCitizenFrames(Stream<List<int>> source) async* {
@@ -21,11 +24,15 @@ Stream<CitizenFrame> readCitizenFrames(Stream<List<int>> source) async* {
     }
     if (line.isEmpty) {
       if (lines.isNotEmpty) {
-        final decoded = jsonDecode(lines.join('\n'));
-        if (decoded is! Map<String, dynamic>) {
-          throw const FormatException('Invalid stream envelope');
+        Object? decoded;
+        try {
+          decoded = jsonDecode(lines.join('\n'));
+        } on FormatException {
+          decoded = null;
         }
-        yield CitizenFrame(id, decoded);
+        yield decoded is Map<String, dynamic>
+            ? CitizenFrame(id, decoded)
+            : CitizenFrame(id, const {}, unreadable: true);
       }
       lines.clear();
       id = null;
@@ -91,8 +98,11 @@ class CitizenEventStream {
           delay = 500;
           await for (final frame in readCitizenFrames(response.stream)) {
             if (_closed) return;
-            if (frame.envelope['sessionId'] != sessionId) {
-              throw const FormatException('Stream session mismatch');
+            if (frame.unreadable || frame.envelope['sessionId'] != sessionId) {
+              // An event that cannot be read, or that belongs to another session, is skipped. The cursor still moves past it, or every
+              // reconnect would replay the same event and nothing after it would arrive.
+              if (frame.id != null) _cursor = frame.id;
+              continue;
             }
             if (frame.id != null) _cursor = frame.id;
             onEnvelope(frame.envelope);

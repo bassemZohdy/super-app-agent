@@ -88,4 +88,52 @@ void main() {
       expect(calls, 1);
     },
   );
+
+  test('an unreadable or foreign event is skipped, the cursor moves past it and the events after it arrive', () async {
+    final resumedFrom = <String?>[];
+    final messages = <int>[];
+    late CitizenEventStream stream;
+    final client = MockClient((request) async {
+      final from = request.headers['Last-Event-ID'];
+      resumedFrom.add(from);
+      const events = <int, String>{
+        1: '{"sessionId":"session1","n":1}',
+        2: '{ this is not json',
+        3: '{"sessionId":"someone_elses","n":3}',
+        4: '{"sessionId":"session1","n":4}',
+      };
+      final body = StringBuffer();
+      events.forEach((id, data) {
+        if (from == null || id > int.parse(from)) {
+          body.write('id: $id\ndata: $data\n\n');
+        }
+      });
+      return http.Response(
+        body.toString(),
+        200,
+        headers: {'content-type': 'text/event-stream'},
+      );
+    });
+    stream = CitizenEventStream(
+      url: Uri.parse('http://localhost/stream?sessionId=session1'),
+      sessionId: 'session1',
+      authorization: () async => 'Bearer token',
+      onStatus: (_) {},
+      onAuthRequired: () => fail('Unexpected auth rejection'),
+      onEnvelope: (envelope) {
+        messages.add(envelope['n'] as int);
+        if (envelope['n'] == 4) stream.close();
+      },
+    );
+    await http.runWithClient(
+      () => stream.run().timeout(const Duration(seconds: 8)),
+      () => client,
+    );
+    expect(messages, [1, 4], reason: 'good events arrive once each');
+    expect(
+      resumedFrom.length,
+      lessThanOrEqualTo(3),
+      reason: 'a bad event does not make the stream replay it forever',
+    );
+  });
 }

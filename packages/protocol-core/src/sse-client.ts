@@ -66,7 +66,14 @@ export async function connectEventStream(options: {
         throw new Error(`Stream unavailable (${response.status})`);
       }
       for await (const event of readEventStream(response)) {
-        const message: A2UIMessageEnvelope = JSON.parse(event.data);
+        let message: A2UIMessageEnvelope;
+        try { message = JSON.parse(event.data); } catch {
+          // The stream resumes from the last event handled. An event that cannot be read must still move the cursor past it, or every
+          // reconnect would replay the same bad event and nothing after it would ever arrive.
+          if (event.id !== undefined) cursor = event.id;
+          options.onError?.(new Error('A stream event could not be read and was skipped'));
+          continue;
+        }
         options.onMessage(message);
         if (event.id !== undefined) cursor = event.id;
         delay = 500;
