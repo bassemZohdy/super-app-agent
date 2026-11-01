@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 1 November 2026 — Type the shared voice and recorder code (P2-05, step)
+
+The microphone recorder and the voice client are shared by the React and Angular shells and take the browser's objects through an environment parameter so tests can pass fakes. Those objects were typed `any`; they now use small interfaces naming only what the code touches (`CaptureStream`, `CaptureTrack`, `CaptureRecorder`, `RecognitionResultEvent`, `SpeechUtterance`, `AudioPlayer`). The package, the React type check and the Angular build pass against the real browser objects, the voice tests pass with their fakes, and the `any` baseline fell by 13. Behavior is unchanged. Guide: [testing](development/testing.md).
+
 ## 1 November 2026 — Type the delegation realm configuration (P2-05, step)
 
 The Keycloak delegation configuration looked up identity providers, client scopes, executor profiles, policies, links and roles through callbacks typed `any`; they now name the one field each reads (`alias`, `name` or `identityProvider`), the service type check passes and the `any` baseline fell by 12. The admin API's own responses stay untyped at the `api` call. The behavior is unchanged. Guide: [testing](development/testing.md).

@@ -1,14 +1,25 @@
 /** User-triggered short microphone capture. Transcription is always a reviewable draft. */
 export type RecordingPayload = { audioBase64: string; format: string; language: string };
+/** The parts of a media track, stream and recorder this class touches, so it runs against the browser's or a test's. */
+export interface CaptureTrack { stop(): void; onended: (() => void) | null }
+export interface CaptureStream { getTracks(): CaptureTrack[] }
+export interface CaptureRecorder {
+  readonly state: string;
+  ondataavailable: ((event: { data: Blob }) => void) | null;
+  onerror: (() => void) | null;
+  onstop: (() => void | Promise<void>) | null;
+  start(timesliceMs: number): void;
+  stop(): void;
+}
 export interface CaptureEnvironment {
-  navigator?: { mediaDevices?: { getUserMedia(options: any): Promise<any> } };
-  MediaRecorder?: { new(stream: any, options: any): any; isTypeSupported?(mime: string): boolean };
+  navigator?: { mediaDevices?: { getUserMedia(options: unknown): Promise<CaptureStream> } };
+  MediaRecorder?: { new(stream: CaptureStream, options: { mimeType: string; audioBitsPerSecond: number }): CaptureRecorder; isTypeSupported?(mime: string): boolean };
 }
 export class LocalRecorder {
   readonly available: boolean;
   private generation = 0;
-  private recorder?: any;
-  private stream?: any;
+  private recorder?: CaptureRecorder;
+  private stream?: CaptureStream;
   private timer?: ReturnType<typeof setTimeout>;
   private request?: AbortController;
   constructor(privateEnvironment: CaptureEnvironment, callbacks: {

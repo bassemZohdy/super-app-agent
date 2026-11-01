@@ -1,9 +1,17 @@
 import { LocalRecorder, type CaptureEnvironment, type RecordingPayload } from './local-recorder.ts';
 import { speechText } from './voice-text.ts';
 /** Speech adapter. The app opts into local-only capture/playback; legacy engines require explicit fallback permission. */
+/** The parts of the browser's speech recognition result, utterance and audio element this class touches. */
+export interface RecognitionResultEvent { results: ArrayLike<{ isFinal: boolean; 0?: { transcript?: string } }> }
+export interface SpeechUtterance { lang: string; onend: (() => void) | null; onerror: (() => void) | null }
+export interface AudioPlayer {
+  onended: (() => void) | null; onerror: (() => void) | null;
+  src: string; currentTime: number;
+  play?(): Promise<void> | void; pause(): void;
+}
 export interface Recognition {
   lang: string; continuous: boolean; interimResults: boolean;
-  onresult: ((event: any) => void) | null;
+  onresult: ((event: RecognitionResultEvent) => void) | null;
   onerror: ((event: { error: string }) => void) | null;
   onend: (() => void) | null;
   start(): void; stop(): void; abort(): void;
@@ -11,9 +19,9 @@ export interface Recognition {
 export interface VoiceEnvironment extends CaptureEnvironment {
   SpeechRecognition?: new () => Recognition;
   webkitSpeechRecognition?: new () => Recognition;
-  speechSynthesis?: { speak(utterance: any): void; cancel(): void };
-  SpeechSynthesisUtterance?: new (text: string) => any;
-  Audio?: new (src?: string) => any;
+  speechSynthesis?: { speak(utterance: SpeechUtterance): void; cancel(): void };
+  SpeechSynthesisUtterance?: new (text: string) => SpeechUtterance;
+  Audio?: new (src?: string) => AudioPlayer;
 }
 export type VoiceState = 'idle' | 'listening' | 'transcribing' | 'speaking';
 export type VoiceCallbacks = {
@@ -28,8 +36,8 @@ export class VoiceClient {
   readonly canListen: boolean;
   readonly canSpeak: boolean;
   private recognition?: Recognition;
-  private utterance?: any;
-  private currentAudio?: any;
+  private utterance?: SpeechUtterance;
+  private currentAudio?: AudioPlayer;
   private speechGeneration = 0;
   private disposed = false;
   private state: VoiceState = 'idle';
@@ -132,7 +140,7 @@ export class VoiceClient {
   }
 
   private playNeuralAudio(audioBase64: string, format: string, generation: number, fallbackText: string, fallbackLang: string) {
-    const AudioConstructor = this.environment.Audio || (globalThis as any).Audio;
+    const AudioConstructor = this.environment.Audio || (globalThis as unknown as VoiceEnvironment).Audio;
     if (!AudioConstructor) {
       this.speakBrowser(fallbackText, fallbackLang, generation);
       return;
@@ -176,7 +184,7 @@ export class VoiceClient {
       this.callbacks.onError('The spoken reply could not play. You can read it in chat.');
       return;
     }
-    let utterance: any;
+    let utterance: SpeechUtterance;
     try {
       utterance = new this.environment.SpeechSynthesisUtterance(text.slice(0, 3000));
     } catch {
