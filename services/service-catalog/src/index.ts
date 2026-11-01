@@ -211,7 +211,7 @@ function handleCatalogRequest(
     const id = pathname.replace('/miniapps/', '');
     const found = miniApps.find((app) => app.id === id);
     if (!found) {
-      return { status: 404, data: { error: 'Mini-app not found', id } };
+      return { status: 404, data: { success: false, code: 'NOT_FOUND', error: 'Mini-app not found', id } };
     }
     return { status: 200, data: { success: true, miniApp: found } };
   }
@@ -224,7 +224,7 @@ function handleCatalogRequest(
     const id = pathname.slice('/capabilities/'.length);
     const capability = capabilities.find(item => item.id === id);
     return capability ? { status: 200, data: { capability } }
-      : { status: 404, data: { error: 'Capability not found', id } };
+      : { status: 404, data: { success: false, code: 'NOT_FOUND', error: 'Capability not found', id } };
   }
 
   // 4. Federated Tools Aggregator for Agent Gateway

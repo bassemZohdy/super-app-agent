@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 1 November 2026 — Check errors on writes and unknown resources, and fix the catalog 404s (P1-14, step)
+
+`npm run demo:verify:contract` now also sends every write that needs no resource id (15 of them) a body the contract does not allow and requires a documented 400 with the `Error` keys, and asks every read that documents a 404 (orders, mini-apps, capabilities) for something that does not exist and requires the 404 with those keys. It found a real drift: the catalog service answered an unknown mini-app or capability with `{error, id}` and no `code`, although the document says every error carries `code` and `error`; both responses now carry `success: false`, `code: 'NOT_FOUND'` and `error`. Writes on a specific bill or subscription are left out on purpose: the service looks the resource up first, so a made-up id is a 404. Guide: [testing](testing.md).
+
 ## 1 November 2026 — Verify the running services against their OpenAPI document (P1-14, step)
 
 `npm run demo:verify:contract` signs in a resident and checks the live Compose stack against the generated application OpenAPI document: all 45 documented operations refuse a request with no token with a 401 whose body has the document's `Error` keys (`code` and `error`), and 20 parameter-free reads answer 200 with every key the document lists as required. Reads only; nothing is created or paid. It fails with the operation and the missing key (checked by demanding a key that does not exist). Response bodies for provider passthroughs stay `additionalProperties: true` by design. Guide: [testing](testing.md).

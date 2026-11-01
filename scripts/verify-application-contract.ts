@@ -21,7 +21,9 @@ const accountId = accountIdFor(claims.sub);
 
 const fill = (path: string) => path.replace(/\{[^}]+\}/g, 'x1');
 const failures: string[] = [];
-let refused = 0, read = 0;
+let refused = 0, read = 0, invalid = 0, missing = 0;
+const hasErrorShape = (body: Record<string, unknown> | undefined) => !!body && errorKeys.every(key => typeof body[key] === 'string');
+const signedIn = { Authorization: `Bearer ${session.access_token}`, 'X-Account-Id': accountId, 'Content-Type': 'application/json' };
 for (const operation of APPLICATION_OPERATIONS) {
   const url = base(operation.service) + fill(operation.path);
   const documented = document.paths[operation.path]?.[operation.method.toLowerCase()];
@@ -34,18 +36,42 @@ for (const operation of APPLICATION_OPERATIONS) {
   else if (!anonymousBody || errorKeys.some(key => typeof anonymousBody[key] !== 'string')) failures.push(`${operation.method} ${operation.path}: the 401 body lacks ${errorKeys.join(' and ')}`);
   else refused++;
 
-  // 2. A read with no path parameter answers 200 with the documented required keys.
+  // 2. A signed-in write with a body the contract does not allow is refused with a documented 400 before anything happens.
+  const signedUrl = base(operation.service) + fill(operation.contract ?? operation.path);
+  // (A write on a specific bill or subscription looks the resource up first, so it is left out: a made-up id is a 404.)
+  if (operation.method === 'POST' && !/\{(?!provider\})[^}]+\}/.test(operation.path)) {
+    const bad = await fetch(signedUrl, { method: 'POST', headers: signedIn, body: JSON.stringify({ zz_unknown_field: 1 }) });
+    const badBody = await bad.json().catch(() => undefined) as Record<string, unknown> | undefined;
+    if (bad.status !== 400) failures.push(`${operation.method} ${operation.path}: an invalid body gave ${bad.status}, not 400`);
+    else if (!hasErrorShape(badBody)) failures.push(`${operation.method} ${operation.path}: the 400 body lacks ${errorKeys.join(' and ')}`);
+    else invalid++;
+  }
+
+  // 3. A read of a resource that does not exist answers the documented 404 with the error shape.
+  if (operation.method === 'GET' && operation.path.includes('{') && documented.responses['404']) {
+    const gone = await fetch(base(operation.service) + operation.path.replace(/\{[^}]+\}/g, 'does-not-exist'), { headers: signedIn });
+    const goneBody = await gone.json().catch(() => undefined) as Record<string, unknown> | undefined;
+    if (gone.status !== 404) failures.push(`${operation.method} ${operation.path}: an unknown resource gave ${gone.status}, not 404`);
+    else if (!hasErrorShape(goneBody)) failures.push(`${operation.method} ${operation.path}: the 404 body lacks ${errorKeys.join(' and ')}`);
+    else missing++;
+  }
+
+  // 4. A read with no path parameter answers 200 with the documented required keys.
   if (operation.method !== 'GET' || operation.path.includes('{')) continue;
   const answer = await fetch(url, { headers: { Authorization: `Bearer ${session.access_token}`, 'X-Account-Id': accountId } });
   if (answer.status !== 200) { failures.push(`${operation.method} ${operation.path}: a signed-in read gave ${answer.status}`); continue; }
   const body = await answer.json() as Record<string, unknown>;
   const required = documented.responses['200']?.content?.['application/json']?.schema?.required ?? [];
-  const missing = required.filter(key => !(key in body));
-  if (missing.length) failures.push(`${operation.method} ${operation.path}: the 200 body lacks ${missing.join(', ')}`);
+  const absent = required.filter(key => !(key in body));
+  if (absent.length) failures.push(`${operation.method} ${operation.path}: the 200 body lacks ${absent.join(', ')}`);
   else read++;
 }
 assert.deepEqual(failures, [], failures.slice(0, 8).join('\n'));
 assert.equal(refused, APPLICATION_OPERATIONS.length, 'every documented operation was checked for the refusal');
+assert.ok(invalid >= 10, `at least 10 writes were checked for the invalid-body refusal (${invalid})`);
+assert.equal(missing, APPLICATION_OPERATIONS.filter(operation => operation.method === 'GET' && operation.path.includes('{') && document.paths[operation.path]?.get?.responses['404']).length, 'every documented 404 on a read was checked');
 assert.ok(read >= 15, `at least 15 parameter-free reads were checked (${read})`);
 console.log(`PASS: all ${refused} documented operations refuse a request with no token using the documented error shape`);
+console.log(`PASS: ${invalid} writes refuse an invalid body with a documented 400 before any effect`);
+console.log(`PASS: ${missing} reads of an unknown resource answer the documented 404`);
 console.log(`PASS: ${read} parameter-free reads answer 200 with every key the document requires`);
