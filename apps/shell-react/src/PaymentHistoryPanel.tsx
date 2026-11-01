@@ -8,7 +8,7 @@ export function PaymentHistoryPanel({busy,read,work,locale='en'}:Props){
   const [entries,setEntries]=useState<StatementEntry[]>(),[summary,setSummary]=useState<StatementSummary>(),[statementCursor,setStatementCursor]=useState<string|null>(null);
   const [operations,setOperations]=useState<HistoryOperation[]>(),[activityCursor,setActivityCursor]=useState<string|null>(null),[detail,setDetail]=useState<HistoryOperation>();
   const open=(o:HistoryOperation)=>void work(async()=>setDetail((await read('history/detail',{kind:o.kind,operationId:o.id})).operation));
-  return <section className="payment-review" aria-label={t('history.title')}><h3>{t('history.title')}</h3>
+  return <section className="payment-review" aria-label={t('history.section')}><h3>{t('history.title')}</h3>
     <p>{t('history.intro')}</p>
     <div className="payment-actions"><button disabled={busy} onClick={()=>void work(async()=>{const result=await read('statement');setEntries(result.entries);setSummary(result.summary);setStatementCursor(result.nextCursor);})}>{t('history.loadStatement')}</button>
       <button disabled={busy} onClick={()=>void work(async()=>{const result=await read('history');setOperations(result.operations);setActivityCursor(result.nextCursor);})}>{t('history.loadActivity')}</button></div>
