@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 1 November 2026 — Measure the Flutter main composer (P2-14, step)
+
+A widget test now pumps the main concierge at desktop, phone and 2x text on a 360px phone and checks the message field has a name and at least a 44px height and that the send control is at least 44px in both directions. The composer already met these; the test keeps it that way. [Design details](development/design-tokens.md).
+
 ## 1 November 2026 — Measure the Flutter header and fix the account selector overflow (P2-14, step)
 
 With a Flutter 3.47.9 SDK now installed, a new widget test pumps the main concierge at desktop, phone and 2x text on a 360px phone and checks that every header tool has a name and a 44px target. It found a real defect: the account selector overflowed its row by 146 pixels at large text. The selector now flexes, expands and ellipsizes its labels. All 32 Flutter widget tests pass and `flutter analyze` is clean; the Flutter web build was rebuilt and the parity specs pass except the live-Keycloak sign-in spec, which fails on this stack with "Could not load sign-in settings" and was not diagnosed. [Design details](development/design-tokens.md).
