@@ -19,7 +19,7 @@
   "packages/protocol-core/src/voice-client.ts": 6,
   "packages/protocol-core/test/protocol.test.ts": 1,
   "scripts/configure-demo-keycloak.ts": 5,
-  "scripts/e2e/automation-execution.ts": 10,
+  "scripts/e2e/automation-execution.ts": 2,
   "scripts/e2e/automation-kill-switch-broker.ts": 1,
   "scripts/e2e/automation-security.ts": 4,
   "scripts/e2e/checkout-groups.ts": 4,

@@ -15,6 +15,7 @@ import { HttpRuleSource } from '../../services/automation-worker/src/http-rules.
 import { Scheduler } from '../../services/automation-worker/src/scheduler.ts';
 import { HttpExecutionGateway } from '../../services/automation-worker/src/http-gateway.ts';
 import { MANDATE_ACTOR, type MandatePolicy } from '../../packages/protocol-core/src/payment-mandates.ts';
+import type { BillingAccount, PaymentAuthorizationReview } from '../../packages/protocol-core/src/payments.ts';
 
 const scratch = mkdtempSync(join(tmpdir(), 'cityside-auto-broker-'));
 let env: Awaited<ReturnType<typeof startEnvironment>> | undefined, restoreBroker = false;
@@ -52,7 +53,7 @@ try {
     return { status: r.status, data: await r.json().catch(() => ({})) as any };
   };
   const accounts = (await call(`${env.coreUrl}/api/accounts`, owner)).data.accounts;
-  const accountId = accounts.find((a: any) => a.label === 'Personal account').id as string;
+  const accountId = accounts.find((a: {id: string; label: string}) => a.label === 'Personal account').id as string;
   const api = (path: string, body?: Record<string, unknown>) => call(`${env!.coreUrl}/api/payments/${path}${body ? '' : `?accountId=${accountId}`}`, owner, body ? { accountId, requestKey: randomUUID(), ...body } : undefined);
   const wallet = async () => (await call(`http://localhost:${env!.corePort + 107}/v1/accounts/${accountId}/wallet`, owner)).data.balanceMinor as number;
   // The ledger's own journal for the account, so a debit is proved against the entries and not only the balance (QA-04).
@@ -68,10 +69,10 @@ try {
   };
 
   // Owner consent: a linked DEWA biller, one due bill and an approved automatic rule.
-  const overview = (await api('overview')).data, dewa = overview.candidates.find((c: any) => c.provider === 'dewa');
+  const overview = (await api('overview')).data, dewa = overview.candidates.find((c: {provider: string; reference: string}) => c.provider === 'dewa');
   const link = await api('billing-accounts', { provider: 'dewa', reference: dewa.reference, nickname: 'Home' });
   assert.equal(link.status, 200, JSON.stringify(link.data));
-  const billing = link.data.billingAccount ?? (await api('overview')).data.billingAccounts.find((b: any) => b.reference === dewa.reference);
+  const billing = link.data.billingAccount ?? (await api('overview')).data.billingAccounts.find((b: BillingAccount) => b.reference === dewa.reference);
   const due = new Date(Date.now() + 86400000).toISOString().slice(0, 10), billId = 'e2e-auto-bill';
   env.providerStores.get('dewa')!.put(accountId, 'bill', { billId, accountNumber: dewa.reference, totalAmount: 150, status: 'UNPAID', dueDate: due }, billId);
   const now = Date.now();
@@ -347,9 +348,9 @@ try {
   assert.equal(forecast.status, 200, JSON.stringify(forecast.data));
   assert.equal(forecast.data.forecast.zeroEffect, true);
   assert.equal(forecast.data.forecast.wouldRun, true);
-  assert.ok(forecast.data.forecast.candidates.some((c: any) => c.amountMinor === 15000 && c.decision !== 'SKIP'));
+  assert.ok(forecast.data.forecast.candidates.some((c: {amountMinor: number; decision?: string}) => c.amountMinor === 15000 && c.decision !== 'SKIP'));
   assert.equal(forecast.data.forecast.source.usable, true);
-  assert.deepEqual((await call(previewUrl, owner)).data.forecast.candidates.map((c: any) => c.payableId), forecast.data.forecast.candidates.map((c: any) => c.payableId), 'asking again is the same read');
+  assert.deepEqual((await call(previewUrl, owner)).data.forecast.candidates.map((c: {payableId: string}) => c.payableId), forecast.data.forecast.candidates.map((c: {payableId: string}) => c.payableId), 'asking again is the same read');
   assert.ok([401, 403, 404].includes((await call(previewUrl, other)).status), 'another user cannot preview this rule');
   assert.ok([401, 403].includes((await call(`${paymentsUrl}/payment-mandates/${previewRule.id}/preview`, worker)).status), 'the worker identity is not an owner');
   assert.equal(await wallet(), beforePreview.wallet, 'a preview moved no money');
@@ -392,7 +393,7 @@ try {
   const sleep = (ms: number) => new Promise(done => setTimeout(done, ms));
   const challengeWorker = (store: JobStore) => new AutomationWorker(store, new HttpExecutionGateway(gatewayConfig), { workerId: 'worker-challenge', challengeWaitMs: 1000, sleep: async () => {} });
   const answerChallenge = async (orderId: string, decision: 'APPROVE' | 'REJECT') => {
-    const order = (await api('overview')).data.orders.find((o: any) => o.id === orderId);
+    const order = (await api('overview')).data.orders.find((o: PaymentAuthorizationReview) => o.id === orderId);
     assert.equal(order.state, 'REQUIRES_ACTION', 'the order is waiting for the owner');
     const answered = await api('orders/challenge', { orderId, expectedVersion: order.version, approvalDigest: order.approvalDigest, challengeId: order.authorization.challengeId, decision });
     assert.equal(answered.status, 200, JSON.stringify(answered.data));
@@ -418,7 +419,7 @@ try {
   const approved = await challengeWorker(challengeStore).runOnce();
   assert.equal(approved!.state, 'SETTLED', JSON.stringify(approved));
   // A card payment is settled on its order; the wallet stays as it was. The order's state is the record of the one payment.
-  const approvedOrder = (await api('overview')).data.orders.find((o: any) => o.id === approveOrder);
+  const approvedOrder = (await api('overview')).data.orders.find((o: PaymentAuthorizationReview) => o.id === approveOrder);
   assert.equal(approvedOrder.state, 'SETTLED', JSON.stringify(approvedOrder.state));
   assert.deepEqual(challengeStore.outbox(approveJob.id).map(e => e.kind), ['PREPARED', 'REQUIRES_ACTION', 'CHALLENGE_ANSWERED', 'SETTLED']);
   const approvedFeed = (await inboxFor(owner)).data.entries!.filter(e => e.mandateId === approveRule.id).map(e => e.kind).sort();

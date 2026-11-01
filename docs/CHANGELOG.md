@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 1 November 2026 — Type the automation-execution browser script (P2-05, step)
+
+The automation-execution browser script types its accounts, candidates, billing accounts, forecast candidates and orders instead of using `any`; the E2E type check passes and the `any` baseline fell again. The script needs the Compose stack and was not run. Guide: [testing](development/testing.md).
+
 ## 1 November 2026 — Type the payment-lifecycle browser script (P2-05, step)
 
 The payment-lifecycle browser script types its accounts, realm clients, orders, payables and sessions instead of using `any`; the E2E type check passes and the `any` baseline fell again. The script needs the Compose stack and was not run. Guide: [testing](development/testing.md).
