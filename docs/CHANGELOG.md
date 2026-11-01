@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 1 November 2026 — Check the telecom reads for each provider (P1-14, step)
+
+`npm run demo:verify:contract` now runs every telecom read that is scoped only by provider once for Etisalat and once for du, with a signed-in resident, and requires 200 with every key the document lists (8 checks: four operations for each provider); before, those routes were only exercised with a placeholder provider. The mutating routes and the mapping between catalog tools, gateway routes and client calls remain open in P1-14. Guide: [testing](testing.md).
+
 ## 1 November 2026 — Check errors on writes and unknown resources, and fix the catalog 404s (P1-14, step)
 
 `npm run demo:verify:contract` now also sends every write that needs no resource id (15 of them) a body the contract does not allow and requires a documented 400 with the `Error` keys, and asks every read that documents a 404 (orders, mini-apps, capabilities) for something that does not exist and requires the 404 with those keys. It found a real drift: the catalog service answered an unknown mini-app or capability with `{error, id}` and no `code`, although the document says every error carries `code` and `error`; both responses now carry `success: false`, `code: 'NOT_FOUND'` and `error`. Writes on a specific bill or subscription are left out on purpose: the service looks the resource up first, so a made-up id is a 404. Guide: [testing](testing.md).

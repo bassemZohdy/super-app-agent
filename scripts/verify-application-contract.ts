@@ -21,7 +21,8 @@ const accountId = accountIdFor(claims.sub);
 
 const fill = (path: string) => path.replace(/\{[^}]+\}/g, 'x1');
 const failures: string[] = [];
-let refused = 0, read = 0, invalid = 0, missing = 0;
+const TELECOM_PROVIDERS = ['etisalat', 'du'];
+let refused = 0, read = 0, invalid = 0, missing = 0, telecomReads = 0;
 const hasErrorShape = (body: Record<string, unknown> | undefined) => !!body && errorKeys.every(key => typeof body[key] === 'string');
 const signedIn = { Authorization: `Bearer ${session.access_token}`, 'X-Account-Id': accountId, 'Content-Type': 'application/json' };
 for (const operation of APPLICATION_OPERATIONS) {
@@ -56,22 +57,29 @@ for (const operation of APPLICATION_OPERATIONS) {
     else missing++;
   }
 
-  // 4. A read with no path parameter answers 200 with the documented required keys.
-  if (operation.method !== 'GET' || operation.path.includes('{')) continue;
-  const answer = await fetch(url, { headers: { Authorization: `Bearer ${session.access_token}`, 'X-Account-Id': accountId } });
-  if (answer.status !== 200) { failures.push(`${operation.method} ${operation.path}: a signed-in read gave ${answer.status}`); continue; }
-  const body = await answer.json() as Record<string, unknown>;
+  // 4. A read whose only path parameter is the telecom provider (or that has none) answers 200 with the documented required keys,
+  //    once for each provider the service offers.
+  if (operation.method !== 'GET' || /\{(?!provider\})[^}]+\}/.test(operation.path)) continue;
   const required = documented.responses['200']?.content?.['application/json']?.schema?.required ?? [];
-  const absent = required.filter(key => !(key in body));
-  if (absent.length) failures.push(`${operation.method} ${operation.path}: the 200 body lacks ${absent.join(', ')}`);
-  else read++;
+  for (const provider of operation.path.includes('{provider}') ? TELECOM_PROVIDERS : [undefined]) {
+    const target = base(operation.service) + operation.path.replace('{provider}', provider ?? '');
+    const answer = await fetch(target, { headers: signedIn });
+    if (answer.status !== 200) { failures.push(`${operation.method} ${operation.path}${provider ? ` (${provider})` : ''}: a signed-in read gave ${answer.status}`); continue; }
+    const body = await answer.json() as Record<string, unknown>;
+    const absent = required.filter(key => !(key in body));
+    if (absent.length) failures.push(`${operation.method} ${operation.path}${provider ? ` (${provider})` : ''}: the 200 body lacks ${absent.join(', ')}`);
+    else if (provider) telecomReads++;
+    else read++;
+  }
 }
 assert.deepEqual(failures, [], failures.slice(0, 8).join('\n'));
 assert.equal(refused, APPLICATION_OPERATIONS.length, 'every documented operation was checked for the refusal');
 assert.ok(invalid >= 10, `at least 10 writes were checked for the invalid-body refusal (${invalid})`);
 assert.equal(missing, APPLICATION_OPERATIONS.filter(operation => operation.method === 'GET' && operation.path.includes('{') && document.paths[operation.path]?.get?.responses['404']).length, 'every documented 404 on a read was checked');
+assert.ok(telecomReads >= 4 && telecomReads % TELECOM_PROVIDERS.length === 0, `each telecom read was checked for every provider (${telecomReads})`);
 assert.ok(read >= 15, `at least 15 parameter-free reads were checked (${read})`);
 console.log(`PASS: all ${refused} documented operations refuse a request with no token using the documented error shape`);
 console.log(`PASS: ${invalid} writes refuse an invalid body with a documented 400 before any effect`);
 console.log(`PASS: ${missing} reads of an unknown resource answer the documented 404`);
+console.log(`PASS: ${telecomReads} telecom reads (each provider) answer 200 with every key the document requires`);
 console.log(`PASS: ${read} parameter-free reads answer 200 with every key the document requires`);
