@@ -6,6 +6,8 @@ import { randomUUID } from 'node:crypto';
 import { chromium, type Browser, type Page } from 'playwright';
 import { startEnvironment } from './environment.ts';
 import { billRulePolicy } from '../../packages/protocol-core/src/bill-rule.ts';
+import type { BillingAccount } from '../../packages/protocol-core/src/payments.ts';
+import type { PaymentMandate } from '../../packages/protocol-core/src/payment-mandates.ts';
 
 let environment: Awaited<ReturnType<typeof startEnvironment>> | undefined;
 let browser: Browser | undefined;
@@ -32,10 +34,10 @@ try {
     return { status: res.status, data: await res.json() as any };
   };
   // Setup through the provider: a linked biller, an approved rule at AED 120, and a card the owner can change to.
-  const dewa = (await api('overview')).data.candidates.find((c: any) => c.provider === 'dewa');
+  const dewa = (await api('overview')).data.candidates.find((c: {provider: string; reference: string}) => c.provider === 'dewa');
   assert.ok(dewa, 'a DEWA account is available to the owner');
   await api('billing-accounts', { provider: 'dewa', reference: dewa.reference, nickname: 'Home' });
-  const billing = (await api('overview')).data.billingAccounts.find((b: any) => b.provider === 'dewa' && b.reference === dewa.reference && b.status === 'ACTIVE');
+  const billing = (await api('overview')).data.billingAccounts.find((b: BillingAccount) => b.provider === 'dewa' && b.reference === dewa.reference && b.status === 'ACTIVE');
   const card = (await api('methods', { preset: 'approved', nickname: 'Change card' })).data.method;
   const policy = billRulePolicy({ billing: { id: billing.id, version: billing.version, provider: 'dewa', reference: billing.reference }, source: { methodId: 'wallet', version: 1 }, perPaymentMinor: 12000, now: Date.now() });
   const made = await api('mandates', { policy: { ...policy, purpose: `Change journey ${randomUUID().slice(0, 8)}` } });
@@ -65,10 +67,10 @@ try {
   const revisedResponse = await revised;
   assert.equal(revisedResponse.status(), 200, await revisedResponse.text());
   await page.getByRole('status').filter({ hasText: 'Terms changed' }).waitFor();
-  const reviewing = (await api('mandates')).data.mandates.find((m: any) => m.id === rule.id);
+  const reviewing = (await api('mandates')).data.mandates.find((m: PaymentMandate) => m.id === rule.id);
   assert.equal(reviewing.state, 'AWAITING_APPROVAL', 'the changed terms are not active until approved');
   assert.equal(reviewing.policy.limits.perPaymentMinor, 30000);
-  assert.deepEqual(reviewing.policy.sources.map((s: any) => s.methodId), [card.id]);
+  assert.deepEqual(reviewing.policy.sources.map((s: {methodId: string}) => s.methodId), [card.id]);
 
   // The owner approves the reviewed terms; the rule then runs under the new cap and source.
   await page.getByRole('button', { name: 'Load automation rules', exact: true }).click();
@@ -76,10 +78,10 @@ try {
   await page.getByRole('listitem').filter({ hasText: `Rule ${rule.id}` }).getByRole('button', { name: 'Approve reviewed terms', exact: true }).click();
   assert.equal((await approved).status(), 200);
   await page.getByRole('status').filter({ hasText: 'Rule approved' }).waitFor();
-  const active = (await api('mandates')).data.mandates.find((m: any) => m.id === rule.id);
+  const active = (await api('mandates')).data.mandates.find((m: PaymentMandate) => m.id === rule.id);
   assert.equal(active.state, 'APPROVED');
   assert.equal(active.policy.limits.perPaymentMinor, 30000);
-  assert.deepEqual(active.policy.sources.map((s: any) => s.methodId), [card.id]);
+  assert.deepEqual(active.policy.sources.map((s: {methodId: string}) => s.methodId), [card.id]);
   console.log('PASS: the owner raises an approved rule\'s cap and changes its source in the browser; each change waits for approval, and lowering through this control is refused.');
 } finally {
   await browser?.close();

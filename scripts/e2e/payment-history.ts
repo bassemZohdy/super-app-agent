@@ -5,6 +5,7 @@ import { mkdir,copyFile,writeFile } from 'node:fs/promises';
 import { setTimeout as hold } from 'node:timers/promises';
 import { chromium,type Browser,type Page } from 'playwright';
 import { startEnvironment } from './environment.ts';
+import type { Payable, PaymentAuthorizationReview } from '../../packages/protocol-core/src/payments.ts';
 const record=process.argv.includes('--record'),stamp=new Date().toISOString().replace(/[:.]/g,'-'),dir=`.data/payment-history/${stamp}`;
 let env:Awaited<ReturnType<typeof startEnvironment>>|undefined,browser:Browser|undefined,page:Page|undefined;
 try{
@@ -14,11 +15,11 @@ try{
   browser=await chromium.launch({channel:process.env.E2E_BROWSER_CHANNEL||'chrome',headless:true});const context=await browser.newContext({viewport:{width:1440,height:1050},...(record?{recordVideo:{dir,size:{width:1440,height:1050}}}:{})});page=await context.newPage();page.on('pageerror',error=>console.error('Browser UI error:',error.message));page.setDefaultTimeout(30000);
   await page.goto(env.appUrl);await page.getByRole('button',{name:'Sign in with Keycloak',exact:true}).click();await page.locator('#username').fill('demo-commuter');await page.locator('#password').fill('demo123');await page.locator('#kc-login').click();const accounts=page.getByRole('combobox',{name:'Current account',exact:true});await accounts.waitFor();const accountId=await accounts.inputValue();
   const api=async(path:string,body?:Record<string,unknown>,query:Record<string,string>={},bearer=token)=>{const r=await fetch(`${env!.coreUrl}/api/payments/${path}${body?'':`?${new URLSearchParams({accountId,...query})}`}`,{method:body?'POST':'GET',signal:AbortSignal.timeout(30000),headers:{Authorization:`Bearer ${bearer}`,'Content-Type':'application/json'},...(body?{body:JSON.stringify({accountId,requestKey:crypto.randomUUID(),...body})}:{})});return{status:r.status,data:await r.json() as any};};
-  const terms=(o:any)=>({orderId:o.id,expectedVersion:o.version,approvalDigest:o.approvalDigest});
+  const terms=(o:PaymentAuthorizationReview)=>({orderId:o.id,expectedVersion:o.version,approvalDigest:o.approvalDigest});
   const overview=(await api('overview')).data;
   for(const c of overview.candidates)assert.equal((await api('billing-accounts',{provider:c.provider,reference:c.reference,nickname:c.label.slice(0,64)})).status,200);
   const card=(await api('methods',{preset:'approved',nickname:'Historical funding card'})).data.method;
-  const pay=async(provider:string,methodId:string,lose=false)=>{const p=overview.payables.find((p:any)=>p.provider===provider&&p.status==='UNPAID');let o=(await api('orders',{provider,payableId:p.id,expectedPayableRevision:p.revision,methodId,expectedMethodVersion:1})).data.order;o=(await api('orders/approve',terms(o))).data.order;if(lose)env!.loseNextSettlementResponse(provider);return(await api('orders/execute',terms(o))).data.order;};
+  const pay=async(provider:string,methodId:string,lose=false)=>{const p=overview.payables.find((p:Payable)=>p.provider===provider&&p.status==='UNPAID');let o=(await api('orders',{provider,payableId:p.id,expectedPayableRevision:p.revision,methodId,expectedMethodVersion:1})).data.order;o=(await api('orders/approve',terms(o))).data.order;if(lose)env!.loseNextSettlementResponse(provider);return(await api('orders/execute',terms(o))).data.order;};
   const paid=await pay('dewa',card.id),unknown=await pay('du','wallet',true);assert.equal(paid.state,'SETTLED');assert.equal(unknown.state,'RECONCILIATION_REQUIRED');
   let funding=(await api('wallet-funding-orders',{methodId:card.id,expectedMethodVersion:1,amountMinor:5000})).data.order;funding=(await api('wallet-funding-orders/approve',terms(funding))).data.order;funding=(await api('wallet-funding-orders/execute',terms(funding))).data.order;
   let refund=(await api('refunds',{origin:'WALLET_FUNDING',orderId:funding.id,expectedVersion:funding.version,amountMinor:2000,reason:'Unused demo funding'})).data.refund;refund=(await api('refunds/execute',terms(refund))).data.refund;assert.equal(refund.state,'REFUNDED');

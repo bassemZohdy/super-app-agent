@@ -5,6 +5,8 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { chromium, type Browser, type Page } from 'playwright';
 import { startEnvironment } from './environment.ts';
+import type { BillingAccount } from '../../packages/protocol-core/src/payments.ts';
+import type { PaymentMandate } from '../../packages/protocol-core/src/payment-mandates.ts';
 
 let environment: Awaited<ReturnType<typeof startEnvironment>> | undefined;
 let browser: Browser | undefined;
@@ -31,12 +33,12 @@ try {
     return { status: res.status, data: await res.json() as any };
   };
   // A linked DEWA biller is the owner's own prerequisite; the rule is created through the panel, not through this setup.
-  const dewa = (await api('overview')).data.candidates.find((c: any) => c.provider === 'dewa');
+  const dewa = (await api('overview')).data.candidates.find((c: {provider: string; reference: string}) => c.provider === 'dewa');
   assert.ok(dewa, 'a DEWA account is available to the owner');
   await api('billing-accounts', { provider: 'dewa', reference: dewa.reference, nickname: 'Home' });
-  const billing = (await api('overview')).data.billingAccounts.find((b: any) => b.provider === 'dewa' && b.reference === dewa.reference && b.status === 'ACTIVE');
+  const billing = (await api('overview')).data.billingAccounts.find((b: BillingAccount) => b.provider === 'dewa' && b.reference === dewa.reference && b.status === 'ACTIVE');
   assert.ok(billing, 'the DEWA biller is linked');
-  const before = (await api('mandates')).data.mandates.map((m: any) => m.id);
+  const before = (await api('mandates')).data.mandates.map((m: PaymentMandate) => m.id);
 
   // The owner drafts the rule in the panel and reviews it.
   await page.getByRole('button', { name: 'Payment accounts', exact: true }).click();
@@ -52,7 +54,7 @@ try {
   await page.getByText('Revocation', { exact: true }).waitFor();
 
   // Reviewing created a draft that is not active yet.
-  const drafts = (await api('mandates')).data.mandates.filter((m: any) => !before.includes(m.id));
+  const drafts = (await api('mandates')).data.mandates.filter((m: PaymentMandate) => !before.includes(m.id));
   assert.equal(drafts.length, 1, 'the review created exactly one rule');
   assert.equal(drafts[0].state, 'AWAITING_APPROVAL', 'a reviewed draft is not active');
   assert.equal(drafts[0].policy.limits.perPaymentMinor, 15000);
@@ -62,7 +64,7 @@ try {
   await page.getByRole('button', { name: 'Approve these terms', exact: true }).click();
   assert.equal((await approved).status(), 200);
   await page.getByRole('status').filter({ hasText: 'Rule approved' }).waitFor();
-  const active = (await api('mandates')).data.mandates.find((m: any) => m.id === drafts[0].id);
+  const active = (await api('mandates')).data.mandates.find((m: PaymentMandate) => m.id === drafts[0].id);
   assert.equal(active.state, 'APPROVED', 'the approved rule is active');
   assert.equal(active.policy.limits.perPaymentMinor, 15000, 'it runs under the cap the owner reviewed');
   console.log('PASS: the owner creates a bill rule in the browser; reviewing it creates a draft that is not active, and only approving the reviewed terms makes it run under the reviewed cap.');

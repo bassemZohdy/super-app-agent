@@ -5,6 +5,7 @@ import { mkdir,copyFile,writeFile } from 'node:fs/promises';
 import { setTimeout as hold } from 'node:timers/promises';
 import { chromium,type Browser,type Page } from 'playwright';
 import { startEnvironment } from './environment.ts';
+import type { CardBalance, RechargeTarget } from '../../packages/protocol-core/src/payments.ts';
 const record=process.argv.includes('--record'),stamp=new Date().toISOString().replace(/[:.]/g,'-'),dir=`.data/recharge-checkout/${stamp}`;
 let environment:Awaited<ReturnType<typeof startEnvironment>>|undefined,browser:Browser|undefined,page:Page|undefined;
 try{
@@ -20,7 +21,7 @@ try{
   await panel.getByRole('textbox',{name:'Card nickname',exact:true}).fill('My recharge card');await panel.getByRole('combobox',{name:'Demo card preset',exact:true}).selectOption('challenge');let response=responseFor('methods');await panel.getByRole('button',{name:'Add demo card',exact:true}).click();const card=(await (await response).json()).method;
   let wallet=150000,cardSpent=0;
   for(const funding of ['wallet','challenge'])for(const provider of ['rta','etisalat','du']){
-    const snapshot=(await api('overview')).data,target=snapshot.rechargeTargets.find((t:any)=>t.provider===provider),minor=target.denominationsMinor[0],source=funding==='wallet'?'wallet':card.id;
+    const snapshot=(await api('overview')).data,target=snapshot.rechargeTargets.find((t:RechargeTarget)=>t.provider===provider),minor=target.denominationsMinor[0],source=funding==='wallet'?'wallet':card.id;
     const section=panel.getByRole('region',{name:'Toll and mobile recharge',exact:true});await section.getByRole('combobox',{name:'Recharge target',exact:true}).selectOption(`${provider}:${target.reference}`);await section.getByRole('combobox',{name:'Recharge denomination',exact:true}).selectOption(String(minor));await section.getByRole('combobox',{name:'Recharge funding source',exact:true}).selectOption(source);
     response=responseFor('recharge-preview');await section.getByRole('button',{name:'Review provider recharge',exact:true}).click();const previewResponse=await response,preview=(await previewResponse.json()).preview;assert.equal(preview.payable.reference,target.reference);assert.equal(preview.totalMinor,minor);assert.equal(preview.payable.kind,'RECHARGE');const review=panel.getByRole('article',{name:'Payment quote preview',exact:true});await review.scrollIntoViewIfNeeded();if(record)await hold(6000);
     const retry=await api('recharge-preview',previewResponse.request().postDataJSON());assert.equal(retry.status,200);assert.equal(retry.data.preview.payable.id,preview.payable.id);
@@ -34,8 +35,8 @@ try{
     await article.getByText('State: AUTHORIZED',{exact:true}).waitFor();await article.scrollIntoViewIfNeeded();assert.equal((await api('overview')).data.wallet.balanceMinor,wallet);if(record)await hold(6000);
     response=responseFor('orders/execute');await article.getByRole('button',{name:`Pay AED ${(minor/100).toFixed(2)}`,exact:true}).click();const executed=await response,paid=(await executed.json()).order;assert.equal(executed.status(),200);assert.equal(paid.state,'SETTLED');assert.equal(paid.sourceFinalizationPending,false);assert.equal(paid.receipt.targetReference,target.reference);assert.equal(paid.receipt.providerBalanceMinor,target.balanceMinor+minor);
     await article.getByRole('region',{name:'Confirmed recharge receipt',exact:true}).waitFor();await article.scrollIntoViewIfNeeded();if(record)await hold(8000);
-    if(funding==='wallet')wallet-=minor;else cardSpent+=minor;const after=(await api('overview')).data;assert.equal(after.wallet.balanceMinor,wallet);assert.equal(after.cardBalances.find((b:any)=>b.sourceId===card.id).spentMinor,cardSpent);assert.equal(after.rechargeTargets.find((t:any)=>t.provider===provider&&t.reference===target.reference).balanceMinor,target.balanceMinor+minor);
-    assert.equal((await api('orders/execute',executed.request().postDataJSON())).data.order.paymentId,paid.paymentId);assert.equal((await api('orders/recover',{orderId:paid.id})).data.order.paymentId,paid.paymentId);assert.equal((await api('overview')).data.rechargeTargets.find((t:any)=>t.provider===provider&&t.reference===target.reference).balanceMinor,target.balanceMinor+minor);
+    if(funding==='wallet')wallet-=minor;else cardSpent+=minor;const after=(await api('overview')).data;assert.equal(after.wallet.balanceMinor,wallet);assert.equal(after.cardBalances.find((b:CardBalance)=>b.sourceId===card.id).spentMinor,cardSpent);assert.equal(after.rechargeTargets.find((t:RechargeTarget)=>t.provider===provider&&t.reference===target.reference).balanceMinor,target.balanceMinor+minor);
+    assert.equal((await api('orders/execute',executed.request().postDataJSON())).data.order.paymentId,paid.paymentId);assert.equal((await api('orders/recover',{orderId:paid.id})).data.order.paymentId,paid.paymentId);assert.equal((await api('overview')).data.rechargeTargets.find((t:RechargeTarget)=>t.provider===provider&&t.reference===target.reference).balanceMinor,target.balanceMinor+minor);
     await mkdir('docs/reports/assets',{recursive:true});await article.screenshot({path:`docs/reports/assets/recharge-${provider}-${funding}.png`});
     console.log(`PASS: ${provider} ${funding} exact target/denomination, one capture/credit, confirmed balance, intent/retry, ownership and substitution checks`);
   }
