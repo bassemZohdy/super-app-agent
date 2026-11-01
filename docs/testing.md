@@ -40,6 +40,7 @@ Container/Compose, Kubernetes/OpenShift, live-provider inference and Angular/Flu
 Execution results for the implementation milestone belong in the dated [evidence report](reports/2026-10-26-simple-agent.md).
 
 Request contracts are checked offline in two ways. `services/test/protocol-fuzz.test.ts` fuzzes the surface and message validators, and `services/test/p114-hostile-input.test.ts` sends an array, a prototype-pollution key, an oversized string, an unknown field, a null and a deeply nested value to every application operation that has a request contract, in the body and in the query, and requires a 400, no throw and untouched input (with a positive control that a valid request is still accepted).
+Against the running stack, `npm run demo:verify:contract` checks every documented operation refuses a request with no token using the documented error shape, and every parameter-free read returns the keys the OpenAPI document requires.
 
 ## Cross-shell verification
 

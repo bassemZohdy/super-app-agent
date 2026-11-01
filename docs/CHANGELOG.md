@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 1 November 2026 — Verify the running services against their OpenAPI document (P1-14, step)
+
+`npm run demo:verify:contract` signs in a resident and checks the live Compose stack against the generated application OpenAPI document: all 45 documented operations refuse a request with no token with a 401 whose body has the document's `Error` keys (`code` and `error`), and 20 parameter-free reads answer 200 with every key the document lists as required. Reads only; nothing is created or paid. It fails with the operation and the missing key (checked by demanding a key that does not exist). Response bodies for provider passthroughs stay `additionalProperties: true` by design. Guide: [testing](testing.md).
+
 ## 1 November 2026 — Prove hostile request input is refused on every operation (P1-14, step)
 
 A new offline test, `services/test/p114-hostile-input.test.ts`, takes each of the application operations that has a request contract (40 at the time) and sends it six hostile inputs, once in the body and once in the query: an array, a prototype-pollution key, a 300,000-character string, a field the contract does not name, a null value and a value nested forty levels deep. Every case is refused with a 400, none throws, and the caller's input is never changed; a positive control checks the validator still accepts a valid request. The schemas for success and error responses and the provider and telecom catalog coverage remain open in P1-14. Guide: [testing](testing.md).
