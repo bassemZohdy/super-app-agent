@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 1 November 2026 — Measure the Flutter surface controls (P2-14, step)
+
+A widget test renders a gateway surface containing a button, a choice group and a form input in the main Flutter shell at desktop, phone (through the Service details view) and 2x text on a 360px phone, and checks each is at least a 44px target. They already were; the test keeps them that way. Not yet measured: the settings dialog and map viewer. [Design details](development/design-tokens.md).
+
 ## 1 November 2026 — Measure the Flutter main composer (P2-14, step)
 
 A widget test now pumps the main concierge at desktop, phone and 2x text on a 360px phone and checks the message field has a name and at least a 44px height and that the send control is at least 44px in both directions. The composer already met these; the test keeps it that way. [Design details](development/design-tokens.md).
