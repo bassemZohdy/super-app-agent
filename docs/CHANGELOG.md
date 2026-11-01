@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 1 November 2026 — Pin the client-to-gateway mapping (P1-14, step)
+
+`services/test/p114-client-mapping.test.ts` checks three things offline: every literal `/api/...` path the shells and shared clients use matches a gateway request contract; every payment call the React shell makes (`api`, `mutate` and `read` names, 36 of them) maps to a contract under `/api/payments`, with an action chosen at run time requiring a route family; and the focused agent client's action list (`messages`, `resume`, `cancel`, `recover`) equals the orchestrator router's. A probe of the mutating routes found why a success-body check cannot run offline: the legacy fixture path and the REST provider path name some keys differently (the Salik recharge returns `rechargedAmount` in one and `amountRecharged`, as documented, in the other), so that check belongs on the live stack, on the disposable qualification stack so shared balances stay untouched. Guide: [testing](testing.md).
+
 ## 1 November 2026 — Cover the gateway contracts and the mutating routes (P1-14, step)
 
 `contractRoutes(owner)` in `request-validation.ts` lists the routes a service validates, so `services/test/p114-hostile-input.test.ts` now sends the six hostile inputs (array, prototype-pollution key, oversized string, unknown field, null, deep nesting) to every gateway (agent-core) request contract as well as the application operations; all are refused with a 400, none throws and the input is untouched. `services/test/p114-mutation-coverage.test.ts` requires each of the 17 mutating application operations to be called by at least one behavior test or verifier beyond the generic input-validation sweeps, so a new write route without a test fails. What stays open in P1-14 is a live check that the mutating routes' success bodies carry the documented keys, and client mapping. Guide: [testing](testing.md).
