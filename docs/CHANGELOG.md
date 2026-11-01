@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 1 November 2026 — Prove hostile request input is refused on every operation (P1-14, step)
+
+A new offline test, `services/test/p114-hostile-input.test.ts`, takes each of the application operations that has a request contract (40 at the time) and sends it six hostile inputs, once in the body and once in the query: an array, a prototype-pollution key, a 300,000-character string, a field the contract does not name, a null value and a value nested forty levels deep. Every case is refused with a 400, none throws, and the caller's input is never changed; a positive control checks the validator still accepts a valid request. The schemas for success and error responses and the provider and telecom catalog coverage remain open in P1-14. Guide: [testing](testing.md).
+
 ## 1 November 2026 — Type the React mandate consent panel (P2-05, step)
 
 The React mandate consent panel takes its billing accounts, payment methods and rule policies from the shared `BillingAccount`, `PaymentMethod` and `MandatePolicy` types instead of `any`; the shell type check passes and the `any` baseline fell by 17 uses. The automation-screens and rules browser specs that exercise the panel pass on the Compose stack. The panel's `read` and `mutate` props and its draft review still return `any`. Guide: [testing](development/testing.md).

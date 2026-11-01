@@ -39,6 +39,8 @@ Container/Compose, Kubernetes/OpenShift, live-provider inference and Angular/Flu
 
 Execution results for the implementation milestone belong in the dated [evidence report](reports/2026-10-26-simple-agent.md).
 
+Request contracts are checked offline in two ways. `services/test/protocol-fuzz.test.ts` fuzzes the surface and message validators, and `services/test/p114-hostile-input.test.ts` sends an array, a prototype-pollution key, an oversized string, an unknown field, a null and a deeply nested value to every application operation that has a request contract, in the body and in the query, and requires a 400, no throw and untouched input (with a positive control that a valid request is still accepted).
+
 ## Cross-shell verification
 
 `npm run check:shell-contracts` checks generated Flutter catalogs, PKCE bridge, provider-status vectors and the shared request deadline against TypeScript sources. Backend policy regressions cover shared model minimization/budgets, exact fine selection, response bounds and CORS without widening authority. `services/test/demo-renewal-identity.test.ts` verifies optional renewal enrollment preserves existing identities and configuration.
