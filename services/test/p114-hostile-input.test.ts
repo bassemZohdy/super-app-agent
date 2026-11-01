@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { APPLICATION_OPERATIONS } from '../../packages/backend-kit/src/application-openapi.ts';
-import { validateRequest } from '../../packages/protocol-core/src/request-validation.ts';
+import { contractRoutes, validateRequest } from '../../packages/protocol-core/src/request-validation.ts';
 
 // P1-14: a malformed or hostile request must fail safely on every validated application operation. For each operation that has a
 // request contract, an array, a prototype-pollution key, an oversized string, a field the contract does not name, a null value
@@ -50,6 +50,31 @@ test('P1-14: every validated application operation refuses hostile input safely 
         }
         if (refused?.status !== 400) failures.push(`${operation.method} ${operation.path}: ${name} in the ${where} was not refused (${refused?.status ?? 'accepted'})`);
         if (JSON.stringify(input) !== before) failures.push(`${operation.method} ${operation.path}: ${name} in the ${where} was changed by validation`);
+      }
+    }
+  }
+  assert.deepEqual(failures, [], failures.slice(0, 5).join('\n'));
+});
+
+test('P1-14: every gateway (agent-core) request contract refuses hostile input safely and leaves it untouched', () => {
+  const gateway = contractRoutes('agent-core');
+  assert.ok(gateway.length >= 20, `the gateway has its request contracts (${gateway.length})`);
+  const failures: string[] = [];
+  for (const route of gateway) {
+    const path = route.path.replace(/\{[^}]+\}/g, 'x1');
+    for (const [name, value] of hostile) {
+      for (const where of ['body', 'query'] as const) {
+        const input = structuredClone(value);
+        const before = JSON.stringify(input);
+        let refused: ReturnType<typeof validateRequest>;
+        try {
+          refused = where === 'body' ? validateRequest('agent-core', route.method, path, {}, input) : validateRequest('agent-core', route.method, path, input, {});
+        } catch (error) {
+          failures.push(`${route.method} ${route.path}: ${name} in the ${where} threw ${String(error).slice(0, 60)}`);
+          continue;
+        }
+        if (refused?.status !== 400) failures.push(`${route.method} ${route.path}: ${name} in the ${where} was not refused (${refused?.status ?? 'accepted'})`);
+        if (JSON.stringify(input) !== before) failures.push(`${route.method} ${route.path}: ${name} in the ${where} was changed by validation`);
       }
     }
   }

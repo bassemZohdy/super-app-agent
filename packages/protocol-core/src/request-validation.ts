@@ -216,6 +216,10 @@ function find(owner: string, method: string, path: string): Route | undefined {
   return routes.find(route => route.owner === owner && route.method === method &&
     [route.path, ...(route.aliases || [])].some(template => matchTemplate(template, path) !== undefined));
 }
+/** The method and path of every request contract an owner validates, for tests that must cover them all. */
+export function contractRoutes(owner: string): { method: string; path: string }[] {
+  return routes.filter(route => route.owner === owner).map(route => ({ method: route.method, path: route.path }));
+}
 export function requestSchema(owner: string, method: string, path: string): Schema {
   const found = find(owner, method, path);
   if (!found) throw new Error(`Missing contract: ${owner} ${method} ${path}`);

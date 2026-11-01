@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 1 November 2026 — Cover the gateway contracts and the mutating routes (P1-14, step)
+
+`contractRoutes(owner)` in `request-validation.ts` lists the routes a service validates, so `services/test/p114-hostile-input.test.ts` now sends the six hostile inputs (array, prototype-pollution key, oversized string, unknown field, null, deep nesting) to every gateway (agent-core) request contract as well as the application operations; all are refused with a 400, none throws and the input is untouched. `services/test/p114-mutation-coverage.test.ts` requires each of the 17 mutating application operations to be called by at least one behavior test or verifier beyond the generic input-validation sweeps, so a new write route without a test fails. What stays open in P1-14 is a live check that the mutating routes' success bodies carry the documented keys, and client mapping. Guide: [testing](testing.md).
+
 ## 1 November 2026 — Pin the service tool mapping (P1-14, step)
 
 The ride, food, wallet and profile services build each advertised tool's parameters as the validated route schema or, failing that, the tool's own unvalidated parameters, so a tool whose name matched no route would have fallen back silently. `services/test/p114-tool-mapping.test.ts` now requires every advertised tool (13 across the four services) to have a validated request schema, to advertise exactly that schema, to take a closed object that refuses unnamed fields and to have a description; all of them already did. Gateway and client mapping remain open in P1-14. Guide: [testing](testing.md).
