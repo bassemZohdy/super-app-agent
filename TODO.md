@@ -29,7 +29,7 @@ The compatibility acceptance track remains `QA-06` (QA-07 and QA-08 are delivere
 
 ## Demo — simulator and acceptance
 
-- [ ] **QA-06 — Deliver responsive, accessible shell parity.** **Remaining:** full payment-account, challenge/unknown, pause/revoke and account-switch accessibility measures across the retained journeys. The Flutter sign-in spec fails on Compose because the first Keycloak calls for a browser token are slow and refused with 401: find why ([finding](docs/CHANGELOG.md)). **Done when:** the agreed journey matrix passes phone/desktop widget and browser checks; unsupported native and device behavior is explicitly gated. **Depends:** QA-04.
+- [ ] **QA-06 — Deliver responsive, accessible shell parity.** **Remaining:** full payment-account, challenge/unknown, pause/revoke and account-switch accessibility measures across the retained journeys. The Flutter sign-in spec fails on Compose: Keycloak takes about 8s to introspect a browser-login token the first time ([finding](docs/CHANGELOG.md)). **Done when:** the agreed journey matrix passes phone/desktop widget and browser checks; unsupported native and device behavior is explicitly gated. **Depends:** QA-04.
   - [x] Make the phone pane swap show the other view and indicate the selected workspace across retained shells.
   - [x] Refine the React concierge layout and service navigation using offline design skills, shared color tokens and measured responsive/drawer keyboard checks.
   - [x] Make chat the primary React view with a persistent composer, message bubbles, phone view switching and long-conversation visibility checks.

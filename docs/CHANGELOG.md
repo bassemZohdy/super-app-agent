@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 1 November 2026 — Measure the slow first sign-in introspection (QA-06, finding)
+
+Repeated timings on the Compose stack show the cause precisely: the first online check of a token from a real browser login takes about 8 seconds (8.5 s, 8.6 s, 8.0 s), then 15 to 650 ms, while a password-grant token is checked at once; the slowness is on the Keycloak side and was present before the delegation realm was reconciled. With `KEYCLOAK_INTROSPECTION_TIMEOUT_MS=12000` and a warm key cache the desktop Flutter sign-in spec passes, but the mobile run's first call returns a 500 at about 8 seconds, probably a second service's own 8-second check, so the timeout alone is not a fix. Cold first-use of persisted browser sessions in Keycloak is the next thing to examine; the default timeout stays 8 seconds and no code changed. [Testing guide](development/testing.md).
+
 ## 1 November 2026 — Localize the Angular focused fines workspace (P2-01, step)
 
 The Angular fines route now reads the saved language (or the browser's), sets `lang` and `dir`, and shows its header, tools, sign-in, conversation, review, receipt and renewal labels from shared catalog keys with Arabic text; English wording is unchanged and the Flutter catalog was regenerated. A new browser spec checks Arabic direction, text, 44px controls and no sideways scroll on phone and desktop, and the focused-agent, localization and renewal-parity journeys (34 tests) pass against the Compose stack. Gateway messages and the requests the suggestion buttons send stay English. Guide: [localization](development/localization.md).
