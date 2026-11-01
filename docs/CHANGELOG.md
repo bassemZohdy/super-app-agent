@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 1 November 2026 — Type the obligations and accounts browser scripts (P2-05, step)
+
+The payment-obligations and payment-accounts browser scripts take their payables, methods, billing accounts, card balances, obligations and token responses from the shared types instead of `any`; the E2E type check passes and the `any` baseline fell again. Raw `api` data stays untyped. The scripts need the Compose stack and were not run. Guide: [testing](development/testing.md).
+
 ## 1 November 2026 — Type the payment-authorization browser script (P2-05, step)
 
 The payment-authorization browser script types its payables, orders, card budgets, realm clients and token responses instead of using `any`; the E2E type check passes and the `any` baseline fell again. Responses that other helpers read untyped (`api` data, one JSON helper) still use `any`. The script needs the Compose stack and was not run. Guide: [testing](development/testing.md).

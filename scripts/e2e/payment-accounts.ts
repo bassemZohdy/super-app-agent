@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import { chromium, type Browser, type Page } from 'playwright';
 import { startEnvironment } from './environment.ts';
+import type { BillingAccount, Payable, PaymentMethod } from '../../packages/protocol-core/src/payments.ts';
 let environment: Awaited<ReturnType<typeof startEnvironment>> | undefined;
 let browser: Browser | undefined; let page: Page | undefined;
 try {
@@ -76,7 +77,7 @@ try {
   const disabling=responseFor('methods/status');await panel.getByRole('button',{name:'Disable Daily demo',exact:true}).click();assert.equal((await disabling).status(),200);
   await panel.getByText('Card status saved. No funding fallback was selected.',{exact:true}).waitFor();
   assert.equal(await panel.getByRole('button',{name:'Review payment quote',exact:true}).isDisabled(),true);
-  const saved=await api(`overview?accountId=${accountId}`);assert.equal(saved.data.defaultMethodId,method.id);assert.equal(saved.data.methods.find((m:any)=>m.id===method.id).status,'DISABLED');
+  const saved=await api(`overview?accountId=${accountId}`);assert.equal(saved.data.defaultMethodId,method.id);assert.equal(saved.data.methods.find((m:PaymentMethod)=>m.id===method.id).status,'DISABLED');
   const enabling=responseFor('methods/status');await panel.getByRole('button',{name:'Enable Daily demo',exact:true}).click();assert.equal((await enabling).status(),200);
   assert.equal((await api('preview',{accountId,payableId,methodId:method.id,expectedMethodVersion:1})).status,409);
   const household=await accounts.locator('option').filter({hasText:'Household account'}).getAttribute('value');assert.ok(household);await accounts.selectOption(household);
@@ -87,13 +88,13 @@ try {
   await page.reload();await page.getByRole('button',{name:'Payment accounts',exact:true}).click();await page.getByRole('button',{name:'Disable Daily demo',exact:true}).waitFor();
   console.log('PASS: saved funding and linked resources survive browser reload');
   const prepaidLinking=responseFor('billing-accounts');await panel.getByRole('button',{name:'Link etisalat · Prepaid mobile',exact:true}).click();assert.equal((await prepaidLinking).status(),200);
-  const withPrepaid=await api(`overview?accountId=${accountId}`);const line=withPrepaid.data.candidates.find((c:any)=>c.provider==='etisalat'&&c.reference.startsWith('PRE-'));
-  assert.equal(line.balanceMinor,5000);assert.ok(withPrepaid.data.billingAccounts.some((b:any)=>b.provider==='etisalat'&&b.reference===line.reference&&b.status==='ACTIVE'));
+  const withPrepaid=await api(`overview?accountId=${accountId}`);const line=withPrepaid.data.candidates.find((c:{provider:string;reference:string})=>c.provider==='etisalat'&&c.reference.startsWith('PRE-'));
+  assert.equal(line.balanceMinor,5000);assert.ok(withPrepaid.data.billingAccounts.some((b:BillingAccount)=>b.provider==='etisalat'&&b.reference===line.reference&&b.status==='ACTIVE'));
   assert.equal((await api('billing-accounts',{accountId,requestKey:crypto.randomUUID(),provider:'du',reference:line.reference,nickname:'Wrong provider'})).status,403);
   console.log('PASS: owned prepaid line linked with its current balance; cross-provider line substitution denied');
 
   const walletDefault=responseFor('methods/default');await panel.getByRole('button',{name:'Use Cityside wallet as default',exact:true}).click();assert.equal((await walletDefault).status(),200);
-  const current=await api(`overview?accountId=${accountId}`),currentMethod=current.data.methods.find((m:any)=>m.id===method.id),currentBiller=current.data.billingAccounts.find((b:any)=>b.provider==='dewa'&&b.status==='ACTIVE');
+  const current=await api(`overview?accountId=${accountId}`),currentMethod=current.data.methods.find((m:PaymentMethod)=>m.id===method.id),currentBiller=current.data.billingAccounts.find((b:BillingAccount)=>b.provider==='dewa'&&b.status==='ACTIVE');
   const releaseHold=environment.bindPaymentUse(accountId,{resourceType:'METHOD',resourceId:method.id,resourceVersion:currentMethod.version,dependentKind:'HOLD',dependentId:'fixture-pending-hold'});
   const releaseRule=environment.bindPaymentUse(accountId,{resourceType:'BILLER',resourceId:currentBiller.id,resourceVersion:currentBiller.version,dependentKind:'MANDATE',dependentId:'fixture-rule-reference'});
   await panel.getByRole('button',{name:'Refresh payment accounts',exact:true}).click();await panel.getByText('hold · fixture-pending-hold',{exact:true}).waitFor();
@@ -114,10 +115,10 @@ try {
     return {status:response.status,data:await response.json() as any};
   }
   const payableList=await providerApi(102,'/payables');assert.equal(payableList.status,200);
-  const settlementPayable=payableList.data.payables.find((p:any)=>p.status==='UNPAID');
+  const settlementPayable=payableList.data.payables.find((p:Payable)=>p.status==='UNPAID');
   const detail=await providerApi(102,`/payables/${encodeURIComponent(settlementPayable.id)}`);assert.equal(detail.status,200);
   const startingWallet=await providerApi(107,'/wallet');assert.equal(startingWallet.data.balanceMinor,150000);
-  async function payStoredBill(provider:string,payable:any){
+  async function payStoredBill(provider:string,payable:Payable){
     await providerApi(107,'/billing-accounts',{provider,reference:payable.reference,nickname:`${provider} bill account`});
     const created=await providerApi(107,'/payment-orders',{provider,payableId:payable.id,expectedPayableRevision:payable.revision,methodId:'wallet',expectedMethodVersion:1});assert.equal(created.status,200);
     const approved=await providerApi(107,`/payment-orders/${created.data.order.id}/approve`,{expectedVersion:created.data.order.version,approvalDigest:created.data.order.approvalDigest});assert.equal(approved.status,200);
@@ -142,7 +143,7 @@ try {
   assert.equal((await providerApi(107,`/charges/${rejectedCapture.data.charge.id}/refunds`,{reason:'Verified non-application'})).status,200);
   assert.equal((await providerApi(102,rejectedPath,rejectedBody)).status,404);
   assert.equal((await providerApi(107,'/wallet')).data.balanceMinor,150000-settlementPayable.amountMinor);
-  const duPayable=(await providerApi(104,'/payables')).data.payables.find((p:any)=>p.status==='UNPAID'),duOrder=await payStoredBill('du',duPayable);
+  const duPayable=(await providerApi(104,'/payables')).data.payables.find((p:Payable)=>p.status==='UNPAID'),duOrder=await payStoredBill('du',duPayable);
   assert.equal((await providerApi(107,`/charges/${duOrder.paymentId}`)).data.charge.settlement.state,'APPLIED');
   console.log('PASS: applied claims deny refunds/human release; rejected settlement fences non-application before refund; separate du workload applies only its own capture');
 
