@@ -216,6 +216,8 @@ function find(owner: string, method: string, path: string): Route | undefined {
   return routes.find(route => route.owner === owner && route.method === method &&
     [route.path, ...(route.aliases || [])].some(template => matchTemplate(template, path) !== undefined));
 }
+/** The actions a gateway surface may advertise, each with a payload schema, for tests that must cover them all. */
+export const advertisedActions = (): string[] => Object.keys(actionSchemas);
 /** The method and path of every request contract an owner validates, for tests that must cover them all. */
 export function contractRoutes(owner: string): { method: string; path: string }[] {
   return routes.filter(route => route.owner === owner).map(route => ({ method: route.method, path: route.path }));
