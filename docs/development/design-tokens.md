@@ -68,3 +68,5 @@ The Flutter delegated-access actions use 48px token-based minimum targets and th
 The Flutter main concierge header is measured the same way: a widget test checks every tool control has a name and at least a 44px target on desktop, on a phone and on a 360px phone at twice the text size, and the account selector flexes and ellipsizes its labels so it cannot overflow its row.
 
 Every button in the Flutter main shell draws the 3px token focus ring while focused (set once in the app theme, so elevated, filled, outlined, text and icon buttons all get it), and a widget test checks the ring and that Tab reaches the send control.
+
+The Flutter settings, services and saved-conversation dialogs are measured the same way: language and privacy choices and every list option are at least 44px, the language selector expands instead of overflowing at large text, and the list options share one 48px dialog choice.

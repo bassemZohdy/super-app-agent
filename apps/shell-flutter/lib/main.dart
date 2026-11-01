@@ -67,6 +67,21 @@ class _FocusRingSide extends WidgetStateBorderSide {
       : null;
 }
 
+/// A choice in a dialog list: at least a 48px target so it can be hit with a thumb, whatever the text size.
+class _DialogChoice extends StatelessWidget {
+  const _DialogChoice({required this.onPressed, required this.child});
+  final VoidCallback onPressed;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) => SimpleDialogOption(
+    onPressed: onPressed,
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 48),
+      child: Align(alignment: AlignmentDirectional.centerStart, child: child),
+    ),
+  );
+}
+
 class SuperAppHomeScreen extends StatefulWidget {
   const SuperAppHomeScreen({super.key});
 
@@ -344,7 +359,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
               ]
             : sessions
                   .map(
-                    (session) => SimpleDialogOption(
+                    (session) => _DialogChoice(
                       onPressed: () => Navigator.pop(
                         context,
                         session['sessionId'] as String,
@@ -419,7 +434,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
           title: Text(t('nav.exploreServices')),
           children: [
             for (final service in services)
-              SimpleDialogOption(
+              _DialogChoice(
                 onPressed: () => Navigator.pop(dialog, service['id'] as String),
                 child: Text(
                   service['name'] as String? ?? service['id'] as String,
@@ -551,6 +566,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
               children: [
                 Text(modelStatusLabel(_model, locale: _locale)),
                 DropdownButtonFormField<String>(
+                  isExpanded: true,
                   initialValue: _locale,
                   decoration: InputDecoration(
                     labelText: t('settings.language'),

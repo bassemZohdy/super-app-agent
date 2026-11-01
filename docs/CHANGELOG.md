@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 1 November 2026 — Close the token contrast, size and focus task (P2-14)
+
+P2-14 is delivered for the local demo. Every declared text/background pair is contrast-checked in both themes at generation; the React and Angular shells' controls reach 44px with 14px text, show focus and honour reduced motion, measured in a browser (all React and Angular accessibility and layout specs pass on the Compose stack). The Flutter shell is measured in widget tests that run with a Flutter 3.47.9 SDK: the workspace panes and divider, fines sign-in, focused conversation and payment review, connections, delegated access, the main header (named 44px controls at desktop, phone and 2x text), the composer, the agent-drawn surface controls, the settings, services and saved-conversation dialogs, and Tab reaching a focus ring drawn by the theme on every button. The checks found and fixed three real defects: the account selector and the settings language selector overflowed at large text, and the services and conversation choices were 36px tall. All 41 Flutter widget tests, `flutter analyze` and the 952 offline tests pass. Not claimed: native device runs and the live-Keycloak Flutter sign-in spec, which fails on this stack with "Could not load sign-in settings" and stays with QA-06. [Design details](development/design-tokens.md).
+
 ## 1 November 2026 — Draw the focus ring on every Flutter shell button (P2-14, step)
 
 The main Flutter shell previously drew a focus ring only in the delegated-access panel. The theme now gives elevated, filled, outlined, text and icon buttons the 3px token focus ring while focused and leaves them unchanged otherwise. A widget test checks the ring on each button kind and that Tab reaches the send control. After a rebuild of the Flutter web app the parity and accessibility browser specs pass (40), except the live-Keycloak sign-in spec noted in the previous entries. [Design details](development/design-tokens.md).
