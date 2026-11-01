@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 1 November 2026 — Review unused dependencies (P2-05, step)
+
+Every dependency declared in the workspace `package.json` files was checked against the source, scripts and configuration. None is unused: `@angular/compiler`, `@angular/compiler-cli` and `rxjs` are build or peer requirements of the Angular shell, `@types/react` and `@types/react-dom` type the React shell, and `better-sqlite3` is the agent checkpoint store. One mismatch to resolve when dependencies are next updated: `@types/better-sqlite3` is at ^9 while the runtime is 12. [Testing guide](development/testing.md).
+
 ## 1 November 2026 — Diagnose the Flutter sign-in spec failure (QA-06, finding)
 
 The Flutter authorization-code sign-in spec fails on the Compose stack with "Could not load sign-in settings". The cause is not the Flutter app or the realm: the code exchange succeeds and the token's claims are correct, but the gateway's first call with that fresh browser token waits 8 seconds for Keycloak introspection, times out and answers 401 (the safe, fail-closed result), while the next calls with the same token take 604 ms and 25 ms. A password-grant token is accepted at once. The same slow first introspection probably explains the HTTP 503 from the `automation-execution` script. Raising `KEYCLOAK_INTROSPECTION_TIMEOUT_MS` to its 12-second ceiling on the local stack did not help: the first call then failed at about 5 seconds on the separate JWKS fetch timeout, so the slow first use affects more than introspection. No code changed; the open question moved into QA-06 in `TODO.md`. [Testing guide](development/testing.md).
