@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 1 November 2026 — Pin the service tool mapping (P1-14, step)
+
+The ride, food, wallet and profile services build each advertised tool's parameters as the validated route schema or, failing that, the tool's own unvalidated parameters, so a tool whose name matched no route would have fallen back silently. `services/test/p114-tool-mapping.test.ts` now requires every advertised tool (13 across the four services) to have a validated request schema, to advertise exactly that schema, to take a closed object that refuses unnamed fields and to have a description; all of them already did. Gateway and client mapping remain open in P1-14. Guide: [testing](testing.md).
+
 ## 1 November 2026 — Check the telecom reads for each provider (P1-14, step)
 
 `npm run demo:verify:contract` now runs every telecom read that is scoped only by provider once for Etisalat and once for du, with a signed-in resident, and requires 200 with every key the document lists (8 checks: four operations for each provider); before, those routes were only exercised with a placeholder provider. The mutating routes and the mapping between catalog tools, gateway routes and client calls remain open in P1-14. Guide: [testing](testing.md).
