@@ -12,7 +12,7 @@ The [README](../README.md) describes what exists today, [TODO.md](../TODO.md) is
 2. [Architecture](architecture.md) and [agent flow](agent-flow.md) — one native LangGraph.js agent and embedded persistence.
 3. [Integrations/API](integrations.md), [security](security.md) and [testing](testing.md) — actual contracts, authority and verification limits.
 4. [TODO.md](../TODO.md) — current adoption order and acceptance criteria; the sole task tracker.
-5. [Local development](development/local-development.md), [system overview](architecture/system-overview.md) and [legacy testing](development/testing.md) — the optional integrated compatibility path.
+5. [Local development](development/local-development.md), [system overview](architecture/system-overview.md) and [legacy testing](development/testing.md) — the optional integrated compatibility path. Shell journey coverage is in [shell parity](development/shell-parity.md).
 6. [Service contracts](architecture/service-contracts.md), [frontend shells](architecture/frontend-and-miniapps.md), [protocol inventory](architecture/protocol-ag-ui-a2-ui.md) and [event stream](architecture/event-stream.md) — preserved contracts for incremental migration.
 7. [Operations](development/operations.md), [delegation](development/delegation.md) and [evidence register](reports/README.md) — scoped compatibility/production evidence, not prerequisites for the minimal demo.
 
