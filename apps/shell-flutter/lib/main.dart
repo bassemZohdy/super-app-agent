@@ -1,4 +1,5 @@
 import 'shared/contracts.g.dart';
+
 import 'dart:convert';
 import 'dart:async';
 
@@ -1058,24 +1059,28 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                       style: const TextStyle(fontSize: 14),
                     ),
                   ),
-                  DropdownButton<String>(
-                    value: _accountId,
-                    items: _accounts
-                        .map(
-                          (account) => DropdownMenuItem<String>(
-                            value: account['id'] as String,
-                            child: Text(
-                              account['label'] as String,
-                              style: const TextStyle(fontSize: 14),
+                  Flexible(
+                    child: DropdownButton<String>(
+                      isExpanded: true,
+                      value: _accountId,
+                      items: _accounts
+                          .map(
+                            (account) => DropdownMenuItem<String>(
+                              value: account['id'] as String,
+                              child: Text(
+                                account['label'] as String,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 14),
+                              ),
                             ),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: _requestPending
-                        ? null
-                        : (value) {
-                            if (value != null) _switchAccount(value);
-                          },
+                          )
+                          .toList(),
+                      onChanged: _requestPending
+                          ? null
+                          : (value) {
+                              if (value != null) _switchAccount(value);
+                            },
+                    ),
                   ),
                 ],
               ),

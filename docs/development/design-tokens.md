@@ -64,3 +64,5 @@ The focused Flutter review's confirm, reject and cancel actions use 48px minimum
 The Flutter connections refresh action uses a 48px token-based minimum and a theme-aware keyboard focus border. Phone widget checks exercise refresh and expanded connection details in English and Arabic with enlarged text and reduced motion; browser checks measure the exposed control.
 
 The Flutter delegated-access actions use 48px token-based minimum targets and theme-aware focus borders. Phone widget checks cover enlarged text, reduced motion, focus styling and revocation disabling execution; browser checks measure the initial consent controls. Consent and execution remain separate operations.
+
+The Flutter main concierge header is measured the same way: a widget test checks every tool control has a name and at least a 44px target on desktop, on a phone and on a 360px phone at twice the text size, and the account selector flexes and ellipsizes its labels so it cannot overflow its row.

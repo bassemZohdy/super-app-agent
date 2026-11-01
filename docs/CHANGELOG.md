@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 1 November 2026 — Measure the Flutter header and fix the account selector overflow (P2-14, step)
+
+With a Flutter 3.47.9 SDK now installed, a new widget test pumps the main concierge at desktop, phone and 2x text on a 360px phone and checks that every header tool has a name and a 44px target. It found a real defect: the account selector overflowed its row by 146 pixels at large text. The selector now flexes, expands and ellipsizes its labels. All 32 Flutter widget tests pass and `flutter analyze` is clean; the Flutter web build was rebuilt and the parity specs pass except the live-Keycloak sign-in spec, which fails on this stack with "Could not load sign-in settings" and was not diagnosed. [Design details](development/design-tokens.md).
+
 ## 1 November 2026 — Keep the history section's accessible name (P2-01, fix)
 
 Localizing the Statements & funding history panel changed its region's accessible name from "Statements and funding history" to the heading text, which the payment-history browser journey could not find. The region now has its own catalog key, so the English name is unchanged and Arabic has its own. Found by running the browser script against the Compose stack; the full Playwright suite then passed 108 tests on desktop and mobile, and its 16 failures were all specs that need a built Flutter web app (the Flutter project specs and the three-shell renewal parity spec); payment-history, -obligations, -accounts, -authorization, -refunds, -reconciliation, -lifecycle, -surfaces, checkout-groups, fine/recharge checkout and wallet funding pass there. The `automation-execution` script returned HTTP 503 on this stack and was not diagnosed. Guide: [testing](development/testing.md).
