@@ -2,7 +2,7 @@
 
 ## 1 November 2026 — Keep the history section's accessible name (P2-01, fix)
 
-Localizing the Statements & funding history panel changed its region's accessible name from "Statements and funding history" to the heading text, which the payment-history browser journey could not find. The region now has its own catalog key, so the English name is unchanged and Arabic has its own. Found by running the browser script against the Compose stack; payment-history, -obligations, -accounts, -authorization, -refunds, -reconciliation, -lifecycle, -surfaces, checkout-groups, fine/recharge checkout and wallet funding pass there. The `automation-execution` script returned HTTP 503 on this stack and was not diagnosed. Guide: [testing](development/testing.md).
+Localizing the Statements & funding history panel changed its region's accessible name from "Statements and funding history" to the heading text, which the payment-history browser journey could not find. The region now has its own catalog key, so the English name is unchanged and Arabic has its own. Found by running the browser script against the Compose stack; the full Playwright suite then passed 108 tests on desktop and mobile, and its 16 failures were all specs that need a built Flutter web app (the Flutter project specs and the three-shell renewal parity spec); payment-history, -obligations, -accounts, -authorization, -refunds, -reconciliation, -lifecycle, -surfaces, checkout-groups, fine/recharge checkout and wallet funding pass there. The `automation-execution` script returned HTTP 503 on this stack and was not diagnosed. Guide: [testing](development/testing.md).
 
 ## 1 November 2026 — Type four more browser scripts (P2-05, step)
 
