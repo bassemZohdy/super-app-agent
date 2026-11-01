@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 1 November 2026 — Type the payment-lifecycle browser script (P2-05, step)
+
+The payment-lifecycle browser script types its accounts, realm clients, orders, payables and sessions instead of using `any`; the E2E type check passes and the `any` baseline fell again. The script needs the Compose stack and was not run. Guide: [testing](development/testing.md).
+
 ## 1 November 2026 — Type the issuer-scenarios browser script (P2-05, step)
 
 The issuer-scenarios browser script types its fetch wrapper, card balances and wallet funding orders instead of using `any`; the E2E type check passes and the `any` baseline fell again. The script needs the Compose stack and was not run. Guide: [testing](development/testing.md).
