@@ -47,6 +47,7 @@ class SuperAppFlutter extends StatelessWidget {
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         ),
         useMaterial3: true,
+        visualDensity: VisualDensity.standard,
       ),
       home: Uri.base.path.replaceFirst(RegExp(r'/$'), '') == '/services/fines'
           ? const FocusedWorkspace()
@@ -56,7 +57,11 @@ class SuperAppFlutter extends StatelessWidget {
 }
 
 /// A keyboard user must always see where focus is, so every button in the shell draws the token focus ring.
-const _focusRing = ButtonStyle(side: _FocusRingSide());
+const _focusRing = ButtonStyle(
+  side: _FocusRingSide(),
+  // Flutter shrinks Material controls on desktop browsers; a resident with a touch screen or a tremor still needs 44px.
+  minimumSize: WidgetStatePropertyAll(Size(44, 44)),
+);
 
 class _FocusRingSide extends WidgetStateBorderSide {
   const _FocusRingSide();

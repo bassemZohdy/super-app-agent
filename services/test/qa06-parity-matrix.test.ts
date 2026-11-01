@@ -31,7 +31,7 @@ test('QA-06: every shell column covers every journey or says "none yet", and eac
       if (cell === 'none yet') gaps.push(`${cells[0]} / ${['React', 'Angular', 'Flutter web'][index]}`);
     });
   }
-  const listed = section('Not yet proven').split('\n').filter(line => line.startsWith('- ')).length;
+  const listed = section('Not yet proven').split('\n').filter(line => line.startsWith('- ') && !/None at the moment/.test(line)).length;
   assert.ok(listed >= gaps.length, `each of the ${gaps.length} "none yet" cells (${gaps.join('; ')}) appears under "Not yet proven" (${listed} listed)`);
 });
 

@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -13,11 +14,17 @@ void main() {
     (name: 'desktop', size: const Size(1200, 900), scale: 1),
     (name: 'phone', size: const Size(430, 900), scale: 1),
     (name: 'phone with large text', size: const Size(360, 700), scale: 2),
+    // Flutter shrinks Material controls on desktop browsers, which the Android default hides.
+    (name: 'a macOS desktop browser', size: const Size(1200, 900), scale: 1),
   ];
   for (final c in cases) {
     testWidgets('main header controls are named touch targets on ${c.name}', (
       tester,
     ) async {
+      debugDefaultTargetPlatformOverride = c.name.contains('macOS')
+          ? TargetPlatform.macOS
+          : null;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
       tester.view.physicalSize = c.size;
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
@@ -85,6 +92,7 @@ void main() {
           );
         }
         expect(tester.takeException(), isNull);
+        debugDefaultTargetPlatformOverride = null;
         await tester.pumpWidget(const SizedBox.shrink());
       }, () => client);
     });
