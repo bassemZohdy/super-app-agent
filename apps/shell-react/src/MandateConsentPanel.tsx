@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import type { BillingAccount, PaymentMethod } from '../../../packages/protocol-core/src/payments.ts';
+import type { MandatePolicy } from '../../../packages/protocol-core/src/payment-mandates.ts';
 import { describeMandateConsent, type MandateConsent } from '../../../packages/protocol-core/src/mandate-consent.ts';
 import { describeForecast, type ForecastView } from '../../../packages/protocol-core/src/mandate-forecast-view.ts';
 import { narrowPerPayment, expandPerPayment, changeSource, aedToMinor } from '../../../packages/protocol-core/src/mandate-narrow.ts';
@@ -7,7 +9,7 @@ type Props={busy:boolean;read(path:string,query?:Record<string,string>):Promise<
   mutate(path:string,body:Record<string,unknown>):Promise<any>;work(fn:()=>Promise<void>):Promise<void>};
 // The consequences the owner approves, stated the same way as the rules list (trigger, target, funding, caps, expiry, revocation).
 function TermsSummary({view}:{view:MandateConsent}){return <dl><dt>Trigger</dt><dd>{view.trigger}</dd><dt>Target</dt><dd>{view.target}</dd><dt>Funding</dt><dd>{view.funding}</dd><dt>Caps</dt><dd><ul>{view.caps.map(cap=><li key={cap}>{cap}</li>)}</ul></dd><dt>Expiry</dt><dd>{view.expiry}</dd><dt>Revocation</dt><dd>{view.revocation}</dd></dl>;}
-type ConsentView={id:string;view:MandateConsent;state:string;version:number;skipNext:boolean;policy:any;approvalDigest:string};
+type ConsentView={id:string;view:MandateConsent;state:string;version:number;skipNext:boolean;policy:MandatePolicy;approvalDigest:string};
 export function MandateConsentPanel({busy,read,mutate,work}:Props){
   const [views,setViews]=useState<ConsentView[]>();
   const [notice,setNotice]=useState<string>();
@@ -15,7 +17,7 @@ export function MandateConsentPanel({busy,read,mutate,work}:Props){
   const [narrowAmounts,setNarrowAmounts]=useState<Record<string,string>>({});
   // A new rule is drafted, reviewed and then approved separately: nothing is consented until the owner approves the reviewed terms.
   const [draft,setDraft]=useState<{open:boolean;billingId:string;sourceId:string;amount:string}>({open:false,billingId:'',sourceId:'',amount:''});
-  const [draftOptions,setDraftOptions]=useState<{billing:any[];methods:any[]}>({billing:[],methods:[]});
+  const [draftOptions,setDraftOptions]=useState<{billing:BillingAccount[];methods:PaymentMethod[]}>({billing:[],methods:[]});
   const [draftReview,setDraftReview]=useState<any>();
   // Expanding the cap or changing the source is a new review, sent through the revise route and approved separately.
   const [changes,setChanges]=useState<Record<string,{open:boolean;cap:string;sourceId:string}>>({});
@@ -31,12 +33,12 @@ export function MandateConsentPanel({busy,read,mutate,work}:Props){
   });
   const startDraft=()=>void work(async()=>{
     const overview=await read('overview');
-    setDraftOptions({billing:(overview?.billingAccounts??[]).filter((b:any)=>b.status==='ACTIVE'),methods:(overview?.methods??[]).filter((m:any)=>m.status==='ACTIVE')});
+    setDraftOptions({billing:(overview?.billingAccounts??[]).filter((b:BillingAccount)=>b.status==='ACTIVE'),methods:(overview?.methods??[]).filter((m:PaymentMethod)=>m.status==='ACTIVE')});
     setDraftReview(undefined);setDraft({open:true,billingId:'',sourceId:'wallet',amount:''});
   });
   const reviewDraft=()=>void work(async()=>{
-    const billing=draftOptions.billing.find((b:any)=>b.id===draft.billingId);
-    const source=draftOptions.methods.find((m:any)=>m.id===draft.sourceId)??(draft.sourceId==='wallet'?{id:'wallet',version:1}:undefined);
+    const billing=draftOptions.billing.find((b:BillingAccount)=>b.id===draft.billingId);
+    const source=draftOptions.methods.find((m:PaymentMethod)=>m.id===draft.sourceId)??(draft.sourceId==='wallet'?{id:'wallet',version:1}:undefined);
     const perPaymentMinor=aedToMinor(draft.amount);
     if(!billing){setNotice('Choose the linked biller to pay.');return;}
     if(!source){setNotice('Choose the funding source.');return;}
@@ -52,12 +54,12 @@ export function MandateConsentPanel({busy,read,mutate,work}:Props){
     setDraft({open:false,billingId:'',sourceId:'',amount:''});setDraftReview(undefined);
     setNotice('Rule approved. It runs when its invoice falls due, within the cap you reviewed.');await new Promise(resolve=>setTimeout(resolve,0));await load();
   });
-  const openChange=(id:string,policy:any)=>void work(async()=>{
+  const openChange=(id:string,policy:MandatePolicy)=>void work(async()=>{
     const overview=await read('overview');
-    setDraftOptions(current=>({...current,methods:(overview?.methods??[]).filter((m:any)=>m.status==='ACTIVE')}));
+    setDraftOptions(current=>({...current,methods:(overview?.methods??[]).filter((m:PaymentMethod)=>m.status==='ACTIVE')}));
     setChanges(current=>({...current,[id]:{open:true,cap:'',sourceId:policy.sources[0].methodId}}));
   });
-  const sendChange=(id:string,version:number,policy:any)=>void work(async()=>{
+  const sendChange=(id:string,version:number,policy:MandatePolicy)=>void work(async()=>{
     const change=changes[id];if(!change)return;
     let next=policy;
     const capText=change.cap.trim();
@@ -68,7 +70,7 @@ export function MandateConsentPanel({busy,read,mutate,work}:Props){
       next=result.policy;
     }
     if(change.sourceId!==policy.sources[0].methodId){
-      const source=draftOptions.methods.find((m:any)=>m.id===change.sourceId)??(change.sourceId==='wallet'?{id:'wallet',version:1}:undefined);
+      const source=draftOptions.methods.find((m:PaymentMethod)=>m.id===change.sourceId)??(change.sourceId==='wallet'?{id:'wallet',version:1}:undefined);
       if(!source){setNotice('Choose the funding source again.');return;}
       const result=changeSource(next,{methodId:source.id,version:source.version});
       if(!result.ok){setNotice(result.reason);return;}
@@ -80,7 +82,7 @@ export function MandateConsentPanel({busy,read,mutate,work}:Props){
     setNotice('Terms changed. The rule waits for your approval of the new terms before it runs again.');await new Promise(resolve=>setTimeout(resolve,0));await load();
   });
   // Narrowing goes through the revise route; the narrowed rule then waits for the owner's approval of its new review.
-  const narrow=(id:string,version:number,policy:any)=>void work(async()=>{
+  const narrow=(id:string,version:number,policy:MandatePolicy)=>void work(async()=>{
     const minor=aedToMinor(narrowAmounts[id]??'');
     const result=minor===undefined?{ok:false as const,reason:'Enter the cap in AED, up to two decimals.'}:narrowPerPayment(policy,minor);
     if(!result.ok){setNotice(result.reason);return;}
@@ -109,8 +111,8 @@ export function MandateConsentPanel({busy,read,mutate,work}:Props){
     {draft.open&&<section aria-label="New automation rule" className="payment-review">
       <h4>New automation rule</h4>
       {!draftReview&&<>
-        <label>Pay this linked biller<select value={draft.billingId} onChange={e=>setDraft(d=>({...d,billingId:e.target.value}))}><option value="">Choose a biller</option>{draftOptions.billing.map((b:any)=><option key={b.id} value={b.id}>{b.provider.toUpperCase()} · {b.nickname||b.reference}</option>)}</select></label>
-        <label>Pay from<select value={draft.sourceId} onChange={e=>setDraft(d=>({...d,sourceId:e.target.value}))}><option value="wallet">Wallet</option>{draftOptions.methods.filter((m:any)=>m.kind==='card').map((m:any)=><option key={m.id} value={m.id}>Card · {m.nickname}</option>)}</select></label>
+        <label>Pay this linked biller<select value={draft.billingId} onChange={e=>setDraft(d=>({...d,billingId:e.target.value}))}><option value="">Choose a biller</option>{draftOptions.billing.map((b:BillingAccount)=><option key={b.id} value={b.id}>{b.provider.toUpperCase()} · {b.nickname||b.reference}</option>)}</select></label>
+        <label>Pay from<select value={draft.sourceId} onChange={e=>setDraft(d=>({...d,sourceId:e.target.value}))}><option value="wallet">Wallet</option>{draftOptions.methods.filter((m:PaymentMethod)=>m.kind==='card').map((m:PaymentMethod)=><option key={m.id} value={m.id}>Card · {m.nickname}</option>)}</select></label>
         <label>Most one payment may take, in AED<input type="text" inputMode="decimal" value={draft.amount} onChange={e=>setDraft(d=>({...d,amount:e.target.value}))} /></label>
         <div className="payment-actions"><button disabled={busy} onClick={reviewDraft}>Review rule</button><button disabled={busy} onClick={()=>setDraft({open:false,billingId:'',sourceId:'',amount:''})}>Cancel</button></div>
       </>}
@@ -159,7 +161,7 @@ export function MandateConsentPanel({busy,read,mutate,work}:Props){
       </div>}
       {state==='APPROVED'&&policy&&changes[id]?.open&&<div className="payment-actions" aria-label={`Change terms of rule ${id}`}>
         <label>Raise the per-payment cap in AED (optional)<input type="text" inputMode="decimal" value={changes[id].cap} onChange={e=>setChanges(current=>({...current,[id]:{...current[id],cap:e.target.value}}))} placeholder={`above ${(policy.limits.perPaymentMinor/100).toFixed(2)}`} /></label>
-        <label>Pay from<select value={changes[id].sourceId} onChange={e=>setChanges(current=>({...current,[id]:{...current[id],sourceId:e.target.value}}))}><option value="wallet">Wallet</option>{draftOptions.methods.filter((m:any)=>m.kind==='card').map((m:any)=><option key={m.id} value={m.id}>Card · {m.nickname}</option>)}</select></label>
+        <label>Pay from<select value={changes[id].sourceId} onChange={e=>setChanges(current=>({...current,[id]:{...current[id],sourceId:e.target.value}}))}><option value="wallet">Wallet</option>{draftOptions.methods.filter((m:PaymentMethod)=>m.kind==='card').map((m:PaymentMethod)=><option key={m.id} value={m.id}>Card · {m.nickname}</option>)}</select></label>
         <button disabled={busy} onClick={()=>sendChange(id,version,policy)}>Send changed terms for review</button>
         <button disabled={busy} onClick={()=>setChanges(current=>({...current,[id]:{open:false,cap:'',sourceId:''}}))}>Cancel</button>
       </div>}

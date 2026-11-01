@@ -3,7 +3,7 @@
   "apps/shell-react/src/App.tsx": 3,
   "apps/shell-react/src/AutomationInboxPanel.tsx": 1,
   "apps/shell-react/src/KillSwitchPanel.tsx": 2,
-  "apps/shell-react/src/MandateConsentPanel.tsx": 20,
+  "apps/shell-react/src/MandateConsentPanel.tsx": 3,
   "apps/shell-react/src/PaymentHistoryPanel.tsx": 1,
   "apps/shell-react/src/PaymentRecoveryPanel.tsx": 2,
   "mini-apps/miniapp-food/src/index.tsx": 1,

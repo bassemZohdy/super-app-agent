@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 1 November 2026 — Type the React mandate consent panel (P2-05, step)
+
+The React mandate consent panel takes its billing accounts, payment methods and rule policies from the shared `BillingAccount`, `PaymentMethod` and `MandatePolicy` types instead of `any`; the shell type check passes and the `any` baseline fell by 17 uses. The automation-screens and rules browser specs that exercise the panel pass on the Compose stack. The panel's `read` and `mutate` props and its draft review still return `any`. Guide: [testing](development/testing.md).
+
 ## 1 November 2026 — Localize the Flutter focused fines workspace (P2-01, step)
 
 The Flutter fines workspace now reads the saved language (else the browser's), lays out right to left in Arabic and shows its header, sign-in, conversation, review, receipt and renewal labels from the same `fines.*` catalog keys the Angular fines route uses, plus two new keys for the review reminder and the unconfirmed-result message; English wording is unchanged and the requests the suggestion buttons send stay English. The Flutter Arabic browser spec gained a fines test (translated headline and token field, 44 px controls, nothing scrolling sideways, no English headline left), and the Flutter parity and focused-agent specs (52 tests with it), all 43 widget tests and `flutter analyze` pass. Guide: [localization](development/localization.md).
