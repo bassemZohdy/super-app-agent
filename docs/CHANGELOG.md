@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 1 November 2026 — Type the payment-mandates browser script (P2-05, step)
+
+The payment-mandates browser script types its accounts, realm clients, candidates and recharge targets instead of using `any`; the E2E type check passes and the `any` baseline fell again. The script needs the Compose stack and was not run. Guide: [testing](development/testing.md).
+
 ## 1 November 2026 — Type the payment-events browser scripts (P2-05, step)
 
 The payment-events and legacy-payment-events browser scripts type their payables, orders, billing accounts, recharge targets and event updates from the shared types instead of `any`; the E2E type check passes and the `any` baseline fell again. The scripts need the Compose stack and were not run. Guide: [testing](development/testing.md).

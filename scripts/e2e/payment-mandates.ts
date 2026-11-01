@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { startEnvironment } from './environment.ts';
+import type { RechargeTarget } from '../../packages/protocol-core/src/payments.ts';
 import { MANDATE_ACTOR, type MandatePolicy, type PaymentMandate } from '../../packages/protocol-core/src/payment-mandates.ts';
 let env:Awaited<ReturnType<typeof startEnvironment>>|undefined;
 try{
@@ -11,16 +12,16 @@ try{
   const login=async(username:string)=>{const r=await fetch(`${keycloakIssuerUrl}/protocol/openid-connect/token`,{method:'POST',body:new URLSearchParams({grant_type:'password',client_id:'superapp-shell',username,password:'demo123'}),signal:AbortSignal.timeout(10000)});assert.equal(r.status,200);return(await r.json() as any).access_token as string;};
   const [token,other]=await Promise.all([login('bassem'),login('demo-commuter')]);
   const request=async(url:string,body?:unknown,bearer=token,key=randomUUID())=>{const r=await fetch(url,{method:body?'POST':'GET',headers:{Authorization:`Bearer ${bearer}`,'Content-Type':'application/json','Idempotency-Key':key},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(30000)});return{status:r.status,data:await r.json() as any};};
-  const accounts=(await request(`${env.coreUrl}/api/accounts`)).data.accounts,accountId=accounts.find((a:any)=>a.label==='Personal account').id,household=accounts.find((a:any)=>a.label==='Household account').id;
+  const accounts=(await request(`${env.coreUrl}/api/accounts`)).data.accounts,accountId=accounts.find((a:{id:string;label:string})=>a.label==='Personal account').id,household=accounts.find((a:{id:string;label:string})=>a.label==='Household account').id;
   const api=(path:string,body?:Record<string,unknown>,bearer=token,account=accountId)=>request(`${env!.coreUrl}/api/payments/${path}${body?'':`?accountId=${account}`}`,body?{accountId:account,requestKey:randomUUID(),...body}:undefined,bearer);
   const provider=(name:string,path:string,body?:unknown,bearer=token)=>request(`http://localhost:${env!.corePort+101+['rta','dewa','etisalat','du','police','dld','payments'].indexOf(name)}/v1/accounts/${accountId}${path}`,body,bearer);
   const realm=JSON.parse(await readFile('services/keycloak/realm-export.json','utf8'));
-  const machineResponse=await fetch(`${keycloakIssuerUrl}/protocol/openid-connect/token`,{method:'POST',body:new URLSearchParams({grant_type:'client_credentials',client_id:'service-wallet',client_secret:realm.clients.find((c:any)=>c.clientId==='service-wallet').secret}),signal:AbortSignal.timeout(10000)});assert.equal(machineResponse.status,200);
+  const machineResponse=await fetch(`${keycloakIssuerUrl}/protocol/openid-connect/token`,{method:'POST',body:new URLSearchParams({grant_type:'client_credentials',client_id:'service-wallet',client_secret:realm.clients.find((c:{clientId:string;secret?:string})=>c.clientId==='service-wallet').secret}),signal:AbortSignal.timeout(10000)});assert.equal(machineResponse.status,200);
   const machine=(await machineResponse.json() as any).access_token;assert.equal((await provider('payments','/payment-mandates',undefined,machine)).status,403);
   const first=(await api('overview')).data,card=(await api('methods',{preset:'approved',nickname:'Mandate source'})).data.method;
   const links=new Map<string,any>();for(const candidate of first.candidates){const result=await api('billing-accounts',{provider:candidate.provider,reference:candidate.reference,nickname:candidate.label});assert.equal(result.status,200);links.set(`${candidate.provider}:${candidate.reference}`,result.data.billingAccount);}
   // Set up one real synthetic parking session before the zero-effect consent baseline.
-  const zones=(await provider('rta','/parking/zones')).data.zones,zone=zones[0],reference=randomUUID(),plate=first.candidates.find((c:any)=>c.provider==='police').reference;
+  const zones=(await provider('rta','/parking/zones')).data.zones,zone=zones[0],reference=randomUUID(),plate=first.candidates.find((c:{provider:string;reference:string})=>c.provider==='police').reference;
   const charge=(await provider('payments','/charges',{amountMinor:Math.round(zone.tariffPerHour*100),merchant:'rta',reference:`parking:${reference}`,source:'wallet'})).data.charge;
   const meter=(await provider('rta','/parking/sessions',{zoneId:zone.id,durationHours:1,plateNumber:plate,paymentId:charge.id,reference})).data.meter;assert.ok(meter);
   const beforeWallet=(await provider('payments','/wallet')).data,beforeTransactions=(await provider('payments','/transactions')).data;
@@ -28,7 +29,7 @@ try{
     target:{kind:'WALLET'},sources:[{methodId:card.id,expectedVersion:card.version}],fallback:{mode:'NONE'},trigger:{type:'INVOICE_DUE',daysBefore:1},timezone:'Asia/Dubai',startsAt:new Date(now).toISOString(),expiresAt:new Date(now+30*86400000).toISOString(),
     limits:{perPaymentMinor:50000,periodMinor:100000,lifetimeMinor:300000,period:'MONTH',perPeriodCount:4,lifetimeCount:12,cooldownSeconds:3600}};
   const target=(provider:string,reference?:string)=>{const b=[...links.values()].find(b=>b.provider===provider&&(!reference||b.reference===reference));assert.ok(b);return{kind:'BILLER' as const,billingAccountId:b.id,expectedVersion:b.version,provider:b.provider,reference:b.reference};};
-  const recharge=first.rechargeTargets.find((t:any)=>t.provider==='rta'),sub=first.candidates.find((c:any)=>c.provider==='du'&&!('balanceMinor' in c));
+  const recharge=first.rechargeTargets.find((t:RechargeTarget)=>t.provider==='rta'),sub=first.candidates.find((c:{provider:string;reference?:string})=>c.provider==='du'&&!('balanceMinor' in c));
   const policies:MandatePolicy[]=[{...base,target:target('dewa')},{...base,operation:'WALLET_RELOAD',target:{kind:'WALLET'},trigger:{type:'LOW_BALANCE',belowMinor:1000,reloadMinor:5000,targetBalanceMinor:10000}},
     {...base,operation:'RECHARGE',target:target('rta',recharge.reference),trigger:{type:'LOW_BALANCE',belowMinor:1000,reloadMinor:recharge.denominationsMinor[0],targetBalanceMinor:10000}},
     {...base,operation:'FINE_PAYMENT',target:target('police'),trigger:{type:'NEW_FINE'},fineTypes:['Parking overstay']},
