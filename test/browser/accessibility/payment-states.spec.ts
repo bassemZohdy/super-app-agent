@@ -63,7 +63,7 @@ test('masked cards, a paused rule, a challenge and an unknown outcome are readab
   // The states are said in words, and the card shows only its last four digits.
   const shown = await text();
   expect(shown).toContain('Phone card ·•••• 4242');
-  expect(shown.match(/d{13,19}/g) ?? [], 'no full card number anywhere on the screen').toEqual([]);
+  expect(shown.match(/\b\d{13,19}\b/g) ?? [], 'no full card number anywhere on the screen').toEqual([]);
   expect(shown).toContain('Reconcile the original capture; do not pay again.');
   expect(shown).toMatch(new RegExp(`${lost.data.order.id} · RECONCILIATION_REQUIRED`));
   expect(shown).toMatch(new RegExp(`${topup.id} · REQUIRES_ACTION`));
@@ -80,6 +80,7 @@ test('masked cards, a paused rule, a challenge and an unknown outcome are readab
 
   // The keyboard reaches and operates a rule: focus the second rule's Pause and press Enter.
   const pause = rule(second.id).getByRole('button', { name: 'Pause rule', exact: true });
+  await expect(pause).toBeEnabled();
   await pause.focus();
   await expect(pause).toBeFocused();
   const paused = resident.waitForResponse(r => new URL(r.url()).pathname === '/api/payments/mandates/pause' && r.request().method() === 'POST');
@@ -90,6 +91,7 @@ test('masked cards, a paused rule, a challenge and an unknown outcome are readab
 
   // Revoking the paused rule is a keyboard action too, and it leaves the rule with nothing to run, resume or revoke again.
   const revoke = rule(first.id).getByRole('button', { name: 'Revoke rule', exact: true });
+  await expect(revoke).toBeEnabled();
   await revoke.focus();
   await expect(revoke).toBeFocused();
   const revoked = resident.waitForResponse(r => new URL(r.url()).pathname === '/api/payments/mandates/revoke' && r.request().method() === 'POST');

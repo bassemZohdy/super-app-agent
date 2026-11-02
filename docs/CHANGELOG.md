@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Repair payment accessibility browser checks (P2-05, step)
+
+The payment-state browser check now detects unmasked card digits and waits for rule controls to become enabled before exercising keyboard actions. Guide: [testing](testing.md).
+
 ## 2 November 2026 — Bind move-in approval to reviewed tenancy (P1-13, step)
 
 Move-in approval carries the displayed contract and premise, rechecks them before dispatch and checks the premise again at the fixture boundary. Guide: [agent flow](agent-flow.md).
