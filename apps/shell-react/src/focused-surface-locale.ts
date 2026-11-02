@@ -16,6 +16,10 @@ const replies: Record<string, CatalogKey> = {
   'The vehicles service is unavailable. No payment or renewal was attempted.': 'fines.replyVehicleUnavailable',
   'The planning provider is unavailable or returned an invalid plan. No operation ran.': 'fines.replyModelUnavailable',
   'One or more requested fines are unavailable. Review outstanding fines again.': 'fines.replyInvalidFines',
+  'Please list outstanding fines or name the fines before asking to pay them.': 'fines.replyNameFines',
+  'Please select up to 10 fines at a time.': 'fines.replySelectLimit',
+  'Please select up to 10 fines for each payment review.': 'fines.replyPaymentLimit',
+  'Please review up to 10 fines at a time, then request renewal again.': 'fines.replyRenewalLimit',
   'A previous operation is not confirmed. Inspect and recover the original interaction before starting another.': 'fines.replyReconcile',
 };
 

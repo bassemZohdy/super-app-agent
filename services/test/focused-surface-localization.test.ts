@@ -1,6 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { localizeFocusedReply, localizeFocusedSurface } from '../../apps/shell-react/src/focused-surface-locale.ts';
+
+test('focused selection and batching guidance is translated only for exact known replies', () => {
+  for (const [english, arabic] of [
+    ['Please list outstanding fines or name the fines before asking to pay them.', 'يرجى عرض المخالفات المستحقة أو تحديدها قبل طلب دفعها.'],
+    ['Please select up to 10 fines at a time.', 'يرجى تحديد 10 مخالفات كحد أقصى في كل مرة.'],
+    ['Please select up to 10 fines for each payment review.', 'يرجى تحديد 10 مخالفات كحد أقصى لكل مراجعة دفع.'],
+    ['Please review up to 10 fines at a time, then request renewal again.', 'يرجى مراجعة 10 مخالفات كحد أقصى في كل مرة، ثم طلب التجديد مجدداً.'],
+  ]) {
+    assert.equal(localizeFocusedReply(english, 'ar'), arabic);
+    assert.equal(localizeFocusedReply(english, 'en'), english);
+    assert.equal(localizeFocusedReply(`${english} More detail.`, 'ar'), `${english} More detail.`);
+  }
+});
 import type { UIComponentNode } from '../../packages/protocol-core/src/ag-ui.ts';
 
 test('Arabic review translates only the matching display contract and preserves every action and amount', () => {

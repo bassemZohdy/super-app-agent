@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Localize fine review limits (P2-01, step)
+
+The React focused journey displays known fine-selection and batching guidance in Arabic in the conversation and service pane. The exact server reply is matched before translation. Guide: [shell parity](development/shell-parity.md).
+
 ## 2 November 2026 — Guide larger fine sets through reviewed batches (P1-13, step)
 
 Payment and renewal requests exceeding the quote limit now ask for batches instead of failing or silently choosing fines. The resident can separately review and confirm each batch before renewal. Guide: [shell parity](development/shell-parity.md).

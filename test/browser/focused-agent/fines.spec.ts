@@ -171,6 +171,25 @@ test('a typed Arabic request lists fines without making a payment', async ({ pag
   expect(focused.payments()).toBe(0);
 });
 
+test('Arabic guidance explains larger payment and renewal batches without starting an effect', async ({ page, focused }) => {
+  await page.addInitScript(() => localStorage.setItem('cityside.locale', 'ar'));
+  await page.goto(focused.url);
+  await page.getByLabel('رمز الوصول', { exact: true }).fill(focused.renewalToken);
+  await page.getByRole('button', { name: 'فتح مخالفاتي' }).click();
+  await page.getByRole('button', { name: 'عرض المخالفات المستحقة', exact: true }).click();
+  await expect(page.getByRole('cell', { name: 'fine-1', exact: true })).toBeVisible();
+  focused.addFines(true);
+  await page.getByRole('button', { name: 'مراجعة الدفع', exact: true }).click();
+  await expect(page.getByText('يرجى تحديد 10 مخالفات كحد أقصى لكل مراجعة دفع.', { exact: true })).toHaveCount(2);
+  await page.getByRole('textbox', { name: 'رسالة عن المخالفات' }).fill(`pay ${Array.from({ length: 11 }, (_, index) => `fine-${index + 1}`).join(' ')}`);
+  await page.getByRole('button', { name: 'إرسال الرسالة' }).click();
+  await expect(page.getByText('يرجى تحديد 10 مخالفات كحد أقصى في كل مرة.', { exact: true })).toHaveCount(2);
+  await page.getByRole('button', { name: 'تجديد تسجيل المركبة', exact: true }).click();
+  await expect(page.getByText('يرجى مراجعة 10 مخالفات كحد أقصى في كل مرة، ثم طلب التجديد مجدداً.', { exact: true })).toHaveCount(2);
+  await expect(page.getByRole('button', { name: 'تأكيد الدفع التجريبي' })).toHaveCount(0);
+  expect(focused.payments()).toBe(0); expect(focused.renewals()).toBe(0);
+});
+
 test('a named Arabic fine review pays only that fine and negated requests do not create a review', async ({ page, focused }) => {
   await page.addInitScript(() => localStorage.setItem('cityside.locale', 'ar'));
   await page.goto(focused.url);

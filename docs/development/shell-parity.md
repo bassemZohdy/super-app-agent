@@ -62,6 +62,8 @@ Supported pronoun payment follow-ups such as “pay them” bind to the fine IDs
 
 One payment review can contain at most ten fines. When more are requested, the agent asks the resident to name smaller batches; it does not choose a subset. A renewal with more than ten outstanding fines requires those batches to be reviewed and confirmed separately before the resident requests renewal again, which still needs its own approval.
 
+The React focused journey translates its known selection and ten-fine limit guidance into Arabic in both the conversation and service pane. Other or modified replies remain unchanged rather than being guessed.
+
 After the payment receipt is verified and persisted, its fine IDs are removed from the previously fetched list in the response and restored surface. Other entries remain a snapshot from before the payment; request the fines list again to refresh it. Unknown payment outcomes do not remove any entries.
 
 Each new focused request clears the prior fine and vehicle snapshots before planning. Clarification, unsupported requests and planning errors therefore cannot present an earlier list as their result. Conversation history remains available for supported selected-fine follow-ups; pending approvals and unknown outcomes must still be resolved before a new request.

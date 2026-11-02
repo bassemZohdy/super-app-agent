@@ -10,7 +10,7 @@ import { createServer } from 'vite';
 import { test as base, expect } from '../fixtures.ts';
 
 export const test = base.extend<{
-  focused: { url: string; token: string; otherToken: string; renewalToken: string; restart: () => Promise<void>; payments: () => number; renewals: () => number };
+  focused: { url: string; token: string; otherToken: string; renewalToken: string; restart: () => Promise<void>; addFines: (renewal: boolean) => void; payments: () => number; renewals: () => number };
 }>({
   focused: async ({}, use) => {
     const dir = mkdtempSync(join(tmpdir(), 'cityside-fines-browser-'));
@@ -42,7 +42,13 @@ export const test = base.extend<{
       const webPort = (web.httpServer!.address() as net.AddressInfo).port;
       env.CORS_ORIGINS += `,http://127.0.0.1:${webPort}`;
       await start();
-      await use({ url: `http://127.0.0.1:${webPort}/services/fines`, token, otherToken, renewalToken, restart: async () => { await stop(); await start(); }, payments: () => {
+      await use({ url: `http://127.0.0.1:${webPort}/services/fines`, token, otherToken, renewalToken, restart: async () => { await stop(); await start(); }, addFines: renewal => {
+        const db = new DatabaseSync(file);
+        try {
+          const insert = db.prepare('INSERT INTO sa_sim_fines VALUES(?,?,?,NULL)');
+          for (let n = 3; n <= 11; n++) insert.run(identities[renewal ? 2 : 0].subject, `fine-${n}`, JSON.stringify({ id: `fine-${n}`, description: 'Additional fine', amountMinor: 10000, version: 1 }));
+        } finally { db.close(); }
+      }, payments: () => {
         const db = new DatabaseSync(file, { readOnly: true });
         try { return Number(db.prepare('SELECT count(*) AS n FROM sa_sim_payments').get()!.n); } finally { db.close(); }
       }, renewals: () => {
