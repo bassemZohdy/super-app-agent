@@ -53,6 +53,25 @@ test('P1-13: a food review without a restaurant binding cannot dispatch an order
   assert.equal(activeOrders.size, before);
 });
 
+test('P1-13: standalone food reviews include delivery and reject changed price components', async () => {
+  const sid = 'food_reviewed_price_components';
+  assert.equal((await intent(sid, 'Find a restaurant for dinner')).status, 200);
+  const surface = getOrCreateSession(sid).currentSurface!;
+  const choices = surface.view.children!.find(node => node.id === 'food_choices')!.properties!.options as Array<{ id: string; price: string; subtitle: string }>;
+  const choice = choices.find(item => item.id === 'item_diavola')!;
+  assert.equal(choice.price, 'USD 20.99');
+  assert.match(choice.subtitle, /delivery USD 2\.99/i);
+  const restaurant = restaurants[0], item = restaurant.items.find(entry => entry.id === choice.id)!;
+  const originalPrice = item.price, originalFee = restaurant.deliveryFee, before = activeOrders.size;
+  try {
+    item.price = 19;
+    restaurant.deliveryFee = 1.99;
+    const result = await core('POST', '/api/a2ui/action', {}, { sessionId: sid, surfaceRevision: surface.revision, action: 'order_food', payload: { selectedChoice: choice.id } });
+    assert.equal(result.status, 409);
+    assert.equal(activeOrders.size, before);
+  } finally { item.price = originalPrice; restaurant.deliveryFee = originalFee; }
+});
+
 test('P1-13: composite checkout charges the reviewed total and books the reviewed ride and meal', async () => {
   ensureFunds();
   const sid = 'composite_reviewed_selection';

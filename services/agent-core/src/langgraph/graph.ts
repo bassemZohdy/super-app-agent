@@ -800,11 +800,15 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
       const choices = state.currentSurface?.view.children?.find(node => node.id === 'food_choices' && node.type === 'ChoiceGroup')?.properties?.options;
       const matches = Array.isArray(choices) ? choices.filter(option => option.id === dishId) : [];
       const restaurantId = matches.length === 1 ? matches[0].metadata?.restaurantId : undefined;
-      if (typeof restaurantId !== 'string' || !restaurantId.trim()) throw new HttpError(409, 'The selected dish is no longer available. Start a new review.');
+      const itemPrice = matches[0]?.metadata?.itemPriceMinor, deliveryFee = matches[0]?.metadata?.deliveryFeeMinor;
+      if (typeof restaurantId !== 'string' || !restaurantId.trim() || typeof itemPrice !== 'number' || !Number.isSafeInteger(itemPrice) || itemPrice <= 0 || typeof deliveryFee !== 'number' || !Number.isSafeInteger(deliveryFee) || deliveryFee < 0 || !Number.isSafeInteger(itemPrice + deliveryFee)) throw new HttpError(409, 'The selected dish or its price is no longer available. Start a new review.');
       onProgress?.('🍕 Creating food order with kitchen...');
       const res = await executeFoodRequest('POST', '/orders/create', {}, {
         restaurantId,
         items: [dishId],
+        expectedItemPriceMinor: itemPrice,
+        expectedDeliveryFeeMinor: deliveryFee,
+        expectedAmountMinor: itemPrice + deliveryFee,
         deliveryAddress: '100 Market St, Apt 4B',
       });
 
@@ -828,7 +832,7 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
               type: 'Text',
               id: 'food_desc',
               properties: {
-                text: `${order.restaurantName} is preparing your fresh order. Estimated delivery: ${order.estimatedDeliveryTime}. Total: $${order.totalAmount}.`,
+                text: `${order.restaurantName} is preparing your fresh order. Estimated delivery: ${order.estimatedDeliveryTime}. Total: ${formatWalletAmount(order.totalAmount)}.`,
               },
             },
             {
@@ -1077,6 +1081,8 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
 
     const allDishes = restaurants.flatMap((r) =>
       r.items.map((item: FoodItem) => {
+        const itemPriceMinor = toMinor(item.price), deliveryFeeMinor = toMinor(r.deliveryFee);
+        if (itemPriceMinor <= 0 || deliveryFeeMinor < 0 || !Number.isSafeInteger(itemPriceMinor + deliveryFeeMinor)) throw new HttpError(503, 'Restaurant prices are unavailable. Try again later.');
         const itemDietary: string[] = item.dietary || [];
         const matchesPref = userDietary.some((d) => itemDietary.includes(d));
         let badge = itemDietary[0] || 'Popular';
@@ -1087,9 +1093,9 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
         return {
           id: item.id,
           title: item.name,
-          subtitle: `${r.name} • ${item.description}`,
-          metadata: { restaurantId: r.id },
-          price: `$${item.price.toFixed(2)}`,
+          subtitle: `${r.name} • ${item.description} • Delivery ${formatWalletAmount(deliveryFeeMinor / 100)}`,
+          metadata: { restaurantId: r.id, itemPriceMinor, deliveryFeeMinor },
+          price: formatWalletAmount((itemPriceMinor + deliveryFeeMinor) / 100),
           badge,
           matchesPref,
         };

@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bind standalone food order prices (P1-13, step)
+
+Food reviews include delivery in the total and bind the separately reviewed item and delivery prices through ordering. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Bind selected dishes to restaurants (P1-13, step)
 
 Standalone food orders use the selected dish's restaurant from the approved review and refuse reviews without that binding. Guide: [agent flow](agent-flow.md).
