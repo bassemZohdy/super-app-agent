@@ -17,7 +17,17 @@ export class AccountDatabase {
     this.path = path;
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
     this.db = new DatabaseSync(path);
-    this.db.exec(`PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON;
+    this.db.exec('PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON;');
+    // Concurrent first opens can race while switching journal modes; SQLite may report BUSY immediately here.
+    const deadline = Date.now() + 5000, wait = new Int32Array(new SharedArrayBuffer(4));
+    for (;;) {
+      try { this.db.exec('PRAGMA journal_mode=WAL'); break; }
+      catch (error) {
+        if ((error as { errcode?: number }).errcode !== 5 || Date.now() >= deadline) { this.db.close(); throw error; }
+        Atomics.wait(wait, 0, 0, Math.min(25, Math.max(1, deadline - Date.now())));
+      }
+    }
+    this.db.exec(`
       CREATE TABLE IF NOT EXISTS accounts (id TEXT PRIMARY KEY, owner TEXT NOT NULL, label TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS resources (account_id TEXT NOT NULL REFERENCES accounts(id), kind TEXT NOT NULL, id TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY(account_id,kind,id));
       CREATE TABLE IF NOT EXISTS idempotency (account_id TEXT NOT NULL REFERENCES accounts(id), key TEXT NOT NULL, fingerprint TEXT NOT NULL, status INTEGER NOT NULL, body TEXT NOT NULL, PRIMARY KEY(account_id,key));`);
