@@ -26,9 +26,11 @@ async function readBody(req: http.IncomingMessage, timeoutMs: number, ignored = 
     req.once('close', () => req.off('error', onError));
   });
 }
-export function createServer(service: AgentService, auth: Authenticator, workloadKey: string, options: { bodyTimeoutMs?: number; maxPublicRequests?: number; maxSimulatorRequests?: number } = {}) {
+export function createServer(service: AgentService, auth: Authenticator, workloadKey: string, options: { bodyTimeoutMs?: number; maxPublicRequests?: number; maxSimulatorRequests?: number; maxSubjectPublicRequests?: number } = {}) {
   const bodyTimeoutMs = options.bodyTimeoutMs ?? 10000;
   const maxPublicRequests = options.maxPublicRequests ?? 64, maxSimulatorRequests = options.maxSimulatorRequests ?? 16;
+  const maxSubjectPublicRequests = options.maxSubjectPublicRequests ?? 8;
+  const subjectRequests = new Map<string, number>();
   let publicRequests = 0, simulatorRequests = 0;
   return http.createServer({ requestTimeout: 30000, headersTimeout: 10000 }, (req, res) => {
     const correlationId = randomUUID();
@@ -54,9 +56,16 @@ export function createServer(service: AgentService, auth: Authenticator, workloa
         res.setHeader('Connection', 'close'); throw new AgentError('SERVER_BUSY', 503);
       }
       if (trustedSimulator) simulatorRequests++; else publicRequests++;
+      let reservedSubject: string | undefined;
       try {
         const principal = await auth.authenticate(req.headers.authorization);
         if (res.destroyed) throw new AgentError('CLIENT_DISCONNECTED', 499);
+        if (!trustedSimulator) {
+          const count = subjectRequests.get(principal.subject) ?? 0;
+          if (count >= maxSubjectPublicRequests) { res.setHeader('Connection', 'close'); throw new AgentError('SUBJECT_BUSY', 429); }
+          subjectRequests.set(principal.subject, count + 1);
+          reservedSubject = principal.subject;
+        }
         const ctx: ExecutionContext = { principal, authorization: req.headers.authorization || '', correlationId, revalidate: () => auth.authenticate(req.headers.authorization) };
         const refreshAuthority = async (permission: string) => {
           const current = await ctx.revalidate();
@@ -113,6 +122,10 @@ export function createServer(service: AgentService, auth: Authenticator, workloa
           else send(200, result);
         });
       } finally {
+        if (reservedSubject !== undefined) {
+          const remaining = (subjectRequests.get(reservedSubject) ?? 1) - 1;
+          if (remaining) subjectRequests.set(reservedSubject, remaining); else subjectRequests.delete(reservedSubject);
+        }
         if (trustedSimulator) simulatorRequests--; else publicRequests--;
       }
     };

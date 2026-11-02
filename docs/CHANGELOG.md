@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 3 November 2026 - Bound focused requests per resident (P0-11, step)
+
+The focused server limits concurrent public requests per authenticated resident while preserving separate simulator capacity and holding slots for dispatched work after disconnect. Guide: [security](security.md).
+
 ## 3 November 2026 - Fence cancelled focused-client responses (P0-01, step)
 
 The shared focused client discards late creation, inspection, progress and action results after cancellation, and does not dispatch pre-cancelled requests. Guide: [security](security.md).

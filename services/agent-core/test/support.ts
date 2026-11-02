@@ -16,7 +16,7 @@ import { createGraph } from '../src/orchestrator/graph.ts';
 import { AgentService } from '../src/orchestrator/service.ts';
 import { createServer } from '../src/orchestrator/http.ts';
 
-export async function harness(options: { planner?: Planner; approvalTtlMs?: number; timeoutMs?: number; file?: string; identities?: TestIdentity[]; bodyTimeoutMs?: number; authenticator?: Authenticator; maxPublicRequests?: number; maxSimulatorRequests?: number } = {}) {
+export async function harness(options: { planner?: Planner; approvalTtlMs?: number; timeoutMs?: number; file?: string; identities?: TestIdentity[]; bodyTimeoutMs?: number; authenticator?: Authenticator; maxPublicRequests?: number; maxSimulatorRequests?: number; maxSubjectPublicRequests?: number } = {}) {
   const dir = options.file ? undefined : mkdtempSync(join(tmpdir(), 'simple-agent-'));
   const file = options.file || join(dir!, 'agent.sqlite');
   const saver = SqliteSaver.fromConnString(file), store = new Store(saver.db); store.setup();
@@ -30,7 +30,7 @@ export async function harness(options: { planner?: Planner; approvalTtlMs?: numb
   const vehicles = new VehiclesAdapter(base, workloadKey, options.timeoutMs);
   const graph = createGraph(options.planner || new FixturePlanner(), tools, vehicles, store, saver, options.approvalTtlMs);
   const service = new AgentService(graph, store);
-  const server = createServer(service, options.authenticator || new TestAuthenticator(identities, 'super-app-agent'), workloadKey, { bodyTimeoutMs: options.bodyTimeoutMs, maxPublicRequests: options.maxPublicRequests, maxSimulatorRequests: options.maxSimulatorRequests });
+  const server = createServer(service, options.authenticator || new TestAuthenticator(identities, 'super-app-agent'), workloadKey, { bodyTimeoutMs: options.bodyTimeoutMs, maxPublicRequests: options.maxPublicRequests, maxSimulatorRequests: options.maxSimulatorRequests, maxSubjectPublicRequests: options.maxSubjectPublicRequests });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   base.port = String((server.address() as { port: number }).port);
   async function req(path: string, body?: unknown, options: { token?: string; key?: string; headers?: Record<string, string> } = {}) {

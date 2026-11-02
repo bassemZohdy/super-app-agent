@@ -70,3 +70,63 @@ test('a disconnect does not free a slot while authentication is still running', 
     assert.equal((h.store.db.prepare('SELECT count(*) AS n FROM sa_threads').get() as { n: number }).n, 1);
   } finally { unblock(); await h.close(); }
 });
+
+
+test('one resident cannot consume another resident’s public slots or the simulator reserve', { timeout: 20000 }, async () => {
+  const alice: TestIdentity = { token: randomBytes(32).toString('hex'), subject: 'alice', permissions: ['fines:read'], expiresAt: Date.now() + 600000 };
+  const aliceOther: TestIdentity = { ...alice, token: randomBytes(32).toString('hex') };
+  const bob: TestIdentity = { token: randomBytes(32).toString('hex'), subject: 'bob', permissions: ['fines:read'], expiresAt: Date.now() + 600000 };
+  const delegate = new TestAuthenticator([alice, aliceOther, bob], 'super-app-agent');
+  let entered!: () => void;
+  const authenticated = new Promise<void>(resolve => { entered = resolve; });
+  const auth: Authenticator = { async authenticate(header) { const principal = await delegate.authenticate(header); if (principal.subject === 'alice') entered(); return principal; } };
+  const h = await harness({ identities: [alice, aliceOther, bob], authenticator: auth, maxPublicRequests: 4, maxSimulatorRequests: 1, maxSubjectPublicRequests: 1 });
+  const held = http.request(new URL('/api/agent/threads', h.base), { method: 'POST', agent: false, headers: { Authorization: `Bearer ${alice.token}`, 'Content-Type': 'application/json', 'Content-Length': '2' } });
+  held.on('error', () => {});
+  const completed = new Promise<number>((resolve, reject) => { held.once('response', response => { response.resume(); response.once('end', () => resolve(response.statusCode!)); }); held.once('error', reject); });
+  void completed.catch(() => {});
+  try {
+    held.write('{'); await authenticated; await new Promise(resolve => setImmediate(resolve));
+    const limited = await h.req('/api/agent/threads', {}, { token: aliceOther.token });
+    assert.equal(limited.status, 429); assert.equal(limited.data.code, 'SUBJECT_BUSY');
+    assert.equal((await h.req('/api/agent/threads', {}, { token: bob.token })).status, 201);
+    assert.equal((await h.req('/simulator/v1/fines', undefined, { token: alice.token, headers: { 'X-Agent-Key': h.workloadKey } })).status, 200);
+    assert.equal((await fetch(new URL('/live', h.base))).status, 200);
+    held.end('}'); assert.equal(await completed, 201);
+    const thread = await h.thread();
+    const malformed = await fetch(new URL(`/api/agent/threads/${thread}/messages`, h.base), { method: 'POST', headers: { Authorization: `Bearer ${alice.token}`, 'Content-Type': 'application/json', 'Idempotency-Key': 'invalid-body' }, body: 'invalid' });
+    assert.equal(malformed.status, 400, 'failed requests also release the resident slot');
+    assert.equal((await h.req('/api/agent/threads', {}, { token: alice.token })).status, 201);
+  } finally { held.destroy(); await h.close(); }
+});
+
+
+test('a disconnected payment retains the resident slot until the original effect finishes', { timeout: 20000 }, async () => {
+  const alice: TestIdentity = { token: randomBytes(32).toString('hex'), subject: 'alice', permissions: ['fines:read', 'fines:pay'], expiresAt: Date.now() + 600000 };
+  const bob: TestIdentity = { token: randomBytes(32).toString('hex'), subject: 'bob', permissions: ['fines:read'], expiresAt: Date.now() + 600000 };
+  const h = await harness({ identities: [alice, bob], maxSubjectPublicRequests: 1, timeoutMs: 10000 });
+  let entered!: () => void, unblock!: () => void;
+  const reached = new Promise<void>(resolve => { entered = resolve; });
+  const held = new Promise<void>(resolve => { unblock = resolve; });
+  try {
+    const root = `/api/agent/threads/${await h.thread()}`;
+    const review = await h.req(`${root}/messages`, { message: 'pay fines' });
+    const approval = review.data.approval;
+    const original = h.tools.pay.invoke;
+    h.tools.pay.invoke = async (...args) => { entered(); await held; return original(...args); };
+    const closed = new Promise<void>(resolve => h.server.once('connection', socket => socket.once('close', () => resolve())));
+    const request = http.request(new URL(`${root}/resume`, h.base), { method: 'POST', agent: false, headers: { Authorization: `Bearer ${alice.token}`, 'Content-Type': 'application/json', 'Idempotency-Key': 'resume-original' } });
+    request.on('error', () => {});
+    request.end(JSON.stringify({ approvalId: approval.id, decision: 'approve' }));
+    await reached; request.destroy(); await closed;
+    const denied = await h.req('/api/agent/threads', {}, { token: alice.token });
+    assert.equal(denied.status, 429); assert.equal(denied.data.code, 'SUBJECT_BUSY');
+    assert.equal((await h.req('/api/agent/threads', {}, { token: bob.token })).status, 201);
+    assert.equal((h.store.db.prepare('SELECT count(*) AS n FROM sa_sim_payments').get() as { n: number }).n, 0);
+    unblock();
+    let status = 429;
+    for (let i = 0; i < 200 && status === 429; i++) { await new Promise<void>(resolve => setTimeout(resolve, 10)); status = (await h.req('/api/agent/threads', {}, { token: alice.token })).status; }
+    assert.equal(status, 201);
+    assert.equal((h.store.db.prepare('SELECT count(*) AS n FROM sa_sim_payments').get() as { n: number }).n, 1);
+  } finally { unblock(); await h.close(); }
+});
