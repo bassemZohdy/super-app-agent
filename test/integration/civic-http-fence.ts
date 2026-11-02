@@ -26,7 +26,7 @@ test('a lost separate-service wallet response leaves a shared fence for a fresh 
     if (refuseWallet && method === 'POST' && path === '/pay/unified') { res.writeHead(409, { 'content-type': 'application/json' }); res.end(JSON.stringify({ success: false, error: 'No debit made' })); return; }
     if (method === 'POST' && path === '/pay/unified') {
       const snapshot = await check.inspectCivicFence('local-demo-user', accountIdFor('local-demo-user'));
-      recordedBeforeDebit = snapshot.civicSteps?.[0]?.state === 'STARTED' && JSON.stringify(snapshot.civicReview) === JSON.stringify({ ...review, tollAmountMinor: 10000 });
+      recordedBeforeDebit = snapshot.civicSteps?.[0]?.state === 'STARTED' && snapshot.civicSteps?.[0]?.operationId === body.operationId && typeof body.operationId === 'string' && JSON.stringify(snapshot.civicReview) === JSON.stringify({ ...review, tollAmountMinor: 10000 });
     }
     const handler = path.startsWith('/utilities/') ? domainHandlers.food : path.startsWith('/mobility/') ? domainHandlers.ride : domainHandlers.wallet;
     const result = handler(method, path, {}, body);
@@ -50,10 +50,13 @@ test('a lost separate-service wallet response leaves a shared fence for a fresh 
   assert.equal(dropped, true); assert.equal(recordedBeforeDebit, true, 'the attempt is recorded before the wallet is called'); assert.equal(steps[0].state, 'UNKNOWN'); assert.ok(balance < before); assert.equal(transactions.length, ledger + 1);
   assert.equal(await check.client.exists(key), 1); assert.equal(await check.client.ttl(key), -1);
   const recorded = await check.inspectCivicFence(actor.sub, actor.accountId);
-  assert.deepEqual(recorded.civicSteps, [{ name: 'WALLET', state: 'UNKNOWN' }]);
+  assert.match(recorded.civicSteps?.[0]?.operationId || '', /^CIVIC-/);
+  assert.deepEqual(recorded.civicSteps?.map(step => [step.name, step.state]), [['WALLET', 'UNKNOWN']]);
   assert.deepEqual(recorded.civicReview, { ...review, tollAmountMinor: 10000 });
   assert.deepEqual(await check.inspectCivicFence('different-owner', actor.accountId), { status: 'BLOCKED' });
   const inspected = await executeGatewayRequest('GET', '/api/civic/reconciliation', {}, {}, { authorization: 'Bearer demo-local' });
+  const observed = await executeGatewayRequest('GET', '/api/civic/reconciliation', { verify: '1' }, {}, { authorization: 'Bearer demo-local' });
+  assert.deepEqual(observed.data.civicEvidence, [{ name: 'WALLET', assessment: 'OBSERVED', observedReceiptReference: transactions.at(-1)?.id }]);
   const refused = await executeGatewayRequest('POST', '/api/civic/reconciliation/resolve', {}, { revision: inspected.data.revision }, { authorization: 'Bearer demo-local' });
   assert.equal(refused.status, 409, 'an unknown wallet outcome cannot be resolved as complete');
   assert.equal(await check.client.exists(key), 1);

@@ -24,7 +24,7 @@ type Meter = { ticketId: string; zoneId: string; durationHours: number };
 type PlannedItem = { provider: string; payableId: string; expectedPayableRevision: string };
 // Documentary shape of the JSON request body. Fields are the ones these routes read; runtime is unchanged.
 type RequestBody = {
-  billId: string; expectedPayables: PayableRevision[]; expectedPayableRevision: string; expectedAmountMinor: number;
+  billId: string; operationId: string; expectedPayables: PayableRevision[]; expectedPayableRevision: string; expectedAmountMinor: number;
   zoneId: string; plateNumber: string; durationHours: number; additionalHours: number; ticketId: string; amount: number;
   restaurantId: string; items: string[]; referenceId: string; fineIds: string[]; methodId: string; expectedMethodVersion: number;
   lineId: string; expectedTag: string; targetReference: string; amountMinor: number; expectedTargetVersion: number; mobility: Record<string, unknown>; ui: Record<string, unknown>;
@@ -260,6 +260,7 @@ export async function integratedRequest(service: string, actor: Actor, method: s
       if (method === 'POST' && path === '/wallet/pay') return successfulWithoutDuplicate(await charge('superapp', body.referenceId || actor.requestId, body.amount));
       if (method === 'POST' && path === '/fines/pay') return successfulWithoutDuplicate(await settleFines(body.fineIds));
       if (method === 'POST' && ['/pay/unified','/pay/multi-agency'].includes(path)) {
+        if (body.operationId !== undefined) throw new UpstreamError(400, 'VALIDATION_ERROR', 'Offline operation identities are not supported in integrated provider mode.');
         if((body.targetReference===undefined)!==(body.expectedTargetVersion===undefined))throw new UpstreamError(400,'VALIDATION_ERROR','Select a recharge target and its reviewed version together.');
         const selected=body.expectedPayables as ReviewedGroupPayable[] | undefined;
         if(!Array.isArray(selected)||selected.length>30)throw new UpstreamError(400,'VALIDATION_ERROR','Select the reviewed bills and fines.');

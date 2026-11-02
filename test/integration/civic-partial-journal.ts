@@ -35,5 +35,7 @@ test('a refused utility step retains the confirmed wallet and rejected utility e
   const actor = actorFor({ sub: 'partial-civic-owner' }, undefined, 'Bearer test'), before = balance, ledger = transactions.length, tollBefore = salikBalance;
   await assert.rejects(actorContext.run(actor, () => SuperAppAgentGraph.resumeWithAction({ sessionId: 'civic-partial', messages: [], activeDomain: 'composite' }, 'confirm_smartcity_checkout', { offlineReview: review })), /did not complete successfully/);
   assert.ok(balance < before); assert.equal(transactions.length, ledger + 1); assert.equal(activeUtilityBill.status, 'UNPAID'); assert.equal(salikBalance, tollBefore); assert.equal(laterWrites, 0);
-  assert.deepEqual((await check.inspectCivicFence(actor.sub, actor.accountId)).civicSteps, [{ name: 'WALLET', state: 'CONFIRMED', receiptReference: transactions.at(-1)?.id }, { name: 'UTILITY', state: 'REJECTED' }]);
+  const saved = await check.inspectCivicFence(actor.sub, actor.accountId);
+  assert.match(saved.civicSteps?.[0]?.operationId || '', /^CIVIC-/);
+  assert.deepEqual(saved.civicSteps, [{ name: 'WALLET', state: 'CONFIRMED', operationId: saved.civicSteps?.[0]?.operationId, receiptReference: transactions.at(-1)?.id }, { name: 'UTILITY', state: 'REJECTED' }]);
 });

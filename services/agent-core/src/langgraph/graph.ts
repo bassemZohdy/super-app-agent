@@ -381,11 +381,11 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
     if (guardedOfflineCivicAction) offlineCivicPaymentRunning = true;
     let sharedFence: Awaited<ReturnType<RedisSessionStore['acquireCivicFence']>> | undefined;
     let externalWriteStarted = false, externalWriteConfirmed = false, retainSharedFence = false;
-    const civicStep = async <T>(name: CivicStepName, dispatch: () => Promise<T>): Promise<T> => {
-      if (sharedFence) await sharedFence.startStep(name);
+    const civicStep = async <T>(name: CivicStepName, dispatch: (operationId?: string) => Promise<T>): Promise<T> => {
+      const operationId = sharedFence ? await sharedFence.startStep(name) : undefined;
       externalWriteStarted = true;
       let result: T;
-      try { result = await dispatch(); }
+      try { result = await dispatch(operationId); }
       catch (error) {
         if (sharedFence) await sharedFence.finishStep(name, error instanceof DomainOperationError && error.code === 'DOMAIN_REJECTED' ? 'REJECTED' : 'UNKNOWN');
         throw error;
@@ -609,7 +609,7 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
       if (sharedFence) await sharedFence.bindReview({ ...review, tollAmountMinor: 10000 });
       let walletConfirmed = false;
       try {
-      const res = await civicStep('WALLET', () => executeWalletRequest('POST', '/pay/unified', {}, { items: [
+      const res = await civicStep('WALLET', operationId => executeWalletRequest('POST', '/pay/unified', {}, { ...(operationId ? { operationId } : {}), items: [
         ...(review.billAmountMinor ? [{ agency: 'DEWA', purpose: 'Demo utility settlement', amount: fromMinor(review.billAmountMinor) }] : []),
         { agency: 'RTA Salik', purpose: 'Demo toll recharge', amount: 100 },
       ] }));

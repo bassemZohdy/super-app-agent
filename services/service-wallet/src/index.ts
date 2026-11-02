@@ -11,7 +11,11 @@ export interface Transaction {
   status: 'SETTLED' | 'PENDING' | 'FAILED';
   timestamp: number;
   referenceId?: string;
+  operationId?: string;
 }
+
+type OfflineUnifiedOperation = { signature: string; items: Array<{ agency: string; purpose: string; amount: number }>; receiptReference: string; response: Record<string, unknown> };
+const offlineUnifiedOperations = new Map<string, OfflineUnifiedOperation>();
 
 export let balance = 142.5;
 export const currency = 'USD';
@@ -209,12 +213,24 @@ function handleWalletRequest(
   // ---------------------------------------------------------------------------
   // Unified Multi-Agency Government Settlement (DubaiPay / TAMM Pay)
   // ---------------------------------------------------------------------------
+  const unifiedOperation = /^\/wallet\/unified-operations\/([^/]+)$/.exec(pathname);
+  if (normMethod === 'GET' && unifiedOperation) {
+    const operationId = decodeURIComponent(unifiedOperation[1]), operation = offlineUnifiedOperations.get(operationId);
+    return { status: 200, data: { success: true, operation: operation ? { operationId, status: 'SETTLED', items: structuredClone(operation.items), receiptReference: operation.receiptReference } : null } };
+  }
+
   if (normMethod === 'POST' && (pathname === '/pay/unified' || pathname === '/pay/multi-agency')) {
     if (body.targetReference !== undefined || body.expectedTargetVersion !== undefined || body.expectedPayables !== undefined) return invalidInput('Selected-resource checkout requires integrated provider mode');
     const items: Array<{ agency: string; purpose: string; amount: number }> = body.items;
     const totalMinor = items.reduce((acc, item) => acc + toMinor(item.amount), 0);
     if (totalMinor > MAX_MONEY * 100) return invalidInput('Settlement total exceeds demo limit');
     const grandTotal = fromMinor(totalMinor);
+    const signature = JSON.stringify({ items: items.map(item => ({ agency: item.agency, purpose: item.purpose, amountMinor: toMinor(item.amount) })), currency: body.currency ?? 'AED', methodId: body.methodId ?? null, expectedMethodVersion: body.expectedMethodVersion ?? null });
+    const previous = body.operationId ? offlineUnifiedOperations.get(body.operationId) : undefined;
+    if (previous) {
+      if (previous.signature !== signature) return { status: 409, data: { success: false, code: 'IDEMPOTENCY_CONFLICT', error: 'This operation already has different terms.' } };
+      return { status: 200, data: structuredClone(previous.response) };
+    }
 
     if (toMinor(balance) < totalMinor) {
       return { status: 400, data: { error: 'Insufficient citizen wallet balance for unified settlement', currentBalance: balance, requiredAmount: grandTotal } };
@@ -232,20 +248,15 @@ function handleWalletRequest(
       status: 'SETTLED',
       timestamp: Date.now(),
       referenceId: govTxHash,
+      ...(body.operationId ? { operationId: body.operationId } : {}),
     });
 
-    return {
-      status: 200,
-      data: {
-        success: true,
-        govTransactionHash: govTxHash,
-        settlementPlatform: 'DubaiPay / TAMM Unified Gateway',
-        grandTotal,
-        remainingBalance: balance,
-        breakdown: items,
-        timestamp: new Date().toISOString(),
-      },
+    const response = {
+      success: true, govTransactionHash: govTxHash, settlementPlatform: 'DubaiPay / TAMM Unified Gateway', grandTotal,
+      remainingBalance: balance, breakdown: structuredClone(items), timestamp: new Date().toISOString(), ...(body.operationId ? { operationId: body.operationId } : {}),
     };
+    if (body.operationId) offlineUnifiedOperations.set(body.operationId, { signature, items: structuredClone(items), receiptReference: govTxHash, response });
+    return { status: 200, data: structuredClone(response) };
   }
 
   // 2. Check Balance

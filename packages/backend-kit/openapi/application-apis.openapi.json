@@ -3703,6 +3703,13 @@
                     "maxItems": 100,
                     "uniqueItems": true
                   },
+                  "operationId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$",
+                    "description": "Offline fixture operation identity; integrated provider mode rejects this field."
+                  },
                   "currency": {
                     "type": "string",
                     "const": "AED"
@@ -3986,6 +3993,13 @@
                     "minItems": 1,
                     "maxItems": 100,
                     "uniqueItems": true
+                  },
+                  "operationId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$",
+                    "description": "Offline fixture operation identity; integrated provider mode rejects this field."
                   },
                   "currency": {
                     "type": "string",

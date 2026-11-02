@@ -82,7 +82,9 @@ function confirmedReceipt(service: string, path: string, data: any, body: unknow
     }
     if (path === '/pay/unified' || path === '/pay/multi-agency') {
       if (!named(data.govTransactionHash) || !named(data.settlementPlatform) || !record(body)) return false;
-      const items = (body as { items?: unknown }).items;
+      const request = body as { items?: unknown; operationId?: unknown };
+      if (request.operationId !== undefined && (!named(request.operationId) || data.operationId !== request.operationId)) return false;
+      const items = request.items;
       if (!Array.isArray(items) || items.length === 0) return false;
       try {
         const amounts = items.map(item => {

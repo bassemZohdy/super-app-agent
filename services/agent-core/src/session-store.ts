@@ -27,7 +27,7 @@ type CivicAction = 'confirm_smartcity_checkout' | 'pay_utilities_bill' | 'pay_de
 type CivicOwner = { subject: string; accountId: string; sessionId: string; action: CivicAction; surfaceRevision?: string };
 export type CivicStepName = 'WALLET' | 'UTILITY' | 'FINES' | 'TOLL';
 type CivicStepState = 'STARTED' | 'CONFIRMED' | 'REJECTED' | 'UNKNOWN';
-type CivicStep = { name: CivicStepName; state: CivicStepState; receiptReference?: string };
+type CivicStep = { name: CivicStepName; state: CivicStepState; receiptReference?: string; operationId?: string };
 const civicReference = (value: unknown): value is string => typeof value === 'string' && value.length <= 128 && /^[A-Za-z0-9][A-Za-z0-9_.:-]*$/.test(value);
 type CivicReview = { billId: string; billAmountMinor: number; fines: Array<{ fineId: string; amountMinor: number }>; tagNumber: string; tollAmountMinor: number };
 function civicReview(value: unknown): CivicReview | undefined {
@@ -86,7 +86,7 @@ export class RedisSessionStore {
     if (!owner.subject || !owner.accountId || !/^[a-zA-Z0-9_-]{8,128}$/.test(owner.sessionId) || !civicActions.has(owner.action) || owner.surfaceRevision !== undefined && !/^[0-9a-f-]{36}$/.test(owner.surfaceRevision)) throw new SessionError(400, 'CIVIC_CONTEXT_INVALID', 'The civic payment context is invalid.');
     await this.connect();
     const key = `${this.prefix}offline-civic-fence`;
-    let record = { version: 5, nonce: randomUUID(), owner: civicOwnerDigest(owner.subject, owner.accountId), sessionId: owner.sessionId, action: owner.action, surfaceRevision: owner.surfaceRevision ?? null, steps: [] as CivicStep[], review: null as CivicReview | null };
+    let record = { version: 6, nonce: randomUUID(), owner: civicOwnerDigest(owner.subject, owner.accountId), sessionId: owner.sessionId, action: owner.action, surfaceRevision: owner.surfaceRevision ?? null, steps: [] as CivicStep[], review: null as CivicReview | null };
     let current = JSON.stringify(record);
     const retired = owner.surfaceRevision ? civicRetiredKey(this.prefix, record.owner, owner.sessionId, owner.surfaceRevision) : `${this.prefix}civic-retired:none`;
     const admitted = await this.client.eval(`if ARGV[2]=='1' and redis.call('EXISTS',KEYS[2])~=0 then return -1 end
@@ -109,12 +109,14 @@ export class RedisSessionStore {
       startStep: async (name: CivicStepName) => {
         if (record.action === 'confirm_smartcity_checkout' && !record.review) throw new SessionError(409, 'CIVIC_REVIEW_REQUIRED', 'The civic payment review is required before starting a step.');
         if (!civicStepNames.has(name) || record.steps.length >= 4 || record.steps.some(step => step.name === name || step.state !== 'CONFIRMED')) throw new SessionError(409, 'CIVIC_STEP_INVALID', 'The civic payment step cannot be started.');
-        await save({ ...record, steps: [...record.steps, { name, state: 'STARTED' }] });
+        const operationId = name === 'WALLET' && record.action === 'confirm_smartcity_checkout' ? `CIVIC-${randomUUID()}` : undefined;
+        await save({ ...record, steps: [...record.steps, { name, state: 'STARTED', ...(operationId ? { operationId } : {}) }] });
+        return operationId;
       },
       finishStep: async (name: CivicStepName, state: Exclude<CivicStepState, 'STARTED'>, receiptReference?: string) => {
         const last = record.steps.at(-1);
         if (!last || last.name !== name || last.state !== 'STARTED' || !['CONFIRMED', 'REJECTED', 'UNKNOWN'].includes(state) || receiptReference !== undefined && (state !== 'CONFIRMED' || !civicReference(receiptReference))) throw new SessionError(409, 'CIVIC_STEP_INVALID', 'The civic payment step cannot be finished.');
-        await save({ ...record, steps: [...record.steps.slice(0, -1), { name, state, ...(receiptReference ? { receiptReference } : {}) }] });
+        await save({ ...record, steps: [...record.steps.slice(0, -1), { ...last, state, ...(receiptReference ? { receiptReference } : {}) }] });
       },
       release: async () => {
         await this.connect();
@@ -128,15 +130,16 @@ export class RedisSessionStore {
     if (raw === null) return { status: 'CLEAR' };
     try {
       const record = JSON.parse(raw) as { version?: unknown; owner?: unknown; sessionId?: unknown; action?: unknown; steps?: unknown; review?: unknown; surfaceRevision?: unknown };
-      if (record && (record.version === 1 || record.version === 2 || record.version === 3 || record.version === 4 || record.version === 5) && record.owner === civicOwnerDigest(subject, accountId) &&
+      if (record && (record.version === 1 || record.version === 2 || record.version === 3 || record.version === 4 || record.version === 5 || record.version === 6) && record.owner === civicOwnerDigest(subject, accountId) &&
           typeof record.sessionId === 'string' && /^[a-zA-Z0-9_-]{8,128}$/.test(record.sessionId) &&
           typeof record.action === 'string' && civicActions.has(record.action)) {
         if (record.version === 1) return { status: 'BLOCKED', sessionId: record.sessionId, action: record.action as CivicAction };
         if (Array.isArray(record.steps) && record.steps.length <= 4 && record.steps.every((step: unknown) => !!step && typeof step === 'object' && civicStepNames.has((step as CivicStep).name) && civicStepStates.has((step as CivicStep).state))) {
-          const review = (record.version === 3 || record.version === 4 || record.version === 5) && record.review !== null ? civicReview(record.review) : undefined;
-          if ((record.version === 3 || record.version === 4 || record.version === 5) && record.review !== null && !review) return { status: 'BLOCKED' };
-          if ((record.version === 4 || record.version === 5) && record.steps.some((step: CivicStep) => step.receiptReference !== undefined && (step.state !== 'CONFIRMED' || !civicReference(step.receiptReference)))) return { status: 'BLOCKED' };
-          return { status: 'BLOCKED', sessionId: record.sessionId, action: record.action as CivicAction, ...((record.version === 4 || record.version === 5) ? { revision: createHash('sha256').update(raw).digest('hex') } : {}), ...(record.version === 5 && typeof record.surfaceRevision === 'string' && /^[0-9a-f-]{36}$/.test(record.surfaceRevision) ? { surfaceRevision: record.surfaceRevision } : {}), ...(review ? { civicReview: review } : {}), civicSteps: record.steps.map((step: CivicStep) => ({ name: step.name, state: step.state, ...((record.version === 4 || record.version === 5) && step.receiptReference ? { receiptReference: step.receiptReference } : {}) })) };
+          const review = (record.version === 3 || record.version === 4 || record.version === 5 || record.version === 6) && record.review !== null ? civicReview(record.review) : undefined;
+          if ((record.version === 3 || record.version === 4 || record.version === 5 || record.version === 6) && record.review !== null && !review) return { status: 'BLOCKED' };
+          if ((record.version === 4 || record.version === 5 || record.version === 6) && record.steps.some((step: CivicStep) => step.receiptReference !== undefined && (step.state !== 'CONFIRMED' || !civicReference(step.receiptReference)))) return { status: 'BLOCKED' };
+          if (record.version === 6 && record.steps.some((step: CivicStep) => (step.name === 'WALLET' && record.action === 'confirm_smartcity_checkout' && !step.operationId) || (step.operationId !== undefined && (step.name !== 'WALLET' || !/^CIVIC-[0-9a-f-]{36}$/.test(step.operationId))))) return { status: 'BLOCKED' };
+          return { status: 'BLOCKED', sessionId: record.sessionId, action: record.action as CivicAction, ...((record.version === 4 || record.version === 5 || record.version === 6) ? { revision: createHash('sha256').update(raw).digest('hex') } : {}), ...((record.version === 5 || record.version === 6) && typeof record.surfaceRevision === 'string' && /^[0-9a-f-]{36}$/.test(record.surfaceRevision) ? { surfaceRevision: record.surfaceRevision } : {}), ...(review ? { civicReview: review } : {}), civicSteps: record.steps.map((step: CivicStep) => ({ name: step.name, state: step.state, ...((record.version === 4 || record.version === 5 || record.version === 6) && step.receiptReference ? { receiptReference: step.receiptReference } : {}), ...(record.version === 6 && step.operationId ? { operationId: step.operationId } : {}) })) };
         }
       }
     } catch { /* A legacy or unreadable fence stays blocked without exposing its contents. */ }
@@ -150,7 +153,7 @@ export class RedisSessionStore {
     await this.connect();
     const [raw, active] = await this.client.mGet([`${this.prefix}civic-resolution:${revision}`, `${this.prefix}offline-civic-fence`]);
     if (!raw || raw === active || createHash('sha256').update(raw).digest('hex') !== revision) return false;
-    try { const record = JSON.parse(raw) as { version?: unknown; owner?: unknown }; return record.version === 5 && record.owner === civicOwnerDigest(subject, accountId); }
+    try { const record = JSON.parse(raw) as { version?: unknown; owner?: unknown }; return (record.version === 5 || record.version === 6) && record.owner === civicOwnerDigest(subject, accountId); }
     catch { return false; }
   }
   async resolveCivicFence(subject: string, accountId: string, revision: string): Promise<void> {
@@ -160,7 +163,7 @@ export class RedisSessionStore {
     let retired: string;
     try {
       const record = JSON.parse(raw) as { version?: unknown; owner?: unknown; sessionId?: unknown; surfaceRevision?: unknown };
-      if (record.version !== 5 || record.owner !== civicOwnerDigest(subject, accountId) || typeof record.sessionId !== 'string' || !/^[a-zA-Z0-9_-]{8,128}$/.test(record.sessionId) || typeof record.surfaceRevision !== 'string' || !/^[0-9a-f-]{36}$/.test(record.surfaceRevision)) throw new Error('context mismatch');
+      if ((record.version !== 5 && record.version !== 6) || record.owner !== civicOwnerDigest(subject, accountId) || typeof record.sessionId !== 'string' || !/^[a-zA-Z0-9_-]{8,128}$/.test(record.sessionId) || typeof record.surfaceRevision !== 'string' || !/^[0-9a-f-]{36}$/.test(record.surfaceRevision)) throw new Error('context mismatch');
       retired = civicRetiredKey(this.prefix, record.owner, record.sessionId, record.surfaceRevision);
     } catch { throw new SessionError(409, 'CIVIC_REVIEW_CHANGED', 'The civic review changed.'); }
     const saved = await this.client.eval(`if redis.call('GET',KEYS[1])~=ARGV[1] then return 0 end

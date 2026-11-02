@@ -1,10 +1,10 @@
 import { toMinor } from '../../../packages/protocol-core/src/request-validation.ts';
 
 type Name = 'WALLET' | 'UTILITY' | 'FINES' | 'TOLL';
-type Step = { readonly name: Name; readonly state: string; readonly receiptReference?: string };
+type Step = { readonly name: Name; readonly state: string; readonly receiptReference?: string; readonly operationId?: string };
 type Review = { readonly billId: string; readonly billAmountMinor: number; readonly tagNumber: string; readonly fines: ReadonlyArray<{ readonly fineId: string; readonly amountMinor: number }>; readonly tollAmountMinor: number };
-type Assessment = { name: Name; assessment: 'MATCH' | 'UNVERIFIABLE' | 'UNAVAILABLE' };
-type Source = 'wallet' | 'food' | 'ride' | 'fine-receipt';
+type Assessment = { name: Name; assessment: 'MATCH' | 'OBSERVED' | 'UNVERIFIABLE' | 'UNAVAILABLE'; observedReceiptReference?: string };
+type Source = 'wallet' | 'food' | 'ride' | 'fine-receipt' | 'wallet-operation';
 const isRecord = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 
 /** Compares independent fixture reads without interpreting missing evidence as proof of no effect. */
@@ -17,6 +17,23 @@ export async function compareCivicEvidence(review: Review, steps: readonly Step[
   };
   const evidence: Assessment[] = [];
   for (const step of steps) {
+    if (step.name === 'WALLET' && ['STARTED', 'UNKNOWN'].includes(step.state) && step.operationId) {
+      const lookup = await source('wallet-operation', step.operationId);
+      if (lookup.unavailable) { evidence.push({ name: step.name, assessment: 'UNAVAILABLE' }); continue; }
+      const body = lookup.value, operation = isRecord(body) && isRecord(body.operation) ? body.operation : undefined;
+      const items = operation && Array.isArray(operation.items) ? operation.items : [];
+      const expectedItems = [...(review.billAmountMinor ? [{ agency: 'DEWA', purpose: 'Demo utility settlement', amountMinor: review.billAmountMinor }] : []), { agency: 'RTA Salik', purpose: 'Demo toll recharge', amountMinor: review.tollAmountMinor }];
+      let valid = !!operation && operation.operationId === step.operationId && operation.status === 'SETTLED' && typeof operation.receiptReference === 'string' && /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(operation.receiptReference) && items.length === expectedItems.length;
+      try { valid = valid && items.every((item: unknown, index: number) => isRecord(item) && item.agency === expectedItems[index].agency && item.purpose === expectedItems[index].purpose && typeof item.amount === 'number' && toMinor(item.amount) === expectedItems[index].amountMinor); } catch { valid = false; }
+      if (!valid || !operation || typeof operation.receiptReference !== 'string') { evidence.push({ name: step.name, assessment: 'UNVERIFIABLE' }); continue; }
+      const ledger = await source('wallet');
+      if (ledger.unavailable) { evidence.push({ name: step.name, assessment: 'UNAVAILABLE' }); continue; }
+      const rows = isRecord(ledger.value) && Array.isArray(ledger.value.transactions) ? ledger.value.transactions.filter((row: unknown) => isRecord(row) && row.id === operation.receiptReference) : [];
+      const row = rows.length === 1 && isRecord(rows[0]) ? rows[0] : undefined;
+      try { valid = !!row && row.operationId === step.operationId && row.type === 'PAYMENT' && row.status === 'SETTLED' && row.currency === 'AED' && typeof row.amount === 'number' && toMinor(row.amount) === review.billAmountMinor + review.tollAmountMinor; } catch { valid = false; }
+      evidence.push(valid ? { name: step.name, assessment: 'OBSERVED', observedReceiptReference: operation.receiptReference } : { name: step.name, assessment: 'UNVERIFIABLE' });
+      continue;
+    }
     if (step.state !== 'CONFIRMED' || !step.receiptReference) { evidence.push({ name: step.name, assessment: 'UNVERIFIABLE' }); continue; }
     const result = await source(step.name === 'UTILITY' ? 'food' : step.name === 'TOLL' ? 'ride' : 'wallet', step.receiptReference);
     if (result.unavailable) { evidence.push({ name: step.name, assessment: 'UNAVAILABLE' }); continue; }

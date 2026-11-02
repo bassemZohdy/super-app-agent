@@ -31,6 +31,9 @@ test('manual grouped checkout plans only the explicitly reviewed bills and fines
   });
   const items=[{agency:'reviewed',purpose:'total',amount:150}],selection=[{provider:'dewa',payableId:'bill-one',expectedRevision:revision},{provider:'police',payableId:'fine-two',expectedRevision:revision}],legacy=()=>({status:404,data:{}});
   const run=(sub:string,expectedPayables?:unknown,amount=150)=>integratedRequest('service-wallet',actorFor({sub}),'POST','/pay/unified',{}, {items:[{...items[0],amount}],...(expectedPayables===undefined?{}:{expectedPayables})},legacy);
+  const offlineIdentity = await integratedRequest('service-wallet', actorFor({ sub: 'offline-identity-denied' }), 'POST', '/pay/unified', {}, { items, expectedPayables: selection, operationId: 'CIVIC-test' }, legacy);
+  assert.equal(offlineIdentity.status, 400); assert.equal(groupCalls, 0);
+  assert.equal((await integratedRequest('service-wallet', actorFor({ sub: 'offline-lookup-denied' }), 'GET', '/wallet/unified-operations/CIVIC-test', {}, {}, legacy)).status, 404);
   assert.equal(validateRequest('service-wallet','POST','/pay/unified',{}, {items,expectedPayables:selection}),undefined);
   const missing=await run('missing');assert.equal(missing.status,400);assert.equal(groupCalls,0);
   const duplicate=await run('duplicate',[selection[0],selection[0]]);assert.equal(duplicate.status,400);assert.equal(groupCalls,0);

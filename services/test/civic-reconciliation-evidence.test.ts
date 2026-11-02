@@ -50,3 +50,18 @@ test('a matching fine ledger amount cannot confirm a different or incomplete fin
   ]) assert.deepEqual(await compare(receipt), [{ name: 'FINES', assessment: 'UNVERIFIABLE' }]);
   assert.deepEqual(await compareCivicEvidence(review, fineStep, async source => { if (source === 'fine-receipt') throw new Error('offline'); return wallet; }), [{ name: 'FINES', assessment: 'UNAVAILABLE' }]);
 });
+
+
+test('a lost wallet response can be observed only by its saved operation and exact terms', async () => {
+  const operationId = 'CIVIC-123';
+  const unknown = [{ name: 'WALLET', state: 'UNKNOWN', operationId }] as const;
+  const operation = { operation: { operationId, status: 'SETTLED', receiptReference: 'W1', items: [{ agency: 'DEWA', purpose: 'Demo utility settlement', amount: 2 }, { agency: 'RTA Salik', purpose: 'Demo toll recharge', amount: 100 }] } };
+  const ledger = { transactions: [{ ...wallet.transactions[0], operationId }] };
+  const read = async (source: string) => source === 'wallet-operation' ? operation : ledger;
+  assert.deepEqual(await compareCivicEvidence(review, unknown, read), [{ name: 'WALLET', assessment: 'OBSERVED', observedReceiptReference: 'W1' }]);
+  const changed = { operation: { ...operation.operation, items: [{ ...operation.operation.items[0], amount: 2.01 }, operation.operation.items[1]] } };
+  assert.deepEqual(await compareCivicEvidence(review, unknown, async source => source === 'wallet-operation' ? changed : ledger), [{ name: 'WALLET', assessment: 'UNVERIFIABLE' }]);
+  assert.deepEqual(await compareCivicEvidence(review, unknown, async source => source === 'wallet-operation' ? operation : wallet), [{ name: 'WALLET', assessment: 'UNVERIFIABLE' }]);
+  assert.deepEqual(await compareCivicEvidence(review, unknown, async source => source === 'wallet-operation' ? { operation: null } : ledger), [{ name: 'WALLET', assessment: 'UNVERIFIABLE' }]);
+  assert.deepEqual(await compareCivicEvidence(review, unknown, async source => source === 'wallet-operation' ? operation : { transactions: [ledger.transactions[0], ledger.transactions[0]] }), [{ name: 'WALLET', assessment: 'UNVERIFIABLE' }]);
+});

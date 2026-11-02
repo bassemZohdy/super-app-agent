@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Identify a lost offline wallet response (P1-13, step)
+
+Separate-service civic checkout saves a wallet operation ID before dispatch. The synthetic wallet deduplicates same-term requests within its process, rejects changed terms, and exposes the original operation for owner-scoped evidence after a lost response. The result remains fenced and is not automatically retried; wallet-process restart loses the in-memory operation history. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Resolve a verified complete civic checkout (P1-13, step)
 
 The owner can explicitly acknowledge a complete offline composite checkout after the gateway rechecks every recorded step against current fixture evidence. Resolution atomically archives the exact revision, retires the original approval and clears its fence; retries do not clear newer checkouts. Live Redis/HTTP tests cover stale, unknown, changed-evidence, cross-account and concurrent requests. Guide: [integrations](integrations.md).
