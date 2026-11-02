@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Deduplicate periodic jobs across versions (P1-10, step)
+
+Periodic catch-up retains at most one unclaimed job per occurrence and skips queued duplicates of an already completed occurrence. Guide: [automation worker](development/automation-worker.md).
+
 ## 2 November 2026 — Prevent queued automation catch-up bursts (P1-10, step)
 
 Periodic catch-up atomically skips older unclaimed jobs and retains only the newest, while claimed or held work blocks a replacement and remains untouched. Guide: [automation worker](development/automation-worker.md).

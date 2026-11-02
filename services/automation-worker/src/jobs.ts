@@ -140,13 +140,15 @@ export class JobStore {
       const existing = new Set(jobs.map(job => job.occurrenceKey));
       const available = [...new Set([...keys.filter(key => !existing.has(key)), ...unclaimed.map(job => job.occurrenceKey)])].sort();
       const latest = [...keys, ...jobs.filter(job => job.occurrenceKey.startsWith(prefix)).map(job => job.occurrenceKey)].sort().at(-1);
-      const keep = !blocked && latest === available.at(-1) ? latest : undefined;
+      const keep = !blocked && latest === available.at(-1) && !jobs.some(job => job.occurrenceKey === latest && !(job.state === 'QUEUED' && job.fence === 0)) ? latest : undefined;
+      const keepId = unclaimed.filter(job => job.occurrenceKey === keep).sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id))[0]?.id;
       const reason = blocked ? 'PRIOR_UNRESOLVED' : 'MISSED_CATCH_UP';
       const result = { enqueued: [] as string[], skipped: [] as string[] };
       for (const job of unclaimed) {
-        if (job.occurrenceKey === keep) continue;
-        this.db.prepare("UPDATE jobs SET state='SKIPPED',reason=?,updated_at=? WHERE id=? AND state='QUEUED' AND fence=0").run(reason, now, job.id);
-        this.db.prepare('INSERT OR IGNORE INTO job_outbox(job_id,kind,body,at) VALUES(?,?,?,?)').run(job.id, 'SKIPPED', JSON.stringify({ reason }), now);
+        if (job.id === keepId) continue;
+        const skipReason = !blocked && job.occurrenceKey === latest && jobs.filter(other => other.occurrenceKey === latest).length > 1 ? 'DUPLICATE_OCCURRENCE' : reason;
+        this.db.prepare("UPDATE jobs SET state='SKIPPED',reason=?,updated_at=? WHERE id=? AND state='QUEUED' AND fence=0").run(skipReason, now, job.id);
+        this.db.prepare('INSERT OR IGNORE INTO job_outbox(job_id,kind,body,at) VALUES(?,?,?,?)').run(job.id, 'SKIPPED', JSON.stringify({ reason: skipReason }), now);
         result.skipped.push(job.occurrenceKey);
       }
       for (const key of keys) {

@@ -236,3 +236,27 @@ test('invoice catch-up is atomic across schedulers and preserves held original w
     assert.equal(a.list().find(job => job.occurrenceKey === 'INV:2027-01-15')?.reason, 'PRIOR_UNRESOLVED');
   } finally { a.close(); b.close(); try { removeTemp(dir); } catch { /* Windows may briefly hold the directory */ } }
 });
+
+test('periodic catch-up retains at most one queued job for a duplicated occurrence across versions', async () => {
+  const store = new JobStore(':memory:');
+  const original = { mandateId: 'mandate_cal', policyVersion: 1, occurrenceKey: 'CAL:2026-11', target: 'dewa-home' };
+  try {
+    const first = store.enqueue(original, 1), second = store.enqueue({ ...original, policyVersion: 2 }, 2);
+    store.schedulePeriodic({ mandateId: original.mandateId, policyVersion: 2, target: original.target }, [original.occurrenceKey], 3);
+    assert.equal(store.get(first.id)?.state, 'QUEUED');
+    assert.equal(store.get(second.id)?.state, 'SKIPPED');
+    assert.equal(store.get(second.id)?.reason, 'DUPLICATE_OCCURRENCE');
+    assert.deepEqual(store.outbox(second.id).map(event => event.kind), ['SKIPPED']);
+  } finally { store.close(); }
+  const completed = new JobStore(':memory:');
+  try {
+    const first = completed.enqueue(original, 1);
+    const claim = completed.claim('worker', 1000, 2)!;
+    completed.transition(claim, 'SETTLED', {}, undefined, 3);
+    const duplicate = completed.enqueue({ ...original, policyVersion: 2 }, 4);
+    completed.schedulePeriodic({ mandateId: original.mandateId, policyVersion: 2, target: original.target }, [original.occurrenceKey], 5);
+    assert.equal(completed.get(first.id)?.state, 'SETTLED');
+    assert.equal(completed.get(duplicate.id)?.state, 'SKIPPED');
+    assert.equal(completed.get(duplicate.id)?.reason, 'DUPLICATE_OCCURRENCE');
+  } finally { completed.close(); }
+});
