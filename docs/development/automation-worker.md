@@ -36,6 +36,8 @@ For a local held job, set `AUTOMATION_JOBS_DB` to the existing jobs database, `A
 
 The HTTP scheduling reader limits each response to 64 KiB and requires an explicit, unambiguous success envelope. Threshold readings must contain nonnegative safe integers for both balance in fils and the qualifying debit count; a malformed or oversized reading does not re-arm or fire that threshold. An oversized rule list requires reducing the local run's data before scheduling can continue.
 
+The reader validates the entire rule list before processing it: identities must be unique and usable, state and trigger fields must be recognized, trigger values must fit the mandate contract, and the time zone and ordered time window must be valid. Invalid rules leave that tick's scheduler history untouched.
+
 Invoice lists must contain real calendar dates, fine lists must contain unique bounded identifiers, and parking sessions must have a usable ticket, status and expiry. The reader validates the entire returned list before the scheduler records any occurrence from that reading; invalid data is retried on a later tick rather than partially scheduled.
 
 - A rule schedules only while it is approved and inside its start and expiry window; time never revives consent.

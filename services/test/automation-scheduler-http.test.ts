@@ -80,3 +80,46 @@ test('scheduler rejects invalid invoice, fine and parking readings before creati
   payload = { success: true, session: { ticketId: 'ticket_1', status: 'ACTIVE', expiresAt: now + 1000 } }; selectedRule = parkRule;
   assert.deepEqual(await source.parkingSession(parkRule), { ticketId: 'ticket_1', status: 'ACTIVE', expiresAt: now + 1000 });
 });
+
+test('scheduler validates the entire HTTP rule list before acting on any rule', async t => {
+  const previous = process.env.KEYCLOAK_TOKEN_URL;
+  process.env.KEYCLOAK_TOKEN_URL = 'http://127.0.0.1/token';
+  t.after(() => { if (previous === undefined) delete process.env.KEYCLOAK_TOKEN_URL; else process.env.KEYCLOAK_TOKEN_URL = previous; });
+  let rules: unknown[] = [];
+  t.mock.method(globalThis, 'fetch', async input => {
+    const path = new URL(String(input)).pathname;
+    if (path === '/token') return Response.json({ access_token: 'fixture-service-token', expires_in: 300 });
+    if (path.endsWith('/rules')) return Response.json({ success: true, rules });
+    return Response.json({ success: true, balanceMinor: 500, qualifyingDebits: 0 });
+  });
+  const source = new HttpRuleSource({ runId: 'autorn_00000000-0000-4000-8000-000000000000', paymentsUrl: 'http://127.0.0.1', clientSecret: 'fixture-secret' });
+  const invalid = [
+    null, { ...rule, mandateId: '../bad' }, { ...rule, policyVersion: 0 }, { ...rule, state: 'UNKNOWN' },
+    { ...rule, timezone: 'Invalid/Zone' }, { ...rule, startsAt: '2026-02-30T00:00:00Z' },
+    { ...rule, trigger: { type: 'CALENDAR', dayOfMonth: 32, hour: 9, minute: 0, monthEnd: 'LAST_DAY' } },
+    { ...rule, trigger: { type: 'INVOICE_DUE', daysBefore: -1 } },
+    { ...rule, trigger: { type: 'LOW_BALANCE', belowMinor: '1000', reloadMinor: 5000, targetBalanceMinor: 10000 } },
+    { ...rule, trigger: { type: 'PARKING_ENDING', minutesBefore: 0 } },
+    { ...rule, trigger: { type: 'UNKNOWN' } },
+  ];
+  for (const candidate of invalid) {
+    rules = [rule, candidate];
+    const store = new JobStore(':memory:');
+    try {
+      await assert.rejects(new Scheduler(store, source).tick(Date.parse('2026-11-01T00:00:00Z')));
+      assert.deepEqual(store.list(), []);
+      assert.deepEqual(store.thresholdState(rule.mandateId, 1), { armed: true, seq: 0 });
+    } finally { store.close(); }
+  }
+  rules = [rule, { ...rule }];
+  await assert.rejects(source.rules());
+  rules = [rule];
+  assert.deepEqual(await source.rules(), [rule]);
+  for (const supported of [
+    { type: 'CALENDAR', dayOfMonth: 31, hour: 9, minute: 0, monthEnd: 'SKIP' },
+    { type: 'INVOICE_DUE', daysBefore: 3 }, { type: 'NEW_FINE' }, { type: 'PARKING_ENDING', minutesBefore: 10 },
+  ]) {
+    rules = [{ ...rule, trigger: supported }];
+    assert.deepEqual(await source.rules(), rules);
+  }
+});

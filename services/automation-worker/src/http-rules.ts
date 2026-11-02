@@ -3,6 +3,7 @@
 import { tracedFetch as fetch } from '../../../packages/backend-kit/src/observability.ts';
 import { ClientCredentials } from '../../../packages/backend-kit/src/oauth.ts';
 import { boundedJsonResponse } from '../../../packages/backend-kit/src/bounded-json.ts';
+import { MAX_PAYMENT_MINOR } from '../../../packages/protocol-core/src/payments.ts';
 import type { RuleSource, ScheduledRule } from './scheduler.ts';
 
 const item = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
@@ -11,6 +12,27 @@ const date = (value: unknown): value is string => {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const millis = Date.parse(`${value}T00:00:00.000Z`);
   return Number.isFinite(millis) && new Date(millis).toISOString().slice(0, 10) === value;
+};
+const integer = (value: unknown, min: number, max: number): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= min && value <= max;
+const instant = (value: unknown): value is string => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{3})?Z$/.test(value) && date(value.slice(0, 10)) && Number.isFinite(Date.parse(value));
+const trigger = (value: unknown): boolean => {
+  if (!item(value)) return false;
+  switch (value.type) {
+    case 'INVOICE_DUE': return integer(value.daysBefore, 0, 14);
+    case 'CALENDAR': return integer(value.dayOfMonth, 1, 31) && integer(value.hour, 0, 23) && integer(value.minute, 0, 59) && (value.monthEnd === 'LAST_DAY' || value.monthEnd === 'SKIP');
+    case 'LOW_BALANCE': return integer(value.belowMinor, 1, MAX_PAYMENT_MINOR) && integer(value.reloadMinor, 1, MAX_PAYMENT_MINOR) && integer(value.targetBalanceMinor, 1, MAX_PAYMENT_MINOR);
+    case 'NEW_FINE': return true;
+    case 'PARKING_ENDING': return integer(value.minutesBefore, 1, 60);
+    default: return false;
+  }
+};
+const scheduledRule = (value: unknown): value is ScheduledRule => {
+  if (!item(value) || !id(value.mandateId, 101) || !integer(value.policyVersion, 1, Number.MAX_SAFE_INTEGER) ||
+      typeof value.state !== 'string' || !['AWAITING_APPROVAL', 'APPROVED', 'PAUSED', 'REVOKED', 'EXPIRED'].includes(value.state) || !id(value.target, 101) ||
+      typeof value.timezone !== 'string' || value.timezone.length < 1 || value.timezone.length > 64 ||
+      !instant(value.startsAt) || !instant(value.expiresAt) || Date.parse(value.startsAt) >= Date.parse(value.expiresAt) || !trigger(value.trigger)) return false;
+  try { new Intl.DateTimeFormat('en', { timeZone: value.timezone }); } catch { return false; }
+  return true;
 };
 
 export class HttpRuleSource implements RuleSource {
@@ -32,7 +54,11 @@ export class HttpRuleSource implements RuleSource {
     if (data.success !== true || Object.hasOwn(data, 'error')) throw new Error('Scheduling read could not be confirmed.');
     return data;
   }
-  async rules(): Promise<ScheduledRule[]> { return (await this.get('')).rules as ScheduledRule[]; }
+  async rules(): Promise<ScheduledRule[]> {
+    const rules = (await this.get('')).rules;
+    if (!Array.isArray(rules) || !rules.every(scheduledRule) || new Set(rules.map(rule => rule.mandateId)).size !== rules.length) throw new Error('Scheduling rules could not be confirmed.');
+    return rules;
+  }
   async dueInvoices(rule: ScheduledRule): Promise<{ dueDate: string }[]> {
     const invoices = (await this.get(`/${encodeURIComponent(rule.mandateId)}/invoices`)).invoices;
     if (!Array.isArray(invoices) || !invoices.every(value => item(value) && date(value.dueDate))) throw new Error('Scheduling invoices could not be confirmed.');

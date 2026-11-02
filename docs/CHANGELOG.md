@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Validate automation scheduling rules (P1-02, step)
+
+The scheduler validates the complete worker-scoped rule list and rejects duplicate identities or malformed triggers, windows and time zones before processing any rule. Guide: [automation worker](development/automation-worker.md).
+
 ## 2 November 2026 — Validate scheduled occurrence readings (P1-02, step)
 
 The automation scheduler rejects invalid invoice dates, ambiguous or invalid fine identifiers and malformed parking sessions before recording occurrences. Guide: [automation worker](development/automation-worker.md).
