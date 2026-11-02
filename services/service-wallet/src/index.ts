@@ -122,9 +122,10 @@ function handleWalletRequest(
   // ---------------------------------------------------------------------------
   if (normMethod === 'GET' && (pathname === '/fines/check' || pathname === '/fines')) {
     const plate = query.plateNumber || 'Dubai B-74892';
-    const activeFines = policeFines.filter((f) => f.status === 'UNPAID');
-    const totalOriginal = activeFines.reduce((acc, f) => acc + f.originalAmount, 0);
-    const totalPayable = activeFines.reduce((acc, f) => acc + f.payableAmount, 0);
+    const activeFines = policeFines.filter((f) => f.status === 'UNPAID' && f.plateNumber === plate);
+    const originalMinor = activeFines.reduce((acc, f) => acc + toMinor(f.originalAmount), 0);
+    const payableMinor = activeFines.reduce((acc, f) => acc + toMinor(f.payableAmount), 0);
+    const totalOriginal = originalMinor / 100, totalPayable = payableMinor / 100;
 
     return {
       status: 200,
@@ -136,8 +137,8 @@ function handleWalletRequest(
         fines: activeFines,
         totalOriginal,
         totalPayable,
-        discountApplied: totalOriginal - totalPayable,
-        earlyDiscountAED: totalOriginal - totalPayable,
+        discountApplied: (originalMinor - payableMinor) / 100,
+        earlyDiscountAED: (originalMinor - payableMinor) / 100,
       },
     };
   }

@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Scope fine lookups to the selected plate (P1-13, step)
+
+Offline and integrated fine lookups now filter by the selected or default plate and calculate exact totals; integrated lookups refuse a different account plate before provider access. Authenticated checks of both routes passed on an isolated synthetic stack using revision `2e547fa` plus this change, Node 24.16.0, Docker 29.9.2 and Compose 5.6.1. Guide: [integrations](integrations.md) · [testing](testing.md).
+
 ## 2 November 2026 — Qualify isolated React payment journeys (P0-08, step)
 
 The React payment-account browser journeys passed on desktop and mobile with fresh synthetic providers and qualification Keycloak/Redis. Commands, revision, tool versions and limits: [evidence](reports/2026-11-02-isolated-payment-browser.md). Guide: [testing](testing.md).

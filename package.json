@@ -67,6 +67,7 @@
     "simulator:verify": "node --experimental-strip-types scripts/verify-simulator.ts",
     "demo:verify:contract": "node --experimental-strip-types scripts/verify-application-contract.ts",
     "demo:verify:group-selection": "node --experimental-strip-types scripts/e2e/grouped-selection.ts",
+    "demo:verify:fine-plate": "node --experimental-strip-types scripts/e2e/fines-plate-selection.ts",
     "demo:verify:inventory": "node --experimental-strip-types scripts/verify-payment-inventory.ts",
     "demo:verify:payment-authorization": "node --experimental-strip-types scripts/e2e/payment-authorization.ts",
     "demo:verify:wallet-funding": "node --experimental-strip-types scripts/e2e/wallet-funding.ts",

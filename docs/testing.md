@@ -2,6 +2,8 @@
 
 For the compatibility API, `npm run qualify -- run -- npm run demo:verify:group-selection` exercises selected-fine grouped checkout using the synthetic household account on a freshly created isolated qualification stack. It checks refused stale, duplicate, unknown and changed selections, settlement of only the selected fine and toll target, unchanged unrelated resources, and replay without a second debit. The script refuses non-qualification ports; it changes the qualification account and expects its initial fixtures, so use a fresh disposable qualification stack. It does not establish real-provider or production identity behavior.
 
+`npm run qualify -- run -- npm run demo:verify:fine-plate` performs a read-only authenticated check of both fines lookup routes against the disposable stack. It checks the selected and default account plate, totals and refusal of another plate. It requires synthetic seeded fines and refuses non-qualification ports.
+
 ```bash
 npm ci --ignore-scripts
 npm rebuild better-sqlite3

@@ -30,6 +30,8 @@ Integrated `/pay/unified` and `/pay/multi-agency` callers must also supply `expe
 
 The offline `/fines/pay` and `/fines/settle` fixture checks any supplied `expectedAmountMinor` against the selected unpaid fines before debiting. It rejects `expectedPayables` because this shared in-memory fixture cannot validate provider revisions; revision-bound selections require integrated provider mode.
 
+The `/fines/check` and `/fines` lookups return fines and exact fils totals for the requested plate. The offline fixture defaults to its seeded plate; the integrated path defaults to the selected account's synthetic plate and rejects a different requested plate before contacting the provider. The current integrated mapping represents one synthetic plate per account, not a general multi-vehicle entitlement model.
+
 Standalone utility and fine surfaces include the displayed amount in their approval payload in both modes. The offline fixture compares that amount with the current bill or selected fines before settlement, so a changed amount requires a fresh review. Revision-bound requests still require the integrated provider.
 
 MCP, A2A, SOAP and controlled browser execution are protocol values at the extension boundary, not implemented transports in this entry point. The existing integrated MCP server remains in its original path. Add a real protocol adapter only for a concrete service, with its own authority, schema, timeout and retry tests.

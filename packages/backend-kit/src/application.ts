@@ -222,7 +222,19 @@ export async function integratedRequest(service: string, actor: Actor, method: s
     if (service === 'service-wallet') {
       if (method === 'GET' && path === '/wallet/balance') return successfulWithoutDuplicate(await call('payments', method, '/wallet'));
       if (method === 'GET' && path === '/wallet/transactions') return successfulWithoutDuplicate(await call('payments', method, '/transactions'));
-      if (method === 'GET' && path === '/fines/check') { const report = await call('police', method, '/fines'); return successful({ ...report, plateNumber: asset.plate, earlyDiscountAED: report.totalDiscount, discountLabel: 'Provider-reported discount' }); }
+      if (method === 'GET' && (path === '/fines/check' || path === '/fines')) {
+        if (query.plateNumber !== undefined && query.plateNumber !== asset.plate) throw new UpstreamError(404, 'NOT_FOUND', 'The selected plate is not available in this account.');
+        const report = await call('police', method, '/fines');
+        type PlateFine = { plateNumber: string; originalAmount: number; payableAmount: number; discountAmount: number };
+        if (!Array.isArray(report.fines) || report.fines.some((fine: PlateFine) => !fine || typeof fine.plateNumber !== 'string' || !fine.plateNumber)) throw new UpstreamError(503, 'PROVIDER_UNAVAILABLE', 'The selected plate report could not be confirmed.');
+        const fines: PlateFine[] = report.fines.filter((fine: PlateFine) => fine.plateNumber === asset.plate);
+        let original = 0, payable = 0, discount = 0;
+        try {
+          for (const fine of fines) { const a = toMinor(fine.originalAmount), b = toMinor(fine.payableAmount), c = toMinor(fine.discountAmount); if (a !== b + c) throw new Error('Inconsistent fine'); original += a; payable += b; discount += c; }
+          if (![original, payable, discount].every(Number.isSafeInteger)) throw new Error('Invalid total');
+        } catch { throw new UpstreamError(503, 'PROVIDER_UNAVAILABLE', 'The selected plate report could not be confirmed.'); }
+        return successful({ ...report, fines, count: fines.length, totalOriginal: original / 100, totalPayable: payable / 100, totalDiscount: discount / 100, plateNumber: asset.plate, earlyDiscountAED: discount / 100, discountLabel: 'Provider-reported discount' });
+      }
       if (method === 'POST' && path === '/wallet/topup') return successfulWithoutDuplicate(await call('payments', method, '/topups', { amountMinor: Math.round(body.amount * 100), source: 'demo_approved' }));
       if (method === 'POST' && path === '/wallet/pay') return successfulWithoutDuplicate(await charge('superapp', body.referenceId || actor.requestId, body.amount));
       if (method === 'POST' && path === '/fines/pay') return successfulWithoutDuplicate(await settleFines(body.fineIds));
