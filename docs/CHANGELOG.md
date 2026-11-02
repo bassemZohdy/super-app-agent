@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Check compatibility fines receipts (P1-13, step)
+
+Compatibility domain adapters no longer report success when a fines receipt has a different count or reviewed amount, or an invalid amount. Unconfirmed writes remain unknown in both local and authenticated HTTP transports. The legacy receipt does not identify each settled fine. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Tighten browser login request lifetime (P0-01, step)
 
 The shared browser client consumes callback requests once, strips callback parameters even when saved state is corrupt, and rejects incomplete, future-dated or five-minute-old requests before exchange. The generated Flutter bridge and unit and desktop/mobile browser tests cover the change. Production server-side state and nonce remain separate. Guide: [security](security.md).

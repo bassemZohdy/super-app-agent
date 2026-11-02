@@ -3,6 +3,7 @@ import { boundedJsonResponse } from '../../../packages/backend-kit/src/bounded-j
 import { tracedFetch as fetch,inSpan,routeName } from '../../../packages/backend-kit/src/observability.ts';
 import { SERVICE_PORTS } from '../../../packages/backend-kit/src/local-endpoints.ts';
 import { actorContext } from '../../../packages/backend-kit/src/context.ts';
+import { toMinor } from '../../../packages/protocol-core/src/request-validation.ts';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { executeRideRequest } from '../../service-ride/src/index.ts';
 import { executeFoodRequest } from '../../service-food/src/index.ts';
@@ -67,7 +68,16 @@ function confirmedReceipt(service: string, path: string, data: any, body: unknow
   if (service === 'wallet') {
     if (path === '/wallet/pay') return record(data.transaction) && named(data.transaction.id) && finite(data.remainingBalance);
     if (path === '/wallet/topup') return record(data.transaction) && named(data.transaction.id) && finite(data.newBalance);
-    if (path === '/fines/pay') return named(data.receiptNumber) && finite(data.amountPaid) && finite(data.remainingBalance) && Number.isInteger(data.finesCleared);
+    if (path === '/fines/pay') {
+      if (!record(body)) return false;
+      const request = body as { fineIds?: unknown; expectedAmountMinor?: unknown };
+      if (!Array.isArray(request.fineIds) || request.fineIds.length === 0 ||
+        !request.fineIds.every(named) || new Set(request.fineIds).size !== request.fineIds.length ||
+        !named(data.receiptNumber) || !finite(data.remainingBalance) || data.finesCleared !== request.fineIds.length) return false;
+      let paidMinor: number;
+      try { paidMinor = toMinor(data.amountPaid); } catch { return false; }
+      return request.expectedAmountMinor === undefined || (typeof request.expectedAmountMinor === 'number' && Number.isSafeInteger(request.expectedAmountMinor) && request.expectedAmountMinor >= 0 && paidMinor === request.expectedAmountMinor);
+    }
     if (path === '/pay/unified') return named(data.govTransactionHash) && named(data.settlementPlatform) && finite(data.grandTotal) && finite(data.remainingBalance);
   }
   if (service === 'ride') {

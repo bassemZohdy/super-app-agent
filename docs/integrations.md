@@ -4,6 +4,8 @@ The focused agent has one functioning adapter: `FinesAdapter`, calling fixture-b
 
 The `Tool<I,O>` interface declares identity, description, protocol, Zod input/output schemas, required permission, consequential flag, timeout and invocation. Execution context supplies verified subject/workload, correlation ID, fresh-authority callback and ephemeral authorization header. Consequential calls require an original idempotency key. The payment input also carries an exact persisted consent ID. No generic enterprise bus, dynamic external URL or remotely managed registry is introduced. A service with an existing REST API does not need MCP.
 
+For the compatibility fines action, a receipt must report the requested number of distinct fines and, when supplied, the reviewed amount in exact fils; a mismatch remains an unknown write outcome for reconciliation. The legacy receipt does not name each fine, so the count check alone does not prove the exact selected identities were settled.
+
 MCP, A2A, SOAP and controlled browser execution are protocol values at the extension boundary, not implemented transports in this entry point. The existing integrated MCP server remains in its original path. Add a real protocol adapter only for a concrete service, with its own authority, schema, timeout and retry tests.
 
 ## HTTP API
