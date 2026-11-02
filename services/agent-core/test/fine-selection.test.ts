@@ -200,3 +200,18 @@ test('more than ten fines asks for a smaller selection instead of failing or rev
     assert.equal((h.store.db.prepare('SELECT count(*) AS n FROM sa_sim_payments').get() as { n: number }).n, 0);
   } finally { await h.close(); }
 });
+
+test('an Arabic batch review binds exactly the named fines and waits for confirmation', async () => {
+  const h = await harness();
+  try {
+    const root = `/api/agent/threads/${await h.thread()}`;
+    const rejected = await h.req(`${root}/messages`, { message: 'مراجعة دفع المخالفات fine-1 و fine-2 ولا تدفع' });
+    assert.equal(rejected.data.approval, null);
+    const review = await h.req(`${root}/messages`, { message: 'مراجعة دفع المخالفات fine-1 و fine-2' });
+    assert.deepEqual(review.data.approval.quote.fineIds, ['fine-1', 'fine-2']);
+    assert.equal((h.store.db.prepare('SELECT count(*) AS n FROM sa_sim_payments').get() as { n: number }).n, 0);
+    const paid = await h.req(`${root}/resume`, { approvalId: review.data.approval.id, decision: 'approve' });
+    assert.deepEqual(paid.data.receipt.quote.fineIds, ['fine-1', 'fine-2']);
+    assert.equal((h.store.db.prepare('SELECT count(*) AS n FROM sa_sim_payments').get() as { n: number }).n, 1);
+  } finally { await h.close(); }
+});

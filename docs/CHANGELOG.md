@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Review named fine batches in Arabic (P1-16, step)
+
+The deterministic demo planner recognizes a precise Arabic command naming multiple fines. Selected batches still require separate payment confirmation before a renewal can be reviewed. Guide: [shell parity](development/shell-parity.md).
+
 ## 2 November 2026 — Localize fine review limits (P2-01, step)
 
 The React focused journey displays known fine-selection and batching guidance in Arabic in the conversation and service pane. The exact server reply is matched before translation. Guide: [shell parity](development/shell-parity.md).

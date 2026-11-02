@@ -76,6 +76,7 @@ export class FixturePlanner implements Planner {
       const request = text.trim();
       if (/^عرض المخالفة fine-[a-z0-9_-]{1,100}$/.test(request)) return { intent: 'list_fines', fineIds: [] };
       if (/^مراجعة دفع المخالفة fine-[a-z0-9_-]{1,100}$/.test(request)) return { intent: 'pay_fines', fineIds: [] };
+      if (/^مراجعة دفع المخالفات fine-[a-z0-9_-]{1,100}(?: (?:و ?)?fine-[a-z0-9_-]{1,100})+$/.test(request)) return { intent: 'pay_fines', fineIds: [] };
       if (/^تجديد تسجيل المركبة veh-[a-z0-9_-]{1,100}$/.test(request)) return { intent: 'renew_registration', fineIds: [] };
       if (request === 'أريد دفعها') return { intent: selectedFines(messages).length ? 'pay_fines' : 'clarify', fineIds: [] };
       return { intent: 'out_of_scope', fineIds: [] };

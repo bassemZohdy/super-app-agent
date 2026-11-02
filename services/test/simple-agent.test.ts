@@ -38,9 +38,13 @@ test('Arabic fixture requests bind selected resources and reject negated mixed-l
   for (const [message, intent] of [
     ['عرض المخالفة fine-1', 'list_fines'],
     ['مراجعة دفع المخالفة fine-1', 'pay_fines'],
+    ['مراجعة دفع المخالفات fine-1 و fine-2', 'pay_fines'],
+    ['مراجعة دفع المخالفات fine-1 fine-2', 'pay_fines'],
     ['تجديد تسجيل المركبة veh-1', 'renew_registration'],
     ['لا تدفع fine-1 pay', 'out_of_scope'],
     ['مراجعة دفع المخالفة fine-1 ولا تدفع', 'out_of_scope'],
+    ['مراجعة دفع المخالفات fine-1 و fine-2 ولا تدفع', 'out_of_scope'],
+    ['مراجعة دفع المخالفات fine-1 ولا fine-2', 'out_of_scope'],
     ['أريد دفعها', 'clarify'],
   ] as const) assert.equal((await planner.plan([{ role: 'user', content: message }])).intent, intent);
   const followup = await planner.plan([{ role: 'user', content: 'عرض المخالفة fine-1' }, { role: 'assistant', content: 'fine-1' }, { role: 'user', content: 'أريد دفعها' }]);

@@ -50,6 +50,8 @@ The React focused fines sign-in, header, navigation, conversation controls, revi
 
 Arabic suggestion buttons submit Arabic text. The deterministic demo planner supports the three exact Arabic list, payment-review and renewal phrases used by those suggestions, plus exact requests naming a `fine-…` or `veh-…` reference and the supported selected-fine follow-up. Other Arabic or mixed-language requests are not inferred by this demo adapter; it does not claim general Arabic understanding. A review never executes a payment or renewal without its separate approval.
 
+For a named batch, the demo also accepts `مراجعة دفع المخالفات fine-1 و fine-2` (or space-separated IDs). The graph binds every named fine, enforces the ten-fine limit and requires confirmation. Added wording, including negation, is not interpreted as this exact command.
+
 Focused reads that name fines return only the selected outstanding records in both the response and the service surface. If any named fine is unavailable, the read returns an unavailable message with no partial list; a request without a selection lists all outstanding fines.
 
 While a focused payment approval is pending, both the structured fine list and the surface rows contain only the fine IDs in its approval quote. Restoring the interaction returns the same selection; the full fetched snapshot remains internal to the interaction.

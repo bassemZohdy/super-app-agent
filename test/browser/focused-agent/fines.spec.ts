@@ -190,6 +190,37 @@ test('Arabic guidance explains larger payment and renewal batches without starti
   expect(focused.payments()).toBe(0); expect(focused.renewals()).toBe(0);
 });
 
+test('Arabic selected batches can be reviewed separately before renewal', async ({ page, focused }) => {
+  await page.addInitScript(() => localStorage.setItem('cityside.locale', 'ar'));
+  await page.goto(focused.url);
+  await page.getByLabel('رمز الوصول', { exact: true }).fill(focused.renewalToken);
+  await page.getByRole('button', { name: 'فتح مخالفاتي' }).click();
+  await page.getByRole('button', { name: 'عرض المخالفات المستحقة', exact: true }).click();
+  await expect(page.getByRole('cell', { name: 'fine-1', exact: true })).toBeVisible();
+  focused.addFines(true);
+  const composer = page.getByRole('textbox', { name: 'رسالة عن المخالفات' });
+  const ids = Array.from({ length: 10 }, (_, index) => `fine-${index + 1}`);
+  await composer.fill(`مراجعة دفع المخالفات ${ids.join(' و ')}`);
+  await page.getByRole('button', { name: 'إرسال الرسالة' }).click();
+  await expect(page.getByRole('button', { name: 'تأكيد الدفع التجريبي' })).toBeVisible();
+  const thread = await page.evaluate(() => sessionStorage.getItem('cityside.fines.thread.v1'));
+  const inspect = async () => (await page.request.get(`${new URL(focused.url).origin}/api/agent/threads/${thread}`, { headers: { Authorization: `Bearer ${focused.renewalToken}` } })).json();
+  expect((await inspect()).approval.quote.fineIds).toEqual([...ids].sort());
+  expect(focused.payments()).toBe(0);
+  await page.getByRole('button', { name: 'تأكيد الدفع التجريبي' }).click();
+  await expect(page.getByRole('heading', { name: 'إيصالك التجريبي' })).toBeVisible();
+  expect(focused.payments()).toBe(1);
+  await composer.fill('مراجعة دفع المخالفة fine-11');
+  await page.getByRole('button', { name: 'إرسال الرسالة' }).click();
+  await expect(page.getByRole('button', { name: 'تأكيد الدفع التجريبي' })).toBeVisible();
+  expect((await inspect()).approval.quote.fineIds).toEqual(['fine-11']);
+  await page.getByRole('button', { name: 'تأكيد الدفع التجريبي' }).click();
+  await expect.poll(() => focused.payments()).toBe(2);
+  await page.getByRole('button', { name: 'تجديد تسجيل المركبة', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'تأكيد التجديد التجريبي' })).toBeVisible();
+  expect(focused.renewals()).toBe(0);
+});
+
 test('a named Arabic fine review pays only that fine and negated requests do not create a review', async ({ page, focused }) => {
   await page.addInitScript(() => localStorage.setItem('cityside.locale', 'ar'));
   await page.goto(focused.url);
