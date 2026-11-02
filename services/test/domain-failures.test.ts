@@ -4,7 +4,7 @@ import { executeCoreRequest as core, getOrCreateSession, sseClients, server } fr
 import { domainHandlers, callDomain, trackDomainOperations, type Step } from '../agent-core/src/domain-operations.ts';
 import { executeWalletRequest as wallet, balance, transactions, policeFines } from '../service-wallet/src/index.ts';
 import { activeOrders } from '../service-food/src/index.ts';
-import { activeRides } from '../service-ride/src/index.ts';
+import { activeRides, activeParkingMeters } from '../service-ride/src/index.ts';
 import { readEventStream } from '../../packages/protocol-core/src/sse-client.ts';
 
 const composite = 'Book a ride downtown and order pizza, pay with my wallet';
@@ -270,4 +270,21 @@ test('P0-12: move-in planning does not claim activation before approval', async 
   assert.equal(result.data.outcome, 'SUCCEEDED');
   assert.deepEqual(result.data.steps, [], 'Planning must have no effects');
   assert.ok(result.data.surface.view.children.some((node: any) => node.id === 'dewa_connection_metric' && node.properties.value === 'Pending approval'));
+});
+
+test('P1-13: a move-in receipt for another contract blocks parking and a replacement', async t => {
+  const sid = 'failure_movein_receipt_mismatch';
+  assert.equal((await intent(sid, 'I signed my Ejari lease; connect my utilities and parking')).status, 200);
+  const realCatalog = domainHandlers.catalog;
+  t.mock.method(domainHandlers, 'catalog', (method, path, query, body) => {
+    const result = realCatalog(method, path, query, body);
+    return method === 'POST' ? { ...result, data: { ...result.data, ejariContract: 'other-contract' } } : result;
+  });
+  const before = activeParkingMeters.size;
+  const result = await action(sid, 'confirm_movein');
+  assert.equal(result.data.outcome, 'UNKNOWN');
+  assert.equal(result.data.steps[0].state, 'UNKNOWN');
+  assert.equal(activeParkingMeters.size, before);
+  assert.equal((await action(sid, 'confirm_movein')).data.code, 'RECONCILIATION_REQUIRED');
+  assert.equal(activeParkingMeters.size, before);
 });

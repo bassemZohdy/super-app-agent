@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Verify compatibility move-in receipts (P1-13, step)
+
+Move-in confirmations require the requested tenancy, connected utility, waived deposit and issued parking permit before continuing. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Check parking extension increments (P1-13, step)
 
 The parking fixture reports the previous duration and compatibility adapters require the resulting duration to match the requested increment. Guide: [agent flow](agent-flow.md).

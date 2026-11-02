@@ -38,6 +38,8 @@ Compatibility food order confirmations require the selected restaurant, exact it
 
 Compatibility parking activation confirmations match the selected zone, vehicle and duration; extension confirmations match the ticket and require the reported prior and resulting durations to differ by the requested increment. Both require an active meter with usable display fields. The prior duration is reported by the same fixture and is not independent evidence of the earlier state.
 
+Compatibility move-in confirmations match the requested tenancy and require the utility connection, deposit waiver and residential permit statuses claimed by the success surface. Inconsistent responses remain unknown and stop the following parking action.
+
 Before dispatching any consequential tool, the wrapper independently revalidates the caller, requires the same subject and workload, and checks the current tool permission. This second check is within the tool deadline; if it finishes after the deadline, the tool is not dispatched. Identity-check failures do not expose provider text. Read-only tools use the already authenticated request context.
 
 Fine references are bound at the graph boundary from the resident's current message, independently of which planner is used. For supported “pay them” or “pay it” follow-ups, only the immediately preceding user turn supplies a selection; an intervening user request does not revive an older one. The graph rejects planner-invented references, preserves named ones if the planner omits them, and refuses a payment review if a selected fine is unavailable. Without a selection, the ordinary payment review includes the outstanding fines.

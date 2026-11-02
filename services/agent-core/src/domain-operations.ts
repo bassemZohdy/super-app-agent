@@ -172,7 +172,14 @@ function confirmedReceipt(service: string, path: string, data: any, body: unknow
       return request.expectedAmountMinor === undefined || (typeof request.expectedAmountMinor === 'number' && Number.isSafeInteger(request.expectedAmountMinor) && request.expectedAmountMinor >= 0 && paidMinor === request.expectedAmountMinor);
     }
   }
-  if (service === 'catalog' && path === '/housing/move-in') return named(data.ejariContract) && named(data.unit) && record(data.residentialParking) && named(data.residentialParking.permitNumber);
+  if (service === 'catalog' && path === '/housing/move-in') {
+    if (!record(body)) return false;
+    const request = body as { contractNumber?: unknown };
+    return named(request.contractNumber) && data.ejariContract === request.contractNumber && named(data.unit) &&
+      record(data.dewaConnected) && named(data.dewaConnected.premiseId) && data.dewaConnected.status === 'CONNECTED_ACTIVE' &&
+      data.dewaConnected.depositWaived === true && record(data.residentialParking) &&
+      named(data.residentialParking.permitNumber) && data.residentialParking.status === 'ISSUED';
+  }
   if (service === 'profile' && path === '/profile/preferences') return record(data.preferences) && named(data.promptContext);
   return true;
 }
