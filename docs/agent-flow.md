@@ -42,6 +42,8 @@ The local and integrated simulators use different successful ride and food statu
 
 Compatibility parking activation confirmations match the selected zone, vehicle and duration; extension confirmations match the ticket and require the reported prior and resulting durations to differ by the requested increment. Both require an active meter with usable display fields. The prior duration is reported by the same fixture and is not independent evidence of the earlier state.
 
+For integrated parking, the application verifies the wallet capture identity, account, amount, currency, merchant and reference before calling the parking provider. A later refusal or inconsistent meter leaves the overall outcome unconfirmed, because the wallet may already have been charged.
+
 Compatibility move-in approval binds the displayed tenancy and premise, rechecks both before dispatch, and sends the reviewed premise to the fixture for a further check. Confirmations match those identifiers and require the utility connection, deposit waiver and residential permit statuses claimed by the success surface. Inconsistent responses remain unknown and stop the following parking action.
 
 The integrated move-in path validates the tenancy proposal, utility connection and permit in sequence. Once the first provider has responded successfully, a later refusal, failure or inconsistent result leaves the overall outcome unconfirmed and stops subsequent provider calls; it does not claim that prior effects were rolled back.

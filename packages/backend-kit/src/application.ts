@@ -67,6 +67,12 @@ export async function integratedRequest(service: string, actor: Actor, method: s
   const ownedUtility = (value: unknown): boolean => !!value && typeof value === 'object' && !Array.isArray(value) && (value as Bill).accountNumber === asset.utilityAccount && ((value as Bill).premiseId === undefined || (value as Bill).premiseId === asset.premiseId);
   const stableKey = (value: string) => createHash('sha256').update(`${actor.accountId}:${value}`).digest('hex');
   const charge = async (provider: string, reference: string, amount: number) => call('payments', 'POST', '/charges', { amountMinor: Math.round(amount * 100), merchant: provider, reference, source: 'wallet' }, stableKey(`charge:${provider}:${reference}`));
+  const parkingCapture = (payment: unknown, reference: string, amountMinor: number): string => {
+    if (!payment || typeof payment !== 'object' || Array.isArray(payment)) throw new Error('Invalid parking capture');
+    const capture = (payment as { charge?: { id?: unknown; accountId?: unknown; currency?: unknown; status?: unknown; refunded?: unknown; merchant?: unknown; reference?: unknown; amountMinor?: unknown; source?: unknown } }).charge;
+    if (!capture || typeof capture.id !== 'string' || !capture.id.trim() || capture.accountId !== actor.accountId || capture.currency !== 'AED' || capture.status !== 'CAPTURED' || capture.refunded !== false || capture.merchant !== 'rta' || capture.reference !== reference || capture.amountMinor !== amountMinor || capture.source !== 'wallet') throw new Error('Invalid parking capture');
+    return capture.id;
+  };
   const executePayable = async (provider:string,payable:Payable, verifyOrder?: (order: unknown) => boolean) => {
     const prefix=payable.kind==='RECHARGE'?'recharge':provider==='police'?'fine':'bill';
     const links=(await call('payments','GET','/billing-accounts')).billingAccounts;
@@ -233,8 +239,15 @@ export async function integratedRequest(service: string, actor: Actor, method: s
         const { zones } = await call('rta', 'GET', '/parking/zones');
         const zone = zones.find((z: Zone) => z.id === body.zoneId);
         if (!zone || body.plateNumber !== asset.plate) throw new UpstreamError(400, 'INVALID_PARKING', 'Choose an available zone and an account-owned plate.');
-        const payment = await charge('rta', `parking:${actor.requestId}`, zone.tariffPerHour * body.durationHours);
-        return successfulWithoutDuplicate(await call('rta', method, '/parking/sessions', { ...body, paymentId: payment.charge.id, reference: actor.requestId }));
+        const reference = `parking:${actor.requestId}`, amount = zone.tariffPerHour * body.durationHours;
+        const payment = await charge('rta', reference, amount);
+        try {
+          const paymentId = parkingCapture(payment, reference, toMinor(amount));
+          const result = await call('rta', method, '/parking/sessions', { ...body, paymentId, reference: actor.requestId });
+          const meter = result?.meter;
+          if (!meter || typeof meter.ticketId !== 'string' || !meter.ticketId.trim() || meter.zoneId !== body.zoneId || meter.plateNumber !== body.plateNumber || meter.durationHours !== body.durationHours || meter.status !== 'ACTIVE') throw new Error('Invalid parking receipt');
+          return successfulWithoutDuplicate(result);
+        } catch { throw new UpstreamError(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The parking outcome is unconfirmed. Inspect the original payment and meter.'); }
       }
       if (method === 'POST' && path === '/mobility/parking/extend') {
         const { meters } = await call('rta', 'GET', '/parking/sessions');
@@ -242,8 +255,15 @@ export async function integratedRequest(service: string, actor: Actor, method: s
         const { zones } = await call('rta', 'GET', '/parking/zones');
         const zone = zones.find((z: Zone) => z.id === meter?.zoneId);
         if (!meter || !zone || meter.durationHours + body.additionalHours > 720) throw new UpstreamError(400, 'INVALID_PARKING', 'Review the parking duration and selected session.');
-        const payment = await charge('rta', `parking-extension:${actor.requestId}`, zone.tariffPerHour * body.additionalHours);
-        return successfulWithoutDuplicate(await call('rta', method, `/parking/sessions/${encodeURIComponent(body.ticketId)}/extensions`, { additionalHours: body.additionalHours, paymentId: payment.charge.id, reference: actor.requestId }));
+        const reference = `parking-extension:${actor.requestId}`, amount = zone.tariffPerHour * body.additionalHours, previousDurationHours = meter.durationHours;
+        const payment = await charge('rta', reference, amount);
+        try {
+          const paymentId = parkingCapture(payment, reference, toMinor(amount));
+          const result = await call('rta', method, `/parking/sessions/${encodeURIComponent(body.ticketId)}/extensions`, { additionalHours: body.additionalHours, paymentId, reference: actor.requestId });
+          const updated = result?.meter;
+          if (!updated || updated.ticketId !== body.ticketId || updated.status !== 'ACTIVE' || result.previousDurationHours !== previousDurationHours || updated.durationHours !== previousDurationHours + body.additionalHours) throw new Error('Invalid parking extension receipt');
+          return successfulWithoutDuplicate(result);
+        } catch { throw new UpstreamError(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The parking outcome is unconfirmed. Inspect the original payment and meter.'); }
       }
       if (method === 'POST' && path === '/mobility/salik/recharge') {
         if (body.operationId !== undefined || body.expectedServiceEpoch !== undefined) throw new UpstreamError(400, 'VALIDATION_ERROR', 'Offline operation identities are not supported in integrated provider mode.');

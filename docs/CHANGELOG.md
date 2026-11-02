@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Preserve integrated parking outcomes after capture (P1-13, step)
+
+Parking activation and extension verify captured payment details before dispatch and keep inconsistent or failed later provider outcomes unconfirmed. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Restore integrated receipt compatibility (P1-13, step)
 
 Compatibility validation accepts the integrated ride and food response shapes, preserves the requested delivery address, and receives the prior parking duration from the integrated provider. Guide: [agent flow](agent-flow.md).
