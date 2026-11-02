@@ -65,7 +65,7 @@ export class ProviderSettlements{
         if(current.state==='RELEASED')return current.response!;
         if(current.state==='APPLIED'||this.store.get(actor.accountId,'used-payment',proof.id))return settlementFailure('PAYMENT_ALREADY_USED','This payment was already applied.');
         const response=effect(reply.charge);
-        if(!response||response.status!==200||!response.data||typeof response.data!=='object'||Array.isArray(response.data)||response.data.success!==true||Object.hasOwn(response.data,'error')){
+        if(!response||response.status!==200||!response.data||typeof response.data!=='object'||Array.isArray(response.data)||response.data.success!==true||Object.hasOwn(response.data,'error')||Object.hasOwn(response.data,'code')){
           const data=response?.data;
           if(response&&[400,402,403,404,409].includes(response.status)&&data&&typeof data==='object'&&!Array.isArray(data)&&data.success===false&&!hasEffectEvidence(data)&&typeof data.code==='string'&&PROVIDER_REJECTION_CODES.has(data.code)&&!isAuthorityDenial(response.status,data.code)&&!isUncertainOutcomeCode(data.code)&&!isPriorEffectCode(data.code))
             throw new SettlementError(response.status,data.code,'Provider settlement was rejected.');

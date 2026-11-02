@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 - Hold contradictory success codes (P1-02, step)
+
+Domain, provider and settlement writes retain an unknown outcome when a success response also carries a top-level code. This keeps the original checkout or claim fenced for inspection. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 - Preserve contradictory provider effects (P1-02, step)
 
 Provider and settlement write refusals carrying recognized effect evidence stay unconfirmed. The settlement coordinator preserves the original claim, while plain reviewed refusals retain their existing behavior. Guide: [agent flow](agent-flow.md).

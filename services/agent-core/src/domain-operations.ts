@@ -229,7 +229,7 @@ export function callDomain(service: keyof typeof domainHandlers, method: string,
   }
   const valid = result && Number.isInteger(result.status) && result.data && typeof result.data === 'object';
   const succeeded = valid && result.status >= 200 && result.status < 300 &&
-    result.data.success === true && !Object.hasOwn(result.data, 'error') &&
+    result.data.success === true && !Object.hasOwn(result.data, 'error') && (!mutation || !Object.hasOwn(result.data, 'code')) &&
     (!mutation || confirmedReceipt(service, path, result.data, body));
   if (succeeded) {
     if (step) step.state = 'SUCCEEDED';
@@ -282,7 +282,7 @@ async function callDomainRequest(service: keyof typeof domainHandlers | 'telecom
     if (step) step.state = 'UNKNOWN';
     throw new DomainOperationError(503, mutation ? 'DOMAIN_OUTCOME_UNKNOWN' : 'DOMAIN_UNAVAILABLE', service);
   }
-  const succeeded = result.status >= 200 && result.status < 300 && result.data?.success === true && !Object.hasOwn(result.data, 'error') &&
+  const succeeded = result.status >= 200 && result.status < 300 && result.data?.success === true && !Object.hasOwn(result.data, 'error') && (!mutation || !Object.hasOwn(result.data, 'code')) &&
     (!mutation || confirmedReceipt(service, path, result.data, body));
   if (succeeded) { if (step) step.state = 'SUCCEEDED'; return result; }
   const rejected = definiteRejection(result.status, result.data, mutation);

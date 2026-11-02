@@ -65,7 +65,7 @@ export class ProviderClient {
       record(503, code);
       throw new UpstreamError(503, code, `The ${provider} simulator response could not be read.`);
     }
-    if (response.ok && data.success === true && !Object.hasOwn(data, 'error')) {
+    if (response.ok && data.success === true && !Object.hasOwn(data, 'error') && (method !== 'POST' || !Object.hasOwn(data, 'code'))) {
       record(response.status);
       return data;
     }

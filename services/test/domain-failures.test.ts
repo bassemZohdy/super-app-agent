@@ -327,6 +327,24 @@ test('P1-02: a rejected response containing an applied transaction blocks replac
   assert.equal(balance, Math.round((before - 48.99) * 100) / 100);
 });
 
+test('P1-02: a success response with a failure code keeps the original checkout unconfirmed', async t => {
+  ensureFunds();
+  const sid = 'failure_success_with_error_code';
+  assert.equal((await intent(sid)).status, 200);
+  const realWallet = domainHandlers.wallet;
+  t.mock.method(domainHandlers, 'wallet', (method, path, query, body) => {
+    const result = realWallet(method, path, query, body);
+    return method === 'POST' ? { ...result, data: { ...result.data, code: 'PROVIDER_OUTCOME_UNKNOWN' } } : result;
+  });
+  const before = balance, rides = activeRides.size, orders = activeOrders.size;
+  const result = await action(sid);
+  assert.equal(result.data.outcome, 'UNKNOWN'); assert.equal(result.data.steps[0].state, 'UNKNOWN');
+  assert.equal(balance, Math.round((before - 48.99) * 100) / 100);
+  assert.equal(activeRides.size, rides); assert.equal(activeOrders.size, orders);
+  assert.equal((await action(sid)).data.code, 'RECONCILIATION_REQUIRED');
+  assert.equal(balance, Math.round((before - 48.99) * 100) / 100);
+});
+
 test('P1-02: an authority denial after a wallet effect keeps the checkout unconfirmed', async t => {
   for (const [status, code] of [[403, 'ACCOUNT_RESTRICTED'], [409, 'ELIGIBILITY_CHANGED']] as const) {
     ensureFunds();

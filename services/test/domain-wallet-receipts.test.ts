@@ -13,6 +13,7 @@ test('wallet payment and top-up confirmations match the requested amount and set
     const good = { success: true, transaction, [balanceKey]: 50 };
     for (const [reply, valid] of [
       [good, true],
+      ...['PAYABLE_CHANGED', 'PROVIDER_OUTCOME_UNKNOWN', 'UNRECOGNIZED_FAILURE'].map(code => [{ ...good, code }, false]),
       ...[{ amount: 40 }, { amount: 40.011 }, { amount: '40.01' }, { type: 'OTHER' }, { currency: 'AED' }, { status: 'PENDING' }, { id: '' }].map(change => [{ ...good, transaction: { ...transaction, ...change } }, false]),
       [{ ...good, [balanceKey]: -1 }, false],
     ] as const) {

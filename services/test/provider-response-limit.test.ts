@@ -38,6 +38,7 @@ test('contradictory or ambiguous provider write replies remain unknown', async t
   const client = new ProviderClient('test-client', '');
   const cases = [
     { status: 200, data: { success: true, error: 'contradictory' } },
+    ...['PAYABLE_CHANGED', 'PROVIDER_OUTCOME_UNKNOWN', 'UNRECOGNIZED_FAILURE'].map(code => ({ status: 200, data: { success: true, code } })),
     { status: 200, data: { success: false, code: 'DECLINED', error: 'declined' } },
     { status: 409, data: { success: true, error: 'contradictory' } },
     { status: 409, data: { code: 'UNCLASSIFIED' } },

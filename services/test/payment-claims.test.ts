@@ -174,6 +174,7 @@ test('returned uncertain or contradictory settlement responses roll back and kee
     { status: 409, data: { success: false, code: 'ELIGIBILITY_CHANGED', error: 'private-marker' } },
     { status: 503, data: { success: false, code: 'PAYABLE_CHANGED', error: 'private-marker' } },
     { status: 200, data: { success: true, error: 'private-marker' } },
+    ...['PAYABLE_CHANGED', 'SETTLEMENT_OUTCOME_UNKNOWN', 'UNRECOGNIZED_FAILURE'].map(code => ({ status: 200, data: { success: true, code } })),
     { status: 200, data: { success: false, code: 'PAYABLE_CHANGED' } },
   ]) {
     const f = fixture(t);
