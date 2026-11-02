@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Validate selected telecom bill receipts (P1-02, step)
+
+The retained agent telecom-payment adapter now accepts a success only when its receipt names the requested bill and includes a receipt number, a two-decimal amount and AED currency. Missing, malformed or foreign receipts produce an unknown outcome rather than a confirmed payment; this check does not independently prove provider settlement or compare the receipt against an approval quote. Regression tests cover both supported telecom providers. Guide: [testing](testing.md).
+
 ## 2 November 2026 — Preserve uncertain domain mutation outcomes (P1-02, step)
 
 The local and authenticated HTTP domain adapters now treat mutation timeouts, unknown-outcome codes, contradictory success claims and responses without an explicit rejection as unknown rather than definitive failures. Confirmed rejections still fail normally. HTTP success also refuses a response containing an error field, matching the local adapter. Tests exercise both transports and show that an uncertain response after a wallet effect stops the composite and blocks replacement. This does not provide durable reconciliation or production provider guarantees. Guide: [testing](testing.md).

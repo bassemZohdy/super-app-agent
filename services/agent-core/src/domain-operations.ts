@@ -47,6 +47,16 @@ function definiteRejection(status: number, data: unknown, mutation: boolean): bo
   return payload.success === false || named(payload.error);
 }
 function confirmedReceipt(service: string, path: string, data: any): boolean {
+  if (service === 'telecom') {
+    const match = /^\/telecom\/(?:etisalat|du)\/bills\/([^/]+)\/payments$/.exec(path);
+    if (match) {
+      let billId: string;
+      try { billId = decodeURIComponent(match[1]); } catch { return false; }
+      const receipt = data.receipt;
+      return record(receipt) && named(billId) && receipt.billId === billId && named(receipt.receiptNumber) &&
+        typeof receipt.amountPaid === 'string' && /^(?:0|[1-9]\d*)\.\d{2}$/.test(receipt.amountPaid) && receipt.currency === 'AED';
+    }
+  }
   if (service === 'wallet') {
     if (path === '/wallet/pay') return record(data.transaction) && named(data.transaction.id) && finite(data.remainingBalance);
     if (path === '/wallet/topup') return record(data.transaction) && named(data.transaction.id) && finite(data.newBalance);
