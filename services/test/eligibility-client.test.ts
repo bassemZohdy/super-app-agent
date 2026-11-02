@@ -16,6 +16,20 @@ test('authority outage, malformed authority and workload authentication failure 
   status=200;for(const invalid of [{...snapshot,ownerVersion:0},{...snapshot,active:false},{...snapshot,epoch:'1:4'},{...snapshot,ownerSub:''},{...snapshot,extraAuthority:true}]){payload={success:true,eligibility:invalid};await assert.rejects(client.require(actor));}
   status=401;const invalidate=t.mock.method(client.credentials,'invalidate',()=>{}),before=calls;await assert.rejects(client.require(actor),e=>e instanceof EligibilityReadError&&e.status===503);assert.equal(calls-before,2);assert.equal(invalidate.mock.calls.length,1);
 });
+test('eligibility responses are bounded, contradictory replies fail closed, and rejected bodies are cancelled',async t=>{
+  const client=new EligibilityClient();t.mock.method(client.credentials,'token',async()=>'workload-token');t.mock.method(client.credentials,'invalidate',()=>{});
+  let body:unknown={success:true,eligibility:snapshot}, status=200, cancelled=0;
+  t.mock.method(globalThis,'fetch',async()=>{
+    const bytes=new TextEncoder().encode(JSON.stringify(body));
+    return new Response(new ReadableStream({start(controller){controller.enqueue(bytes);if(status===200)controller.close();},cancel(){cancelled++;}}),{status});
+  });
+  body={success:true,eligibility:snapshot,error:'private-response-marker'};
+  await assert.rejects(client.require(actor));
+  body={success:true,eligibility:snapshot,padding:'x'.repeat(70000)};
+  await assert.rejects(client.require(actor),e=>e instanceof EligibilityReadError&&e.status===503&&!String(e).includes('private-response-marker'));
+  status=401;await assert.rejects(client.require(actor),e=>e instanceof EligibilityReadError&&e.status===503);
+  assert.equal(cancelled,2,'both rejected authentication responses are cancelled');
+});
 test('unknown accounts may bootstrap only through the forwarded interactive account-discovery lane',async t=>{
   const client=new EligibilityClient();t.mock.method(client.credentials,'token',async()=>'workload-token');let exists=false;
   t.mock.method(globalThis,'fetch',async()=>new Response(JSON.stringify({success:true,eligibility:snapshot}),{status:exists?200:404}));const bootstrap=t.mock.method(ProviderClient.prototype,'call',async(provider:string,owner:typeof actor,verb:string,path:string)=>{assert.equal(provider,'payments');assert.equal(owner.authorization,actor.authorization);assert.equal(verb,'GET');assert.equal(path,'/v1/accounts');exists=true;return {success:true};});

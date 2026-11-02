@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bound current-eligibility reads (P1-10, step)
+
+The shared authority reader limits response bytes, refuses contradictory success responses and cancels rejected bodies before a token retry. Guide: [payment lifecycle](development/payment-lifecycle.md).
+
 ## 2 November 2026 — Bind automation permits to eligibility versions (P1-10, step)
 
 Automation permits retain the mandate's eligibility version and recheck it before and after token issuance and during provider use. A revoked and restored membership cannot revive an old permit. Guide: [automation worker](development/automation-worker.md).

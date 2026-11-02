@@ -10,6 +10,8 @@ A new payment, wallet-funding, refund or mandate review freezes the current perm
 
 Core, application services, source providers and broker read current eligibility without a positive permission cache. The gateway checks its own authoritative SQLite state again inside the final capture transaction. The broker checks before creating a grant, starting a job, minting an assertion, binding the resulting token and authorizing the provider operation. A grant does not acquire a new permission version when narrowed. Old records without a permission field retain their original bytes and are treated as version `1:1` at use.
 
+The shared eligibility reader limits response bodies to 64 KiB and rejects malformed or contradictory success replies as unavailable. It cancels rejected responses before retrying workload authentication; an unreadable response never grants access. A genuine missing account still uses the existing authenticated bootstrap path.
+
 Online Keycloak introspection independently rejects disabled users and inactive tokens. The local operator's owner switch is an application permission decision; it does not modify Keycloak user records. Direct Keycloak administration and payment permissions are separate authorities. Production identity-event synchronization and distributed automatic-admission fencing remain separate gates.
 
 ## Try the React experience
