@@ -4,7 +4,7 @@ type Name = 'WALLET' | 'UTILITY' | 'FINES' | 'TOLL';
 type Step = { readonly name: Name; readonly state: string; readonly receiptReference?: string; readonly operationId?: string };
 type Review = { readonly billId: string; readonly billAmountMinor: number; readonly tagNumber: string; readonly fines: ReadonlyArray<{ readonly fineId: string; readonly amountMinor: number }>; readonly tollAmountMinor: number };
 type Assessment = { name: Name; assessment: 'MATCH' | 'OBSERVED' | 'UNVERIFIABLE' | 'UNAVAILABLE'; observedReceiptReference?: string };
-type Source = 'wallet' | 'food' | 'ride' | 'fine-receipt' | 'wallet-operation' | 'utility-operation' | 'fine-operation';
+type Source = 'wallet' | 'food' | 'ride' | 'fine-receipt' | 'wallet-operation' | 'utility-operation' | 'fine-operation' | 'toll-operation';
 const isRecord = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 
 function fineOperationMatches(value: unknown, operationId: string, reference: string, review: Review): boolean {
@@ -26,6 +26,16 @@ export async function compareCivicEvidence(review: Review, steps: readonly Step[
   };
   const evidence: Assessment[] = [];
   for (const step of steps) {
+    if (step.name === 'TOLL' && ['STARTED', 'UNKNOWN'].includes(step.state) && step.operationId) {
+      const lookup = await source('toll-operation', step.operationId);
+      if (lookup.unavailable) { evidence.push({ name: step.name, assessment: 'UNAVAILABLE' }); continue; }
+      const body = lookup.value, operation = isRecord(body) && isRecord(body.operation) ? body.operation : undefined;
+      const reference = operation?.receiptReference;
+      if (typeof reference !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(reference) || !operation || operation.operationId !== step.operationId || operation.status !== 'SETTLED' || operation.tagId !== review.tagNumber || operation.amountMinor !== review.tollAmountMinor) { evidence.push({ name: step.name, assessment: 'UNVERIFIABLE' }); continue; }
+      const verified = await compareCivicEvidence(review, [{ ...step, state: 'CONFIRMED', receiptReference: reference }], read);
+      evidence.push(verified[0].assessment === 'MATCH' ? { name: step.name, assessment: 'OBSERVED', observedReceiptReference: reference } : { name: step.name, assessment: verified[0].assessment });
+      continue;
+    }
     if (step.name === 'FINES' && ['STARTED', 'UNKNOWN'].includes(step.state) && step.operationId) {
       const lookup = await source('fine-operation', step.operationId);
       if (lookup.unavailable) { evidence.push({ name: step.name, assessment: 'UNAVAILABLE' }); continue; }
@@ -85,6 +95,12 @@ export async function compareCivicEvidence(review: Review, steps: readonly Step[
         matched = Number.isSafeInteger(expected) && !!transaction && (!step.operationId || transaction.operationId === step.operationId) && transaction.type === 'PAYMENT' && transaction.status === 'SETTLED' && transaction.currency === 'AED' && typeof transaction.amount === 'number' && toMinor(transaction.amount) === expected;
       }
     } catch { matched = false; }
+    if (matched && step.name === 'TOLL' && step.operationId) {
+      const lookup = await source('toll-operation', step.operationId);
+      if (lookup.unavailable) { evidence.push({ name: step.name, assessment: 'UNAVAILABLE' }); continue; }
+      const body = lookup.value, operation = isRecord(body) && isRecord(body.operation) ? body.operation : undefined;
+      matched = !!operation && operation.operationId === step.operationId && operation.status === 'SETTLED' && operation.tagId === review.tagNumber && operation.amountMinor === review.tollAmountMinor && operation.receiptReference === step.receiptReference;
+    }
     if (matched && step.name === 'UTILITY' && step.operationId) {
       const lookup = await source('utility-operation', step.operationId);
       if (lookup.unavailable) { evidence.push({ name: step.name, assessment: 'UNAVAILABLE' }); continue; }

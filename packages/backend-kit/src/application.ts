@@ -208,7 +208,10 @@ export async function integratedRequest(service: string, actor: Actor, method: s
         const payment = await charge('rta', `parking-extension:${actor.requestId}`, zone.tariffPerHour * body.additionalHours);
         return successfulWithoutDuplicate(await call('rta', method, `/parking/sessions/${encodeURIComponent(body.ticketId)}/extensions`, { additionalHours: body.additionalHours, paymentId: payment.charge.id, reference: actor.requestId }));
       }
-      if (method === 'POST' && path === '/mobility/salik/recharge') return successfulWithoutDuplicate(await recharge(body.amount, body.expectedTag));
+      if (method === 'POST' && path === '/mobility/salik/recharge') {
+        if (body.operationId !== undefined) throw new UpstreamError(400, 'VALIDATION_ERROR', 'Offline operation identities are not supported in integrated provider mode.');
+        return successfulWithoutDuplicate(await recharge(body.amount, body.expectedTag));
+      }
       if (method === 'POST' && path === '/mobility/ev/start') return successfulWithoutDuplicate(await call('rta', method, '/ev/sessions', body));
       if (method === 'POST' && path === '/rides/book') return successfulWithoutDuplicate(await call('rta', method, '/rides/bookings', body));
       if (method === 'GET' && path.startsWith('/rides/track/')) return successfulWithoutDuplicate(await call('rta', method, `/rides/bookings/${encodeURIComponent(path.split('/').pop()!)}`));

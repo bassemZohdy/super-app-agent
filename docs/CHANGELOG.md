@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Identify a lost offline toll response (P1-13, step)
+
+Separate-service civic checkout saves a toll operation ID before dispatch. The synthetic ride fixture binds it to the reviewed tag and amount, deduplicates same-term requests within its process, and supports exact-receipt evidence after a lost response. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Record an observed fine outcome (P1-13, step)
 
 The owner can record independently matched fine evidence against the original civic journal without repeating settlement or clearing the fence. Redis/HTTP tests cover changed evidence, account isolation, retries, prior recoveries and a response still in flight. Guide: [integrations](integrations.md).

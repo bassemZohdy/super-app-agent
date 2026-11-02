@@ -98,3 +98,15 @@ test('a lost fine response requires the same operation, exact fine receipt and l
   assert.deepEqual(await compareCivicEvidence(review, unknown, async source => { if (source === 'fine-operation') throw new Error('offline'); return ledger; }), [{ name: 'FINES', assessment: 'UNAVAILABLE' }]);
   assert.deepEqual(await compareCivicEvidence(review, unknown, async source => { if (source === 'fine-receipt') throw new Error('offline'); return source === 'fine-operation' ? operation : ledger; }), [{ name: 'FINES', assessment: 'UNAVAILABLE' }]);
 });
+
+test('a lost toll response requires the original operation and matching recharge receipt', async () => {
+  const operationId = 'CIVIC-toll', unknown = [{ name: 'TOLL', state: 'UNKNOWN', operationId }] as const;
+  const operation = { operation: { operationId, status: 'SETTLED', receiptReference: 'T1', tagId: 'T1', amountMinor: 10000 } };
+  const read = (op: unknown, receipt: unknown) => async (source: string) => source === 'toll-operation' ? op : receipt;
+  assert.deepEqual(await compareCivicEvidence(review, unknown, read(operation, toll)), [{ name: 'TOLL', assessment: 'OBSERVED', observedReceiptReference: 'T1' }]);
+  for (const bad of [{ operation: null }, { operation: { ...operation.operation, operationId: 'other' } }, { operation: { ...operation.operation, tagId: 'other' } }, { operation: { ...operation.operation, amountMinor: 10001 } }])
+    assert.deepEqual(await compareCivicEvidence(review, unknown, read(bad, toll)), [{ name: 'TOLL', assessment: 'UNVERIFIABLE' }]);
+  assert.deepEqual(await compareCivicEvidence(review, unknown, read(operation, { recharge: { ...toll.recharge, tagId: 'other' } })), [{ name: 'TOLL', assessment: 'UNVERIFIABLE' }]);
+  assert.deepEqual(await compareCivicEvidence(review, unknown, async source => { if (source === 'toll-operation') throw new Error('offline'); return toll; }), [{ name: 'TOLL', assessment: 'UNAVAILABLE' }]);
+  assert.deepEqual(await compareCivicEvidence(review, unknown, async source => { if (source === 'ride') throw new Error('offline'); return operation; }), [{ name: 'TOLL', assessment: 'UNAVAILABLE' }]);
+});

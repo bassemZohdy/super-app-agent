@@ -161,8 +161,9 @@ test('fine observation preserves prior recoveries and supports reviews without a
   await store.acquireCivicFence(owner);
   const raw = await store.client.get(key); assert.ok(raw);
   const base = JSON.parse(raw);
-  for (const version of [12, 13, 14, 15]) {
-    const walletRecovered = version === 13 || version === 15, utilityRecovered = version === 14 || version === 15;
+  for (const version of [12, 13, 14, 15, 20, 21, 22, 23]) {
+    const baseVersion = version >= 20 ? version - 8 : version;
+    const walletRecovered = baseVersion === 13 || baseVersion === 15, utilityRecovered = baseVersion === 14 || baseVersion === 15;
     const wallet = { name: 'WALLET', state: 'CONFIRMED', operationId: `CIVIC-${randomUUID()}`, receiptReference: 'W1', ...(walletRecovered ? { recoveredFrom: 'UNKNOWN' } : {}) };
     const utility = { name: 'UTILITY', state: 'CONFIRMED', operationId: `CIVIC-${randomUUID()}`, receiptReference: 'U1', ...(utilityRecovered ? { recoveredFrom: 'STARTED' } : {}) };
     const fine = { name: 'FINES', state: 'UNKNOWN', operationId: `CIVIC-${randomUUID()}` };

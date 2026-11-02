@@ -131,7 +131,8 @@ route('service-ride', 'POST', '/mobility/parking/activate', object({ zoneId: id,
 route('service-ride', 'POST', '/mobility/parking/extend', object({ ticketId: id, additionalHours: hours }, ['ticketId', 'additionalHours']), ['/parking/extend'], 'mobility_extendParking');
 route('service-ride', 'GET', '/mobility/parking/active', object(), ['/parking/active'], 'mobility_getActiveParking');
 route('service-ride', 'GET', '/mobility/salik/balance', object(), ['/salik/balance'], 'mobility_getTollBalance');
-route('service-ride', 'POST', '/mobility/salik/recharge', object({ amount: moneySchema, currency: currency('AED'), expectedTag: id }, ['amount']), ['/salik/recharge'], 'mobility_rechargeToll');
+route('service-ride', 'POST', '/mobility/salik/recharge', { ...object({ amount: moneySchema, currency: currency('AED'), expectedTag: id, operationId: { ...id, description: 'Offline fixture operation identity; integrated provider mode rejects this field.' } }, ['amount']), dependencies: { operationId: ['expectedTag'] } }, ['/salik/recharge'], 'mobility_rechargeToll');
+route('service-ride', 'GET', '/mobility/salik/recharge-operations/{operationId}', object({ operationId: id }, ['operationId']));
 route('service-ride', 'GET', '/mobility/salik/recharges/{transactionId}', object({ transactionId: id }, ['transactionId']));
 route('service-ride', 'GET', '/mobility/salik/passings', object(), ['/salik/passings'], 'mobility_getTollPassings');
 route('service-ride', 'GET', '/mobility/ev/chargers', object(), ['/ev/chargers'], 'mobility_getEVChargers');

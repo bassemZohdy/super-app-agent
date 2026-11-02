@@ -103,7 +103,8 @@ function confirmedReceipt(service: string, path: string, data: any, body: unknow
     if (path === '/mobility/salik/recharge') {
       if (!named(data.transactionId) || !finite(data.newBalance)) return false;
       if (!record(body)) return true;
-      const request = body as { expectedTag?: unknown; amount?: unknown };
+      const request = body as { expectedTag?: unknown; amount?: unknown; operationId?: unknown };
+      if (request.operationId !== undefined && (!named(request.operationId) || data.operationId !== request.operationId)) return false;
       if (request.expectedTag === undefined) return true;
       if (!named(request.expectedTag) || data.tagId !== request.expectedTag || typeof request.amount !== 'number') return false;
       try {

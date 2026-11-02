@@ -126,6 +126,7 @@ export interface ParkingMeterSession {
 
 export const activeParkingMeters = new Map<string, ParkingMeterSession>();
 const offlineSalikTag = 'SLK-8492019';
+const offlineTollOperations = new Map<string, { signature: string; tagId: string; amountMinor: number; receiptReference: string; response: Record<string, unknown> }>();
 const offlineTollRecharges: Array<{ transactionId: string; tagId: string; amountMinor: number; currency: 'AED' }> = [];
 export let salikBalance = 14.0; // Low balance alert triggered if < 20 AED
 
@@ -321,7 +322,19 @@ function handleRideRequest(
     return { status: 200, data: { success: true, recharge: recharge ? { ...recharge } : null } };
   }
 
+  const tollOperation = /^\/mobility\/salik\/recharge-operations\/([^/]+)$/.exec(pathname);
+  if (normMethod === 'GET' && tollOperation) {
+    const operationId = decodeURIComponent(tollOperation[1]), operation = offlineTollOperations.get(operationId);
+    return { status: 200, data: { success: true, operation: operation ? { operationId, status: 'SETTLED', tagId: operation.tagId, amountMinor: operation.amountMinor, receiptReference: operation.receiptReference } : null } };
+  }
+
   if (normMethod === 'POST' && (pathname === '/mobility/salik/recharge' || pathname === '/salik/recharge')) {
+    const signature = JSON.stringify({ tagId: body.expectedTag ?? null, amountMinor: toMinor(body.amount), currency: body.currency ?? 'AED' });
+    const previous = body.operationId ? offlineTollOperations.get(body.operationId) : undefined;
+    if (previous) {
+      if (previous.signature !== signature) return { status: 409, data: { success: false, code: 'IDEMPOTENCY_CONFLICT', error: 'This operation already has different terms.' } };
+      return { status: 200, data: structuredClone(previous.response) };
+    }
     if (body.expectedTag !== undefined && body.expectedTag !== offlineSalikTag) return { status: 409, data: { success: false, code: 'PAYABLE_CHANGED', error: 'The reviewed toll tag changed.' } };
     const amount = body.amount;
     const nextBalance = toMinor(salikBalance) + toMinor(amount);
@@ -330,17 +343,9 @@ function handleRideRequest(
     const transactionId = `SLK-TX-${randomUUID()}`;
     offlineTollRecharges.push({ transactionId, tagId: offlineSalikTag, amountMinor: toMinor(amount), currency: 'AED' });
     if (offlineTollRecharges.length > 256) offlineTollRecharges.shift();
-    return {
-      status: 200,
-      data: {
-        success: true,
-        rechargedAmount: amount,
-        newBalance: salikBalance,
-        tagId: offlineSalikTag,
-        transactionId,
-        timestamp: new Date().toISOString(),
-      },
-    };
+    const response = { success: true, rechargedAmount: amount, newBalance: salikBalance, tagId: offlineSalikTag, transactionId, timestamp: new Date().toISOString(), ...(body.operationId ? { operationId: body.operationId } : {}) };
+    if (body.operationId) offlineTollOperations.set(body.operationId, { signature, tagId: offlineSalikTag, amountMinor: toMinor(amount), receiptReference: transactionId, response });
+    return { status: 200, data: structuredClone(response) };
   }
 
   if (normMethod === 'GET' && (pathname === '/mobility/salik/passings' || pathname === '/salik/passings')) {
