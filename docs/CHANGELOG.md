@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Inspect held automation jobs locally (P1-02, step)
+
+A read-only command derives the original preparation request from a held job, verifies returned evidence and leaves the worker and job history untouched. Guide: [automation worker](development/automation-worker.md).
+
 ## 2 November 2026 — Inspect original automation preparations (P1-02, step)
 
 The isolated provider and worker adapter expose a read-only, worker-scoped lookup of a preparation by its original request key, with rule and run binding checks. Guide: [automation worker](development/automation-worker.md).

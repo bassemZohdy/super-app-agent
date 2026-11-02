@@ -13,6 +13,7 @@
   "scripts": {
     "dev": "turbo run dev --parallel",
     "dev:backend": "node --env-file-if-exists=.env --experimental-strip-types scripts/dev-backend.ts",
+    "automation:inspect-preparation": "node --env-file-if-exists=.env --experimental-strip-types scripts/inspect-automation-preparation.ts",
     "dev:react": "npm run dev --workspace=apps/shell-react",
     "dev:angular": "npm run dev --workspace=apps/shell-angular",
     "dev:flutter": "cd apps/shell-flutter && flutter run -d chrome --web-port 3002",
