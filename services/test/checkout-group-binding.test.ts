@@ -14,12 +14,12 @@ test('unified checkout binds the original group, child order, owner and funding 
   t.after(() => { if (previous === undefined) delete process.env.APP_DATA_DIR; else process.env.APP_DATA_DIR = previous; removeTemp(dir); });
   const actor = actorFor({ sub: 'group-binding-user' });
   const source = { id: 'wallet', accountId: actor.accountId, kind: 'wallet', version: 1, currency: 'AED', status: 'ACTIVE' };
-  const payable = { id: 'rta:recharge:one', obligationId:'rta:recharge:one', kind:'RECHARGE', currency:'AED', amountMinor:10000, recharge:{kind:'TOLL',targetVersion:1,balanceBeforeMinor:0}, provider: 'rta', reference: 'tag', revision: 'a'.repeat(64) };
+  const payable = { id: 'rta:recharge:one', obligationId:'rta:recharge:one', kind:'RECHARGE', currency:'AED', status:'UNPAID', amountMinor:10000, recharge:{kind:'TOLL',targetVersion:1,balanceBeforeMinor:0}, provider: 'rta', reference: 'tag', revision: 'a'.repeat(64) };
   let scenario = 'valid', approvals = 0, runs = 0;
   const group = (state: string) => {
-    const quote = { payable: scenario === 'wrong-item' ? { ...payable, id: 'other' } : payable, source, currency: 'AED', totalMinor: 10000, feeMinor: scenario === 'changed-terms' && state === 'READY' || scenario === 'changed-after-reopen' ? 1 : 0 };
+    const quote = { payable: scenario === 'wrong-item' ? { ...payable, id: 'other' } : payable, source, currency: 'AED', totalMinor: scenario === 'group-total-drift' ? 10001 : 10000, feeMinor: scenario === 'changed-terms' && state === 'READY' || scenario === 'changed-after-reopen' ? 1 : 0 };
     const child = { id: 'child', accountId: actor.accountId, ownerSub: actor.sub, approvalDigest: 'c'.repeat(64), state: state === 'COMPLETED' ? 'SETTLED' : 'AWAITING_APPROVAL', quote, paymentId:state === 'COMPLETED'?'payment':undefined, receipt: state === 'COMPLETED' ? { receiptNumber: 'payment', obligationId:payable.obligationId, amountMinor:10000, currency:'AED', targetReference:scenario==='wrong-receipt'?'other':'tag', providerBalanceMinor:10000 } : undefined };
-    return { id: scenario === 'wrong-id' ? 'other' : 'group-original', accountId: scenario === 'wrong-account' ? 'other' : actor.accountId, ownerSub: scenario === 'wrong-owner' ? 'other' : actor.sub, source: scenario === 'wrong-source' ? { ...source, id: 'other' } : source, currency: 'AED', totalMinor: 10000, approvalDigest: 'b'.repeat(64), orderIds: ['child'], excluded: [], orders: [child], state, version: 1 };
+    return { id: scenario === 'wrong-id' ? 'other' : 'group-original', accountId: scenario === 'wrong-account' ? 'other' : actor.accountId, ownerSub: scenario === 'wrong-owner' ? 'other' : actor.sub, source: scenario === 'wrong-source' ? { ...source, id: 'other' } : source, currency: 'AED', totalMinor: scenario === 'group-total-drift' ? 10001 : 10000, approvalDigest: 'b'.repeat(64), orderIds: ['child'], excluded: [], orders: [child], state, version: 1 };
   };
   t.mock.method(ProviderClient.prototype, 'call', async (_provider, _actor, _method, route) => {
     if (route === '/payables') return { payables: [] };
@@ -33,8 +33,9 @@ test('unified checkout binds the original group, child order, owner and funding 
     if (route === '/wallet') return { balance: 10 };
     throw new UpstreamError(503, 'UNEXPECTED', 'Unexpected provider call');
   });
-  const run = () => integratedRequest('service-wallet', actor, 'POST', '/pay/unified', {}, { items:[{ agency:'demo', purpose:'test', amount:100 }] }, () => ({ status:404, data:{} }));
-  for (scenario of ['wrong-id', 'wrong-account', 'wrong-owner', 'wrong-source', 'wrong-item']) {
+  const run = (amount=100) => integratedRequest('service-wallet', actor, 'POST', '/pay/unified', {}, { items:[{ agency:'demo', purpose:'test', amount }] }, () => ({ status:404, data:{} }));
+  const changedAmount=await run(99);assert.equal(changedAmount.status,409);assert.equal(changedAmount.data.code,'PAYABLE_CHANGED');assert.equal(approvals,0);assert.equal(runs,0);
+  for (scenario of ['wrong-id', 'wrong-account', 'wrong-owner', 'wrong-source', 'wrong-item', 'group-total-drift']) {
     const beforeApprovals=approvals, beforeRuns=runs, result=await run(); assert.equal(result.status,503); assert.equal(result.data.code,'PROVIDER_OUTCOME_UNKNOWN'); assert.equal(approvals,beforeApprovals); assert.equal(runs,beforeRuns);
   }
   scenario='changed-terms'; const beforeRuns=runs, changed=await run(); assert.equal(changed.status,503); assert.equal(changed.data.code,'PROVIDER_OUTCOME_UNKNOWN'); assert.equal(runs,beforeRuns);

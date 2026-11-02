@@ -16,7 +16,7 @@ test('unified checkout requires an unambiguous or explicitly selected recharge t
   t.after(() => { if (previous === undefined) delete process.env.APP_DATA_DIR; else process.env.APP_DATA_DIR = previous; removeTemp(dir); });
   const targets = [{ reference:'tag-one', version:1 }, { reference:'tag-two', version:2 }];
   let mode='multiple', quoteCalls=0, groupCalls=0, quoted='';
-  const p = (reference:string,version:number) => ({ id:'rta:recharge:one', provider:'rta', kind:'RECHARGE', obligationId:'rta:recharge:one', reference, revision:'a'.repeat(64), amountMinor:10000, currency:'AED', recharge:{kind:'TOLL',targetVersion:version,balanceBeforeMinor:0} });
+  const p = (reference:string,version:number) => ({ id:'rta:recharge:one', provider:'rta', kind:'RECHARGE', obligationId:'rta:recharge:one', reference, revision:'a'.repeat(64), status:'UNPAID', amountMinor:10000, currency:'AED', recharge:{kind:'TOLL',targetVersion:version,balanceBeforeMinor:0} });
   t.mock.method(ProviderClient.prototype, 'call', async (_provider,_actor,_method,route,body) => {
     if(route==='/payables')return{payables:[]};
     if(route.startsWith('/recharge-intents/')) { if(mode==='existing-wrong')return{payable:p('tag-one',1)}; throw new UpstreamError(404,'NOT_FOUND','No quote'); }

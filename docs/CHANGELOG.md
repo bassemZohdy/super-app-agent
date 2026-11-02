@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Check grouped checkout's reviewed total (P0-04, step)
+
+Integrated manual grouped checkout compares the caller's reviewed amount with current provider payables before group creation and with the returned group before approval or execution. Changed payables or totals cannot silently advance. Verification scripts now supply the expected amount; individual descriptions remain outside this check. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Bind grouped checkout to a toll target (P1-13, step)
 
 The integrated manual grouped-checkout API accepts a selected toll target and version, validates the returned quote, and refuses an ambiguous implicit target. The offline wallet rejects target-specific fields without changing funds. The application OpenAPI and targeted tests cover explicit selection, stale or substituted targets and the single-target case. Guide: [integrations](integrations.md).

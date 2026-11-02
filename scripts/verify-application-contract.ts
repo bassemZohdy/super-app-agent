@@ -5,6 +5,7 @@ import { demoPortOffset, gatewayUrl, keycloakIssuerUrl } from './endpoints.ts';
 import assert from 'node:assert/strict';
 import { accountIdFor } from '../packages/backend-kit/src/context.ts';
 import { buildApplicationOpenApi, APPLICATION_OPERATIONS, APPLICATION_SERVICES } from '../packages/backend-kit/src/application-openapi.ts';
+import { toMinor, fromMinor } from '../packages/protocol-core/src/request-validation.ts';
 
 const document = buildApplicationOpenApi() as { paths: Record<string, Record<string, { responses: Record<string, { content?: Record<string, { schema?: { required?: string[] } }> }> }>>; components: { schemas: { Error: { required: string[] } } } };
 const errorKeys = document.components.schemas.Error.required;
@@ -130,9 +131,12 @@ if (WRITES) {
   const fines = await call('service-wallet', 'GET', '/fines/check');
   const fine = fines.data.fines?.find((item: { status: string }) => item.status === 'UNPAID');
   check('/fines/pay', await call('service-wallet', 'POST', '/fines/pay', { fineIds: [fine?.fineId], expectedPayables: [{ payableId: fine?.payableId, expectedRevision: fine?.payableRevision }] }));
-  const items = [{ agency: 'RTA', purpose: 'Contract check', amount: 1 }];
+  const remainingFines = await call('service-wallet', 'GET', '/fines/check');
+  const currentBill = await call('service-food', 'GET', '/utilities/bill');
+  const expectedTotal = fromMinor(10000 + toMinor(remainingFines.data.totalPayable || 0) + toMinor(currentBill.data.bill?.status === 'UNPAID' ? currentBill.data.bill.totalAmount : 0));
+  const items = [{ agency: 'City services', purpose: 'Contract check', amount: expectedTotal }];
   check('/pay/unified', await call('service-wallet', 'POST', '/pay/unified', { items }));
-  check('/pay/multi-agency', await call('service-wallet', 'POST', '/pay/multi-agency', { items: [{ agency: 'DEWA', purpose: 'Contract check', amount: 1 }] }));
+  check('/pay/multi-agency', await call('service-wallet', 'POST', '/pay/multi-agency', { items: [{ agency: 'RTA', purpose: 'Contract check', amount: 100 }] }));
   const line = (await call('service-telecom', 'GET', '/telecom/etisalat/prepaid')).data.lines?.[0];
   check('/telecom/{provider}/prepaid/recharges', await call('service-telecom', 'POST', '/telecom/etisalat/prepaid/recharges', { lineId: line?.lineId, amountMinor: line?.denominationsMinor?.[0], expectedTargetVersion: 1 }));
   const telecomBill = (await call('service-telecom', 'GET', '/telecom/etisalat/bills')).data.bills?.find((item: { status: string }) => item.status === 'UNPAID');

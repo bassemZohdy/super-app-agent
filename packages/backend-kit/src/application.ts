@@ -8,12 +8,12 @@ import { AccountDatabase } from '../../../services/provider-simulator/src/databa
 import { ProviderClient, UpstreamError } from './provider-client.ts';
 import { actorFor, assetsFor, actorContext, type Actor } from './context.ts';
 import { verifyJwt } from './jwt.ts';
-import { validateRequest } from '../../protocol-core/src/request-validation.ts';
+import { validateRequest, toMinor } from '../../protocol-core/src/request-validation.ts';
 import type { CheckoutGroupView } from '../../protocol-core/src/payments.ts';
 import { currentProfile, currentPreferences, generatePromptContext } from '../../../services/service-profile/src/index.ts';
 import { restaurants } from '../../../services/service-food/src/index.ts';
 type PayableRevision = { payableId: string; expectedRevision: string };
-type Payable = { id: string; kind: string; provider: string; status: string; reference: string; revision: string; obligationId: string; amountMinor: number };
+type Payable = { id: string; kind: string; provider: string; status: string; reference: string; revision: string; obligationId: string; amountMinor: number; currency: string };
 type Bill = { billId: string; status: string; totalAmount: number; receiptNumber: string; expiresAt?: string; premiseId?: string };
 type Fine = { fineId: string; payableId: string; payableRevision: number };
 type BillingAccount = { status: string; provider: string; reference: string };
@@ -227,6 +227,11 @@ export async function integratedRequest(service: string, actor: Actor, method: s
       if (method === 'POST' && path === '/fines/pay') return successfulWithoutDuplicate(await settleFines(body.fineIds));
       if (method === 'POST' && ['/pay/unified','/pay/multi-agency'].includes(path)) {
         if((body.targetReference===undefined)!==(body.expectedTargetVersion===undefined))throw new UpstreamError(400,'VALIDATION_ERROR','Select a recharge target and its reviewed version together.');
+        const reviewItems=body.items as unknown;
+        if(!Array.isArray(reviewItems)||!reviewItems.length)throw new UpstreamError(400,'VALIDATION_ERROR','Review the checkout amounts.');
+        let reviewedTotal=0;
+        try{for(const item of reviewItems){if(!item||typeof item!=='object'||Array.isArray(item))throw new Error('Invalid item');reviewedTotal+=toMinor((item as {amount:number}).amount);}if(!Number.isSafeInteger(reviewedTotal)||reviewedTotal<=0)throw new Error('Invalid total');}
+        catch{throw new UpstreamError(400,'VALIDATION_ERROR','Review the checkout amounts.');}
         // Persist the reviewed plan before dispatch. A lost response resumes these child IDs, never a new recharge.
         const intentId=stableKey(`unified:${actor.requestId}`),terms=JSON.stringify(body);
         let intent=db.get(actor.accountId,'checkout-intent',intentId);
@@ -253,8 +258,11 @@ export async function integratedRequest(service: string, actor: Actor, method: s
           }else if(body.targetReference!==undefined&&(rechargeQuote.reference!==body.targetReference||rechargeQuote.recharge?.targetVersion!==body.expectedTargetVersion))throw new UpstreamError(409,'RECHARGE_INTENT_CONFLICT','This checkout already has different recharge terms.');
           if(rechargeQuote?.provider!=='rta'||rechargeQuote.kind!=='RECHARGE'||rechargeQuote.currency!=='AED'||rechargeQuote.amountMinor!==10000||typeof rechargeQuote.id!=='string'||!rechargeQuote.id||typeof rechargeQuote.revision!=='string'||!rechargeQuote.revision||typeof rechargeQuote.reference!=='string'||!rechargeQuote.reference||rechargeQuote.recharge?.kind!=='TOLL'||!Number.isSafeInteger(rechargeQuote.recharge?.targetVersion)||rechargeQuote.recharge.targetVersion<1)throw new UpstreamError(503,'PROVIDER_UNAVAILABLE','The recharge quote could not be confirmed.');
           items.push({provider:'rta',payableId:rechargeQuote.id,expectedPayableRevision:rechargeQuote.revision});
+          const current:Payable[]=[];let currentTotal=0;
+          for(const item of items){const p=(await call(item.provider,'GET',`/payables/${encodeURIComponent(item.payableId)}`)).payable;if(!p||p.provider!==item.provider||p.id!==item.payableId||p.revision!==item.expectedPayableRevision||p.status!=='UNPAID'||p.currency!=='AED'||!Number.isSafeInteger(p.amountMinor)||p.amountMinor<0)throw new UpstreamError(409,'PAYABLE_CHANGED','The checkout items changed. Review current terms again.');current.push(p);currentTotal+=p.amountMinor;}
+          if(!Number.isSafeInteger(currentTotal)||currentTotal!==reviewedTotal)throw new UpstreamError(409,'PAYABLE_CHANGED','The checkout total changed. Review current terms again.');
           const links=(await call('payments','GET','/billing-accounts')).billingAccounts;
-          for(const item of items){const p=(await call(item.provider,'GET',`/payables/${encodeURIComponent(item.payableId)}`)).payable;if(!links.some((b:BillingAccount)=>b.status==='ACTIVE'&&b.provider===p.provider&&b.reference===p.reference)){try{await call('payments','POST','/billing-accounts',{provider:p.provider,reference:p.reference,nickname:`${p.provider.toUpperCase()} account`},stableKey(`unified-link:${p.provider}:${p.reference}`));}catch(e){if(!(e instanceof UpstreamError)||e.code!=='BILLER_ALREADY_LINKED')throw e;}}}
+          for(const p of current){if(!links.some((b:BillingAccount)=>b.status==='ACTIVE'&&b.provider===p.provider&&b.reference===p.reference)){try{await call('payments','POST','/billing-accounts',{provider:p.provider,reference:p.reference,nickname:`${p.provider.toUpperCase()} account`},stableKey(`unified-link:${p.provider}:${p.reference}`));}catch(e){if(!(e instanceof UpstreamError)||e.code!=='BILLER_ALREADY_LINKED')throw e;}}}
           const planned={terms,input:{items,methodId:body.methodId||'wallet',expectedMethodVersion:body.expectedMethodVersion||1}};
           db.transaction(()=>{intent=db.get(actor.accountId,'checkout-intent',intentId);if(!intent){db.put(actor.accountId,'checkout-intent',planned,intentId);intent=planned;}});
           if(intent.terms!==terms)throw new UpstreamError(409,'CHECKOUT_INTENT_CONFLICT','This request already has different checkout terms.');
@@ -282,7 +290,7 @@ export async function integratedRequest(service: string, actor: Actor, method: s
             represented.add(key);childIds.add(child.id);total+=quote.totalMinor;
           }
           for(const excluded of group.excluded){const key=JSON.stringify([excluded?.provider,excluded?.payableId]);if(excluded?.reason!=='ALREADY_PAID'||represented.has(key)||!intent.input.items.some((item:PlannedItem)=>item.provider===excluded.provider&&item.payableId===excluded.payableId))invalid();represented.add(key);}
-          if(represented.size!==intent.input.items.length||!Number.isSafeInteger(total)||total!==group.totalMinor)invalid();
+          if(represented.size!==intent.input.items.length||!Number.isSafeInteger(total)||total!==group.totalMinor||total!==reviewedTotal)invalid();
           const projection={id:group.id,accountId:group.accountId,ownerSub:group.ownerSub,source:group.source,currency:group.currency,totalMinor:group.totalMinor,approvalDigest:group.approvalDigest,orderIds:group.orderIds,excluded:group.excluded,orders:group.orders.map((child:{id:string;approvalDigest:string;quote:unknown})=>({id:child.id,approvalDigest:child.approvalDigest,quote:child.quote}))};
           const binding=createHash('sha256').update(canonicalJson(projection)).digest('hex');
           db.transaction(()=>{const saved=db.get<{binding:string}>(actor.accountId,'checkout-group-binding',groupId);if(saved&&saved.binding!==binding)invalid();if(!saved)db.put(actor.accountId,'checkout-group-binding',{binding},groupId);});

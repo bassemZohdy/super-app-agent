@@ -18,6 +18,8 @@ The compatibility application stores the first observed complete quote's hash an
 
 The compatibility grouped checkout verifies its original group and owner, selected source, saved item set, child quote identities and total before approval or execution. It stores a hash of those frozen group terms across requests, and checks each settled child receipt before reporting completion. Inconsistent groups remain unknown for inspection. The first observed quote still depends on the configured simulator; production quote authentication remains separate.
 
+For the integrated manual grouped-checkout API, the sum of the caller's reviewed item amounts must match the current provider payables before a group is created and the returned group total before it advances. A changed payable or total requires a fresh review. The amount check does not by itself bind each caller-supplied description to a particular provider resource.
+
 The integrated manual grouped-checkout API accepts a toll `targetReference` together with its `expectedTargetVersion`; it checks the owned target and returned quote before planning. If omitted, it proceeds only when exactly one target is available. The offline wallet fixture refuses these target-specific fields instead of claiming to settle that target.
 
 MCP, A2A, SOAP and controlled browser execution are protocol values at the extension boundary, not implemented transports in this entry point. The existing integrated MCP server remains in its original path. Add a real protocol adapter only for a concrete service, with its own authority, schema, timeout and retry tests.
