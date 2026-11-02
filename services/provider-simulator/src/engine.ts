@@ -223,6 +223,7 @@ export class ProviderEngine {
       if(method==='GET'&&(path==='/payment-statement'||path.startsWith('/payment-statement/pages/')))return ok(this.history!.statement(actor,path.split('/')[3]));
       if(method==='GET'&&path==='/payment-reconciliation')return ok(this.reconciliation!.list(actor));
       if(method==='GET'&&path.startsWith('/payment-reconciliation/pages/'))return ok(this.reconciliation!.list(actor,decodeURIComponent(path.split('/')[3])));
+      if(method==='GET'&&path.startsWith('/payment-reconciliation/evidence/'))return ok(this.reconciliation!.evidencePage(actor,decodeURIComponent(path.split('/')[3])));
       if(method==='GET'&&/^\/payment-reconciliation\/inspections\/[^/]+$/.test(path))return ok({inspection:this.reconciliation!.get(actor,path.split('/')[3])});
       if(method==='GET'&&/^\/payment-reconciliation\/audit\/(PAYMENT|FUNDING|REFUND|LEGACY)\/[^/]+$/.test(path))return ok({audit:this.reconciliation!.audit(actor,path.split('/')[3] as import('../../../packages/protocol-core/src/payment-reconciliation.ts').RecoveryKind,path.split('/')[4])});
       if(method==='GET'&&path==='/payment-mandates')return ok({mandates:this.mandates!.list(actor),executionEnabled:false});

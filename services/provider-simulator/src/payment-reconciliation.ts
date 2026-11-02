@@ -45,14 +45,34 @@ export class PaymentReconciliation {
       UNION ALL SELECT 'REFUND',id,body,'REFUND:'||id FROM payment_refunds WHERE account_id=?
       UNION ALL SELECT 'LEGACY',id,body,'LEGACY:'||id FROM resources WHERE account_id=? AND kind='charge' AND (${legacyChargeClass})='LEGACY')
       WHERE position>? ORDER BY position LIMIT 26`).all(a.accountId,a.accountId,a.accountId,a.accountId,cursor);
-    const issues=this.orders.store.db.prepare(`SELECT * FROM (
-      SELECT 'UNREADABLE_CHARGE' kind,id FROM resources WHERE account_id=? AND kind='charge' AND (${legacyChargeClass})='UNREADABLE'
-      UNION ALL SELECT 'UNREADABLE_TRANSACTION',id FROM resources WHERE account_id=? AND kind='transaction' AND CASE WHEN json_valid(body)=0 THEN 1 WHEN json_type(body)<>'object' THEN 1 ELSE 0 END
-      UNION ALL SELECT 'ORPHANED_CHARGE_JOURNAL',substr(j.reference,8) FROM payment_journal_entries j WHERE j.account_id=? AND j.kind='PAYMENT' AND j.reference LIKE 'charge:%'
-        AND NOT EXISTS (SELECT 1 FROM resources r WHERE r.account_id=j.account_id AND r.kind='charge' AND r.id=substr(j.reference,8))) ORDER BY kind,id LIMIT 26`).all(a.accountId,a.accountId,a.accountId);
-    return {cases:rows.slice(0,25).map(row=>this.summary(String(row.kind) as RecoveryKind,JSON.parse(String(row.body)))),nextCursor:rows.length>25?String(rows[24].position):null,
-      evidenceIssues:issues.slice(0,25).map(row=>({kind:String(row.kind) as 'UNREADABLE_CHARGE'|'UNREADABLE_TRANSACTION'|'ORPHANED_CHARGE_JOURNAL',id:typeof row.id==='string'&&/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,159}$/.test(row.id)?row.id:null})),evidenceIssuesTruncated:issues.length>25};
+    return {cases:rows.slice(0,25).map(row=>this.summary(String(row.kind) as RecoveryKind,JSON.parse(String(row.body)))),nextCursor:rows.length>25?String(rows[24].position):null,...this.evidencePage(a)};
   }
+  evidencePage(a:Actor,encoded='') {
+    this.owner(a);
+    const owner=createHash('sha256').update(JSON.stringify([a.sub,a.accountId,'recovery-evidence'])).digest('hex');
+    let cursor:{v:number;owner:string;ceil:number[];rank:number;sequence:number};
+    if(encoded){
+      try {
+        if(encoded.length>2000||!/^[A-Za-z0-9_-]+$/.test(encoded))throw new Error();
+        cursor=JSON.parse(Buffer.from(encoded,'base64url').toString());
+        if(!cursor||cursor.v!==1||cursor.owner!==owner||!Array.isArray(cursor.ceil)||cursor.ceil.length!==3||cursor.ceil.some(n=>!Number.isSafeInteger(n)||n<0)||!Number.isSafeInteger(cursor.rank)||cursor.rank<0||cursor.rank>2||!Number.isSafeInteger(cursor.sequence)||cursor.sequence<1||cursor.sequence>cursor.ceil[cursor.rank])throw new Error();
+      } catch { return deny('RECOVERY_EVIDENCE_CURSOR_INVALID','Use the original account’s evidence cursor.',400); }
+    } else {
+      const db=this.orders.store.db;
+      const resourceMax=(kind:string)=>Number(db.prepare('SELECT coalesce(max(rowid),0) n FROM resources WHERE account_id=? AND kind=?').get(a.accountId,kind)!.n);
+      cursor={v:1,owner,ceil:[resourceMax('charge'),resourceMax('transaction'),Number(db.prepare('SELECT coalesce(max(rowid),0) n FROM payment_journal_entries WHERE account_id=?').get(a.accountId)!.n)],rank:0,sequence:0};
+    }
+    const issues=this.orders.store.db.prepare(`SELECT * FROM (
+      SELECT 0 rank,rowid sequence,'UNREADABLE_CHARGE' kind,id FROM resources WHERE account_id=? AND kind='charge' AND rowid<=? AND (${legacyChargeClass})='UNREADABLE'
+      UNION ALL SELECT 1,rowid,'UNREADABLE_TRANSACTION',id FROM resources WHERE account_id=? AND kind='transaction' AND rowid<=? AND CASE WHEN json_valid(body)=0 THEN 1 WHEN json_type(body)<>'object' THEN 1 ELSE 0 END
+      UNION ALL SELECT 2,j.rowid,'ORPHANED_CHARGE_JOURNAL',substr(j.reference,8) FROM payment_journal_entries j WHERE j.account_id=? AND j.rowid<=? AND j.kind='PAYMENT' AND j.reference LIKE 'charge:%'
+        AND NOT EXISTS (SELECT 1 FROM resources r WHERE r.account_id=j.account_id AND r.kind='charge' AND r.id=substr(j.reference,8)))
+      WHERE rank>? OR (rank=? AND sequence>?) ORDER BY rank,sequence LIMIT 26`).all(a.accountId,cursor.ceil[0],a.accountId,cursor.ceil[1],a.accountId,cursor.ceil[2],cursor.rank,cursor.rank,cursor.sequence);
+    const page=issues.slice(0,25),last=page.at(-1);
+    const next=issues.length>25&&last?Buffer.from(JSON.stringify({...cursor,rank:Number(last.rank),sequence:Number(last.sequence)})).toString('base64url'):null;
+    return {evidenceIssues:page.map(row=>({kind:String(row.kind) as 'UNREADABLE_CHARGE'|'UNREADABLE_TRANSACTION'|'ORPHANED_CHARGE_JOURNAL',id:typeof row.id==='string'&&/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,159}$/.test(row.id)?row.id:null})),evidenceIssuesTruncated:next!==null,evidenceIssuesCursor:next};
+  }
+
   get(a:Actor,id:string):RecoveryInspection{this.owner(a);const row=this.orders.store.db.prepare('SELECT body FROM payment_recovery_inspections WHERE id=? AND account_id=?').get(id,a.accountId);if(!row)deny('RECOVERY_INSPECTION_NOT_FOUND','This inspection is not owned by the workspace.',404);const i=JSON.parse(String(row!.body));if(i.ownerSub!==a.sub)deny('RECOVERY_INSPECTION_NOT_FOUND','Inspection not found.',404);if(i.decisionDigest!==hash(this.decision(i)))deny('RECOVERY_INSPECTION_CORRUPT','The persisted decision binding is inconsistent.');return i;}
   private decision(i:RecoveryInspection){const {id,ownerSub,accountId,kind,operationId,state,amountMinor,sourceLabel,provider,createdAt,expiresAt,termsDigest,localDigest,sourceDigest,classification,captureState,sourceState,reason,actions}=i;return {id,ownerSub,accountId,kind,operationId,state,amountMinor,sourceLabel,provider,createdAt,expiresAt,termsDigest,localDigest,sourceDigest,classification,captureState,sourceState,reason,actions};}
   private save(i:RecoveryInspection){this.orders.store.db.prepare('INSERT INTO payment_recovery_inspections VALUES(?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET body=excluded.body').run(i.id,i.accountId,i.kind,i.operationId,JSON.stringify(i));return i;}

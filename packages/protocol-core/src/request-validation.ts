@@ -107,6 +107,7 @@ route('agent-core','GET','/api/payments/orders',object({accountId:id},['accountI
 for(const path of ['history','statement'])route('agent-core','GET',`/api/payments/${path}`,object({accountId:id,cursor:historyCursorSchema},['accountId']));
 route('agent-core','GET','/api/payments/history/detail',object({accountId:id,kind:historyKindSchema,operationId:historyIdSchema},['accountId','kind','operationId']));
 route('agent-core','GET','/api/payments/reconciliation',object({accountId:id,cursor:{type:'string',minLength:1,maxLength:200,pattern:'^(PAYMENT|FUNDING|REFUND|LEGACY):[A-Za-z0-9_.:-]+$'}},['accountId']));
+route('agent-core','GET','/api/payments/reconciliation/evidence',object({accountId:id,cursor:{type:'string',minLength:1,maxLength:2000,pattern:'^[A-Za-z0-9_-]+$'}},['accountId','cursor']));
 route('agent-core','GET','/api/payments/reconciliation/inspection',object({accountId:id,inspectionId:recoveryInspectionIdSchema},['accountId','inspectionId']));
 route('agent-core','GET','/api/payments/reconciliation/audit',object({accountId:id,...recoverySchemas.inspect.properties},['accountId','kind','operationId']));
 route('agent-core','POST','/api/payments/reconciliation/inspect',withPaymentAccount(recoverySchemas.inspect));

@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Page damaged payment evidence (P1-12, step)
+
+Residents can page through account-owned damaged payment records independently of the ordinary recovery-case list, without exposing raw bodies. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Show damaged payment evidence (P1-12, step)
 
 The recovery list retains readable cases and shows bounded account-owned identifiers for unreadable payment evidence and orphaned journals without exposing damaged bodies. Guide: [agent flow](agent-flow.md).

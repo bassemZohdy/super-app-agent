@@ -106,10 +106,22 @@ test('recovery list isolates unreadable evidence without hiding other owned case
   assert.equal(validateIssue({kind:'UNREADABLE_CHARGE',id:'invalid id'}),false);
   assert.deepEqual(f.recovery.list(other).evidenceIssues,[]);
   f.db.db.prepare("INSERT INTO resources(account_id,kind,id,body) VALUES(?,'charge','!private','{}')").run(f.actor.accountId);
-  for(let n=0;n<27;n++)f.db.db.prepare("INSERT INTO resources(account_id,kind,id,body) VALUES(?,'transaction',?,'{')").run(f.actor.accountId,`broken-${n}`);
+  for(let n=0;n<57;n++)f.db.db.prepare("INSERT INTO resources(account_id,kind,id,body) VALUES(?,'transaction',?,'{')").run(f.actor.accountId,`broken-${n}`);
   const bounded=f.recovery.list(f.actor); assert.equal(bounded.evidenceIssues.length,25); assert.equal(bounded.evidenceIssuesTruncated,true);
   assert.ok(bounded.evidenceIssues.some(i=>i.kind==='UNREADABLE_CHARGE'&&i.id===null));
   assert.ok(!JSON.stringify(bounded.evidenceIssues).includes('!private'));
+  assert.ok(bounded.evidenceIssuesCursor);
+  assert.ok(!Buffer.from(bounded.evidenceIssuesCursor!, 'base64url').toString().includes('!private'));
+  assert.throws(()=>f.recovery.evidencePage(other,bounded.evidenceIssuesCursor!), /cursor/i);
+  const otherAccount=f.db.accounts(f.actor.sub).find(account=>account.id!==f.actor.accountId)!;
+  assert.throws(()=>f.recovery.evidencePage({...f.actor,accountId:otherAccount.id},bounded.evidenceIssuesCursor!), /cursor/i);
+  assert.throws(()=>f.recovery.evidencePage(f.actor,'not-valid'), /cursor/i);
+  f.db.db.prepare("INSERT INTO resources(account_id,kind,id,body) VALUES(?,'transaction','later-record','{')").run(f.actor.accountId);
+  const all=[...bounded.evidenceIssues]; let cursor=bounded.evidenceIssuesCursor, pages=0;
+  while(cursor){const page=f.recovery.evidencePage(f.actor,cursor);assert.ok(page.evidenceIssues.length<=25);all.push(...page.evidenceIssues);cursor=page.evidenceIssuesCursor;pages++;assert.ok(pages<5);}
+  assert.equal(pages,2);assert.equal(all.length,61);
+  assert.ok(!all.some(i=>i.id==='later-record'));
+  assert.equal(new Set(all.filter(i=>i.id!==null).map(i=>`${i.kind}:${i.id}`)).size,60);
   assert.equal(f.gateway.ledger!.summary(f.actor.accountId).balanceMinor,149700);
 });
 
@@ -119,6 +131,8 @@ test('journal mismatch and persisted decision tampering fail closed',async t=>{
   t.mock.method(f.recovery as any,'journal',()=>false);const bad=await f.inspect(o.id);assert.equal(bad.classification,'INCONSISTENT');assert.deepEqual(bad.actions,[]);
 });
 test('workbench request validation rejects caller-defined money, callbacks, subjects and arbitrary recovery verbs',()=>{
+  assert.equal(validateRequest('agent-core','GET','/api/payments/reconciliation/evidence',{accountId:'acc_owned',cursor:'YWJj'},{}),undefined);
+  for(const cursor of ['', '../bad', 'x'.repeat(2001)])assert.equal(validateRequest('agent-core','GET','/api/payments/reconciliation/evidence',{accountId:'acc_owned',cursor},{})?.status,400);
   const base={accountId:'acc_owned',requestKey:'recovery_request',kind:'PAYMENT',operationId:'order_original'};
   assert.equal(validateRequest('agent-core','POST','/api/payments/reconciliation/inspect',{},base),undefined);
   for(const extra of [{amountMinor:1},{callback:'https://example.com'},{sub:'other'},{kind:'ANY'}])assert.equal(validateRequest('agent-core','POST','/api/payments/reconciliation/inspect',{}, {...base,...extra})?.status,400);

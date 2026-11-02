@@ -12279,6 +12279,13 @@
                     },
                     "evidenceIssuesTruncated": {
                       "type": "boolean"
+                    },
+                    "evidenceIssuesCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "maxLength": 2000
                     }
                   },
                   "required": [
@@ -12286,7 +12293,8 @@
                     "cases",
                     "nextCursor",
                     "evidenceIssues",
-                    "evidenceIssuesTruncated"
+                    "evidenceIssuesTruncated",
+                    "evidenceIssuesCursor"
                   ],
                   "additionalProperties": false
                 }
@@ -12445,6 +12453,13 @@
                     },
                     "evidenceIssuesTruncated": {
                       "type": "boolean"
+                    },
+                    "evidenceIssuesCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "maxLength": 2000
                     }
                   },
                   "required": [
@@ -12452,7 +12467,122 @@
                     "cases",
                     "nextCursor",
                     "evidenceIssues",
-                    "evidenceIssuesTruncated"
+                    "evidenceIssuesTruncated",
+                    "evidenceIssuesCursor"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "402": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/accounts/{accountId}/payment-reconciliation/evidence/{cursor}": {
+      "get": {
+        "operationId": "payments_listRecoveryEvidencePage",
+        "description": "Continue the account-owned damaged evidence list without reading raw bodies or dispatching effects.",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "evidenceIssues": {
+                      "type": "array",
+                      "maxItems": 25,
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "enum": [
+                              "UNREADABLE_CHARGE",
+                              "UNREADABLE_TRANSACTION",
+                              "ORPHANED_CHARGE_JOURNAL"
+                            ]
+                          },
+                          "id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "minLength": 1,
+                            "maxLength": 160,
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "id"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "evidenceIssuesTruncated": {
+                      "type": "boolean"
+                    },
+                    "evidenceIssuesCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "maxLength": 2000
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "evidenceIssues",
+                    "evidenceIssuesTruncated",
+                    "evidenceIssuesCursor"
                   ],
                   "additionalProperties": false
                 }

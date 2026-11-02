@@ -122,7 +122,15 @@ test('wallet panel explains unreadable account-wide payment evidence', async ({ 
     store.db.prepare("UPDATE resources SET body='{' WHERE account_id=? AND kind='charge' AND id=?").run(account, id);
     await panel.getByRole('button', { name: 'Load recovery cases', exact: true }).click();
     await expect(issues.getByText(`Unreadable payment record · ${id}`, { exact: true })).toBeVisible();
-  } finally { store.put(account, 'charge', charge, id); store.put(account, 'transaction', transaction, id); }
+    for (let n = 0; n < 27; n++) store.db.prepare("INSERT INTO resources(account_id,kind,id,body) VALUES(?,'transaction',?,'{')").run(account, `paging-evidence-${n}`);
+    await panel.getByRole('button', { name: 'Load recovery cases', exact: true }).click();
+    await issues.getByRole('button', { name: 'Load more records needing review', exact: true }).click();
+    await expect(issues.getByText('Unreadable transaction record · paging-evidence-26', { exact: true })).toBeVisible();
+    await expect(issues.getByRole('button', { name: 'Load more records needing review', exact: true })).toHaveCount(0);
+  } finally {
+    store.db.prepare("DELETE FROM resources WHERE account_id=? AND kind='transaction' AND id GLOB 'paging-evidence-*'").run(account);
+    store.put(account, 'charge', charge, id); store.put(account, 'transaction', transaction, id);
+  }
   expect((await residentApi.call('overview')).data.wallet.walletPaymentReview).toBe('NOT_DETECTED');
 });
 
