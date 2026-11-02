@@ -20,6 +20,8 @@ Before recording a delegated credit as complete, the broker requires a settled A
 
 Provider execution responses are limited to one MiB of received JSON and must be objects. If a response is oversized, unreadable or malformed, the original operation remains unknown; both a repeat of its execution key and a new operation stay blocked pending reconciliation.
 
+Identity token replies carrying OAuth error fields are rejected before a token is cached, bound or used. An uncertain delegated exchange remains attached to its original operation.
+
 The broker reports a provider response that does not confirm success as an unknown execution, even when the HTTP status is successful. A response that claims success while also containing a code cannot confirm a delegated operation or authorize an automation credential. It does not persist or expose the provider's failure body; operation history retains a generic outcome code for investigation.
 
 If a provider echoes the delegated bearer anywhere in its JSON response, the broker discards that response and retains the execution as unknown. Other successful results pass through the shared sensitive-field redactor before they are returned, stored or replayed.

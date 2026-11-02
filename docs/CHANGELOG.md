@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 - Reject contradictory OAuth tokens (P1-10, step)
+
+Service and delegation token exchanges reject responses containing OAuth error fields before caching, binding or using credentials. Guide: [delegation](development/delegation.md).
+
 ## 2 November 2026 - Reject contradictory broker evidence (P1-10, step)
 
 The delegation broker rejects provider success responses that also contain a code before issuing automation credentials or confirming delegated operations. Guide: [delegation](development/delegation.md).

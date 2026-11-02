@@ -13,6 +13,7 @@ import { EligibilityClient,EligibilityReadError,eligibilityEnforced } from '../.
 import { actorFor } from '../../../packages/backend-kit/src/context.ts';
 import { toMinor } from '../../../packages/protocol-core/src/request-validation.ts';
 import { boundedJsonResponse } from '../../../packages/backend-kit/src/bounded-json.ts';
+import { hasOAuthError } from '../../../packages/backend-kit/src/oauth.ts';
 const eligibilityReader=new EligibilityClient();
 async function currentEligibility(owner:string,accountId:string,epoch?:string,authorization?:string){
   if(!eligibilityEnforced())return undefined;
@@ -63,8 +64,10 @@ async function exchange(grant: ReturnType<GrantStore['get']>, operationId: strin
     logEvent('error', 'Delegation exchange rejected', { status: response.status });
     throw new DelegationError(503, 'DELEGATION_EXCHANGE_FAILED', `Keycloak rejected the delegated exchange (${response.status}).`);
   }
-  const data = await boundedJsonResponse(response, 65536) as { access_token: string; refresh_token?: string };
-  if (data.refresh_token || typeof data.access_token !== 'string') throw new Error('Unexpected delegated response');
+  const parsed = await boundedJsonResponse(response, 65536);
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Unexpected delegated response');
+  const data = parsed as Record<string, unknown>;
+  if (hasOAuthError(data) || data.refresh_token || typeof data.access_token !== 'string') throw new Error('Unexpected delegated response');
   const authorization = `Bearer ${data.access_token}`, c = await verifyJwt(authorization, 'provider-api');
   const aud = typeof c.aud === 'string' ? [c.aud] : c.aud;
   if (c.sub !== grant.owner || c.azp !== brokerClient || c.exp > time.exp || c.act !== undefined || String(c.scope || '').split(' ').filter(Boolean).some(value => value !== scope) || !String(c.scope || '').split(' ').includes(scope) || !Array.isArray(aud) || aud.some(value => !['provider-api', 'cityside-verifier'].includes(value)) || (c.realm_access?.roles?.length || 0) > 0) deny('ISSUED_TOKEN_MISMATCH');
@@ -156,8 +159,10 @@ async function mintExecutionToken(permit: Permit) {
     if (response.status >= 400 && response.status < 500) throw new MintRefused(`rejected ${response.status}`);
     throw new Error(`exchange failed ${response.status}`);
   }
-  const data = await boundedJsonResponse(response, 65536) as { access_token: string; refresh_token?: string };
-  if (data.refresh_token || typeof data.access_token !== 'string') throw new Error('Unexpected delegated response');
+  const parsed = await boundedJsonResponse(response, 65536);
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Unexpected delegated response');
+  const data = parsed as Record<string, unknown>;
+  if (hasOAuthError(data) || data.refresh_token || typeof data.access_token !== 'string') throw new Error('Unexpected delegated response');
   const c = await verifyJwt(`Bearer ${data.access_token}`, 'provider-api');
   if (c.act !== undefined || (c.realm_access?.roles?.length || 0) > 0) deny('ISSUED_TOKEN_MISMATCH');
   return { accessToken: data.access_token, sub: c.sub, azp: String(c.azp), exp: c.exp, fingerprint: tokenHash(data.access_token) };

@@ -253,6 +253,21 @@ test('identity-server errors cannot put response text into broker logs or execut
   }
 });
 
+test('a contradictory identity token response cannot dispatch or expose its error', async t => {
+  const owner = await user('alice'), runnerToken = await runner(), created = await createGrant(owner), id = created!.data.grant.id;
+  const realFetch = globalThis.fetch, before = seen.length, marker = 'identity-private-canary';
+  t.mock.method(globalThis, 'fetch', async (input: string | URL | Request, init?: RequestInit) => {
+    const response = await realFetch(input, init);
+    if (String(input) !== issuer.tokenUrl) return response;
+    return Response.json({ ...await response.json(), error: 'invalid_grant', error_description: marker });
+  });
+  const result = await execute(id, runnerToken, 'contradict-token-1');
+  assert.equal(result?.status, 503); assert.equal(seen.length, before);
+  assert.equal(grantStore().jobs(id, 'alice-sub')[0].state, 'unknown');
+  assert.ok(!JSON.stringify([result, grantStore().jobs(id, 'alice-sub'), grantStore().history(id, 'alice-sub')]).includes(marker));
+  assert.equal((await execute(id, runnerToken, 'contradict-token-1'))?.data.code, 'RECONCILIATION_REQUIRED');
+});
+
 test('an oversized streaming identity reply stops before completion without a provider dispatch', { timeout: 4000 }, async () => {
   const owner = await user('alice'), runnerToken = await runner(), created = await createGrant(owner), id = created!.data.grant.id;
   const fake = http.createServer((_req, res) => { res.writeHead(200, { 'content-type': 'application/json' }); res.write(`{"padding":"${'x'.repeat(65537)}`); });

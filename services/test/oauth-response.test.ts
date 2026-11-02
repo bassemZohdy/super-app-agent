@@ -24,6 +24,7 @@ test('invalid service tokens and lifetimes are refused without caching or exposi
   const bodies = [
     JSON.stringify({ access_token: '', expires_in: 300 }),
     JSON.stringify({ access_token: 'bad token', expires_in: 300 }),
+    ...['error', 'error_description', 'error_uri'].map(field => JSON.stringify({ access_token: 'valid-token', expires_in: 300, [field]: 'private-response-detail' })),
     JSON.stringify({ access_token: 'x'.repeat(16385), expires_in: 300 }),
     ...[0, -1, 0.5, 86401].map(expires_in => JSON.stringify({ access_token: 'valid-token', expires_in })),
     '{"access_token":"valid-token","expires_in":1e999}',
