@@ -16,7 +16,7 @@ export class ProviderClient {
     const url = new URL(path === '/v1/accounts' ? path : `/v1/accounts/${encodeURIComponent(actor.accountId)}${path}`, base);
     if (process.env.NODE_ENV === 'production' && url.protocol !== 'https:') throw new UpstreamError(503, 'HTTPS_REQUIRED', 'Provider HTTPS is required.');
     const send = async () => fetch(url, {
-      method, signal: AbortSignal.timeout(8000),
+      method, redirect: 'error', signal: AbortSignal.timeout(8000),
       headers: { Authorization: actor.authorization || `Bearer ${await this.credentials.token()}`, 'Content-Type': 'application/json',
         ...(!actor.authorization ? { 'X-User-Subject': actor.sub, 'X-User-Name': Buffer.from(actor.name).toString('base64url') } : {}),
         ...(method === 'POST' ? { 'Idempotency-Key': idempotencyKey || `${actor.requestId}:${provider}:${path}` } : {}) },

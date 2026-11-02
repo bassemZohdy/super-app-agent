@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Refuse application provider redirects (P1-02, step)
+
+The retained application provider client now refuses HTTP redirects instead of forwarding authenticated requests to another route. A redirect leaves a read unavailable and a write outcome unknown, because the original provider may have acted. A loopback HTTP test verifies the target receives neither request. Provider identity and production transport qualification remain separate. Guide: [testing](testing.md).
+
 ## 2 November 2026 — Bound domain adapter responses (P1-02, step)
 
 The retained HTTP domain adapter now reads at most one MiB of response bytes, independent of the declared content length, and cancels an oversized stream. A failed read reports a domain unavailable for reads and an unknown outcome for writes, preserving reconciliation. A streamed-response regression checks both paths and confirms reading stops early. Other clients and global quotas are not covered by this change. Guide: [testing](testing.md).

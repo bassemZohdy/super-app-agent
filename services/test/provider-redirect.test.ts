@@ -1,0 +1,33 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { ProviderClient, UpstreamError } from '../../packages/backend-kit/src/provider-client.ts';
+import { actorFor } from '../../packages/backend-kit/src/context.ts';
+
+test('provider client does not follow redirects for reads or writes', async t => {
+  const previous = process.env.PROVIDER_DEWA_URL;
+  const paths: string[] = [];
+  const server = http.createServer((request, response) => {
+    paths.push(request.url || '');
+    if (request.url?.endsWith('/bills')) {
+      response.writeHead(307, { Location: '/unexpected' }); response.end();
+    } else {
+      response.writeHead(200, { 'Content-Type': 'application/json' });
+      response.end(JSON.stringify({ success: true }));
+    }
+  });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => {
+    server.closeAllConnections(); server.close();
+    if (previous === undefined) delete process.env.PROVIDER_DEWA_URL; else process.env.PROVIDER_DEWA_URL = previous;
+  });
+  process.env.PROVIDER_DEWA_URL = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const actor = actorFor({ sub: 'test-user' }, 'test-account', 'Bearer test');
+  const client = new ProviderClient('test-client', '');
+  for (const [method, code] of [['GET', 'PROVIDER_UNAVAILABLE'], ['POST', 'PROVIDER_OUTCOME_UNKNOWN']] as const) {
+    await assert.rejects(client.call('dewa', actor, method, '/bills', method === 'POST' ? {} : undefined),
+      (error: unknown) => error instanceof UpstreamError && error.code === code);
+  }
+  assert.deepEqual(paths, ['/v1/accounts/test-account/bills', '/v1/accounts/test-account/bills']);
+});
