@@ -88,7 +88,7 @@ test('P1-13: composite checkout charges the reviewed total and books the reviewe
   assert.equal(binding.currency, 'USD');
   assert.equal(binding.dropoff, 'Downtown Dining');
   const destination = getOrCreateSession(sid).currentSurface!.view.children!.find(node => node.id === 'comp_ride_destination');
-  assert.equal(destination?.properties?.text, `Ride destination: ${binding.dropoff}`);
+  assert.equal(destination?.properties?.text, `Ride and meal delivery destination: ${binding.dropoff}`);
   const before = balance, rideIds = new Set(activeRides.keys()), orderIds = new Set(activeOrders.keys());
   const result = await action(sid);
   assert.equal(result.status, 200);
@@ -99,6 +99,7 @@ test('P1-13: composite checkout charges the reviewed total and books the reviewe
   assert.equal(booked?.dropoff, binding.dropoff);
   assert.equal(order?.restaurantId, binding.restaurantId);
   assert.equal(order?.items[0].item.id, binding.itemId);
+  assert.equal(order?.deliveryAddress, binding.dropoff);
 });
 
 test('P1-13: composite confirmation displays estimates from the booked ride and ordered meal', async t => {
@@ -387,6 +388,24 @@ test('P1-13: a mismatched food receipt after order creation blocks replacement c
   assert.deepEqual(result.data.steps.map((step: Step) => [step.service, step.state]), [['wallet', 'SUCCEEDED'], ['ride', 'SUCCEEDED'], ['food', 'UNKNOWN']]);
   assert.equal(balance, Math.round((before - 48.99) * 100) / 100);
   assert.equal(activeRides.size, rides + 1);
+  assert.equal(activeOrders.size, orders + 1);
+  assert.equal((await action(sid)).data.code, 'RECONCILIATION_REQUIRED');
+  assert.equal(activeOrders.size, orders + 1);
+});
+
+test('P1-13: a composite food receipt for another delivery destination stays unconfirmed', async t => {
+  ensureFunds();
+  const sid = 'failure_food_delivery_mismatch';
+  assert.equal((await intent(sid)).status, 200);
+  const realFood = domainHandlers.food;
+  t.mock.method(domainHandlers, 'food', (method, path, query, body) => {
+    const result = realFood(method, path, query, body);
+    return method === 'POST' ? { ...result, data: { ...result.data, order: { ...result.data.order, deliveryAddress: 'Other address' } } } : result;
+  });
+  const orders = activeOrders.size;
+  const result = await action(sid);
+  assert.equal(result.data.outcome, 'UNKNOWN');
+  assert.deepEqual(result.data.steps.map((step: Step) => [step.service, step.state]), [['wallet', 'SUCCEEDED'], ['ride', 'SUCCEEDED'], ['food', 'UNKNOWN']]);
   assert.equal(activeOrders.size, orders + 1);
   assert.equal((await action(sid)).data.code, 'RECONCILIATION_REQUIRED');
   assert.equal(activeOrders.size, orders + 1);

@@ -64,6 +64,8 @@ The composite confirmation uses the selected restaurant's name and the confirmed
 
 The composite review displays its fixed demo ride destination and binds it to the approval and booking request. A receipt for a different destination remains unconfirmed and prevents the meal from being dispatched.
 
+That same reviewed destination is the composite meal delivery address. The food receipt must match it; a conflicting receipt remains unconfirmed and the original checkout requires reconciliation.
+
 The React payment panel maps a `PAYABLE_CHANGED` rejection to localized guidance to review the obligation again. The provider's rejection remains sanitized at the gateway; the panel does not need to display the provider's text.
 
 Compatibility parking activation confirmations match the selected zone, vehicle and duration; extension confirmations match the ticket and require the reported prior and resulting durations to differ by the requested increment. Both require an active meter with usable display fields. The prior duration is reported by the same fixture and is not independent evidence of the earlier state.

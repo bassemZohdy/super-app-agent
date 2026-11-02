@@ -880,7 +880,7 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
       const bookedRide = await executeRideRequest('POST', '/rides/book', {}, { driverId: payload.driverId, dropoff, expectedFareMinor: rideMinor });
 
       onProgress?.('🍕 Dispatching the reviewed meal...');
-      const orderedMeal = await executeFoodRequest('POST', '/orders/create', {}, { restaurantId: payload.restaurantId, items: [payload.itemId], expectedAmountMinor: mealMinor, expectedItemPriceMinor: itemMinor, expectedDeliveryFeeMinor: feeMinor });
+      const orderedMeal = await executeFoodRequest('POST', '/orders/create', {}, { restaurantId: payload.restaurantId, items: [payload.itemId], deliveryAddress: dropoff, expectedAmountMinor: mealMinor, expectedItemPriceMinor: itemMinor, expectedDeliveryFeeMinor: feeMinor });
       const rideEta = bookedRide.data.booking.etaMinutes;
       const foodEta = orderedMeal.data.order.estimatedDeliveryTime;
       const restaurantName = typeof restaurant[0].name === 'string' && restaurant[0].name.trim() ? restaurant[0].name : 'Restaurant';
@@ -1841,7 +1841,7 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
           {
             type: 'Text',
             id: 'comp_ride_destination',
-            properties: { text: `Ride destination: ${demoCompositeDestination}` },
+            properties: { text: `Ride and meal delivery destination: ${demoCompositeDestination}` },
           },
           {
             type: 'MetricWidget',

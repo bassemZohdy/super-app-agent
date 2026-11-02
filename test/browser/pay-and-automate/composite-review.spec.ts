@@ -9,7 +9,7 @@ test('the reviewed ride and meal total is the amount charged in the integrated w
   if (await views.isVisible()) await views.getByRole('button', { name: /Service details/ }).click();
   const approval = resident.getByRole('button', { name: /Authorize Both & Pay AED/ });
   await expect(approval).toBeVisible();
-  await expect(resident.getByText('Ride destination: Downtown Dining', { exact: true })).toBeVisible();
+  await expect(resident.getByText('Ride and meal delivery destination: Downtown Dining', { exact: true })).toBeVisible();
   const delivery = resident.getByText(/^Delivery: AED /);
   await expect(delivery).toBeVisible();
   const deliveryLabel = await delivery.innerText();

@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bind composite meal delivery (P1-13, step)
+
+Composite checkout sends the meal to the reviewed ride destination and verifies that destination in the food receipt. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Bind composite ride destination (P1-13, step)
 
 Composite checkout displays its demo ride destination and verifies the booked ride against the approved destination. Guide: [agent flow](agent-flow.md).
