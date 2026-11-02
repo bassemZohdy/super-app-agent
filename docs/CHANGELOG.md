@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Explain unconfirmed pause results (P1-12, step)
+
+The React automation panel distinguishes confirmed pauses from unconfirmed or unreadable results and directs the owner to check the current rule state. Guide: [automation worker](development/automation-worker.md).
+
 ## 2 November 2026 — Verify owner pause-all results (P1-10, step)
 
 Pause-all validates all mandate owners, accounts, states and versions before dispatch, and reports contradictory or unreadable pause responses as unconfirmed without provider text. Guide: [automation worker](development/automation-worker.md).

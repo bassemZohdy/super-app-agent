@@ -137,4 +137,6 @@ An owner's pause-all (`POST /api/payments/mandates/pause-all`, with `requestKey`
 
 Before dispatch, pause-all validates the complete owner-scoped list, including each rule's account, owner, state and version. It reports a rule as paused only when the response confirms the same owner and account, the same rule, the paused state and the next version. A lost or contradictory response is reported as `PAUSE_UNCONFIRMED`: the rule may already be paused, so inspect its current state rather than assuming failure. Other rules are still attempted, and provider-supplied error text is not exposed.
 
+The React panel announces confirmed pauses separately from unconfirmed results and asks the owner to check current rule state before trying again. It also treats an unreadable result as unconfirmed rather than showing a false zero-paused success.
+
 Signing out and pausing are different things. Signing out ends one browser session; it does not stop a rule, because a run is not tied to that session. A pause or a revoke takes effect where the run is admitted: the provider re-reads the rule, its source and its payable before any money moves, and a run that is no longer approved is closed with nothing moved. Pausing never reverses a payment that was already committed.

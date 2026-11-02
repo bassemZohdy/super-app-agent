@@ -5,6 +5,7 @@ import { describeMandateConsent, type MandateConsent } from '../../../packages/p
 import { describeForecast, type ForecastView } from '../../../packages/protocol-core/src/mandate-forecast-view.ts';
 import { narrowPerPayment, expandPerPayment, changeSource, aedToMinor } from '../../../packages/protocol-core/src/mandate-narrow.ts';
 import { billRulePolicy } from '../../../packages/protocol-core/src/bill-rule.ts';
+import { pauseAllMessage } from './pause-all-message.ts';
 type Props={busy:boolean;read(path:string,query?:Record<string,string>):Promise<any>;
   mutate(path:string,body:Record<string,unknown>):Promise<any>;work(fn:()=>Promise<void>):Promise<void>};
 // The consequences the owner approves, stated the same way as the rules list (trigger, target, funding, caps, expiry, revocation).
@@ -103,8 +104,7 @@ export function MandateConsentPanel({busy,read,mutate,work}:Props){
     <div className="payment-actions"><button disabled={busy} onClick={load}>Load automation rules</button>
       <button disabled={busy} onClick={()=>void work(async()=>{
         const result=await mutate('mandates/pause-all',{requestKey:`pause-all-${Date.now()}`});
-        const paused=Array.isArray(result?.paused)?result.paused.length:0;const failed=Array.isArray(result?.notPaused)?result.notPaused.length:0;
-        setNotice(`Paused ${paused} rule${paused===1?'':'s'}${failed?`; ${failed} could not be paused and are unchanged`:''}. Pausing stops new runs only; a payment already made is not reversed.`);
+        setNotice(pauseAllMessage(result));
         await new Promise(resolve=>setTimeout(resolve,0));load();
       })}>Pause all rules</button>
       <button disabled={busy} onClick={startDraft}>Start a new rule</button></div>
