@@ -25,7 +25,7 @@ test('a lost separate-service wallet response leaves a shared fence for a fresh 
     if (refuseWallet && method === 'POST' && path === '/pay/unified') { res.writeHead(409, { 'content-type': 'application/json' }); res.end(JSON.stringify({ success: false, error: 'No debit made' })); return; }
     if (method === 'POST' && path === '/pay/unified') {
       const snapshot = await check.inspectCivicFence('http-civic-owner', accountIdFor('http-civic-owner'));
-      recordedBeforeDebit = snapshot.civicSteps?.[0]?.state === 'STARTED';
+      recordedBeforeDebit = snapshot.civicSteps?.[0]?.state === 'STARTED' && JSON.stringify(snapshot.civicReview) === JSON.stringify({ ...review, tollAmountMinor: 10000 });
     }
     const handler = path.startsWith('/utilities/') ? domainHandlers.food : path.startsWith('/mobility/') ? domainHandlers.ride : domainHandlers.wallet;
     const result = handler(method, path, {}, body);
@@ -48,7 +48,10 @@ test('a lost separate-service wallet response leaves a shared fence for a fresh 
   await assert.rejects(actorContext.run(actor, () => trackDomainOperations(steps, () => SuperAppAgentGraph.resumeWithAction({ sessionId: 'civic-http', messages: [], activeDomain: 'composite' }, 'confirm_smartcity_checkout', { offlineReview: review }))), /did not complete successfully/);
   assert.equal(dropped, true); assert.equal(recordedBeforeDebit, true, 'the attempt is recorded before the wallet is called'); assert.equal(steps[0].state, 'UNKNOWN'); assert.ok(balance < before); assert.equal(transactions.length, ledger + 1);
   assert.equal(await check.client.exists(key), 1); assert.equal(await check.client.ttl(key), -1);
-  assert.deepEqual((await check.inspectCivicFence(actor.sub, actor.accountId)).civicSteps, [{ name: 'WALLET', state: 'UNKNOWN' }]);
+  const recorded = await check.inspectCivicFence(actor.sub, actor.accountId);
+  assert.deepEqual(recorded.civicSteps, [{ name: 'WALLET', state: 'UNKNOWN' }]);
+  assert.deepEqual(recorded.civicReview, { ...review, tollAmountMinor: 10000 });
+  assert.deepEqual(await check.inspectCivicFence('different-owner', actor.accountId), { status: 'BLOCKED' });
   const childCode = `import { SuperAppAgentGraph } from './services/agent-core/src/langgraph/graph.ts'; import { redisSessions } from './services/agent-core/src/session-store.ts'; import { actorContext, actorFor, accountIdFor } from './packages/backend-kit/src/context.ts'; try { await actorContext.run(actorFor({sub:'other-user'},undefined,'Bearer test'),()=>SuperAppAgentGraph.resumeWithAction({sessionId:'fresh-session',messages:[],activeDomain:'composite'},'confirm_smartcity_checkout',{})); process.exitCode=2; } catch(e) { if(e.code!=='CIVIC_RECONCILIATION_REQUIRED') process.exitCode=3; } finally { await redisSessions()?.close(); }`;
   await execFileAsync(process.execPath, ['--experimental-strip-types', '--input-type=module', '-e', childCode], { cwd: process.cwd(), env: process.env, timeout: 15000 });
   assert.equal(transactions.length, ledger + 1);

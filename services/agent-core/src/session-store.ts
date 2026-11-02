@@ -28,6 +28,23 @@ type CivicOwner = { subject: string; accountId: string; sessionId: string; actio
 export type CivicStepName = 'WALLET' | 'UTILITY' | 'FINES' | 'TOLL';
 type CivicStepState = 'STARTED' | 'CONFIRMED' | 'REJECTED' | 'UNKNOWN';
 type CivicStep = { name: CivicStepName; state: CivicStepState };
+type CivicReview = { billId: string; billAmountMinor: number; fines: Array<{ fineId: string; amountMinor: number }>; tagNumber: string; tollAmountMinor: number };
+function civicReview(value: unknown): CivicReview | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return;
+  const v = value as { billId?: unknown; billAmountMinor?: unknown; fines?: unknown; tagNumber?: unknown; tollAmountMinor?: unknown };
+  const id = (item: unknown): item is string => typeof item === 'string' && item.length <= 128 && /^[A-Za-z0-9][A-Za-z0-9_.:-]*$/.test(item);
+  const amount = (item: unknown): item is number => typeof item === 'number' && Number.isSafeInteger(item) && item >= 0 && item <= 100000000;
+  if (!id(v.billId) || !id(v.tagNumber) || !amount(v.billAmountMinor) || v.tollAmountMinor !== 10000 || !Array.isArray(v.fines) || v.fines.length > 20) return;
+  const fines: CivicReview['fines'] = [];
+  for (const item of v.fines) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return;
+    const fine = item as { fineId?: unknown; amountMinor?: unknown };
+    if (!id(fine.fineId) || !amount(fine.amountMinor) || fine.amountMinor === 0 || fines.some(existing => existing.fineId === fine.fineId)) return;
+    fines.push({ fineId: fine.fineId, amountMinor: fine.amountMinor });
+  }
+  return { billId: v.billId, billAmountMinor: v.billAmountMinor, fines, tagNumber: v.tagNumber, tollAmountMinor: v.tollAmountMinor };
+}
+
 const civicStepNames: ReadonlySet<string> = new Set(['WALLET', 'UTILITY', 'FINES', 'TOLL']);
 const civicStepStates: ReadonlySet<string> = new Set(['STARTED', 'CONFIRMED', 'REJECTED', 'UNKNOWN']);
 const civicOwnerDigest = (subject: string, accountId: string) => createHash('sha256').update(JSON.stringify([subject, accountId])).digest('hex');
@@ -67,26 +84,32 @@ export class RedisSessionStore {
     if (!owner.subject || !owner.accountId || !/^[a-zA-Z0-9_-]{8,128}$/.test(owner.sessionId) || !civicActions.has(owner.action)) throw new SessionError(400, 'CIVIC_CONTEXT_INVALID', 'The civic payment context is invalid.');
     await this.connect();
     const key = `${this.prefix}offline-civic-fence`;
-    const record = { version: 2, nonce: randomUUID(), owner: civicOwnerDigest(owner.subject, owner.accountId), sessionId: owner.sessionId, action: owner.action, steps: [] as CivicStep[] };
+    let record = { version: 3, nonce: randomUUID(), owner: civicOwnerDigest(owner.subject, owner.accountId), sessionId: owner.sessionId, action: owner.action, steps: [] as CivicStep[], review: null as CivicReview | null };
     let current = JSON.stringify(record);
     if (await this.client.set(key, current, { NX: true }) !== 'OK')
       throw new SessionError(409, 'CIVIC_RECONCILIATION_REQUIRED', 'An offline civic payment is in progress or needs reconciliation.');
-    const save = async (steps: CivicStep[]) => {
-      const next = JSON.stringify({ ...record, steps });
+    const save = async (updated: typeof record) => {
+      const next = JSON.stringify(updated);
       await this.connect();
       const saved = await this.client.eval(`if redis.call('GET',KEYS[1])==ARGV[1] then redis.call('SET',KEYS[1],ARGV[2]); return 1 else return 0 end`, { keys: [key], arguments: [current, next] });
       if (saved !== 1) throw new SessionError(503, 'CIVIC_FENCE_LOST', 'Civic payment coordination was lost.');
-      current = next; record.steps = steps;
+      current = next; record = updated;
     };
     return {
+      bindReview: async (value: unknown) => {
+        const review = civicReview(value);
+        if (record.action !== 'confirm_smartcity_checkout' || record.review || record.steps.length || !review) throw new SessionError(409, 'CIVIC_REVIEW_INVALID', 'The civic payment review cannot be bound.');
+        await save({ ...record, review });
+      },
       startStep: async (name: CivicStepName) => {
+        if (record.action === 'confirm_smartcity_checkout' && !record.review) throw new SessionError(409, 'CIVIC_REVIEW_REQUIRED', 'The civic payment review is required before starting a step.');
         if (!civicStepNames.has(name) || record.steps.length >= 4 || record.steps.some(step => step.name === name || step.state !== 'CONFIRMED')) throw new SessionError(409, 'CIVIC_STEP_INVALID', 'The civic payment step cannot be started.');
-        await save([...record.steps, { name, state: 'STARTED' }]);
+        await save({ ...record, steps: [...record.steps, { name, state: 'STARTED' }] });
       },
       finishStep: async (name: CivicStepName, state: Exclude<CivicStepState, 'STARTED'>) => {
         const last = record.steps.at(-1);
         if (!last || last.name !== name || last.state !== 'STARTED' || !['CONFIRMED', 'REJECTED', 'UNKNOWN'].includes(state)) throw new SessionError(409, 'CIVIC_STEP_INVALID', 'The civic payment step cannot be finished.');
-        await save([...record.steps.slice(0, -1), { name, state }]);
+        await save({ ...record, steps: [...record.steps.slice(0, -1), { name, state }] });
       },
       release: async () => {
         await this.connect();
@@ -94,18 +117,21 @@ export class RedisSessionStore {
       },
     };
   }
-  async inspectCivicFence(subject: string, accountId: string): Promise<{ status: 'CLEAR' | 'BLOCKED'; sessionId?: string; action?: CivicAction; civicSteps?: CivicStep[] }> {
+  async inspectCivicFence(subject: string, accountId: string): Promise<{ status: 'CLEAR' | 'BLOCKED'; sessionId?: string; action?: CivicAction; civicSteps?: CivicStep[]; civicReview?: CivicReview }> {
     await this.connect();
     const raw = await this.client.get(`${this.prefix}offline-civic-fence`);
     if (raw === null) return { status: 'CLEAR' };
     try {
-      const record = JSON.parse(raw) as { version?: unknown; owner?: unknown; sessionId?: unknown; action?: unknown; steps?: unknown };
-      if (record && (record.version === 1 || record.version === 2) && record.owner === civicOwnerDigest(subject, accountId) &&
+      const record = JSON.parse(raw) as { version?: unknown; owner?: unknown; sessionId?: unknown; action?: unknown; steps?: unknown; review?: unknown };
+      if (record && (record.version === 1 || record.version === 2 || record.version === 3) && record.owner === civicOwnerDigest(subject, accountId) &&
           typeof record.sessionId === 'string' && /^[a-zA-Z0-9_-]{8,128}$/.test(record.sessionId) &&
           typeof record.action === 'string' && civicActions.has(record.action)) {
         if (record.version === 1) return { status: 'BLOCKED', sessionId: record.sessionId, action: record.action as CivicAction };
-        if (Array.isArray(record.steps) && record.steps.length <= 4 && record.steps.every((step: unknown) => !!step && typeof step === 'object' && civicStepNames.has((step as CivicStep).name) && civicStepStates.has((step as CivicStep).state)))
-          return { status: 'BLOCKED', sessionId: record.sessionId, action: record.action as CivicAction, civicSteps: record.steps.map((step: CivicStep) => ({ name: step.name, state: step.state })) };
+        if (Array.isArray(record.steps) && record.steps.length <= 4 && record.steps.every((step: unknown) => !!step && typeof step === 'object' && civicStepNames.has((step as CivicStep).name) && civicStepStates.has((step as CivicStep).state))) {
+          const review = record.version === 3 && record.review !== null ? civicReview(record.review) : undefined;
+          if (record.version === 3 && record.review !== null && !review) return { status: 'BLOCKED' };
+          return { status: 'BLOCKED', sessionId: record.sessionId, action: record.action as CivicAction, ...(review ? { civicReview: review } : {}), civicSteps: record.steps.map((step: CivicStep) => ({ name: step.name, state: step.state })) };
+        }
       }
     } catch { /* A legacy or unreadable fence stays blocked without exposing its contents. */ }
     return { status: 'BLOCKED' };

@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Preserve reviewed civic resources (P1-13, step)
+
+Separate-service composite checkout stores the reviewed bill, fines, toll target and exact amounts in the owner-scoped fence before dispatch. Live Redis and HTTP tests verify the review is present before the wallet call, remains bound after an unknown response, and stays hidden from other accounts. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Journal civic payment attempts (P1-13, step)
 
 Separate-service civic actions record each step before dispatch and retain its classified response in the owner-scoped fence. Live Redis and HTTP tests cover a lost wallet response, a refused utility step after debit, and session-save failure. This evidence does not itself reconcile a payment. Guide: [integrations](integrations.md).

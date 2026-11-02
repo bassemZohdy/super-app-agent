@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { RedisSessionStore } from '../../services/agent-core/src/session-store.ts';
 import { accountIdFor } from '../../packages/backend-kit/src/context.ts';
 import { createA2UIMessage } from '../../packages/protocol-core/src/index.ts';
@@ -41,7 +41,7 @@ test('civic coordination survives client restart and only its owner can release 
   await assert.rejects(() => second.acquireCivicFence(owner), /civic payment/i, 'a restart retains the fence');
   await held.release();
   const current = await second.acquireCivicFence(owner);
-  await assert.rejects(() => held.startStep('WALLET'), /coordination/i, 'an old owner cannot alter a newer fence');
+  await assert.rejects(() => held.bindReview({ billId: 'B1', billAmountMinor: 0, fines: [], tagNumber: 'T1', tollAmountMinor: 10000 }), /coordination/i, 'an old owner cannot alter a newer fence');
   await held.release();
   await assert.rejects(() => first.acquireCivicFence(owner), /civic payment/i, 'an old token cannot release a newer fence');
   await current.release();
@@ -58,6 +58,14 @@ test('civic fence inspection exposes journey details only to its owner and accou
   assert.deepEqual(await store.inspectCivicFence(owner.subject, owner.accountId), { status: 'CLEAR' });
   const fence = await store.acquireCivicFence(owner);
   assert.deepEqual(await store.inspectCivicFence(owner.subject, owner.accountId), { status: 'BLOCKED', sessionId: owner.sessionId, action: owner.action, civicSteps: [] });
+  const reviewed = { billId: 'DEWA-1', billAmountMinor: 200, fines: [{ fineId: 'FINE-1', amountMinor: 300 }], tagNumber: 'SLK-1', tollAmountMinor: 10000 };
+  await assert.rejects(() => fence.startStep('WALLET'), /review/i);
+  await assert.rejects(() => fence.bindReview({ ...reviewed, fines: [reviewed.fines[0], reviewed.fines[0]] }), /review/i);
+  await assert.rejects(() => fence.bindReview({ ...reviewed, billAmountMinor: Number.MAX_SAFE_INTEGER }), /review/i);
+  await assert.rejects(() => fence.bindReview({ ...reviewed, tollAmountMinor: 9999 }), /review/i);
+  await fence.bindReview(reviewed);
+  assert.deepEqual((await store.inspectCivicFence(owner.subject, owner.accountId)).civicReview, reviewed);
+  await assert.rejects(() => fence.bindReview({ ...reviewed, billAmountMinor: 999 }), /review/i);
   await fence.startStep('WALLET');
   assert.deepEqual((await store.inspectCivicFence(owner.subject, owner.accountId)).civicSteps, [{ name: 'WALLET', state: 'STARTED' }]);
   await assert.rejects(() => fence.startStep('UTILITY'), /step/i);
@@ -68,6 +76,9 @@ test('civic fence inspection exposes journey details only to its owner and accou
   assert.deepEqual(await store.inspectCivicFence('bob', owner.accountId), { status: 'BLOCKED' });
   assert.deepEqual(await store.inspectCivicFence(owner.subject, accountIdFor('alice', 'household')), { status: 'BLOCKED' });
   await fence.release();
+  const digest = createHash('sha256').update(JSON.stringify([owner.subject, owner.accountId])).digest('hex');
+  await store.client.set(`${prefix}offline-civic-fence`, JSON.stringify({ version: 2, owner: digest, sessionId: owner.sessionId, action: owner.action, steps: [{ name: 'WALLET', state: 'UNKNOWN' }] }));
+  assert.deepEqual(await store.inspectCivicFence(owner.subject, owner.accountId), { status: 'BLOCKED', sessionId: owner.sessionId, action: owner.action, civicSteps: [{ name: 'WALLET', state: 'UNKNOWN' }] });
   await store.client.set(`${prefix}offline-civic-fence`, 'legacy-unattributed-token');
   assert.deepEqual(await store.inspectCivicFence(owner.subject, owner.accountId), { status: 'BLOCKED' });
 });

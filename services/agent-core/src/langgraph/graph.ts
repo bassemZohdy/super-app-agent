@@ -596,6 +596,7 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
       const totalMinor = review.billAmountMinor + fineMinor + 10000;
       const wallet = (await executeWalletRequest('GET', '/wallet/balance')).data as WalletBalance;
       if (toMinor(wallet.balance) < totalMinor) throw new HttpError(400, 'Insufficient wallet balance for this checkout.');
+      if (sharedFence) await sharedFence.bindReview({ ...review, tollAmountMinor: 10000 });
       let walletConfirmed = false;
       try {
       const res = await civicStep('WALLET', () => executeWalletRequest('POST', '/pay/unified', {}, { items: [
