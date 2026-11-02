@@ -73,3 +73,14 @@ test('a confirmed wallet receipt with an operation ID still requires that exact 
   const ledger = { transactions: [{ ...wallet.transactions[0], operationId: 'CIVIC-123' }] };
   assert.deepEqual(await compareCivicEvidence(review, confirmed, async () => ledger), [{ name: 'WALLET', assessment: 'MATCH' }]);
 });
+
+
+test('a lost utility response can be observed only for the saved operation and reviewed bill', async () => {
+  const operationId = 'CIVIC-utility';
+  const unknown = [{ name: 'UTILITY', state: 'UNKNOWN', operationId }] as const;
+  const operation = { operation: { operationId, status: 'SETTLED', billId: 'B1', amountMinor: 200, receiptReference: 'U1' } };
+  assert.deepEqual(await compareCivicEvidence(review, unknown, async source => source === 'utility-operation' ? operation : bill), [{ name: 'UTILITY', assessment: 'OBSERVED', observedReceiptReference: 'U1' }]);
+  const changed = { operation: { ...operation.operation, billId: 'other' } };
+  assert.deepEqual(await compareCivicEvidence(review, unknown, async source => source === 'utility-operation' ? changed : bill), [{ name: 'UTILITY', assessment: 'UNVERIFIABLE' }]);
+  assert.deepEqual(await compareCivicEvidence(review, unknown, async source => source === 'utility-operation' ? operation : { bill: { ...bill.bill, receiptNumber: 'other' } }), [{ name: 'UTILITY', assessment: 'UNVERIFIABLE' }]);
+});

@@ -37,5 +37,5 @@ test('a refused utility step retains the confirmed wallet and rejected utility e
   assert.ok(balance < before); assert.equal(transactions.length, ledger + 1); assert.equal(activeUtilityBill.status, 'UNPAID'); assert.equal(salikBalance, tollBefore); assert.equal(laterWrites, 0);
   const saved = await check.inspectCivicFence(actor.sub, actor.accountId);
   assert.match(saved.civicSteps?.[0]?.operationId || '', /^CIVIC-/);
-  assert.deepEqual(saved.civicSteps, [{ name: 'WALLET', state: 'CONFIRMED', operationId: saved.civicSteps?.[0]?.operationId, receiptReference: transactions.at(-1)?.id }, { name: 'UTILITY', state: 'REJECTED' }]);
+  assert.deepEqual(saved.civicSteps, [{ name: 'WALLET', state: 'CONFIRMED', operationId: saved.civicSteps?.[0]?.operationId, receiptReference: transactions.at(-1)?.id }, { name: 'UTILITY', state: 'REJECTED', operationId: saved.civicSteps?.[1]?.operationId }]);
 });

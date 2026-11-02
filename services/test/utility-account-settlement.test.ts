@@ -21,6 +21,8 @@ test('utility settlement refuses bills and payables outside the account before p
     throw new Error('Unexpected provider call');
   });
   const legacy = () => ({ status: 404, data: {} });
+  assert.equal((await integratedRequest('service-food', actor, 'POST', '/utilities/pay', {}, { billId: 'bill-one', expectedAmountMinor: 100, operationId: 'CIVIC-test' }, legacy)).status, 400);
+  assert.equal((await integratedRequest('service-food', actor, 'GET', '/utilities/payment-operations/CIVIC-test', {}, {}, legacy)).status, 404);
   const standalone = () => integratedRequest('service-food', actor, 'POST', '/utilities/pay', {}, { billId: 'bill-one', expectedAmountMinor: 100 }, legacy);
   const grouped = () => integratedRequest('service-wallet', actor, 'POST', '/pay/unified', {}, { items: [{ agency: 'DEWA', purpose: 'Review', amount: 1 }], expectedPayables: [{ provider: 'dewa', payableId: 'dewa:bill:one', expectedRevision: revision }] }, legacy);
   for (scenario of ['other-bill', 'paid-other', 'other-premise']) { const before = payableReads; assert.equal((await standalone()).status, 404); assert.equal(payableReads, before); }

@@ -164,6 +164,9 @@ export interface UtilityBill {
   };
 }
 
+type OfflineUtilityOperation = { signature: string; billId: string; amountMinor: number; receiptReference: string; response: Record<string, unknown> };
+const offlineUtilityOperations = new Map<string, OfflineUtilityOperation>();
+
 export let activeUtilityBill: UtilityBill = {
   billId: 'DEWA-2026-10-8492',
   premiseId: 'DEWA-201948201',
@@ -233,9 +236,21 @@ function handleFoodRequest(
     };
   }
 
+  const utilityOperation = /^\/utilities\/payment-operations\/([^/]+)$/.exec(pathname);
+  if (normMethod === 'GET' && utilityOperation) {
+    const operationId = decodeURIComponent(utilityOperation[1]), operation = offlineUtilityOperations.get(operationId);
+    return { status: 200, data: { success: true, operation: operation ? { operationId, status: 'SETTLED', billId: operation.billId, amountMinor: operation.amountMinor, receiptReference: operation.receiptReference } : null } };
+  }
+
   if (normMethod === 'POST' && (pathname === '/utilities/pay' || pathname === '/bill/pay')) {
-    if (body.billId !== activeUtilityBill.billId) return { status: 404, data: { error: 'Utility bill not found' } };
     if (body.expectedPayableRevision !== undefined) return invalidInput('Reviewed payable revisions require integrated provider mode');
+    const signature = JSON.stringify([body.billId, body.expectedAmountMinor ?? null]);
+    const previous = body.operationId ? offlineUtilityOperations.get(body.operationId) : undefined;
+    if (previous) {
+      if (previous.signature !== signature) return { status: 409, data: { success: false, code: 'IDEMPOTENCY_CONFLICT', error: 'This operation already has different terms.' } };
+      return { status: 200, data: structuredClone(previous.response) };
+    }
+    if (body.billId !== activeUtilityBill.billId) return { status: 404, data: { error: 'Utility bill not found' } };
     if (activeUtilityBill.status !== 'UNPAID') return { status: 409, data: { error: 'Utility bill is already paid', code: 'ALREADY_PAID' } };
     if (body.expectedAmountMinor !== undefined && body.expectedAmountMinor !== toMinor(activeUtilityBill.totalAmount)) {
       return { status: 409, data: { error: 'The reviewed utility amount changed', code: 'PAYABLE_CHANGED' } };
@@ -244,21 +259,12 @@ function handleFoodRequest(
     activeUtilityBill.receiptNumber = `REC-DEWA-${Date.now()}`;
     activeUtilityBill.paidAt = new Date().toISOString();
 
-    return {
-      status: 200,
-      data: {
-        success: true,
-        message: `Utility bill ${activeUtilityBill.billId} paid in full`,
-        receipt: {
-          billId: activeUtilityBill.billId,
-          receiptNumber: activeUtilityBill.receiptNumber,
-          amountPaid: `${activeUtilityBill.totalAmount} ${activeUtilityBill.currency}`,
-          premiseId: activeUtilityBill.premiseId,
-          paidAt: activeUtilityBill.paidAt,
-          greenPointsAwarded: 50,
-        },
-      },
+    const response = {
+      success: true, message: `Utility bill ${activeUtilityBill.billId} paid in full`, ...(body.operationId ? { operationId: body.operationId } : {}),
+      receipt: { billId: activeUtilityBill.billId, receiptNumber: activeUtilityBill.receiptNumber, amountPaid: `${activeUtilityBill.totalAmount} ${activeUtilityBill.currency}`, premiseId: activeUtilityBill.premiseId, paidAt: activeUtilityBill.paidAt, greenPointsAwarded: 50 },
     };
+    if (body.operationId) offlineUtilityOperations.set(body.operationId, { signature, billId: body.billId, amountMinor: body.expectedAmountMinor, receiptReference: activeUtilityBill.receiptNumber, response });
+    return { status: 200, data: structuredClone(response) };
   }
 
   if (normMethod === 'GET' && (pathname === '/utilities/eco-advice' || pathname === '/eco-advice')) {

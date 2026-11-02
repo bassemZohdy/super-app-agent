@@ -74,10 +74,11 @@ test('civic fence inspection exposes journey details only to its owner and accou
   await assert.rejects(() => fence.startStep('UTILITY'), /step/i);
   await assert.rejects(() => fence.finishStep('WALLET', 'CONFIRMED', 'invalid reference with spaces'), /step/i);
   await fence.finishStep('WALLET', 'CONFIRMED', 'GOV-TX-1');
-  await fence.startStep('UTILITY');
+  const utilityOperationId = await fence.startStep('UTILITY');
+  assert.match(utilityOperationId!, /^CIVIC-/);
   await assert.rejects(() => fence.finishStep('UTILITY', 'UNKNOWN', 'unexpected-reference'), /step/i);
   await fence.finishStep('UTILITY', 'UNKNOWN');
-  assert.deepEqual((await store.inspectCivicFence(owner.subject, owner.accountId)).civicSteps, [{ name: 'WALLET', state: 'CONFIRMED', operationId, receiptReference: 'GOV-TX-1' }, { name: 'UTILITY', state: 'UNKNOWN' }]);
+  assert.deepEqual((await store.inspectCivicFence(owner.subject, owner.accountId)).civicSteps, [{ name: 'WALLET', state: 'CONFIRMED', operationId, receiptReference: 'GOV-TX-1' }, { name: 'UTILITY', state: 'UNKNOWN', operationId: utilityOperationId }]);
   await assert.rejects(() => fence.startStep('FINES'), /step/i);
   assert.deepEqual(await store.inspectCivicFence('bob', owner.accountId), { status: 'BLOCKED' });
   assert.deepEqual(await store.inspectCivicFence(owner.subject, accountIdFor('alice', 'household')), { status: 'BLOCKED' });
@@ -87,4 +88,21 @@ test('civic fence inspection exposes journey details only to its owner and accou
   assert.deepEqual(await store.inspectCivicFence(owner.subject, owner.accountId), { status: 'BLOCKED', sessionId: owner.sessionId, action: owner.action, civicSteps: [{ name: 'WALLET', state: 'UNKNOWN' }] });
   await store.client.set(`${prefix}offline-civic-fence`, 'legacy-unattributed-token');
   assert.deepEqual(await store.inspectCivicFence(owner.subject, owner.accountId), { status: 'BLOCKED' });
+});
+
+
+test('older wallet-only journals remain observable after utility identities are introduced', async t => {
+  const prefix = `cityside-civic-v6-test:${randomUUID()}:`, url = process.env.TEST_REDIS_URL || 'redis://127.0.0.1:6379';
+  const store = new RedisSessionStore(url, 60, prefix), key = `${prefix}offline-civic-fence`;
+  t.after(async () => { await store.connect(); await store.client.del(key); await store.close(); });
+  const owner = { subject: 'owner', accountId: 'account', sessionId: 'old_civic_session', action: 'confirm_smartcity_checkout' as const };
+  const fence = await store.acquireCivicFence(owner);
+  await fence.bindReview({ billId: 'B1', billAmountMinor: 0, fines: [], tagNumber: 'T1', tollAmountMinor: 10000 });
+  await fence.startStep('WALLET'); await fence.finishStep('WALLET', 'UNKNOWN');
+  const raw = await store.client.get(key); assert.ok(raw);
+  await store.client.set(key, JSON.stringify({ ...JSON.parse(raw), version: 6 }));
+  const old = await store.inspectCivicFence(owner.subject, owner.accountId); assert.ok(old.revision);
+  await store.observeCivicWallet(owner.subject, owner.accountId, old.revision, 'W1');
+  const updated = await store.inspectCivicFence(owner.subject, owner.accountId);
+  assert.equal(updated.civicSteps?.[0].state, 'CONFIRMED'); assert.equal(updated.civicSteps?.[0].recoveredFrom, 'UNKNOWN');
 });

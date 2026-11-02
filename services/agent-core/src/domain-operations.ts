@@ -117,7 +117,8 @@ function confirmedReceipt(service: string, path: string, data: any, body: unknow
     if (path === '/orders/create') return record(data.order) && named(data.order.orderId) && finite(data.order.totalAmount);
     if (path === '/utilities/pay') {
       if (!record(body) || !record(data.receipt)) return false;
-      const request = body as { billId?: unknown; expectedAmountMinor?: unknown }, receipt = data.receipt;
+      const request = body as { billId?: unknown; expectedAmountMinor?: unknown; operationId?: unknown }, receipt = data.receipt;
+      if (request.operationId !== undefined && (!named(request.operationId) || data.operationId !== request.operationId)) return false;
       if (!named(request.billId) || receipt.billId !== request.billId || !named(receipt.receiptNumber) || typeof receipt.amountPaid !== 'string') return false;
       const amount = /^(0|[1-9]\d*)(?:\.(\d{1,2}))?( AED)?$/.exec(receipt.amountPaid);
       if (!amount || (amount[3] ? receipt.currency !== undefined && receipt.currency !== 'AED' : receipt.currency !== 'AED')) return false;

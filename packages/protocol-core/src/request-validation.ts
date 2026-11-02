@@ -139,7 +139,8 @@ route('service-food', 'POST', '/orders/create', object({ restaurantId: id, items
 route('service-food', 'GET', '/orders/track/{orderId}', object({ orderId: id }, ['orderId']), [], 'food_trackOrder');
 route('service-food', 'GET', '/utilities/consumption', object(), ['/consumption'], 'utilities_getConsumption');
 route('service-food', 'GET', '/utilities/bill', object(), ['/bill'], 'utilities_getBill');
-route('service-food', 'POST', '/utilities/pay', object({ billId: id,expectedPayableRevision:{type:'string',pattern:'^[a-f0-9]{64}$'},expectedAmountMinor:{type:'integer',minimum:1,maximum:100000000} }, ['billId']), ['/bill/pay'], 'utilities_payBill');
+route('service-food', 'POST', '/utilities/pay', { ...object({ billId: id, operationId: { ...id, description: 'Offline fixture operation identity; integrated provider mode rejects this field.' }, expectedPayableRevision:{type:'string',pattern:'^[a-f0-9]{64}$'},expectedAmountMinor:{type:'integer',minimum:1,maximum:100000000} }, ['billId']), dependencies: { operationId: ['expectedAmountMinor'] } }, ['/bill/pay'], 'utilities_payBill');
+route('service-food', 'GET', '/utilities/payment-operations/{operationId}', object({ operationId: id }, ['operationId']));
 route('service-food', 'GET', '/utilities/eco-advice', object(), ['/eco-advice'], 'utilities_getEcoAdvice');
 route('service-wallet', 'GET', '/wallet/balance', object(), [], 'wallet_getBalance');
 route('service-wallet', 'GET', '/wallet/transactions', object(), [], 'wallet_getTransactions');

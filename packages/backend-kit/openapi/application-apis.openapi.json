@@ -2017,6 +2017,13 @@
                     "maxLength": 128,
                     "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
                   },
+                  "operationId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$",
+                    "description": "Offline fixture operation identity; integrated provider mode rejects this field."
+                  },
                   "expectedPayableRevision": {
                     "type": "string",
                     "pattern": "^[a-f0-9]{64}$"
@@ -2030,7 +2037,12 @@
                 "required": [
                   "billId"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "dependentRequired": {
+                  "operationId": [
+                    "expectedAmountMinor"
+                  ]
+                }
               }
             }
           }

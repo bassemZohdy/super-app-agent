@@ -1,0 +1,52 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import http from 'node:http';
+import { SuperAppAgentGraph } from '../../services/agent-core/src/langgraph/graph.ts';
+import { domainHandlers, callDomainAsync } from '../../services/agent-core/src/domain-operations.ts';
+import { compareCivicEvidence } from '../../services/agent-core/src/civic-evidence.ts';
+import { RedisSessionStore, redisSessions } from '../../services/agent-core/src/session-store.ts';
+import { actorContext, actorFor, accountIdFor } from '../../packages/backend-kit/src/context.ts';
+import { executeWalletRequest, balance, transactions } from '../../services/service-wallet/src/index.ts';
+import { executeFoodRequest, activeUtilityBill } from '../../services/service-food/src/index.ts';
+import { executeRideRequest, salikBalance } from '../../services/service-ride/src/index.ts';
+import { toMinor } from '../../packages/protocol-core/src/request-validation.ts';
+
+test('a lost utility response can be observed by its saved operation identity', async t => {
+  process.env.DOMAIN_TRANSPORT = 'http'; process.env.SESSION_STORE = 'redis';
+  process.env.REDIS_URL = process.env.TEST_REDIS_URL || 'redis://127.0.0.1:6379';
+  const check = new RedisSessionStore(process.env.REDIS_URL), key = 'superapp:offline-civic-fence';
+  await check.connect(); assert.equal(await check.client.exists(key), 0, 'test requires an isolated empty fence');
+  let laterWrites = 0, recordedBeforeUtility = false;
+  const server = http.createServer(async (req, res) => {
+    const chunks: Buffer[] = []; for await (const chunk of req) chunks.push(Buffer.from(chunk));
+    const path = new URL(req.url!, 'http://localhost').pathname, method = req.method!, body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : {};
+    if (method === 'POST' && ['/fines/pay', '/mobility/salik/recharge'].includes(path)) laterWrites++;
+    if (method === 'POST' && path === '/utilities/pay') {
+      const snapshot = await check.inspectCivicFence('partial-civic-owner', accountIdFor('partial-civic-owner'));
+      recordedBeforeUtility = snapshot.civicSteps?.[1]?.state === 'STARTED' && snapshot.civicSteps[1].operationId === body.operationId && typeof body.operationId === 'string';
+    }
+    const handler = path.startsWith('/utilities/') ? domainHandlers.food : path.startsWith('/mobility/') ? domainHandlers.ride : domainHandlers.wallet;
+    const result = handler(method, path, {}, body);
+    if (method === 'POST' && path === '/utilities/pay') { req.socket.destroy(); return; }
+    res.writeHead(result.status, { 'content-type': 'application/json' }); res.end(JSON.stringify(result.data));
+  });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address(); assert.ok(address && typeof address !== 'string');
+  const base = `http://127.0.0.1:${address.port}`;
+  Object.assign(process.env, { SERVICE_WALLET_URL: base, SERVICE_FOOD_URL: base, SERVICE_RIDE_URL: base });
+  t.after(async () => { await new Promise<void>(resolve => server.close(() => resolve())); await check.client.del(key); await check.close(); await redisSessions()?.close(); });
+  assert.equal(executeWalletRequest('POST', '/wallet/topup', {}, { amount: 5000 }).status, 200);
+  const bill = executeFoodRequest('GET', '/utilities/bill').data.bill, fines = executeWalletRequest('GET', '/fines/check').data, salik = executeRideRequest('GET', '/mobility/salik/balance').data;
+  const review = { billId: bill.billId, billAmountMinor: toMinor(bill.totalAmount), fines: fines.fines.map((fine: { fineId: string; payableAmount: number }) => ({ fineId: fine.fineId, amountMinor: toMinor(fine.payableAmount) })).sort((a: { fineId: string }, b: { fineId: string }) => a.fineId.localeCompare(b.fineId)), tagNumber: salik.tagNumber };
+  const actor = actorFor({ sub: 'partial-civic-owner' }, undefined, 'Bearer test'), before = balance, ledger = transactions.length, tollBefore = salikBalance;
+  await assert.rejects(actorContext.run(actor, () => SuperAppAgentGraph.resumeWithAction({ sessionId: 'civic-partial', messages: [], activeDomain: 'composite' }, 'confirm_smartcity_checkout', { offlineReview: review })), /did not complete successfully/);
+  assert.equal(recordedBeforeUtility, true); assert.ok(balance < before); assert.equal(transactions.length, ledger + 1); assert.equal(activeUtilityBill.status, 'PAID'); assert.equal(salikBalance, tollBefore); assert.equal(laterWrites, 0);
+  const saved = await check.inspectCivicFence(actor.sub, actor.accountId);
+  assert.match(saved.civicSteps?.[0]?.operationId || '', /^CIVIC-/);
+  assert.deepEqual(saved.civicSteps, [{ name: 'WALLET', state: 'CONFIRMED', operationId: saved.civicSteps?.[0]?.operationId, receiptReference: transactions.at(-1)?.id }, { name: 'UTILITY', state: 'UNKNOWN', operationId: saved.civicSteps?.[1]?.operationId }]);
+  assert.ok(saved.civicReview && saved.civicSteps);
+  const evidence = await compareCivicEvidence(saved.civicReview, saved.civicSteps, (source, ref) => actorContext.run(actor, async () => (await callDomainAsync(source === 'fine-receipt' || source === 'wallet-operation' ? 'wallet' : source === 'utility-operation' ? 'food' : source, 'GET', source === 'wallet' ? '/wallet/transactions' : source === 'wallet-operation' ? `/wallet/unified-operations/${ref}` : source === 'food' ? '/utilities/bill' : source === 'utility-operation' ? `/utilities/payment-operations/${ref}` : source === 'fine-receipt' ? `/fines/receipts/${ref}` : `/mobility/salik/recharges/${ref}`)).data));
+  assert.deepEqual(evidence, [{ name: 'WALLET', assessment: 'MATCH' }, { name: 'UTILITY', assessment: 'OBSERVED', observedReceiptReference: activeUtilityBill.receiptNumber }]);
+  const replay = executeFoodRequest('POST', '/utilities/pay', {}, { billId: review.billId, expectedAmountMinor: review.billAmountMinor, operationId: saved.civicSteps[1].operationId });
+  assert.equal(replay.status, 200); assert.equal(replay.data.receipt.receiptNumber, activeUtilityBill.receiptNumber); assert.equal(transactions.length, ledger + 1);
+});

@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Identify a lost offline utility response (P1-13, step)
+
+Separate-service civic checkout saves a utility operation ID before dispatch. The synthetic utility fixture binds that ID to the reviewed bill and amount, deduplicates same-term requests within its process, and supports read-only evidence after a lost response. Redis/HTTP tests cover the lost response and older wallet journals. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Record an observed wallet outcome (P1-13, step)
 
 The owner can record matching lost-response wallet evidence against the original civic journal without another debit or fence release. Live Redis/HTTP tests cover changed evidence, cross-account requests, retries, concurrency and an original wallet response still in flight. Guide: [integrations](integrations.md).

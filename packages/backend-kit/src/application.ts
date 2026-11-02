@@ -229,7 +229,10 @@ export async function integratedRequest(service: string, actor: Actor, method: s
         const payable = payables.find((p: Payable) => p?.obligationId === bill.billId && p.provider === 'dewa' && p.kind === 'BILL' && p.reference === asset.utilityAccount);
         return successful({ bill: { ...bill, payableId: payable?.id, payableRevision: payable?.revision } });
       }
-      if (method === 'POST' && path === '/utilities/pay') return successfulWithoutDuplicate(await settleBill('dewa', body.billId));
+      if (method === 'POST' && path === '/utilities/pay') {
+        if (body.operationId !== undefined) throw new UpstreamError(400, 'VALIDATION_ERROR', 'Offline operation identities are not supported in integrated provider mode.');
+        return successfulWithoutDuplicate(await settleBill('dewa', body.billId));
+      }
       if (method === 'GET' && ['/restaurants/search','/utilities/eco-advice'].includes(path)) return legacy(method, path, query, body);
       if (method === 'POST' && path === '/orders/create') {
         const restaurant = restaurants.find(r => r.id === body.restaurantId);
