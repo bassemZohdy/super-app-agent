@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bind whole resource tokens (P1-13, step)
+
+Focused fine and vehicle selection retains prefixes and incomplete references, preventing substitution or a default selection; the model receives placeholders instead of these references. Guide: [shell parity](development/shell-parity.md).
+
 ## 2 November 2026 — Preserve complete resource references (P1-13, step)
 
 Fine and vehicle selection retains trailing hyphens instead of substituting a shorter ID; the fixture planner leaves exact fine binding to the graph. Guide: [shell parity](development/shell-parity.md).

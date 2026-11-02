@@ -66,6 +66,19 @@ test('a fine reference ending in a hyphen is not shortened to another fine', asy
   } finally { await h.close(); }
 });
 
+test('fine references embedded in a longer ID do not broaden or substitute a payment selection', async () => {
+  const h = await harness();
+  try {
+    const root = `/api/agent/threads/${await h.thread()}`;
+    for (const message of ['pay prefix-fine-1', 'pay prefix_fine-1', 'pay fine-1 and prefix_fine-1', 'pay fine-']) {
+      const result = await h.req(`${root}/messages`, { message });
+      assert.equal(result.data.status, 'invalid_selection');
+      assert.equal(result.data.approval, null);
+    }
+    assert.equal((h.store.db.prepare('SELECT count(*) AS n FROM sa_sim_payments').get() as { n: number }).n, 0);
+  } finally { await h.close(); }
+});
+
 test('named fine reads return only the selected fines and reject unavailable selections', async () => {
   const h = await harness({ planner: { async plan() { return { intent: 'list_fines', fineIds: [] }; } } });
   try {

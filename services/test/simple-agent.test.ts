@@ -69,6 +69,26 @@ test('OpenAI-compatible planner calls configured HTTP endpoint and validates its
     assert.deepEqual(plan, { intent: 'pay_fines', fineIds: ['fine-1'] }); assert.equal(called, true);
   } finally { await new Promise<void>(resolve => { server.close(() => resolve()); server.closeIdleConnections(); }); }
 });
+test('planner withholds complete embedded fine and vehicle references from the model', async () => {
+  let request = '';
+  const server = http.createServer((req, res) => {
+    req.setEncoding('utf8');
+    req.on('data', chunk => { request += chunk; });
+    req.on('end', () => {
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ intent: 'pay_fines', fineIds: [] }) } }] }));
+    });
+  });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const planner = new CompatiblePlanner(new URL(`http://127.0.0.1:${(server.address() as { port: number }).port}/v1/`), 'mock-model');
+    const plan = await planner.plan([{ role: 'user', content: 'pay prefix_fine-1- for prefix_veh-2-' }], []);
+    assert.deepEqual(plan.fineIds, ['prefix_fine-1-']);
+    assert.doesNotMatch(request, /prefix_fine-1-|prefix_veh-2-/);
+    assert.match(request, /the selected fine/);
+    assert.match(request, /the selected vehicle/);
+  } finally { await new Promise<void>(resolve => { server.close(() => resolve()); server.closeIdleConnections(); }); }
+});
 test('tool timeout and schema failures are safe; consequential calls require key', async () => {
   const h = await harness({ timeoutMs: 10 });
   try {

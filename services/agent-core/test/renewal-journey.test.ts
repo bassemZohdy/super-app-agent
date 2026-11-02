@@ -88,6 +88,19 @@ test('a vehicle reference ending in a hyphen is not shortened to another vehicle
   } finally { await h.close(); }
 });
 
+test('a vehicle reference embedded in a longer ID cannot select the default vehicle', async () => {
+  const { h, say, payFinesDirectly } = await journey({ planner: { async plan() { return { intent: 'renew_registration', fineIds: [] }; } } });
+  try {
+    payFinesDirectly();
+    for (const message of ['renew registration for prefix-veh-1', 'renew registration for prefix_veh-1', 'renew registration for veh-']) {
+      const result = await say(message);
+      assert.equal(result.data.status, 'clarify');
+      assert.equal(result.data.renewalApproval, null);
+    }
+    assert.equal(count(h, 'sa_sim_renewals'), 0);
+  } finally { await h.close(); }
+});
+
 test('renewal journey: fines first, then a second approval, each with exactly one effect', async () => {
   const { h, say, decide, root } = await journey();
   try {

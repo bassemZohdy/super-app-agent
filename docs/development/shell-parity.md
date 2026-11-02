@@ -56,6 +56,8 @@ While a focused payment approval is pending, both the structured fine list and t
 
 Named fine and vehicle references are bound with their complete ID, including trailing hyphens. An unavailable reference is not shortened to a different existing resource. The deterministic planner classifies the request; the graph binds its fine selection from the user's text.
 
+An identifier containing `fine-` or `veh-` is treated as a whole token, including any prefix or an empty suffix. It is matched exactly against available resources instead of falling back to all fines or the default vehicle. The compatible planner receives placeholders for these tokens rather than the identifiers themselves.
+
 After the payment receipt is verified and persisted, its fine IDs are removed from the previously fetched list in the response and restored surface. Other entries remain a snapshot from before the payment; request the fines list again to refresh it. Unknown payment outcomes do not remove any entries.
 
 Each new focused request clears the prior fine and vehicle snapshots before planning. Clarification, unsupported requests and planning errors therefore cannot present an earlier list as their result. Conversation history remains available for supported selected-fine follow-ups; pending approvals and unknown outcomes must still be resolved before a new request.
