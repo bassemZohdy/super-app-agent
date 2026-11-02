@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { localizeFocusedSurface } from '../../apps/shell-react/src/focused-surface-locale.ts';
+import { localizeFocusedReply, localizeFocusedSurface } from '../../apps/shell-react/src/focused-surface-locale.ts';
 import type { UIComponentNode } from '../../packages/protocol-core/src/ag-ui.ts';
 
 test('Arabic review translates only the matching display contract and preserves every action and amount', () => {
@@ -46,4 +46,15 @@ test('Arabic table headers change only for the known column contracts and keep e
   assert.deepEqual(localized.children?.map(node => node.properties?.rows), [fines.properties?.rows, vehicles.properties?.rows]);
   const altered = structuredClone(view); altered.children![0].properties!.columns![2].title = 'Amount (USD)';
   assert.deepEqual(localizeFocusedSurface(altered, null, false, 'ar').children?.[0], altered.children![0]);
+});
+
+test('fixed safety replies are translated consistently while unfamiliar text remains unchanged', () => {
+  const reply = 'The simulated payment was not executed.';
+  const view: UIComponentNode = { id: 'fines-service', type: 'SurfaceCard', children: [{ id: 'reply', type: 'Text', properties: { text: reply } }] };
+  assert.equal(localizeFocusedReply(reply, 'ar'), 'لم تُنفّذ عملية الدفع التجريبية.');
+  assert.equal(localizeFocusedSurface(view, null, false, 'ar').children?.[0].properties?.text, localizeFocusedReply(reply, 'ar'));
+  assert.equal(localizeFocusedReply(reply, 'en'), reply);
+  const unknown = 'Payment not confirmed (NEW_CODE). Inspect the original operation.';
+  assert.equal(localizeFocusedReply(unknown, 'ar'), unknown);
+  assert.equal(localizeFocusedReply(`${reply} Extra detail.`, 'ar'), `${reply} Extra detail.`);
 });

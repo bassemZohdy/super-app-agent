@@ -5,7 +5,7 @@ import { WorkspacePanes } from './components/WorkspacePanes.tsx';
 import { A2UIRenderer } from './components/A2UIRenderer.tsx';
 import { useLocale } from './locale.ts';
 import { formatMoney, formatTime, type CatalogKey } from '../../../packages/protocol-core/src/i18n.ts';
-import { localizeFocusedSurface } from './focused-surface-locale.ts';
+import { localizeFocusedReply, localizeFocusedSurface } from './focused-surface-locale.ts';
 import './focused-fines.css';
 
 const savedThread = 'cityside.fines.thread.v1';
@@ -124,7 +124,7 @@ export default function FocusedFinesWorkspace() {
         <section className="focused-conversation" aria-labelledby="conversation-heading">
           <h1 id="conversation-heading">{t('fines.chatTitle')}</h1>
           <div className="focused-transcript" aria-live="polite" aria-relevant="additions text">
-            {transcript.length ? transcript.map((message, index) => <article key={`${index}-${message.role}`} className={`message ${message.role}`}><div className="message-body"><span className="message-author">{t(message.role === 'user' ? 'fines.you' : 'fines.assistant')}</span><p dir="auto">{message.content}</p></div></article>) : <p>{t('fines.emptyChat')}</p>}
+            {transcript.length ? transcript.map((message, index) => <article key={`${index}-${message.role}`} className={`message ${message.role}`}><div className="message-body"><span className="message-author">{t(message.role === 'user' ? 'fines.you' : 'fines.assistant')}</span><p dir="auto">{message.role === 'assistant' ? localizeFocusedReply(message.content, locale) : message.content}</p></div></article>) : <p>{t('fines.emptyChat')}</p>}
           </div>
           {needsRecovery && <p role="status">{t('fines.recoveryNotice')}</p>}
           {data?.status === 'cancelled' && <p role="status">{t('fines.cancelledNotice')}</p>}

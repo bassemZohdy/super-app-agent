@@ -130,6 +130,17 @@ test('a typed Arabic request lists fines without making a payment', async ({ pag
   expect(focused.payments()).toBe(0);
 });
 
+test('rejecting an Arabic payment review reports that no payment was made', async ({ page, focused }) => {
+  await page.addInitScript(() => localStorage.setItem('cityside.locale', 'ar'));
+  await page.goto(focused.url);
+  await page.getByLabel('رمز الوصول', { exact: true }).fill(focused.token);
+  await page.getByRole('button', { name: 'فتح مخالفاتي' }).click();
+  await page.getByRole('button', { name: 'مراجعة الدفع', exact: true }).click();
+  await page.getByRole('button', { name: 'رفض الدفع', exact: true }).click();
+  await expect(page.getByText('لم تُنفّذ عملية الدفع التجريبية.', { exact: true })).toHaveCount(2);
+  expect(focused.payments()).toBe(0);
+});
+
 test('retrieve fines, resume the exact review after restart, pay once and reject duplicate/stale/cross-owner approvals', async ({ page, focused }, info) => {
   await page.goto(focused.url);
   await page.getByLabel('Access token', { exact: true }).fill(focused.token);
