@@ -23,7 +23,7 @@ export interface SuperAppAgentState {
     payload: Record<string, any>;
   };
   reconciliation?: { outcome: 'UNKNOWN' | 'PARTIALLY_COMPLETED'; steps: import('../domain-operations.ts').Step[] };
-  compositeAttempt?: { operationId: string; terms: Record<string, unknown> };
+  compositeAttempt?: { operationId: string; terms: Record<string, unknown>; eligibilityEpoch?: string };
   compositeResolution?: { operationId: string; terms: Record<string, unknown>; resolvedAt: number };
   compositeCancellation?: { operationId: string; terms: Record<string, unknown>; cancelledAt: number };
   threadCheckpointId?: string;

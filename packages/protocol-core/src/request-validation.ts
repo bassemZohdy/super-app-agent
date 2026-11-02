@@ -76,6 +76,7 @@ route('agent-core', 'GET', '/api/civic/reconciliation', object({ accountId: id, 
 route('agent-core', 'GET', '/api/composite/reconciliation', object({ accountId: id, sessionId }, ['accountId', 'sessionId']));
 route('agent-core', 'GET', '/api/composite/fence', object({ accountId: id }, ['accountId']));
 route('agent-core', 'POST', '/api/composite/reconciliation/resolve', object({ accountId: id, sessionId, operationId: id }, ['accountId', 'sessionId', 'operationId']));
+route('agent-core', 'POST', '/api/composite/reconciliation/continue', object({ accountId: id, sessionId, operationId: id, step: { enum: ['RIDE', 'FOOD'] } }, ['accountId', 'sessionId', 'operationId', 'step']));
 route('agent-core', 'POST', '/api/composite/reconciliation/cancel-undispatched', object({ accountId: id, sessionId, operationId: id }, ['accountId', 'sessionId', 'operationId']));
 route('agent-core', 'POST', '/api/civic/reconciliation/resolve', object({ accountId: id, revision: { type: 'string', pattern: '^[a-f0-9]{64}$' } }, ['revision']));
 route('agent-core', 'POST', '/api/civic/reconciliation/observe-wallet', object({ accountId: id, revision: { type: 'string', pattern: '^[a-f0-9]{64}$' } }, ['revision']));

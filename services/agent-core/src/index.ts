@@ -19,7 +19,7 @@ import { withCivicFinalizers } from './civic-finalization.ts';
 import { compareCivicEvidence } from './civic-evidence.ts';
 import { compareCompositeEvidence } from './composite-evidence.ts';
 import { completeCivicSteps } from './civic-resolution.ts';
-import { validateRequest, fromMinor } from '../../../packages/protocol-core/src/request-validation.ts';
+import { validateRequest, fromMinor, toMinor } from '../../../packages/protocol-core/src/request-validation.ts';
 import http from 'node:http';
 import { EventJournal, StreamWriter, eventFrame } from './event-stream.ts';
 import {
@@ -68,6 +68,24 @@ const compositeEvidence = (attempt: NonNullable<SuperAppAgentState['compositeAtt
   const path = source === 'wallet' ? '/wallet/operations/' : source === 'ride' ? '/rides/operations/' : '/orders/operations/';
   return (await callDomainAsync(source, 'GET', `${path}${encodeURIComponent(attempt.operationId)}`)).data;
 }));
+
+async function compositeQuotesMatch(attempt: NonNullable<SuperAppAgentState['compositeAttempt']>, actor: Actor, step: 'RIDE' | 'FOOD'): Promise<boolean> {
+  const terms = attempt.terms;
+  try {
+    if (step === 'RIDE') {
+      const data = (await actorContext.run(actor, () => callDomainAsync('ride', 'GET', '/rides/options', { destination: String(terms.dropoff) }))).data;
+      const rides = Array.isArray(data.options) ? data.options.filter((item: { id?: unknown }) => item?.id === terms.driverId) : [];
+      if (rides.length !== 1 || toMinor(rides[0].fare) !== terms.rideAmountMinor) return false;
+    }
+    const data = (await actorContext.run(actor, () => callDomainAsync('food', 'GET', '/restaurants/search', { query: 'pizza' }))).data;
+    const restaurants = Array.isArray(data.restaurants) ? data.restaurants.filter((item: { id?: unknown }) => item?.id === terms.restaurantId) : [];
+    const items = restaurants.length === 1 && Array.isArray(restaurants[0].items) ? restaurants[0].items.filter((item: { id?: unknown }) => item?.id === terms.itemId) : [];
+    return items.length === 1 && toMinor(items[0].price) === terms.itemAmountMinor && toMinor(restaurants[0].deliveryFee) === terms.deliveryFeeMinor;
+  } catch (error) {
+    if (error instanceof DomainOperationError) throw error;
+    return false;
+  }
+}
 
 function commitSurface(session: SuperAppAgentState) {
   const surface = session.currentSurface;
@@ -215,6 +233,49 @@ async function handleGatewayRequest(
       if (error instanceof SessionError) return { status: error.status, data: { success: false, code: error.code, error: error.message } };
       if (error instanceof EligibilityReadError) return { status: [403, 409].includes(error.status) ? error.status : 503, data: { success: false, code: error.status === 409 ? 'ELIGIBILITY_CHANGED' : 'ELIGIBILITY_DENIED', error: 'Current owner or workspace permission prevents cancellation.' } };
       return { status: 503, data: { success: false, code: 'COMPOSITE_STATUS_UNAVAILABLE', error: 'Composite cancellation is unavailable.' } };
+    }
+  }
+  if (normMethod === 'POST' && pathname === '/api/composite/reconciliation/continue') {
+    if (process.env.PROVIDER_INTEGRATION !== 'true' || process.env.DOMAIN_TRANSPORT !== 'http') return { status: 503, data: { success: false, code: 'COMPOSITE_STATUS_UNAVAILABLE', error: 'Integrated composite continuation is unavailable in this mode.' } };
+    try {
+      const store = redisSessions();
+      if (!store) throw new SessionError(503, 'SESSION_STORE_UNAVAILABLE', 'Persistent session storage is required.');
+      const initial = await store.read(body.sessionId, actor.sub);
+      if (initial.accountId !== actor.accountId) return { status: 409, data: { success: false, code: 'SESSION_ACCOUNT_MISMATCH', error: 'This conversation belongs to another account.' } };
+      const lock = await store.acquire(body.sessionId);
+      try {
+        const current = await store.read(body.sessionId, actor.sub), attempt = current.state.compositeAttempt;
+        if (current.accountId !== actor.accountId) return { status: 409, data: { success: false, code: 'SESSION_ACCOUNT_MISMATCH', error: 'This conversation belongs to another account.' } };
+        if (!current.state.reconciliation || !attempt || attempt.operationId !== body.operationId) return { status: 409, data: { success: false, code: 'COMPOSITE_ATTEMPT_CHANGED', error: 'The original checkout is not available for continuation.' } };
+        const step = body.step as 'RIDE' | 'FOOD', prior = step === 'RIDE' ? 'WALLET' : 'RIDE', target = step === 'RIDE' ? 1 : 2;
+        const progress = await store.inspectCompositeProgress(actor.sub, actor.accountId, body.sessionId, attempt.operationId);
+        let evidence = await compositeEvidence(attempt, actor);
+        if ((progress.startedStep === step || step === 'RIDE' && progress.startedStep === 'FOOD') && evidence.slice(0, target + 1).every(item => item.assessment === 'MATCH'))
+          return { status: 200, data: { success: true, continuation: 'ALREADY_CONFIRMED', operationId: attempt.operationId, step } };
+        if (progress.startedStep !== prior || evidence.slice(0, target).some(item => item.assessment !== 'MATCH') || evidence.slice(target).some(item => item.assessment === 'MATCH'))
+          return { status: 409, data: { success: false, code: 'COMPOSITE_CONTINUATION_UNAVAILABLE', error: 'The original checkout evidence does not permit this step.' } };
+        if (!await compositeQuotesMatch(attempt, actor, step)) return { status: 409, data: { success: false, code: 'COMPOSITE_REVIEW_CHANGED', error: 'The reviewed ride or meal changed. The original checkout remains held.' } };
+        evidence = await compositeEvidence(attempt, actor);
+        if (evidence.slice(0, target).some(item => item.assessment !== 'MATCH') || evidence.slice(target).some(item => item.assessment === 'MATCH')) return { status: 409, data: { success: false, code: 'COMPOSITE_CONTINUATION_UNAVAILABLE', error: 'The original checkout evidence changed.' } };
+        if (eligibilityEnforced()) {
+          const epoch = attempt.eligibilityEpoch;
+          if (typeof epoch !== 'string') return { status: 409, data: { success: false, code: 'ELIGIBILITY_CHANGED', error: 'The original approval permission cannot be confirmed.' } };
+          await eligibilityReader.require(actor, epoch);
+        }
+        actor.requestId = attempt.operationId; actor.assertLease = lock.assert;
+        await lock.markCompositeStep(attempt.operationId, step);
+        const terms = attempt.terms;
+        await actorContext.run(actor, () => step === 'RIDE'
+          ? callDomainAsync('ride', 'POST', '/rides/book', {}, { driverId: terms.driverId, dropoff: terms.dropoff, expectedFareMinor: terms.rideAmountMinor })
+          : callDomainAsync('food', 'POST', '/orders/create', {}, { restaurantId: terms.restaurantId, items: [terms.itemId], deliveryAddress: terms.dropoff, expectedAmountMinor: terms.mealAmountMinor, expectedItemPriceMinor: terms.itemAmountMinor, expectedDeliveryFeeMinor: terms.deliveryFeeMinor }));
+        evidence = await compositeEvidence(attempt, actor);
+        if (evidence.slice(0, target + 1).some(item => item.assessment !== 'MATCH')) return { status: 503, data: { success: false, code: 'COMPOSITE_CONTINUATION_UNCONFIRMED', error: 'The original step needs inspection before continuing.' } };
+        return { status: 200, data: { success: true, continuation: 'CONFIRMED', operationId: attempt.operationId, step } };
+      } finally { await lock.release(); }
+    } catch (error) {
+      if (error instanceof SessionError) return { status: error.status, data: { success: false, code: error.code, error: error.message } };
+      if (error instanceof EligibilityReadError) return { status: [403, 409].includes(error.status) ? error.status : 503, data: { success: false, code: error.status === 409 ? 'ELIGIBILITY_CHANGED' : 'ELIGIBILITY_DENIED', error: 'Current owner or workspace permission prevents continuation.' } };
+      return { status: 503, data: { success: false, code: 'COMPOSITE_CONTINUATION_UNCONFIRMED', error: 'The original step needs inspection before continuing.' } };
     }
   }
   if (normMethod === 'POST' && pathname === '/api/composite/reconciliation/resolve') {
@@ -609,7 +670,7 @@ async function handleGatewayRequest(
     recordApproval(session, 'confirmed', body.action);
     if (process.env.PROVIDER_INTEGRATION === 'true' && body.action === 'confirm_composite_checkout') {
       if (!requestContext.beginComposite || !requestContext.markCompositeDispatch || !requestContext.markCompositeStep || !requestContext.finishComposite) throw new SessionError(503, 'SESSION_STORE_UNAVAILABLE', 'Persistent session storage is required before composite checkout.');
-      session.compositeAttempt = { operationId: actor.requestId, terms: structuredClone(body.payload || {}) };
+      session.compositeAttempt = { operationId: actor.requestId, terms: structuredClone(body.payload || {}), ...(actor.eligibilityEpoch ? { eligibilityEpoch: actor.eligibilityEpoch } : {}) };
       session.reconciliation = { outcome: 'UNKNOWN', steps: [] };
       try { await requestContext.beginComposite(); }
       // A failed Redis response can still mean the atomic fence was written. Do not

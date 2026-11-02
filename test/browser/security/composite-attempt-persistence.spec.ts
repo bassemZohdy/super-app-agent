@@ -4,6 +4,8 @@ import { accountIdFor } from '../../../packages/backend-kit/src/context.ts';
 import { EligibilityClient, EligibilityReadError } from '../../../packages/backend-kit/src/eligibility-client.ts';
 import { RedisSessionStore, redisSessions } from '../../../services/agent-core/src/session-store.ts';
 import { createHash } from 'node:crypto';
+import { DatabaseSync } from 'node:sqlite';
+import { join } from 'node:path';
 
 test('the reviewed composite identity is saved before dispatch and survives a lost wallet response', async ({ residentApi, stack }) => {
   const sessionId = `composite_${crypto.randomUUID()}`;
@@ -22,7 +24,7 @@ test('the reviewed composite identity is saved before dispatch and survives a lo
   ProviderClient.prototype.call = async function (provider, actor, method, path, body, key) {
     if (provider === 'payments' && method === 'POST' && path === '/charges') {
       const saved = await redisSessions()!.read(sessionId, actor.sub);
-      expect(saved.state.compositeAttempt).toEqual({ operationId: expectedOperation, terms: binding });
+      expect(saved.state.compositeAttempt).toMatchObject({ operationId: expectedOperation, terms: binding, eligibilityEpoch: expect.any(String) });
       expect(saved.state.reconciliation?.outcome).toBe('UNKNOWN');
       seen = true;
       await original.call(this, provider, actor, method, path, body, key);
@@ -36,15 +38,15 @@ test('the reviewed composite identity is saved before dispatch and survives a lo
     expect(result.data.outcome).toBe('UNKNOWN');
     const claims = JSON.parse(Buffer.from(residentApi.token.split('.')[1], 'base64url').toString()) as { sub: string };
     const saved = await redisSessions()!.read(sessionId, claims.sub);
-    expect(saved.state.compositeAttempt).toEqual({ operationId: expectedOperation, terms: binding });
+    expect(saved.state.compositeAttempt).toMatchObject({ operationId: expectedOperation, terms: binding });
     expect(saved.state.reconciliation?.outcome).toBe('UNKNOWN');
     const sessionResponse = await fetch(`${endpoint}/api/sessions/${sessionId}`, { headers: { Authorization: `Bearer ${residentApi.token}` } });
     const sessionData = await sessionResponse.json() as { compositeAttempt: { operationId: string; terms: Record<string, unknown> } };
     expect(sessionResponse.status).toBe(200);
-    expect(sessionData.compositeAttempt).toEqual({ operationId: expectedOperation, terms: binding });
+    expect(sessionData.compositeAttempt).toMatchObject({ operationId: expectedOperation, terms: binding });
     const remove = await fetch(`${endpoint}/api/sessions/${sessionId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${residentApi.token}` } });
     expect(remove.status).toBe(409);
-    expect((await redisSessions()!.read(sessionId, claims.sub)).state.compositeAttempt).toEqual({ operationId: expectedOperation, terms: binding });
+    expect((await redisSessions()!.read(sessionId, claims.sub)).state.compositeAttempt).toMatchObject({ operationId: expectedOperation, terms: binding });
     const inspected = await fetch(`http://localhost:${stack.corePort + 3}/wallet/operations/${encodeURIComponent(expectedOperation)}`, { headers: { Authorization: `Bearer ${residentApi.token}`, 'X-Account-Id': residentApi.accountId } });
     expect(inspected.status).toBe(200);
     const chargesBefore = stack.stores.get('payments')!.list(residentApi.accountId, 'charge').length;
@@ -133,6 +135,91 @@ test('the reviewed composite identity is saved before dispatch and survives a lo
   } finally { ProviderClient.prototype.call = original; }
 });
 
+test('the owner continues only the next unstarted step after matching original evidence', async ({ residentApi, stack }) => {
+  const sessionId = `composite_${crypto.randomUUID()}`, endpoint = `http://localhost:${stack.corePort}`;
+  const send = async (path: string, body: Record<string, unknown>) => {
+    const response = await fetch(`${endpoint}${path}`, { method: 'POST', headers: { Authorization: `Bearer ${residentApi.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, sessionId, accountId: residentApi.accountId }) });
+    return { status: response.status, data: await response.json() };
+  };
+  const review = await send('/api/a2ui/intent', { text: 'Book a ride downtown and order pizza, pay with my wallet' });
+  const surface = review.data.surface as { revision: string; view: { children: Array<{ onEvents?: Array<{ payload: Record<string, unknown> }> }> } };
+  const binding = surface.view.children.flatMap(child => child.onEvents ?? []).find(event => event.payload.action === 'confirm_composite_checkout')!.payload;
+  const operationId = `${surface.revision}:confirm_composite_checkout`, original = ProviderClient.prototype.call;
+  let loseWallet = true, loseRide = true, changedFare = false, entered!: () => void, release!: () => void;
+  const reached = new Promise<void>(resolve => { entered = resolve; });
+  const held = new Promise<void>(resolve => { release = resolve; });
+  ProviderClient.prototype.call = async function (provider, actor, method, path, body, key) {
+    if (provider === 'payments' && method === 'POST' && path === '/charges' && loseWallet) {
+      loseWallet = false; await original.call(this, provider, actor, method, path, body, key); throw new UpstreamError(503, 'PROVIDER_OUTCOME_UNKNOWN', 'Lost wallet response');
+    }
+    if (provider === 'rta' && method === 'POST' && path === '/rides/bookings' && loseRide) {
+      loseRide = false; await original.call(this, provider, actor, method, path, body, key); entered(); await held; throw new UpstreamError(503, 'PROVIDER_OUTCOME_UNKNOWN', 'Lost ride response');
+    }
+    const result = await original.call(this, provider, actor, method, path, body, key);
+    if (changedFare && provider === 'rta' && method === 'GET' && path.startsWith('/rides/options')) return { ...result, options: result.options.map((option: { id: string; fare: number }) => option.id === binding.driverId ? { ...option, fare: option.fare + 1 } : option) };
+    return result;
+  };
+  try {
+    expect((await send('/api/a2ui/action', { surfaceRevision: surface.revision, action: 'confirm_composite_checkout', payload: binding })).data.outcome).toBe('UNKNOWN');
+    const continueStep = (step: string, id = operationId) => send('/api/composite/reconciliation/continue', { operationId: id, step });
+    expect((await continueStep('FOOD')).status).toBe(409);
+    expect((await continueStep('RIDE', '11111111-1111-4111-8111-111111111111:confirm_composite_checkout')).status).toBe(409);
+    const otherToken = await login('bassem');
+    const otherClaims = JSON.parse(Buffer.from(otherToken.split('.')[1], 'base64url').toString()) as { sub: string };
+    const other = await fetch(`${endpoint}/api/composite/reconciliation/continue`, { method: 'POST', headers: { Authorization: `Bearer ${otherToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId, accountId: accountIdFor(otherClaims.sub), operationId, step: 'RIDE' }) });
+    expect(other.status).toBe(403);
+    const key = `${redisSessions()!.prefix}session:${sessionId}:composite-step`, savedStep = await redisSessions()!.client.get(key);
+    expect(savedStep).not.toBeNull(); await redisSessions()!.client.del(key);
+    try { expect((await continueStep('RIDE')).status).toBe(409); } finally { await redisSessions()!.client.set(key, savedStep!); }
+    const payments = stack.stores.get('payments')!, charge = payments.list(residentApi.accountId, 'charge')[0] as { id: string; refunded: boolean };
+    payments.put(residentApi.accountId, 'charge', { ...charge, refunded: true }, charge.id);
+    try { expect((await continueStep('RIDE')).status).toBe(409); } finally { payments.put(residentApi.accountId, 'charge', charge, charge.id); }
+    changedFare = true; expect((await continueStep('RIDE')).status).toBe(409); changedFare = false;
+    const owner = JSON.parse(Buffer.from(residentApi.token.split('.')[1], 'base64url').toString()) as { sub: string };
+    const sessionLock = await redisSessions()!.acquire(sessionId);
+    const current = (await redisSessions()!.read(sessionId, owner.sub)).state;
+    const originalEpoch = current.compositeAttempt!.eligibilityEpoch;
+    expect(originalEpoch).toEqual(expect.any(String));
+    current.metadata = { ...current.metadata, eligibilityEpoch: '9:9' };
+    delete current.compositeAttempt!.eligibilityEpoch;
+    await sessionLock.save(current); await sessionLock.release();
+    expect((await continueStep('RIDE')).status).toBe(409);
+    const restoreLock = await redisSessions()!.acquire(sessionId);
+    const restored = (await redisSessions()!.read(sessionId, owner.sub)).state;
+    restored.compositeAttempt!.eligibilityEpoch = originalEpoch;
+    await restoreLock.save(restored); await restoreLock.release();
+    const eligibility = EligibilityClient.prototype.require;
+    EligibilityClient.prototype.require = async function (actor, epoch) { if (epoch) { expect(epoch).toBe(originalEpoch); throw new EligibilityReadError(409, 'Changed permission'); } return eligibility.call(this, actor, epoch); };
+    try { expect((await continueStep('RIDE')).status).toBe(409); } finally { EligibilityClient.prototype.require = eligibility; }
+    expect(stack.stores.get('rta')!.list(residentApi.accountId, 'ride')).toHaveLength(0);
+    const pendingRide = continueStep('RIDE');
+    await Promise.race([reached, new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Ride was not reached')), 15000))]);
+    expect((await continueStep('RIDE')).status).toBe(409);
+    release();
+    const ride = await pendingRide;
+    expect(ride.status).toBe(503);
+    expect(stack.stores.get('rta')!.list(residentApi.accountId, 'ride')).toHaveLength(1);
+    expect((await continueStep('RIDE')).data.continuation).toBe('ALREADY_CONFIRMED');
+    const originalFetch = globalThis.fetch;
+    let lostFood = false;
+    globalThis.fetch = async (input, init) => {
+      const response = await originalFetch(input, init);
+      const url = new URL(input instanceof Request ? input.url : input.toString());
+      if (url.port === String(stack.corePort + 2) && url.pathname === '/orders/create' && init?.method === 'POST') { await response.arrayBuffer(); lostFood = true; throw new Error('Lost food response'); }
+      return response;
+    };
+    try { expect((await continueStep('FOOD')).status).toBe(503); expect(lostFood).toBe(true); }
+    finally { globalThis.fetch = originalFetch; }
+    expect((await continueStep('FOOD')).data.continuation).toBe('ALREADY_CONFIRMED');
+    expect((await send('/api/composite/reconciliation/resolve', { operationId })).data.resolution).toBe('RESOLVED');
+    expect(payments.list(residentApi.accountId, 'charge')).toHaveLength(1);
+    expect(stack.stores.get('rta')!.list(residentApi.accountId, 'ride')).toHaveLength(1);
+    const foodDb = new DatabaseSync(join(process.env.APP_DATA_DIR!, 'service-food.sqlite'), { readOnly: true });
+    try { expect(foodDb.prepare("SELECT count(*) AS n FROM resources WHERE account_id=? AND kind='order'").get(residentApi.accountId)!.n).toBe(1); }
+    finally { foodDb.close(); }
+  } finally { release(); ProviderClient.prototype.call = original; }
+});
+
 test('competing sessions cannot both start a composite checkout for one account', async ({ residentApi, stack }) => {
   const endpoint = `http://localhost:${stack.corePort}`;
   const send = async (sessionId: string, path: string, body: Record<string, unknown>) => {
@@ -189,7 +276,7 @@ test('a lost fence write response preserves the original attempt without dispatc
     const result = await send('/api/a2ui/action', { surfaceRevision: surface.revision, action: 'confirm_composite_checkout', payload: binding });
     expect(result.status).toBeGreaterThanOrEqual(500);
     const claims = JSON.parse(Buffer.from(residentApi.token.split('.')[1], 'base64url').toString()) as { sub: string };
-    expect((await redisSessions()!.read(sessionId, claims.sub)).state.compositeAttempt).toEqual({ operationId, terms: binding });
+    expect((await redisSessions()!.read(sessionId, claims.sub)).state.compositeAttempt).toMatchObject({ operationId, terms: binding });
     expect(await redisSessions()!.inspectCompositeFence(claims.sub, residentApi.accountId)).toMatchObject({ status: 'BLOCKED', sessionId });
     expect(stack.stores.get('payments')!.list(residentApi.accountId, 'charge')).toHaveLength(0);
   } finally { RedisSessionStore.prototype.acquire = originalAcquire; }
@@ -240,7 +327,7 @@ test('a lost dispatch marker response can be cancelled only when no step started
   } finally { RedisSessionStore.prototype.acquire = originalAcquire; }
   const claims = JSON.parse(Buffer.from(residentApi.token.split('.')[1], 'base64url').toString()) as { sub: string };
   expect(await redisSessions()!.inspectCompositeFence(claims.sub, residentApi.accountId)).toMatchObject({ status: 'BLOCKED', sessionId, operationId });
-  expect((await redisSessions()!.read(sessionId, claims.sub)).state.compositeAttempt).toEqual({ operationId, terms: binding });
+  expect((await redisSessions()!.read(sessionId, claims.sub)).state.compositeAttempt).toMatchObject({ operationId, terms: binding });
   const progress = await redisSessions()!.inspectCompositeProgress(claims.sub, residentApi.accountId, sessionId, operationId);
   expect(progress).toEqual({ dispatch: 'NOT_STARTED', startedStep: 'NONE' });
   const stepKey = `${redisSessions()!.prefix}session:${sessionId}:composite-step`, savedStep = await redisSessions()!.client.get(stepKey);
@@ -315,6 +402,8 @@ test('a lost step marker response holds the partial checkout before the next eff
   expect((await redisSessions()!.inspectCompositeProgress(claims.sub, residentApi.accountId, sessionId, operationId)).startedStep).toBe('RIDE');
   expect(await redisSessions()!.inspectCompositeFence(claims.sub, residentApi.accountId)).toMatchObject({ status: 'BLOCKED', sessionId, operationId });
   expect((await send('/api/composite/reconciliation/cancel-undispatched', { operationId })).status).toBe(409);
+  expect((await send('/api/composite/reconciliation/continue', { operationId, step: 'RIDE' })).status).toBe(409);
+  expect((await send('/api/composite/reconciliation/continue', { operationId, step: 'FOOD' })).status).toBe(409);
   expect(stack.stores.get('payments')!.list(residentApi.accountId, 'charge')).toHaveLength(1);
   expect(stack.stores.get('rta')!.list(residentApi.accountId, 'ride')).toHaveLength(0);
 });
