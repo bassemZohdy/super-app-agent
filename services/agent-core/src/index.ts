@@ -17,6 +17,7 @@ import { randomUUID } from 'node:crypto';
 import { trackDomainOperations, executionOutcome, DomainOperationError, callDomainAsync, type Step } from './domain-operations.ts';
 import { withCivicFinalizers } from './civic-finalization.ts';
 import { compareCivicEvidence } from './civic-evidence.ts';
+import { compareCompositeEvidence } from './composite-evidence.ts';
 import { completeCivicSteps } from './civic-resolution.ts';
 import { validateRequest, fromMinor } from '../../../packages/protocol-core/src/request-validation.ts';
 import http from 'node:http';
@@ -151,6 +152,25 @@ async function handleGatewayRequest(
   if(eligibilityEnforced()&&pathname!=='/api/payments/eligibility'){
     try{actor.eligibilityEpoch=(await eligibilityReader.require(actor)).epoch;}
     catch(e){return {status:e instanceof EligibilityReadError&&[403,409].includes(e.status)?e.status:503,data:{success:false,code:e instanceof EligibilityReadError&&e.status===403?'ACCOUNT_RESTRICTED':'ELIGIBILITY_UNAVAILABLE',error:'Current owner or workspace membership prevents access. History is retained.'}};}
+  }
+  if (normMethod === 'GET' && pathname === '/api/composite/reconciliation') {
+    if (process.env.PROVIDER_INTEGRATION !== 'true' || process.env.DOMAIN_TRANSPORT !== 'http') return { status: 503, data: { success: false, code: 'COMPOSITE_STATUS_UNAVAILABLE', error: 'Integrated composite inspection is unavailable in this mode.' } };
+    try {
+      const store = redisSessions();
+      if (!store) throw new SessionError(503, 'SESSION_STORE_UNAVAILABLE', 'Persistent session storage is required.');
+      const record = await store.read(query.sessionId, actor.sub);
+      if (record.accountId !== actor.accountId) return { status: 409, data: { success: false, code: 'SESSION_ACCOUNT_MISMATCH', error: 'This conversation belongs to another account.' } };
+      const attempt = record.state.compositeAttempt;
+      if (!record.state.reconciliation || !attempt) return { status: 404, data: { success: false, code: 'COMPOSITE_ATTEMPT_NOT_FOUND', error: 'No unresolved composite attempt was found.' } };
+      const evidence = await compareCompositeEvidence(attempt, actor.accountId, source => actorContext.run(actor, async () => {
+        const path = source === 'wallet' ? '/wallet/operations/' : source === 'ride' ? '/rides/operations/' : '/orders/operations/';
+        return (await callDomainAsync(source, 'GET', `${path}${encodeURIComponent(attempt.operationId)}`)).data;
+      }));
+      return { status: 200, data: { success: true, operationId: attempt.operationId, evidence } };
+    } catch (error) {
+      if (error instanceof SessionError) return { status: error.status, data: { success: false, code: error.code, error: error.message } };
+      return { status: 503, data: { success: false, code: 'COMPOSITE_STATUS_UNAVAILABLE', error: 'Composite inspection is unavailable.' } };
+    }
   }
   if (normMethod === 'GET' && pathname === '/api/civic/reconciliation') {
     if (process.env.PROVIDER_INTEGRATION === 'true' || process.env.DOMAIN_TRANSPORT !== 'http') return { status: 503, data: { success: false, code: 'CIVIC_STATUS_UNAVAILABLE', error: 'Shared offline civic status is unavailable in this mode.' } };

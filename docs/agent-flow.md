@@ -74,6 +74,8 @@ That same reviewed destination is the composite meal delivery address. The food 
 
 Before an integrated composite checkout dispatches, the gateway saves its original operation identity and approved terms in the owner's persistent session and marks it unconfirmed. Persistent session storage is required for this path. A successful completion or definite refusal before any effect clears the marker; an uncertain or partial result retains it, blocks further actions in that session and prevents deleting that session. The owner can inspect the retained identity and terms through the session read API. This session-scoped marker expires with the session and does not fence other sessions or establish cross-service recovery.
 
+For an unresolved integrated attempt, `GET /api/composite/reconciliation?accountId=…&sessionId=…` compares the saved review with independent wallet, ride and food operation lookups. Each step is `MATCH` or `UNCONFIRMED`; missing, inconsistent or unavailable evidence never proves that an effect did not occur. Inspection is owner- and account-scoped, does not dispatch or retry an effect, and does not clear the session's reconciliation marker, even when all three steps match.
+
 An application server closes its local database each time it stops, including when a test reuses the server for another isolated run.
 
 The React payment panel maps a `PAYABLE_CHANGED` rejection to localized guidance to review the obligation again. The provider's rejection remains sanitized at the gateway; the panel does not need to display the provider's text.

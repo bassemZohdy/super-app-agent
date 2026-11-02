@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Compare composite checkout evidence (P1-13, step)
+
+Owners can inspect each retained integrated checkout step against the reviewed terms without retrying or resolving it. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Retain original composite attempts (P1-13, step)
 
 Integrated composite checkout saves the reviewed operation in the owned persistent session before dispatch and retains unconfirmed attempts for inspection. Reused application servers also close their database on every stop, allowing isolated recovery tests to clean up. Guide: [agent flow](agent-flow.md).
