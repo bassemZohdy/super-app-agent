@@ -31,9 +31,9 @@ type RequestBody = {
 type Result = { status: number; data: unknown };
 function sameFineSelection(value: unknown, ids: string[]): boolean {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-  const selection = value as { kind?: unknown; provider?: unknown; id?: unknown; revision?: unknown; obligationId?: unknown; items?: unknown };
+  const selection = value as { kind?: unknown; provider?: unknown; id?: unknown; reference?: unknown; revision?: unknown; obligationId?: unknown; items?: unknown };
   if (selection.kind !== 'FINE_SET' || selection.provider !== 'police' || typeof selection.id !== 'string' || !selection.id ||
-    typeof selection.revision !== 'string' || !selection.revision || typeof selection.obligationId !== 'string' || !selection.obligationId || !Array.isArray(selection.items)) return false;
+    typeof selection.reference !== 'string' || !selection.reference || typeof selection.revision !== 'string' || !selection.revision || typeof selection.obligationId !== 'string' || !selection.obligationId || !Array.isArray(selection.items)) return false;
   const selected: unknown[] = selection.items.map((item: unknown) => item && typeof item === 'object' && !Array.isArray(item) ? (item as { obligationId?: unknown }).obligationId : undefined);
   return selected.length === ids.length && selected.every(id => typeof id === 'string' && ids.includes(id)) && new Set(selected).size === ids.length;
 }
@@ -113,7 +113,12 @@ export async function integratedRequest(service: string, actor: Actor, method: s
     const payable=(await call('police','POST','/fine-selections',{items:body.expectedPayables||currentItems},stableKey(`fine-selection:${ids.join(',')}:${JSON.stringify(currentItems)}`))).payable;
     if(!sameFineSelection(payable,ids)||!Number.isSafeInteger(payable.amountMinor)||payable.amountMinor<0)throw new UpstreamError(503,'PROVIDER_UNAVAILABLE','The selected fines could not be confirmed.');
     if(body.expectedAmountMinor!==undefined&&body.expectedAmountMinor!==payable.amountMinor)throw new UpstreamError(409,'PAYABLE_CHANGED','The reviewed fine amount changed.');
-    const order=await executePayable('police',payable);
+    const sameOrder=(value:unknown)=>{
+      if(!value||typeof value!=='object'||Array.isArray(value))return false;
+      const order=value as {quote?:{totalMinor?:unknown;payable?:Payable}}, quoted=order.quote?.payable;
+      return !!quoted&&sameFineSelection(quoted,ids)&&quoted.id===payable.id&&quoted.revision===payable.revision&&quoted.obligationId===payable.obligationId&&quoted.reference===payable.reference&&quoted.amountMinor===payable.amountMinor&&order.quote?.totalMinor===payable.amountMinor;
+    };
+    const order=await executePayable('police',payable,sameOrder);
     const settled=order?.quote?.payable, receipt=order?.receipt;
     if(!sameFineSelection(settled,ids)||settled.id!==payable.id||settled.revision!==payable.revision||settled.obligationId!==payable.obligationId||settled.amountMinor!==payable.amountMinor||
       !receipt||typeof receipt.receiptNumber!=='string'||!receipt.receiptNumber||receipt.obligationId!==settled.obligationId||receipt.amountMinor!==payable.amountMinor||receipt.currency!=='AED')

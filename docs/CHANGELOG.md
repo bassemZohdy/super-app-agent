@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Check fine orders before execution (P1-13, step)
+
+Integrated compatibility fines payments compare the order's frozen selection, reference and total to the selected fines before approval, execution and recovery, retaining inconsistent outcomes as unknown. Tests cover substituted selections and changed totals before approval, changed orders after approval and mismatched settlement receipts. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Bind integrated bill orders (P1-13, step)
 
 Integrated utility and telecom payments check each frozen order against the selected payable before approval, execution and recovery, and require the final receipt to match the bill, amount and currency. Inconsistent results retain an unknown outcome. Tests exercise substituted orders and receipts for all three providers. Guide: [integrations](integrations.md).
