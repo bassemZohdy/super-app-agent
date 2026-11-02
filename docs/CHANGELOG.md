@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 - Reject contradictory kill-switch replies (P1-10, step)
+
+The automation worker rejects unexpected fields in broker kill-switch responses, retaining the current stop when a reply also signals an error or contradictory state. Guide: [automation worker](development/automation-worker.md).
+
 ## 2 November 2026 - Hold contradictory automation responses (P1-10, step)
 
 The automation gateway treats conflicting credential, challenge and payment replies as uncertain, keeping the original job held without persisting credentials. Guide: [automation worker](development/automation-worker.md).

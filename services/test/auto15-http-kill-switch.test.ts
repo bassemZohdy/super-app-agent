@@ -17,8 +17,10 @@ test('AUTO-15: unreadable or contradictory HTTP switch responses cannot release 
   const store = new JobStore(':memory:');
   try {
     store.setKillSwitch(true, 'local stop', 1000);
+    const job = store.enqueue({ mandateId: 'mandate_1', policyVersion: 1, occurrenceKey: 'occ_1', target: 'dewa:home' }, 1000);
+    let preparations = 0;
     const g: ExecutionGateway = {
-      prepare: async () => { throw new Error('no job expected'); },
+      prepare: async () => { preparations++; return { skipped: true, reason: 'NO_DUE_INVOICE' }; },
       credential: async () => { throw new Error('no job expected'); },
       execute: async () => { throw new Error('no job expected'); },
       resume: async () => { throw new Error('no job expected'); },
@@ -29,6 +31,9 @@ test('AUTO-15: unreadable or contradictory HTTP switch responses cannot release 
       { success: false, engaged: false, reason: '', at: 1001 },
       { engaged: false, reason: '', at: 1001 },
       { success: true, engaged: false, reason: '', at: 0 },
+      { success: true, engaged: false, reason: '', at: 1001, error: 'authority unavailable' },
+      { success: true, engaged: false, reason: '', at: 1001, code: 'KILL_SWITCH_UNREADABLE' },
+      { success: true, engaged: false, reason: '', at: 1001, state: 'ENGAGED' },
       { success: true, engaged: false, reason: '', at: 1001.5 },
       { success: true, engaged: false, reason: '', at: Number.MAX_SAFE_INTEGER + 1 },
       { success: true, engaged: false, reason: {}, at: 1001 },
@@ -39,7 +44,7 @@ test('AUTO-15: unreadable or contradictory HTTP switch responses cannot release 
       payload = invalid;
       await assert.rejects(http.killSwitch(), /KILL_SWITCH_UNREADABLE|invalid/i);
       await worker.runOnce();
-      assert.equal(store.killSwitch().engaged, true);
+      assert.equal(store.killSwitch().engaged, true); assert.equal(preparations, 0); assert.equal(store.get(job.id)?.state, 'QUEUED');
     }
     status = 404; payload = { success: false, code: 'NO_DESIRED_STATE' };
     assert.equal(await http.killSwitch(), undefined);
@@ -52,6 +57,6 @@ test('AUTO-15: unreadable or contradictory HTTP switch responses cannot release 
     });
     await worker.runOnce(); assert.equal(store.killSwitch().engaged, true);
     status = 200; payload = { success: true, engaged: false, reason: '', at: 1001 };
-    await worker.runOnce(); assert.equal(store.killSwitch().engaged, false);
+    await worker.runOnce(); assert.equal(store.killSwitch().engaged, false); assert.equal(preparations, 1); assert.equal(store.get(job.id)?.state, 'SKIPPED');
   } finally { store.close(); }
 });

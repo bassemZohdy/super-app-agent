@@ -127,7 +127,7 @@ export class HttpExecutionGateway implements ExecutionGateway {
     catch { throw failure(response.status, 'KILL_SWITCH_UNREADABLE', 'The kill-switch state response was invalid.'); }
     if (!body || typeof body !== 'object' || Array.isArray(body)) throw failure(response.status, 'KILL_SWITCH_UNREADABLE', 'The kill-switch state response was invalid.');
     const data = body as Record<string, unknown>;
-    if (data.success !== true || typeof data.engaged !== 'boolean' || typeof data.at !== 'number' || !Number.isSafeInteger(data.at) || data.at <= 0 || typeof data.reason !== 'string' || data.reason.length > 120 || (data.engaged && !data.reason.trim())) throw failure(response.status, 'KILL_SWITCH_UNREADABLE', 'The kill-switch state response was invalid.');
+    if (Object.keys(data).some(key => !['success', 'engaged', 'reason', 'at'].includes(key)) || data.success !== true || typeof data.engaged !== 'boolean' || typeof data.at !== 'number' || !Number.isSafeInteger(data.at) || data.at <= 0 || typeof data.reason !== 'string' || data.reason.length > 120 || (data.engaged && !data.reason.trim())) throw failure(response.status, 'KILL_SWITCH_UNREADABLE', 'The kill-switch state response was invalid.');
     return { engaged: data.engaged, reason: data.reason, at: data.at };
   }
   async execute(runId: string, executionId: string, accessToken: string): Promise<ExecutedOrder> {
