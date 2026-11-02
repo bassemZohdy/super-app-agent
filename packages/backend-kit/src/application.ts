@@ -24,7 +24,7 @@ type Meter = { ticketId: string; zoneId: string; durationHours: number };
 type PlannedItem = { provider: string; payableId: string; expectedPayableRevision: string };
 // Documentary shape of the JSON request body. Fields are the ones these routes read; runtime is unchanged.
 type RequestBody = {
-  billId: string; operationId: string; expectedPayables: PayableRevision[]; expectedFineAmounts: Array<{ fineId: string; amountMinor: number }>; expectedPayableRevision: string; expectedAmountMinor: number;
+  billId: string; operationId: string; expectedServiceEpoch: string; expectedPayables: PayableRevision[]; expectedFineAmounts: Array<{ fineId: string; amountMinor: number }>; expectedPayableRevision: string; expectedAmountMinor: number;
   zoneId: string; plateNumber: string; durationHours: number; additionalHours: number; ticketId: string; amount: number;
   restaurantId: string; items: string[]; referenceId: string; fineIds: string[]; methodId: string; expectedMethodVersion: number;
   lineId: string; expectedTag: string; targetReference: string; amountMinor: number; expectedTargetVersion: number; mobility: Record<string, unknown>; ui: Record<string, unknown>;
@@ -209,7 +209,7 @@ export async function integratedRequest(service: string, actor: Actor, method: s
         return successfulWithoutDuplicate(await call('rta', method, `/parking/sessions/${encodeURIComponent(body.ticketId)}/extensions`, { additionalHours: body.additionalHours, paymentId: payment.charge.id, reference: actor.requestId }));
       }
       if (method === 'POST' && path === '/mobility/salik/recharge') {
-        if (body.operationId !== undefined) throw new UpstreamError(400, 'VALIDATION_ERROR', 'Offline operation identities are not supported in integrated provider mode.');
+        if (body.operationId !== undefined || body.expectedServiceEpoch !== undefined) throw new UpstreamError(400, 'VALIDATION_ERROR', 'Offline operation identities are not supported in integrated provider mode.');
         return successfulWithoutDuplicate(await recharge(body.amount, body.expectedTag));
       }
       if (method === 'POST' && path === '/mobility/ev/start') return successfulWithoutDuplicate(await call('rta', method, '/ev/sessions', body));
@@ -233,7 +233,7 @@ export async function integratedRequest(service: string, actor: Actor, method: s
         return successful({ bill: { ...bill, payableId: payable?.id, payableRevision: payable?.revision } });
       }
       if (method === 'POST' && path === '/utilities/pay') {
-        if (body.operationId !== undefined) throw new UpstreamError(400, 'VALIDATION_ERROR', 'Offline operation identities are not supported in integrated provider mode.');
+        if (body.operationId !== undefined || body.expectedServiceEpoch !== undefined) throw new UpstreamError(400, 'VALIDATION_ERROR', 'Offline operation identities are not supported in integrated provider mode.');
         return successfulWithoutDuplicate(await settleBill('dewa', body.billId));
       }
       if (method === 'GET' && ['/restaurants/search','/utilities/eco-advice'].includes(path)) return legacy(method, path, query, body);
@@ -265,11 +265,11 @@ export async function integratedRequest(service: string, actor: Actor, method: s
       if (method === 'POST' && path === '/wallet/topup') return successfulWithoutDuplicate(await call('payments', method, '/topups', { amountMinor: Math.round(body.amount * 100), source: 'demo_approved' }));
       if (method === 'POST' && path === '/wallet/pay') return successfulWithoutDuplicate(await charge('superapp', body.referenceId || actor.requestId, body.amount));
       if (method === 'POST' && path === '/fines/pay') {
-        if (body.operationId !== undefined || body.expectedFineAmounts !== undefined) throw new UpstreamError(400, 'VALIDATION_ERROR', 'Offline fine terms are not supported in integrated provider mode.');
+        if (body.operationId !== undefined || body.expectedServiceEpoch !== undefined || body.expectedFineAmounts !== undefined) throw new UpstreamError(400, 'VALIDATION_ERROR', 'Offline fine terms are not supported in integrated provider mode.');
         return successfulWithoutDuplicate(await settleFines(body.fineIds));
       }
       if (method === 'POST' && ['/pay/unified','/pay/multi-agency'].includes(path)) {
-        if (body.operationId !== undefined) throw new UpstreamError(400, 'VALIDATION_ERROR', 'Offline operation identities are not supported in integrated provider mode.');
+        if (body.operationId !== undefined || body.expectedServiceEpoch !== undefined) throw new UpstreamError(400, 'VALIDATION_ERROR', 'Offline operation identities are not supported in integrated provider mode.');
         if((body.targetReference===undefined)!==(body.expectedTargetVersion===undefined))throw new UpstreamError(400,'VALIDATION_ERROR','Select a recharge target and its reviewed version together.');
         const selected=body.expectedPayables as ReviewedGroupPayable[] | undefined;
         if(!Array.isArray(selected)||selected.length>30)throw new UpstreamError(400,'VALIDATION_ERROR','Select the reviewed bills and fines.');

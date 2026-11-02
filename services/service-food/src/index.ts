@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { shutdownOnSignal } from '../../../packages/backend-kit/src/shutdown.ts';
 import { createApplicationServer } from '../../../packages/backend-kit/src/application.ts';
 import { validateRequest, toolSchema, invalidInput, toMinor, fromMinor, MAX_MONEY } from '../../../packages/protocol-core/src/request-validation.ts';
@@ -166,6 +167,7 @@ export interface UtilityBill {
 
 type OfflineUtilityOperation = { signature: string; billId: string; amountMinor: number; receiptReference: string; response: Record<string, unknown> };
 const offlineUtilityOperations = new Map<string, OfflineUtilityOperation>();
+const offlineUtilityEpoch = randomUUID();
 
 export let activeUtilityBill: UtilityBill = {
   billId: 'DEWA-2026-10-8492',
@@ -242,7 +244,10 @@ function handleFoodRequest(
     return { status: 200, data: { success: true, operation: operation ? { operationId, status: 'SETTLED', billId: operation.billId, amountMinor: operation.amountMinor, receiptReference: operation.receiptReference } : null } };
   }
 
+  if (normMethod === 'GET' && pathname === '/utilities/payment-epoch') return { status: 200, data: { success: true, serviceEpoch: offlineUtilityEpoch } };
+
   if (normMethod === 'POST' && (pathname === '/utilities/pay' || pathname === '/bill/pay')) {
+    if (body.expectedServiceEpoch !== undefined && body.expectedServiceEpoch !== offlineUtilityEpoch) return { status: 409, data: { success: false, code: 'FIXTURE_EPOCH_CHANGED', error: 'The fixture service lifetime changed.' } };
     if (body.expectedPayableRevision !== undefined) return invalidInput('Reviewed payable revisions require integrated provider mode');
     const signature = JSON.stringify([body.billId, body.expectedAmountMinor ?? null]);
     const previous = body.operationId ? offlineUtilityOperations.get(body.operationId) : undefined;

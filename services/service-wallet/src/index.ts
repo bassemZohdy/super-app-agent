@@ -19,6 +19,7 @@ type OfflineUnifiedOperation = { signature: string; items: Array<{ agency: strin
 const offlineUnifiedOperations = new Map<string, OfflineUnifiedOperation>();
 type OfflineFineOperation = { signature: string; fines: Array<{ fineId: string; amountMinor: number }>; receiptReference: string; response: Record<string, unknown> };
 const offlineFineOperations = new Map<string, OfflineFineOperation>();
+const offlineFineEpoch = randomUUID();
 
 export let balance = 142.5;
 export const currency = 'USD';
@@ -163,7 +164,10 @@ function handleWalletRequest(
     return { status: 200, data: { success: true, operation: operation ? { operationId, status: 'SETTLED', fines: structuredClone(operation.fines), receiptReference: operation.receiptReference } : null } };
   }
 
+  if (normMethod === 'GET' && pathname === '/fines/payment-epoch') return { status: 200, data: { success: true, serviceEpoch: offlineFineEpoch } };
+
   if (normMethod === 'POST' && (pathname === '/fines/pay' || pathname === '/fines/settle')) {
+    if (body.expectedServiceEpoch !== undefined && body.expectedServiceEpoch !== offlineFineEpoch) return { status: 409, data: { success: false, code: 'FIXTURE_EPOCH_CHANGED', error: 'The fixture service lifetime changed.' } };
     if (body.expectedPayables !== undefined) return invalidInput('Reviewed payable revisions require integrated provider mode');
     const expectedFineAmounts: Array<{ fineId: string; amountMinor: number }> | undefined = body.expectedFineAmounts;
     if (expectedFineAmounts && (expectedFineAmounts.length !== body.fineIds.length || new Set(expectedFineAmounts.map(fine => fine.fineId)).size !== expectedFineAmounts.length || expectedFineAmounts.some(fine => !body.fineIds.includes(fine.fineId)))) return invalidInput('The reviewed fine selection is invalid');

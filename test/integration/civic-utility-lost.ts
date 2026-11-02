@@ -51,6 +51,8 @@ test('a lost utility response can be observed by its saved operation identity', 
   const headers = { authorization: 'Bearer demo-local' };
   const status = await executeGatewayRequest('GET', '/api/civic/reconciliation', { verify: '1' }, {}, headers);
   assert.equal(status.data.civicEvidence[1].assessment, 'OBSERVED');
+  const oldRetry = await executeGatewayRequest('POST', '/api/civic/reconciliation/retry', {}, { revision: status.data.revision }, headers);
+  assert.equal(oldRetry.status, 409); assert.equal(transactions.length, ledger + 1); assert.equal(laterWrites, 0);
   const oldAmount = activeUtilityBill.totalAmount; activeUtilityBill.totalAmount += 1;
   const mismatch = await executeGatewayRequest('POST', '/api/civic/reconciliation/observe-utility', {}, { revision: status.data.revision }, headers);
   activeUtilityBill.totalAmount = oldAmount;

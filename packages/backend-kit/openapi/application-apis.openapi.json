@@ -1230,6 +1230,10 @@
                     "maxLength": 128,
                     "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$",
                     "description": "Offline fixture operation identity; integrated provider mode rejects this field."
+                  },
+                  "expectedServiceEpoch": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f-]{36}$"
                   }
                 },
                 "required": [
@@ -1237,6 +1241,9 @@
                 ],
                 "additionalProperties": false,
                 "dependentRequired": {
+                  "expectedServiceEpoch": [
+                    "operationId"
+                  ],
                   "operationId": [
                     "expectedTag"
                   ]
@@ -2036,6 +2043,10 @@
                     "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$",
                     "description": "Offline fixture operation identity; integrated provider mode rejects this field."
                   },
+                  "expectedServiceEpoch": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f-]{36}$"
+                  },
                   "expectedPayableRevision": {
                     "type": "string",
                     "pattern": "^[a-f0-9]{64}$"
@@ -2051,6 +2062,9 @@
                 ],
                 "additionalProperties": false,
                 "dependentRequired": {
+                  "expectedServiceEpoch": [
+                    "operationId"
+                  ],
                   "operationId": [
                     "expectedAmountMinor"
                   ]
@@ -3488,6 +3502,10 @@
                     "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$",
                     "description": "Offline fixture operation identity; integrated provider mode rejects this field."
                   },
+                  "expectedServiceEpoch": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f-]{36}$"
+                  },
                   "expectedFineAmounts": {
                     "type": "array",
                     "minItems": 1,
@@ -3551,6 +3569,9 @@
                 ],
                 "additionalProperties": false,
                 "dependentRequired": {
+                  "expectedServiceEpoch": [
+                    "operationId"
+                  ],
                   "operationId": [
                     "expectedAmountMinor"
                   ]

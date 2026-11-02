@@ -127,6 +127,7 @@ export interface ParkingMeterSession {
 export const activeParkingMeters = new Map<string, ParkingMeterSession>();
 const offlineSalikTag = 'SLK-8492019';
 const offlineTollOperations = new Map<string, { signature: string; tagId: string; amountMinor: number; receiptReference: string; response: Record<string, unknown> }>();
+const offlineTollEpoch = randomUUID();
 const offlineTollRecharges: Array<{ transactionId: string; tagId: string; amountMinor: number; currency: 'AED' }> = [];
 export let salikBalance = 14.0; // Low balance alert triggered if < 20 AED
 
@@ -328,7 +329,10 @@ function handleRideRequest(
     return { status: 200, data: { success: true, operation: operation ? { operationId, status: 'SETTLED', tagId: operation.tagId, amountMinor: operation.amountMinor, receiptReference: operation.receiptReference } : null } };
   }
 
+  if (normMethod === 'GET' && pathname === '/mobility/salik/recharge-epoch') return { status: 200, data: { success: true, serviceEpoch: offlineTollEpoch } };
+
   if (normMethod === 'POST' && (pathname === '/mobility/salik/recharge' || pathname === '/salik/recharge')) {
+    if (body.expectedServiceEpoch !== undefined && body.expectedServiceEpoch !== offlineTollEpoch) return { status: 409, data: { success: false, code: 'FIXTURE_EPOCH_CHANGED', error: 'The fixture service lifetime changed.' } };
     const signature = JSON.stringify({ tagId: body.expectedTag ?? null, amountMinor: toMinor(body.amount), currency: body.currency ?? 'AED' });
     const previous = body.operationId ? offlineTollOperations.get(body.operationId) : undefined;
     if (previous) {

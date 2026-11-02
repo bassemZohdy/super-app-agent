@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Retry an uncertain civic continuation (P1-13, step)
+
+The owner can retry a journaled continuation with its original operation ID while the same synthetic fixture process is available. Fixtures refuse a changed lifetime before mutation; failed retries remain unknown and fenced. Redis/HTTP tests cover pre-dispatch failure, concurrent and in-flight retries, each step type, and a real fixture-service restart. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Verify interrupted civic continuation (P1-13, step)
 
 The Redis/HTTP recovery test now stops another agent after the utility step takes effect and races fresh agent processes to continue. It verifies both original outcomes, one fine settlement and final checkout resolution. Fixture services stay running. Guide: [integrations](integrations.md).

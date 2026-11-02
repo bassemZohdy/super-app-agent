@@ -12,7 +12,7 @@ import { HttpPolicy, HttpError, readJsonBody } from '../../../packages/backend-k
 import { handleMcp } from './mcp.ts';
 import { issueApproval, actionIsApproved, actionIsDisabled, recordApproval } from './approvals.ts';
 import { actorContext, actorFor, accountIdFor } from '../../../packages/backend-kit/src/context.ts';
-import { redisSessions, SessionError } from './session-store.ts';
+import { redisSessions, SessionError, type CivicStepName } from './session-store.ts';
 import { randomUUID } from 'node:crypto';
 import { trackDomainOperations, executionOutcome, DomainOperationError, callDomainAsync, type Step } from './domain-operations.ts';
 import { withCivicFinalizers } from './civic-finalization.ts';
@@ -231,14 +231,20 @@ async function handleGatewayRequest(
         return { status: 409, data: { success: false, code: 'CIVIC_REVIEW_CHANGED', error: 'The original checkout cannot continue.' } };
       const evidence = await compareCivicEvidence(status.civicReview, status.civicSteps, (source, reference) => actorContext.run(actor, async () => (await callDomainAsync(source === 'fine-receipt' || source === 'wallet-operation' || source === 'fine-operation' ? 'wallet' : source === 'utility-operation' ? 'food' : source === 'toll-operation' ? 'ride' : source, 'GET', source === 'wallet' ? '/wallet/transactions' : source === 'wallet-operation' ? `/wallet/unified-operations/${encodeURIComponent(reference || '')}` : source === 'food' ? '/utilities/bill' : source === 'utility-operation' ? `/utilities/payment-operations/${encodeURIComponent(reference || '')}` : source === 'fine-receipt' ? `/fines/receipts/${encodeURIComponent(reference || '')}` : source === 'fine-operation' ? `/fines/payment-operations/${encodeURIComponent(reference || '')}` : source === 'toll-operation' ? `/mobility/salik/recharge-operations/${encodeURIComponent(reference || '')}` : `/mobility/salik/recharges/${encodeURIComponent(reference || '')}`)).data));
       if (evidence.length !== status.civicSteps.length || evidence.some(item => item.assessment !== 'MATCH')) return { status: 409, data: { success: false, code: 'CIVIC_EVIDENCE_INCOMPLETE', error: 'The original checkout evidence could not be confirmed.' } };
-      const started = await store.startCivicContinuation(actor.sub, actor.accountId, body.revision);
       const review = status.civicReview;
+      const expected: CivicStepName[] = ['WALLET', ...(review.billAmountMinor ? ['UTILITY' as const] : []), ...(review.fines.length ? ['FINES' as const] : []), 'TOLL'];
+      const nextName = expected[status.civicSteps.length];
+      if (!nextName || nextName === 'WALLET' || status.civicSteps.some((step, index) => step.name !== expected[index] || step.state !== 'CONFIRMED')) return { status: 409, data: { success: false, code: 'CIVIC_REVIEW_CHANGED', error: 'The original checkout cannot continue.' } };
+      const epochResult = await actorContext.run(actor, () => nextName === 'UTILITY' ? callDomainAsync('food', 'GET', '/utilities/payment-epoch') : nextName === 'FINES' ? callDomainAsync('wallet', 'GET', '/fines/payment-epoch') : callDomainAsync('ride', 'GET', '/mobility/salik/recharge-epoch'));
+      const serviceEpoch = epochResult.data.serviceEpoch;
+      if (typeof serviceEpoch !== 'string' || !/^[0-9a-f-]{36}$/.test(serviceEpoch)) throw new Error('Fixture lifetime unavailable');
+      const started = await store.startCivicContinuation(actor.sub, actor.accountId, body.revision, nextName, serviceEpoch);
       try {
         const result = await actorContext.run(actor, () => started.name === 'UTILITY'
-          ? callDomainAsync('food', 'POST', '/utilities/pay', {}, { billId: review.billId, expectedAmountMinor: review.billAmountMinor, operationId: started.operationId })
+          ? callDomainAsync('food', 'POST', '/utilities/pay', {}, { billId: review.billId, expectedAmountMinor: review.billAmountMinor, operationId: started.operationId, expectedServiceEpoch: serviceEpoch })
           : started.name === 'FINES'
-            ? callDomainAsync('wallet', 'POST', '/fines/pay', {}, { fineIds: review.fines.map(fine => fine.fineId), expectedFineAmounts: review.fines, expectedAmountMinor: review.fines.reduce((sum, fine) => sum + fine.amountMinor, 0), operationId: started.operationId })
-            : callDomainAsync('ride', 'POST', '/mobility/salik/recharge', {}, { amount: fromMinor(review.tollAmountMinor), expectedTag: review.tagNumber, operationId: started.operationId }));
+            ? callDomainAsync('wallet', 'POST', '/fines/pay', {}, { fineIds: review.fines.map(fine => fine.fineId), expectedFineAmounts: review.fines, expectedAmountMinor: review.fines.reduce((sum, fine) => sum + fine.amountMinor, 0), operationId: started.operationId, expectedServiceEpoch: serviceEpoch })
+            : callDomainAsync('ride', 'POST', '/mobility/salik/recharge', {}, { amount: fromMinor(review.tollAmountMinor), expectedTag: review.tagNumber, operationId: started.operationId, expectedServiceEpoch: serviceEpoch }));
         const reference = started.name === 'UTILITY' ? result.data.receipt?.receiptNumber : started.name === 'FINES' ? result.data.receiptNumber : result.data.transactionId;
         if (typeof reference !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(reference)) throw new Error('Missing receipt');
         const revision = await store.finishCivicContinuation(actor.sub, actor.accountId, started.revision, started.operationId, 'CONFIRMED', reference);
@@ -248,6 +254,39 @@ async function handleGatewayRequest(
         const rejected = error instanceof DomainOperationError && error.code === 'DOMAIN_REJECTED';
         await store.finishCivicContinuation(actor.sub, actor.accountId, started.revision, started.operationId, rejected ? 'REJECTED' : 'UNKNOWN');
         return { status: rejected ? 409 : 503, data: { success: false, code: rejected ? 'CIVIC_STEP_REJECTED' : 'CIVIC_OUTCOME_UNKNOWN', error: rejected ? 'The original step was rejected.' : 'The original step requires reconciliation.' } };
+      }
+    } catch (error) {
+      if (error instanceof SessionError && error.status === 409) return { status: 409, data: { success: false, code: error.code, error: error.message } };
+      return { status: 503, data: { success: false, code: 'CIVIC_STATUS_UNAVAILABLE', error: 'Shared offline civic status is unavailable.' } };
+    }
+  }
+  if (normMethod === 'POST' && pathname === '/api/civic/reconciliation/retry') {
+    if (process.env.PROVIDER_INTEGRATION === 'true' || process.env.DOMAIN_TRANSPORT !== 'http') return { status: 503, data: { success: false, code: 'CIVIC_STATUS_UNAVAILABLE', error: 'Shared offline civic status is unavailable in this mode.' } };
+    try {
+      const store = redisSessions();
+      if (!store) throw new Error('Shared storage unavailable');
+      const status = await store.inspectCivicFence(actor.sub, actor.accountId);
+      if (status.revision !== body.revision || status.action !== 'confirm_smartcity_checkout' || !status.surfaceRevision || !status.civicReview || !status.civicSteps || status.civicSteps.length < 2 || !['STARTED', 'UNKNOWN'].includes(status.civicSteps.at(-1)?.state || '') || !status.civicSteps.at(-1)?.serviceEpoch)
+        return { status: 409, data: { success: false, code: 'CIVIC_REVIEW_CHANGED', error: 'The original checkout cannot continue.' } };
+      const evidence = await compareCivicEvidence(status.civicReview, status.civicSteps.slice(0, -1), (source, reference) => actorContext.run(actor, async () => (await callDomainAsync(source === 'fine-receipt' || source === 'wallet-operation' || source === 'fine-operation' ? 'wallet' : source === 'utility-operation' ? 'food' : source === 'toll-operation' ? 'ride' : source, 'GET', source === 'wallet' ? '/wallet/transactions' : source === 'wallet-operation' ? `/wallet/unified-operations/${encodeURIComponent(reference || '')}` : source === 'food' ? '/utilities/bill' : source === 'utility-operation' ? `/utilities/payment-operations/${encodeURIComponent(reference || '')}` : source === 'fine-receipt' ? `/fines/receipts/${encodeURIComponent(reference || '')}` : source === 'fine-operation' ? `/fines/payment-operations/${encodeURIComponent(reference || '')}` : source === 'toll-operation' ? `/mobility/salik/recharge-operations/${encodeURIComponent(reference || '')}` : `/mobility/salik/recharges/${encodeURIComponent(reference || '')}`)).data));
+      if (evidence.length !== status.civicSteps.length - 1 || evidence.some(item => item.assessment !== 'MATCH')) return { status: 409, data: { success: false, code: 'CIVIC_EVIDENCE_INCOMPLETE', error: 'The original checkout evidence could not be confirmed.' } };
+      const review = status.civicReview;
+      const started = await store.retryCivicContinuation(actor.sub, actor.accountId, body.revision);
+      const serviceEpoch = started.serviceEpoch;
+      try {
+        const result = await actorContext.run(actor, () => started.name === 'UTILITY'
+          ? callDomainAsync('food', 'POST', '/utilities/pay', {}, { billId: review.billId, expectedAmountMinor: review.billAmountMinor, operationId: started.operationId, expectedServiceEpoch: serviceEpoch })
+          : started.name === 'FINES'
+            ? callDomainAsync('wallet', 'POST', '/fines/pay', {}, { fineIds: review.fines.map(fine => fine.fineId), expectedFineAmounts: review.fines, expectedAmountMinor: review.fines.reduce((sum, fine) => sum + fine.amountMinor, 0), operationId: started.operationId, expectedServiceEpoch: serviceEpoch })
+            : callDomainAsync('ride', 'POST', '/mobility/salik/recharge', {}, { amount: fromMinor(review.tollAmountMinor), expectedTag: review.tagNumber, operationId: started.operationId, expectedServiceEpoch: serviceEpoch }));
+        const reference = started.name === 'UTILITY' ? result.data.receipt?.receiptNumber : started.name === 'FINES' ? result.data.receiptNumber : result.data.transactionId;
+        if (typeof reference !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(reference)) throw new Error('Missing receipt');
+        const revision = await store.finishCivicContinuation(actor.sub, actor.accountId, started.revision, started.operationId, 'CONFIRMED', reference);
+        return { status: 200, data: { success: true, step: started.name, revision } };
+      } catch (error) {
+        if (error instanceof SessionError) throw error;
+        await store.finishCivicContinuation(actor.sub, actor.accountId, started.revision, started.operationId, 'UNKNOWN');
+        return { status: 503, data: { success: false, code: 'CIVIC_OUTCOME_UNKNOWN', error: 'The original step requires reconciliation.' } };
       }
     } catch (error) {
       if (error instanceof SessionError && error.status === 409) return { status: 409, data: { success: false, code: error.code, error: error.message } };
