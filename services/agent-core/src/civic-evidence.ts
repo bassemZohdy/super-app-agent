@@ -49,7 +49,7 @@ export async function compareCivicEvidence(review: Review, steps: readonly Step[
         const matches = result.value.transactions.filter((transaction: unknown) => isRecord(transaction) && transaction.id === step.receiptReference);
         const transaction = matches.length === 1 && isRecord(matches[0]) ? matches[0] : undefined;
         const expected = step.name === 'WALLET' ? review.billAmountMinor + review.tollAmountMinor : review.fines.reduce((sum, fine) => sum + fine.amountMinor, 0);
-        matched = Number.isSafeInteger(expected) && !!transaction && transaction.type === 'PAYMENT' && transaction.status === 'SETTLED' && transaction.currency === 'AED' && typeof transaction.amount === 'number' && toMinor(transaction.amount) === expected;
+        matched = Number.isSafeInteger(expected) && !!transaction && (step.name !== 'WALLET' || !step.operationId || transaction.operationId === step.operationId) && transaction.type === 'PAYMENT' && transaction.status === 'SETTLED' && transaction.currency === 'AED' && typeof transaction.amount === 'number' && toMinor(transaction.amount) === expected;
       }
     } catch { matched = false; }
     if (matched && step.name === 'FINES') {

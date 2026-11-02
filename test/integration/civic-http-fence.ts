@@ -60,6 +60,27 @@ test('a lost separate-service wallet response leaves a shared fence for a fresh 
   const refused = await executeGatewayRequest('POST', '/api/civic/reconciliation/resolve', {}, { revision: inspected.data.revision }, { authorization: 'Bearer demo-local' });
   assert.equal(refused.status, 409, 'an unknown wallet outcome cannot be resolved as complete');
   assert.equal(await check.client.exists(key), 1);
+  const tx = transactions.at(-1)!, savedAmount = tx.amount;
+  tx.amount += 0.01;
+  try {
+    const changed = await executeGatewayRequest('POST', '/api/civic/reconciliation/observe-wallet', {}, { revision: inspected.data.revision }, { authorization: 'Bearer demo-local' });
+    assert.equal(changed.status, 409); assert.equal(await check.client.exists(key), 1);
+  } finally { tx.amount = savedAmount; }
+  const other = await executeGatewayRequest('POST', '/api/civic/reconciliation/observe-wallet', {}, { revision: inspected.data.revision, accountId: accountIdFor('local-demo-user', 'household') }, { authorization: 'Bearer demo-local' });
+  assert.equal(other.status, 409);
+  const attempts = await Promise.all([1, 2].map(() => executeGatewayRequest('POST', '/api/civic/reconciliation/observe-wallet', {}, { revision: inspected.data.revision }, { authorization: 'Bearer demo-local' })));
+  assert.equal(attempts.filter(item => item.status === 200 && item.data.observation === 'RECORDED').length, 1);
+  assert.ok(attempts.every(item => item.status === 200 || item.status === 409));
+  const after = await executeGatewayRequest('GET', '/api/civic/reconciliation', {}, {}, { authorization: 'Bearer demo-local' });
+  assert.notEqual(after.data.revision, inspected.data.revision);
+  assert.deepEqual(after.data.civicSteps.map((step: { name: string; state: string; recoveredFrom?: string }) => [step.name, step.state, step.recoveredFrom]), [['WALLET', 'CONFIRMED', 'UNKNOWN']]);
+  assert.equal(after.data.civicSteps[0].receiptReference, tx.id);
+  const afterVerification = await executeGatewayRequest('GET', '/api/civic/reconciliation', { verify: '1' }, {}, { authorization: 'Bearer demo-local' });
+  assert.deepEqual(afterVerification.data.civicEvidence, [{ name: 'WALLET', assessment: 'MATCH' }]);
+  const replay = await executeGatewayRequest('POST', '/api/civic/reconciliation/observe-wallet', {}, { revision: inspected.data.revision }, { authorization: 'Bearer demo-local' });
+  assert.equal(replay.status, 200); assert.equal(replay.data.observation, 'ALREADY_RECORDED');
+  assert.equal((await executeGatewayRequest('POST', '/api/civic/reconciliation/resolve', {}, { revision: after.data.revision }, { authorization: 'Bearer demo-local' })).status, 409);
+  assert.equal(transactions.length, ledger + 1); assert.equal(await check.client.exists(key), 1);
 
   const childCode = `import { SuperAppAgentGraph } from './services/agent-core/src/langgraph/graph.ts'; import { redisSessions } from './services/agent-core/src/session-store.ts'; import { actorContext, actorFor, accountIdFor } from './packages/backend-kit/src/context.ts'; try { await actorContext.run(actorFor({sub:'other-user'},undefined,'Bearer test'),()=>SuperAppAgentGraph.resumeWithAction({sessionId:'fresh-session',messages:[],activeDomain:'composite'},'confirm_smartcity_checkout',{})); process.exitCode=2; } catch(e) { if(e.code!=='CIVIC_RECONCILIATION_REQUIRED') process.exitCode=3; } finally { await redisSessions()?.close(); }`;
   await execFileAsync(process.execPath, ['--experimental-strip-types', '--input-type=module', '-e', childCode], { cwd: process.cwd(), env: process.env, timeout: 15000 });

@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Record an observed wallet outcome (P1-13, step)
+
+The owner can record matching lost-response wallet evidence against the original civic journal without another debit or fence release. Live Redis/HTTP tests cover changed evidence, cross-account requests, retries, concurrency and an original wallet response still in flight. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Identify a lost offline wallet response (P1-13, step)
 
 Separate-service civic checkout saves a wallet operation ID before dispatch. The synthetic wallet deduplicates same-term requests within its process, rejects changed terms, and exposes the original operation for owner-scoped evidence after a lost response. The result remains fenced and is not automatically retried; wallet-process restart loses the in-memory operation history. Guide: [integrations](integrations.md).
