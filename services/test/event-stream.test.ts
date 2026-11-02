@@ -3,12 +3,28 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { generateKeyPairSync, sign } from 'node:crypto';
 import type { ServerResponse } from 'node:http';
-import { EventJournal, StreamWriter } from '../agent-core/src/event-stream.ts';
+import { EventJournal, StreamWriter, StreamAdmission } from '../agent-core/src/event-stream.ts';
 import { createA2UIMessage, validateA2UIMessage } from '../../packages/protocol-core/src/index.ts';
 import { readEventStream } from '../../packages/protocol-core/src/sse-client.ts';
 import { server, executeCoreRequest, sseClients } from '../agent-core/src/index.ts';
 
 const message = (sid: string, text: string) => createA2UIMessage('A2UI_STREAM_DELTA', sid, { phase: 'TOOL_EXECUTION', text });
+
+test('stream admission reserves session, owner and global capacity and releases exactly once', () => {
+  const admission = new StreamAdmission(2, 3, 4);
+  const first = admission.acquire('alice', 'one'), second = admission.acquire('alice', 'one');
+  assert.ok(first && second);
+  assert.equal(admission.acquire('alice', 'one'), undefined);
+  const third = admission.acquire('alice', 'two'); assert.ok(third);
+  assert.equal(admission.acquire('alice', 'three'), undefined);
+  const fourth = admission.acquire('bob', 'three'); assert.ok(fourth);
+  assert.equal(admission.acquire('carol', 'four'), undefined);
+  first(); first();
+  const replacement = admission.acquire('carol', 'four'); assert.ok(replacement);
+  assert.equal(admission.acquire('carol', 'four'), undefined);
+  second(); third(); fourth(); replacement();
+  assert.ok(admission.acquire('alice', 'one'));
+});
 
 test('replay is session-bound and bounded by count, TTL, session count and bytes', t => {
   const journal = new EventJournal(2, 1000, 2);
@@ -121,6 +137,18 @@ test('real HTTP stream verifies signed bearer, user ownership, origin, replay an
   await expiring.next();
   assert.equal((await expiring.next()).done, true);
   assert.ok(!sseClients.has('stream_expiry_001') || sseClients.get('stream_expiry_001')!.size === 0);
+  const streams = Array.from({ length: 6 }, () => new AbortController());
+  try {
+    const opened = await Promise.all(streams.map(signal => fetch(url, { headers, signal: signal.signal })));
+    assert.equal(opened.filter(item => item.status === 200).length, 5);
+    assert.equal(opened.filter(item => item.status === 429).length, 1);
+    const index = opened.findIndex(item => item.status === 200);
+    streams[index].abort();
+    const deadline = Date.now() + 3000;
+    while ((sseClients.get(sid)?.size ?? 0) >= 5 && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 10));
+    const replacement = new AbortController(); streams.push(replacement);
+    assert.equal((await fetch(url, { headers, signal: replacement.signal })).status, 200);
+  } finally { streams.forEach(stream => stream.abort()); }
 });
 
 test('browser stream reconnects with bearer headers and cursor, resets stale replay, and stops on 401', async t => {

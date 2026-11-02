@@ -2,6 +2,35 @@ import { operationalEvent } from '../../../packages/backend-kit/src/observabilit
 import type { ServerResponse } from 'node:http';
 import type { A2UIMessageEnvelope } from '../../../packages/protocol-core/src/index.ts';
 
+/** Process-local admission includes subscriptions that have not finished connecting. */
+export class StreamAdmission {
+  private sessions = new Map<string, number>();
+  private owners = new Map<string, number>();
+  private total = 0;
+  private sessionLimit: number;
+  private ownerLimit: number;
+  private globalLimit: number;
+  constructor(sessionLimit = 5, ownerLimit = 20, globalLimit = 1000) {
+    this.sessionLimit = sessionLimit; this.ownerLimit = ownerLimit; this.globalLimit = globalLimit;
+  }
+  acquire(owner: string, session: string): (() => void) | undefined {
+    if ((this.sessions.get(session) ?? 0) >= this.sessionLimit || (this.owners.get(owner) ?? 0) >= this.ownerLimit || this.total >= this.globalLimit) return;
+    this.sessions.set(session, (this.sessions.get(session) ?? 0) + 1);
+    this.owners.set(owner, (this.owners.get(owner) ?? 0) + 1);
+    this.total++;
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      const decrement = (counts: Map<string, number>, key: string) => {
+        const remaining = (counts.get(key) ?? 1) - 1;
+        if (remaining) counts.set(key, remaining); else counts.delete(key);
+      };
+      decrement(this.sessions, session); decrement(this.owners, owner); this.total--;
+    };
+  }
+}
+
 /** Bounded process-local replay. Durable replay belongs to P0-05. */
 export class EventJournal {
   private logs = new Map<string, { touched: number; events: A2UIMessageEnvelope[]; sizes: number[] }>();

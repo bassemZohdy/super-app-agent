@@ -21,7 +21,7 @@ import { compareCompositeEvidence } from './composite-evidence.ts';
 import { completeCivicSteps } from './civic-resolution.ts';
 import { validateRequest, fromMinor, toMinor } from '../../../packages/protocol-core/src/request-validation.ts';
 import http from 'node:http';
-import { EventJournal, StreamWriter, eventFrame } from './event-stream.ts';
+import { EventJournal, StreamWriter, StreamAdmission, eventFrame } from './event-stream.ts';
 import {
   createA2UIMessage,
   type A2UIMessageEnvelope,
@@ -35,6 +35,7 @@ import { voiceConfig, localSpeech, localTranscription } from './local-voice.ts';
 
 // In-Memory Session and SSE Subscriber Registry
 const connectionRegistry = new ConnectionRegistry();
+const streamAdmission = new StreamAdmission();
 export const sessions = new Map<string, SuperAppAgentState>();
 const sessionOwners = new Map<string, string>();
 export const sseClients = new Map<string, Set<(msg: A2UIMessageEnvelope) => void>>();
@@ -867,11 +868,13 @@ export const server = http.createServer({ maxHeaderSize: 16384 }, telemetry.hand
       sendJson(req, res, 409, { error: 'Replay cursor expired or unknown', code: 'STREAM_RESET_REQUIRED' });
       return;
     }
-    const subscribers = sseClients.get(sid) || new Set();
-    if (subscribers.size >= 5) {
-      sendJson(req, res, 429, { error: 'Too many streams for this session' });
+    if (res.destroyed || req.aborted) return;
+    const releaseStream = streamAdmission.acquire(authResult.user!.sub, sid);
+    if (!releaseStream) {
+      sendJson(req, res, 429, { error: 'Stream capacity reached' });
       return;
     }
+    const subscribers = sseClients.get(sid) || new Set();
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache, no-transform',
@@ -883,13 +886,27 @@ export const server = http.createServer({ maxHeaderSize: 16384 }, telemetry.hand
     const writer = new StreamWriter(res);
     let delivery=Promise.resolve(),pendingMessages=0;
     const listener = (msg: A2UIMessageEnvelope) => {if(res.writableEnded)return;if(pendingMessages>=32){operationalEvent('sse_backpressure');res.end();return;}pendingMessages++;delivery=delivery.then(async()=>{if(res.writableEnded)return;if(eligibilityEnforced()){const verified=await verifyKeycloakToken(authHeader);if(!verified.authenticated)throw Error('Identity inactive');await eligibilityReader.require(streamActor);}writer.send(eventFrame(msg));}).catch(()=>{res.end();}).finally(()=>{pendingMessages--;});};
-    const unsubscribe = persistent ? await persistent.subscribe(sid, listener) : undefined;
     subscribers.add(listener);
     sseClients.set(sid, subscribers);
-    const heartbeat = setInterval(() => writer.send(': keepalive\n\n'), 20_000);
+    let unsubscribe: (() => Promise<void>) | undefined;
+    let heartbeat: ReturnType<typeof setInterval> | undefined, expiry: ReturnType<typeof setTimeout> | undefined;
+    let closed = false;
+    res.once('close', () => {
+      closed = true;
+      clearInterval(heartbeat); clearTimeout(expiry);
+      writer.close();
+      void unsubscribe?.().catch(() => {});
+      subscribers.delete(listener);
+      if (!subscribers.size && sseClients.get(sid) === subscribers) sseClients.delete(sid);
+      releaseStream();
+    });
+    try { unsubscribe = persistent ? await persistent.subscribe(sid, listener) : undefined; }
+    catch { res.destroy(); return; }
+    if (closed || res.destroyed) { void unsubscribe?.().catch(() => {}); return; }
+    heartbeat = setInterval(() => writer.send(': keepalive\n\n'), 20_000);
     // Reauthenticate each connection and close it at token expiry (or after 5 minutes).
     const lifetime = Math.min(300_000, (authResult.user!.expiresAt ?? Date.now() + 300_000) - Date.now());
-    const expiry = setTimeout(() => res.end(), Math.max(0, lifetime));
+    expiry = setTimeout(() => res.end(), Math.max(0, lifetime));
     const ack = createA2UIMessage('A2UI_HANDSHAKE_ACK', sid, {
       status: 'connected', supportedProtocols: ['superapp-custom/1.0'], sessionId: sid,
       user: authResult.user,
@@ -903,14 +920,6 @@ export const server = http.createServer({ maxHeaderSize: 16384 }, telemetry.hand
         mode: 'REPLACE', surface,
       }));
     }
-    res.once('close', () => {
-      clearInterval(heartbeat);
-      clearTimeout(expiry);
-      writer.close();
-      void unsubscribe?.().catch(() => {});
-      subscribers.delete(listener);
-      if (!subscribers.size) sseClients.delete(sid);
-    });
     return;
   }
 

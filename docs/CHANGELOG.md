@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 3 November 2026 - Bound retained gateway stream admission (P0-02, step)
+
+The compatibility gateway reserves per-session, resident and process stream capacity before asynchronous subscription and releases it on disconnect. Guide: [security](security.md).
+
 ## 3 November 2026 - Hold malformed original ride evidence (P1-13, step)
 
 Ride inspection and replay require a confirmed booking with a valid driver, route and exact fare even when stored copies agree. Guide: [agent flow](agent-flow.md).
