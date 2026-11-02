@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Record an observed toll outcome (P1-13, step)
+
+The owner can record a verified lost toll response in the original journal without another recharge, then resolve the complete checkout after a fresh evidence check. Redis/HTTP tests cover prior recoveries, account isolation, concurrency and an in-flight response. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Identify a lost offline toll response (P1-13, step)
 
 Separate-service civic checkout saves a toll operation ID before dispatch. The synthetic ride fixture binds it to the reviewed tag and amount, deduplicates same-term requests within its process, and supports exact-receipt evidence after a lost response. Guide: [integrations](integrations.md).

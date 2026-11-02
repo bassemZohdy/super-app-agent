@@ -185,3 +185,28 @@ test('fine observation preserves prior recoveries and supports reviews without a
   const after = await store.inspectCivicFence(owner.subject, owner.accountId);
   assert.equal(after.civicSteps?.[1].recoveredFrom, 'STARTED'); assert.equal(after.finesObservedFromRevision, before.revision);
 });
+
+test('toll observation preserves earlier recovered steps and handles optional obligations', async t => {
+  const prefix = `cityside-toll-observe-test:${randomUUID()}:`, url = process.env.TEST_REDIS_URL || 'redis://127.0.0.1:6379';
+  const store = new RedisSessionStore(url, 60, prefix), key = `${prefix}offline-civic-fence`;
+  t.after(async () => { await store.connect(); await store.client.del(key); await store.close(); });
+  const owner = { subject: 'owner', accountId: 'account', sessionId: 'toll_observe_session', action: 'confirm_smartcity_checkout' as const };
+  await store.acquireCivicFence(owner); const raw = await store.client.get(key); assert.ok(raw); const base = JSON.parse(raw);
+  for (const version of [20, 21, 22, 23, 24, 25, 26, 27]) {
+    const walletRecovered = [21, 23, 25, 27].includes(version), utilityRecovered = [22, 23, 26, 27].includes(version), fineRecovered = version >= 24;
+    const step = (name: string, reference: string, recovered: boolean) => ({ name, state: 'CONFIRMED', operationId: `CIVIC-${randomUUID()}`, receiptReference: reference, ...(recovered ? { recoveredFrom: 'UNKNOWN' } : {}) });
+    const record = { ...base, version, review: { billId: 'B1', billAmountMinor: 200, fines: [{ fineId: 'F1', amountMinor: 300 }], tagNumber: 'T1', tollAmountMinor: 10000 }, steps: [step('WALLET', 'W1', walletRecovered), step('UTILITY', 'U1', utilityRecovered), step('FINES', 'F1', fineRecovered), { name: 'TOLL', state: 'UNKNOWN', operationId: `CIVIC-${randomUUID()}` }], ...(walletRecovered ? { observedFromRevision: 'a'.repeat(64) } : {}), ...(utilityRecovered ? { utilityObservedFromRevision: 'b'.repeat(64) } : {}), ...(fineRecovered ? { finesObservedFromRevision: 'c'.repeat(64) } : {}) };
+    await store.client.set(key, JSON.stringify(record)); const before = await store.inspectCivicFence(owner.subject, owner.accountId); assert.ok(before.revision);
+    await assert.rejects(() => store.observeCivicToll(owner.subject, 'other-account', before.revision!, 'T1'), /changed/i);
+    await store.observeCivicToll(owner.subject, owner.accountId, before.revision, 'T1'); const after = await store.inspectCivicFence(owner.subject, owner.accountId);
+    assert.equal(after.tollObservedFromRevision, before.revision); assert.equal(after.civicSteps?.at(-1)?.recoveredFrom, 'UNKNOWN');
+    assert.equal(after.observedFromRevision, walletRecovered ? 'a'.repeat(64) : undefined); assert.equal(after.utilityObservedFromRevision, utilityRecovered ? 'b'.repeat(64) : undefined); assert.equal(after.finesObservedFromRevision, fineRecovered ? 'c'.repeat(64) : undefined);
+  }
+  for (const utility of [false, true]) for (const fines of [false, true]) {
+    const step = (name: string) => ({ name, state: 'CONFIRMED', operationId: `CIVIC-${randomUUID()}`, receiptReference: `${name}-1` });
+    const record = { ...base, version: 20, review: { billId: 'B1', billAmountMinor: utility ? 200 : 0, fines: fines ? [{ fineId: 'F1', amountMinor: 300 }] : [], tagNumber: 'T1', tollAmountMinor: 10000 }, steps: [step('WALLET'), ...(utility ? [step('UTILITY')] : []), ...(fines ? [step('FINES')] : []), { name: 'TOLL', state: 'STARTED', operationId: `CIVIC-${randomUUID()}` }] };
+    await store.client.set(key, JSON.stringify(record)); const before = await store.inspectCivicFence(owner.subject, owner.accountId); assert.ok(before.revision);
+    await store.observeCivicToll(owner.subject, owner.accountId, before.revision, 'T1');
+    const after = await store.inspectCivicFence(owner.subject, owner.accountId); assert.equal(after.civicSteps?.at(-1)?.recoveredFrom, 'STARTED');
+  }
+});

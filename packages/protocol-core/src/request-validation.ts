@@ -77,6 +77,7 @@ route('agent-core', 'POST', '/api/civic/reconciliation/resolve', object({ accoun
 route('agent-core', 'POST', '/api/civic/reconciliation/observe-wallet', object({ accountId: id, revision: { type: 'string', pattern: '^[a-f0-9]{64}$' } }, ['revision']));
 route('agent-core', 'POST', '/api/civic/reconciliation/observe-utility', object({ accountId: id, revision: { type: 'string', pattern: '^[a-f0-9]{64}$' } }, ['revision']));
 route('agent-core', 'POST', '/api/civic/reconciliation/observe-fines', object({ accountId: id, revision: { type: 'string', pattern: '^[a-f0-9]{64}$' } }, ['revision']));
+route('agent-core', 'POST', '/api/civic/reconciliation/observe-toll', object({ accountId: id, revision: { type: 'string', pattern: '^[a-f0-9]{64}$' } }, ['revision']));
 route('agent-core', 'GET', '/api/payments/overview', object({ accountId: id }, ['accountId']));
 for(const path of ['eligibility','lifecycle'])route('agent-core','GET',`/api/payments/${path}`,object({accountId:id},['accountId']));
 route('agent-core','GET','/api/payments/wallet-funding-orders',object({accountId:id},['accountId']));
