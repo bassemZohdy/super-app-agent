@@ -26,7 +26,7 @@ export type ExecutionView = {
 export type PermitState = 'ISSUED' | 'BOUND' | 'CONSUMED' | 'COMPLETED' | 'FAILED' | 'UNKNOWN' | 'CLOSED';
 export type Permit = {
   id: string; executionId: string; runId: string; accountId: string; owner: string; workerSub: string; eligibilityEpoch: string;
-  boundDigest: string; operationDigest: string; operation?: ReturnType<typeof permitOperation>; state: PermitState; attempt: number;
+  boundDigest: string; operationDigest: string; authorityDigest?: string; operation?: ReturnType<typeof permitOperation>; state: PermitState; attempt: number;
   issuedAt: number; expiresAt: number; fingerprint?: string; tokenExp?: number;
   /** Set on the permit that replaced a consumed one after the owner approved its card challenge. */
   resumeOf?: string;
@@ -52,6 +52,9 @@ export function permitOperation(view: Pick<ExecutionView, 'executionId' | 'runId
   return automationOperation({ executionId: view.executionId, runId: view.runId, accountId: view.accountId, boundDigest: view.boundDigest,
     payableId: view.payable.id, payableRevision: view.payable.revision, amountMinor: view.payable.amountMinor, sourceId: view.source.id, sourceVersion: view.source.version });
 }
+
+// Bind immutable admission facts separately from mutable current-authority checks.
+const authorityDigest = (view: ExecutionView) => digest(['automation-authority-v1', view.mandate.id, view.mandate.policyVersion, view.biller?.id ?? null, view.preparedAt, view.admissionExpiresAt]);
 
 /** Every authority fact that must hold, right now, before any credential for this execution exists. */
 function admission(view: ExecutionView, now: number) {
@@ -120,10 +123,10 @@ export class PermitStore {
     return this.atomic(() => {
       const rows = this.db.prepare('SELECT body,state,fingerprint FROM permits WHERE execution_id=? ORDER BY rowid DESC').all(view.executionId) as never[];
       const live = rows.map(row => this.read(row)).find(permit => permit.state !== 'CLOSED');
+      if (live && live.state !== 'ISSUED') deny('PERMIT_ALREADY_ISSUED', 'This execution already received its one credential. Inspect its original operation instead of requesting another.');
+      // Closed attempts are also evidence of the execution's original immutable authority.
+      if (rows.map(row => this.read(row)).some(permit => permit.operationDigest !== operationDigest || permit.authorityDigest !== authorityDigest(view) || permit.workerSub !== worker.sub || permit.owner !== view.ownerSub || permit.eligibilityEpoch !== view.eligibilityEpoch)) deny('PERMIT_OPERATION_MISMATCH', 'The execution differs from the one this permit was issued for.');
       if (live) {
-        if (live.state !== 'ISSUED') deny('PERMIT_ALREADY_ISSUED', 'This execution already received its one credential. Inspect its original operation instead of requesting another.');
-        // A prepared execution is immutable, so any difference is an inconsistency, never a reason to re-issue.
-        if (live.operationDigest !== operationDigest || live.workerSub !== worker.sub || live.owner !== view.ownerSub || live.eligibilityEpoch !== view.eligibilityEpoch) deny('PERMIT_OPERATION_MISMATCH', 'The execution differs from the one this permit was issued for.');
         // Replay is safe only while no token exists: the same worker gets the same permit back.
         if (live.expiresAt > now) return live;
         live.state = 'CLOSED'; this.save(live); this.audit(live.id, 'permit.closed', { reason: 'EXPIRED' }, now);
@@ -131,7 +134,7 @@ export class PermitStore {
       if (rows.length >= MAX_PERMIT_ATTEMPTS) deny('PERMIT_ATTEMPTS_EXHAUSTED', 'This execution used all of its credential attempts.');
       const permit: Permit = {
         id: `permit_${randomUUID()}`, executionId: view.executionId, runId: view.runId, accountId: view.accountId, owner: view.ownerSub,
-        workerSub: worker.sub, eligibilityEpoch: view.eligibilityEpoch, boundDigest: view.boundDigest, operationDigest, operation: permitOperation(view), state: 'ISSUED', attempt: rows.length + 1, issuedAt: now, expiresAt,
+        workerSub: worker.sub, eligibilityEpoch: view.eligibilityEpoch, boundDigest: view.boundDigest, operationDigest, authorityDigest: authorityDigest(view), operation: permitOperation(view), state: 'ISSUED', attempt: rows.length + 1, issuedAt: now, expiresAt,
       };
       this.db.prepare('INSERT INTO permits(id,execution_id,state,fingerprint,body) VALUES(?,?,?,NULL,?)').run(permit.id, permit.executionId, permit.state, JSON.stringify(permit));
       this.audit(permit.id, 'permit.issued', { executionId: permit.executionId, attempt: permit.attempt, operation: operationDigest, workerSub: worker.sub }, now);
@@ -153,12 +156,12 @@ export class PermitStore {
       const rows = this.db.prepare('SELECT body,state,fingerprint FROM permits WHERE execution_id=? ORDER BY rowid DESC').all(view.executionId) as never[];
       const live = rows.map(row => this.read(row)).find(permit => permit.state !== 'CLOSED');
       if (!live || live.state !== 'CONSUMED' || live.resumeOf) deny('PERMIT_NOT_RESUMABLE', 'This execution has no consumed credential that can be resumed.');
-      if (live.operationDigest !== operationDigest || live.workerSub !== worker.sub || live.owner !== view.ownerSub || live.eligibilityEpoch !== view.eligibilityEpoch) deny('PERMIT_OPERATION_MISMATCH', 'The execution differs from the one this permit was issued for.');
+      if (live.operationDigest !== operationDigest || live.authorityDigest !== authorityDigest(view) || live.workerSub !== worker.sub || live.owner !== view.ownerSub || live.eligibilityEpoch !== view.eligibilityEpoch) deny('PERMIT_OPERATION_MISMATCH', 'The execution differs from the one this permit was issued for.');
       if (rows.length >= MAX_PERMIT_ATTEMPTS) deny('PERMIT_ATTEMPTS_EXHAUSTED', 'This execution used all of its credential attempts.');
       live.state = 'CLOSED'; this.save(live); this.audit(live.id, 'permit.closed', { reason: 'CHALLENGE_RESUMED' }, now);
       const permit: Permit = {
         id: `permit_${randomUUID()}`, executionId: view.executionId, runId: view.runId, accountId: view.accountId, owner: view.ownerSub,
-        workerSub: worker.sub, eligibilityEpoch: view.eligibilityEpoch, boundDigest: view.boundDigest, operationDigest, operation: permitOperation(view), state: 'ISSUED', attempt: rows.length + 1, issuedAt: now, expiresAt,
+        workerSub: worker.sub, eligibilityEpoch: view.eligibilityEpoch, boundDigest: view.boundDigest, operationDigest, authorityDigest: authorityDigest(view), operation: permitOperation(view), state: 'ISSUED', attempt: rows.length + 1, issuedAt: now, expiresAt,
         resumeOf: live.id,
       };
       this.db.prepare('INSERT INTO permits(id,execution_id,state,fingerprint,body) VALUES(?,?,?,NULL,?)').run(permit.id, permit.executionId, permit.state, JSON.stringify(permit));

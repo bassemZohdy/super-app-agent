@@ -272,13 +272,14 @@ test('uncertain automation token refusals retain the original permit', async t =
   const worker = bearer(await serviceToken(issuer, automationWorkerClient, 'worker-secret', 'automation.execute'));
   const runId = 'autorn_00000000-0000-4000-8000-000000000000', originalFetch = globalThis.fetch;
   let status = 400, payload: Record<string, unknown> = {}, currentExecution = '';
+  const preparedAt = new Date(Date.now() - 1000).toISOString(), admissionExpiresAt = new Date(Date.now() + 60000).toISOString();
   t.mock.method(globalThis, 'fetch', async (input: string | URL | Request, init?: RequestInit) => {
     const url = new URL(String(input));
     if (url.pathname.includes('/internal/automation-runs/')) return Response.json({ success: true, execution: {
       executionId: currentExecution, runId, accountId: 'acct_personal', ownerSub: 'alice-sub', eligibilityEpoch: '1:1',
       mandate: { id: 'mandate_1', state: 'APPROVED', policyVersion: 1, skipNext: false },
       source: { id: 'wallet', version: 1, current: true }, payable: { id: 'bill_1', revision: 'rev_1', amountMinor: 100, current: true },
-      boundDigest: 'a'.repeat(64), challenge: 'NONE', preparedAt: new Date(Date.now() - 1000).toISOString(), admissionExpiresAt: new Date(Date.now() + 60000).toISOString(), expired: false,
+      boundDigest: 'a'.repeat(64), challenge: 'NONE', preparedAt, admissionExpiresAt, expired: false,
     } });
     if (String(input) === issuer.tokenUrl) return Response.json(payload, { status });
     return originalFetch(input, init);

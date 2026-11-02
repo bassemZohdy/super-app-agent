@@ -82,3 +82,21 @@ test('AUTO-14: only the automation workload can ask for a resumed credential, an
   consumedFirst(store);
   assert.equal(code(() => store.issueResume({ sub: 'someone', azp: brokerClient }, view({ challenge: 'APPROVED' }), now)), 'PERMIT_WORKER_REQUIRED');
 });
+
+
+test('challenge resume cannot change immutable authority', () => {
+  const changes: Partial<ExecutionView>[] = [
+    { mandate: { ...view().mandate, id: 'other' } },
+    { mandate: { ...view().mandate, policyVersion: 2 } },
+    { biller: { id: 'other', current: true } },
+    { preparedAt: new Date(now - 1000).toISOString() },
+    { admissionExpiresAt: new Date(now + 3_599_000).toISOString() },
+  ];
+  for (const change of changes) {
+    const store = new PermitStore(new DatabaseSync(':memory:'));
+    const original = consumedFirst(store);
+    assert.equal(code(() => store.issueResume(worker, view({ ...change, challenge: 'APPROVED' }), now)), 'PERMIT_OPERATION_MISMATCH');
+    assert.equal(store.get(original.id).state, 'CONSUMED');
+    assert.equal(store.forExecution(original.executionId)?.id, original.id);
+  }
+});

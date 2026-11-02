@@ -236,3 +236,35 @@ test('AUTO-03 step 4: two connections racing to consume one bound token admit ex
     assert.equal(b.get(permit.id).state, 'CONSUMED');
   } finally { a.db.close(); b.db.close(); try { removeTemp(dir); } catch { /* Windows may briefly hold the directory */ } }
 });
+
+
+test('permit retries preserve immutable authority across live and closed attempts', () => {
+  const changes: Partial<ExecutionView>[] = [
+    { mandate: { ...view().mandate, id: 'mandate_other' } },
+    { mandate: { ...view().mandate, policyVersion: 2 } },
+    { biller: { id: 'billing_other', current: true } },
+    { preparedAt: new Date(NOW - 2000).toISOString() },
+    { admissionExpiresAt: new Date(NOW + 599_000).toISOString() },
+  ];
+  for (const change of changes) {
+    const store = fresh();
+    const original = store.issue(worker, view(), NOW);
+    assert.throws(() => store.issue(worker, view(change), NOW), code('PERMIT_OPERATION_MISMATCH'));
+    assert.equal(store.get(original.id).state, 'ISSUED');
+    store.close(original.id, 'DEFINITIVE_REFUSAL', NOW);
+    assert.throws(() => store.issue(worker, view(change), NOW), code('PERMIT_OPERATION_MISMATCH'));
+    assert.equal(store.forExecution(original.executionId)?.id, original.id);
+    assert.equal(store.issue(worker, view(), NOW).attempt, 2);
+  }
+});
+
+test('legacy permits without an authority binding cannot be replayed', () => {
+  const store = fresh();
+  const original = store.issue(worker, view(), NOW);
+  const row = store.db.prepare('SELECT body FROM permits WHERE id=?').get(original.id) as { body: string };
+  const body = JSON.parse(row.body);
+  delete body.authorityDigest;
+  store.db.prepare('UPDATE permits SET body=? WHERE id=?').run(JSON.stringify(body), original.id);
+  assert.throws(() => store.issue(worker, view(), NOW), code('PERMIT_OPERATION_MISMATCH'));
+  assert.equal(store.get(original.id).state, 'ISSUED');
+});

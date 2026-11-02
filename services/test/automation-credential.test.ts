@@ -32,9 +32,10 @@ test('automation eligibility is checked again after minting and a revoked exchan
 });
 function deps(overrides: Partial<AutomationDeps> = {}) {
   const calls = { read: 0, mint: 0, eligible: 0 };
+  const preparedView = view();
   const d: AutomationDeps = {
     permits: new PermitStore(new DatabaseSync(':memory:')),
-    readView: async () => { calls.read++; return view(); },
+    readView: async () => { calls.read++; return structuredClone(preparedView); },
     mint: async () => { calls.mint++; const token = `token-${calls.mint}`; return { accessToken: token, sub: owner, azp: brokerClient, exp: Math.floor(Date.now() / 1000) + 60, fingerprint: tokenHash(token) }; },
     eligible: async () => { calls.eligible++; },
     ...overrides,

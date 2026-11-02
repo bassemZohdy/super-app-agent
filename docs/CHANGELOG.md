@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 - Bind permit authority across retries (P1-10, step)
+
+Automation permit retries and challenge resumes reject changes to the original mandate, biller or preparation window. Older permits without this binding cannot be retried or resumed. Guide: [automation worker](development/automation-worker.md).
+
 ## 2 November 2026 - Preserve uncertain credential permits (P1-10, step)
 
 Automation token-exchange timeouts, rate limits and ambiguous error replies retain the original permit; only a recognized OAuth rejection closes it. Guide: [automation worker](development/automation-worker.md).
