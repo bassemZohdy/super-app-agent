@@ -112,6 +112,23 @@ export function executionOutcome(steps: Step[]): Outcome {
 }
 
 
+// Count received bytes, not Content-Length: a peer can omit or misstate that header.
+async function boundedDomainJson(response: Response): Promise<unknown> {
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error('Empty domain response');
+  const chunks: Uint8Array[] = []; let size = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > 1024 * 1024) { await reader.cancel().catch(() => {}); throw new Error('Domain response exceeds limit'); }
+      chunks.push(value);
+    }
+    return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  } finally { reader.releaseLock(); }
+}
+
 /** HTTP transport is explicit; provider mode never silently falls back to shared fixtures. */
 async function callDomainRequest(service: keyof typeof domainHandlers | 'telecom', method: string, path: string,
   query: Record<string, string> = {}, body: any = {}): Promise<Result> {
@@ -141,7 +158,7 @@ async function callDomainRequest(service: keyof typeof domainHandlers | 'telecom
       headers: { Authorization: actor.authorization, 'Content-Type': 'application/json', 'X-Account-Id': actor.accountId, 'X-Request-Id': actor.requestId },
       ...(mutation ? { body: JSON.stringify(body) } : {}),
     });
-    result = { status: response.status, data: await response.json() };
+    result = { status: response.status, data: await boundedDomainJson(response) };
   } catch {
     if (step) step.state = 'UNKNOWN';
     throw new DomainOperationError(503, mutation ? 'DOMAIN_OUTCOME_UNKNOWN' : 'DOMAIN_UNAVAILABLE', service);

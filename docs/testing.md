@@ -41,6 +41,8 @@ Execution results for the implementation milestone belong in the dated [evidence
 
 `services/test/receipt-contracts.test.ts` also checks that already-paid utility and telecom bills reject mismatched reviewed amounts without issuing another payment, and retain the receipt for matching amounts. Provider calls in that test are mocked.
 
+`services/test/domain-response-limit.test.ts` sends oversized streamed HTTP domain responses and checks that the client cancels them early, reports a read failure and keeps a write outcome unknown. The limit applies to the retained agent adapter, not every provider client.
+
 `services/test/domain-redirect.test.ts` also checks that malformed domain paths cannot override the configured service origin, issue a request or record a mutation step; an ordinary root-relative path remains usable.
 
 `services/test/domain-redirect.test.ts` uses a loopback HTTP server to verify that redirected authenticated domain reads and writes never reach the redirect target, and that a redirected write remains unknown.

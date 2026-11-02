@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bound domain adapter responses (P1-02, step)
+
+The retained HTTP domain adapter now reads at most one MiB of response bytes, independent of the declared content length, and cancels an oversized stream. A failed read reports a domain unavailable for reads and an unknown outcome for writes, preserving reconciliation. A streamed-response regression checks both paths and confirms reading stops early. Other clients and global quotas are not covered by this change. Guide: [testing](testing.md).
+
 ## 2 November 2026 — Keep domain requests on their configured origin (P1-02, step)
 
 The authenticated HTTP domain adapter rejects absolute URLs, network paths, backslashes, control characters and embedded query or fragment delimiters before dispatch. It checks the resolved origin against its configured service and keeps query parameters in the separate query argument. A regression test verifies malformed paths send no request and create no mutation step, while a normal path still works. This is an origin boundary, not an operation-level allowlist or production transport qualification. Guide: [testing](testing.md).
