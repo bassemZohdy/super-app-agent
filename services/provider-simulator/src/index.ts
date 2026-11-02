@@ -292,6 +292,8 @@ export function createProviderServer(provider: ProviderId, path: string, options
       let refundReview:import('../../../packages/protocol-core/src/payments.ts').PaymentRefund|undefined;
       if(engine.reversals&&req.method==='POST'&&/^\/payment-reversals\/[^/]+$/.test(operationPath))refundReview=(await payments.call('payments',actor,'GET',`/payment-refunds/${encodeURIComponent(operationPath.split('/')[2])}`)).refund;
       const proof = body.paymentId ? (await payments.call('payments', actor, 'GET', `/charges/${encodeURIComponent(body.paymentId)}`)).charge : undefined;
+      if(body.paymentId&&(!proof||typeof proof!=='object'||Array.isArray(proof)||proof.id!==body.paymentId||proof.accountId!==accountId))
+        throw new ApiError(503,'PAYMENT_PROOF_UNCONFIRMED','The requested payment proof could not be confirmed.');
       let gatewayOrder:import('../../../packages/protocol-core/src/payments.ts').PaymentAuthorizationReview|undefined;
       const admissionAction=/^\/payables\/[^/]+\/admissions\/([^/]+)\/(admit|cancel|finish)$/.exec(operationPath);
       if(engine.admissions&&req.method==='POST'&&admissionAction){const admission=engine.admissions.get(accountId,admissionAction[1]);gatewayOrder=(await payments.call('payments',actor,'GET',`/payment-orders/${encodeURIComponent(admission.orderId)}`)).order;}

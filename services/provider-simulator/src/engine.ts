@@ -100,8 +100,8 @@ export class ProviderEngine {
     }
     db.put(account, 'account-resources-v2', { version: 2 });
   }
-  private proof(proof: any, merchant: string, reference: string, amountMinor: number) {
-    if (!proof || proof.status !== 'CAPTURED' || proof.refunded || proof.merchant !== merchant || proof.reference !== reference || proof.amountMinor !== amountMinor) fail(409, 'INVALID_PAYMENT_PROOF', 'A matching captured payment is required.');
+  private proof(proof: any, merchant: string, reference: string, amountMinor: number, paymentId: string, accountId: string) {
+    if (typeof paymentId !== 'string' || !paymentId || !proof || proof.id !== paymentId || proof.accountId !== accountId || proof.currency !== 'AED' || proof.status !== 'CAPTURED' || proof.refunded !== false || proof.merchant !== merchant || proof.reference !== reference || proof.amountMinor !== amountMinor) fail(409, 'INVALID_PAYMENT_PROOF', 'A matching captured payment is required.');
   }
   execute(actor: Actor, method: string, path: string, body: any, proof?: any, payableSnapshot?:import('../../../packages/protocol-core/src/payments.ts').Payable,gatewayOrder?:import('../../../packages/protocol-core/src/payments.ts').PaymentAuthorizationReview,refundReview?:import('../../../packages/protocol-core/src/payments.ts').PaymentRefund): ApiResult {
     if(this.provider==='payments'&&method==='POST'&&(path==='/charges'||/^\/charges\/[^/]+\/refunds$/.test(path))&&!this.store.db.isTransaction)return this.store.transaction(()=>this.execute(actor,method,path,body,proof,payableSnapshot,gatewayOrder,refundReview));
@@ -229,7 +229,7 @@ export class ProviderEngine {
         const zone = parkingZones.find(z => z.id === body.zoneId);
         if (!zone) fail(404, 'NOT_FOUND', 'Parking zone not found.');
         if (body.plateNumber !== asset.plate) fail(403, 'PLATE_NOT_OWNED', 'This plate does not belong to the account.');
-        this.proof(proof, 'rta', `parking:${body.reference}`, minor(zone.tariffPerHour) * body.durationHours);
+        this.proof(proof, 'rta', `parking:${body.reference}`, minor(zone.tariffPerHour) * body.durationHours, body.paymentId, a);
         const meter = { ticketId: randomUUID(), zoneId: zone.id, zoneCode: zone.code, zoneName: zone.name, plateNumber: body.plateNumber, durationHours: body.durationHours, totalFee: major(minor(zone.tariffPerHour) * body.durationHours), startTime: Date.now(), expiresAt: Date.now() + body.durationHours * 3600000, status: 'ACTIVE' };
         db.put(a, 'parking', meter, meter.ticketId); return ok({ meter });
       }
@@ -239,14 +239,14 @@ export class ProviderEngine {
         if (meter.status !== 'ACTIVE') fail(409, 'SESSION_ENDED', 'This parking session has ended and cannot be extended.');
         if (meter.durationHours + body.additionalHours > 720) fail(400, 'DURATION_LIMIT', 'Maximum duration is 720 hours.');
         const zone = parkingZones.find(z => z.id === meter.zoneId)!;
-        this.proof(proof, 'rta', `parking-extension:${body.reference}`, minor(zone.tariffPerHour) * body.additionalHours);
+        this.proof(proof, 'rta', `parking-extension:${body.reference}`, minor(zone.tariffPerHour) * body.additionalHours, body.paymentId, a);
         meter.durationHours += body.additionalHours; meter.totalFee = major(minor(meter.totalFee) + minor(zone.tariffPerHour) * body.additionalHours); meter.expiresAt += body.additionalHours * 3600000;
         db.put(a, 'parking', meter, meter.ticketId); return ok({ meter });
       }
       if (method === 'GET' && path === '/salik') return ok(db.get(a, 'salik')!);
       if (method === 'POST' && path === '/salik/recharges') {
         assertPayableUnreserved(db,a,rechargeTargetKey('rta',db.get(a,'salik').tagNumber),this.recharges!.clock);
-        this.proof(proof, 'rta', `salik:${body.reference}`, minor(body.amount));
+        this.proof(proof, 'rta', `salik:${body.reference}`, minor(body.amount), body.paymentId, a);
         const salik = db.get(a, 'salik');if((salik.version||1)>=1000000)fail(409,'VERSION_LIMIT','The toll tag reached its demo version limit.');if(salik.status!=='ACTIVE')fail(409,'RECHARGE_TARGET_CHANGED','The toll tag is closed.');salik.version=(salik.version||1)+1;salik.balance = major(minor(salik.balance) + minor(body.amount));
         if (minor(salik.balance) > 100_000_000) fail(400, 'BALANCE_LIMIT', 'Demo toll balance limit exceeded.');
         db.put(a, 'salik', salik); return ok({ transactionId: body.paymentId, newBalance: salik.balance, amountRecharged: body.amount });
@@ -295,7 +295,7 @@ export class ProviderEngine {
         if (selected.length !== body.fineIds.length) fail(404, 'NOT_FOUND', 'Unpaid fines not found.');
         for(const fine of selected) { this.payables!.assertUnreserved(a,`police:fine:${fine.fineId}`);const payable=this.payables!.inspect(a,`police:fine:${fine.fineId}`,summaries.get(fine.fineId)!.revision); if(payable.version! >= 1_000_000) fail(409,'VERSION_LIMIT','The obligation reached its demo revision limit.'); }
         const amount = selected.reduce((sum, f) => sum + minor(f.payableAmount), 0);
-        this.proof(proof, 'police', `fines:${[...body.fineIds].sort().join(',')}`, amount);
+        this.proof(proof, 'police', `fines:${[...body.fineIds].sort().join(',')}`, amount, body.paymentId, a);
         for (const fine of selected) db.put(a, 'fine', { ...fine, status: 'PAID', payableVersion:(fine.payableVersion||1)+1,paidAmount:fine.payableAmount, receiptNumber: body.paymentId, paidAt: now() }, fine.fineId);
         return ok({ receiptNumber: body.paymentId, finesCleared: selected.length, amountPaid: major(amount) });
       }
@@ -321,7 +321,7 @@ export class ProviderEngine {
     this.payables!.assertUnreserved(account,payable.id);
     this.payables!.inspect(account,payable.id,payable.revision);
     if(payable.version! >= 1_000_000) fail(409,'VERSION_LIMIT','The obligation reached its demo revision limit.');
-    this.proof(proof, this.provider, `bill:${billId}`, minor(bill.totalAmount));
+    this.proof(proof, this.provider, `bill:${billId}`, minor(bill.totalAmount), paymentId, account);
     bill.status = 'PAID'; bill.payableVersion=(bill.payableVersion||1)+1; bill.receiptNumber = paymentId; bill.paidAt = new Date().toISOString(); this.store.put(account, 'bill', bill,String(record.id));
     return ok({ bill, receipt: { billId, receiptNumber: paymentId, amountPaid: bill.totalAmount.toFixed(2), currency: 'AED' } });
   }

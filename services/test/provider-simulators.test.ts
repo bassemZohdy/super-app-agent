@@ -14,6 +14,7 @@ import { createProviderServer, callers } from '../provider-simulator/src/index.t
 import { openApi, providerIds } from '../provider-simulator/src/contracts.ts';
 import { actorFor, accountIdFor } from '../../packages/backend-kit/src/context.ts';
 import { ClientCredentials } from '../../packages/backend-kit/src/oauth.ts';
+import { ProviderClient } from '../../packages/backend-kit/src/provider-client.ts';
 
 function database(t: test.TestContext, path = ':memory:') { const db = new AccountDatabase(path); t.after(() => db.close()); return db; }
 function seeded(t: test.TestContext, provider: 'payments'|'dewa'|'rta') {
@@ -58,12 +59,31 @@ test('payments preserve integer balances, persist declines and prevent double re
 test('DEWA rejects mismatched captured proofs and settles only its own exact bill', t => {
   const { engine, store, actor } = seeded(t, 'dewa');
   const bill = engine.execute(actor, 'GET', '/bills', {}).data.bills[0];
-  const proof = { id: 'pay-1', status: 'CAPTURED', merchant: 'dewa', reference: `bill:${bill.billId}`, amountMinor: 42040, refunded: false };
+  const proof = { id: 'pay-1', accountId: actor.accountId, currency: 'AED', status: 'CAPTURED', merchant: 'dewa', reference: `bill:${bill.billId}`, amountMinor: 42040, refunded: false };
   assert.throws(() => store.transaction(() => engine.execute(actor, 'POST', `/bills/${bill.billId}/payments`, { paymentId: proof.id }, { ...proof, amountMinor: 1 })), /matching captured payment/);
+  for (const invalid of [{ id: 'pay-other' }, { accountId: 'other-account' }, { currency: 'USD' }, { refunded: undefined }])
+    assert.throws(() => store.transaction(() => engine.execute(actor, 'POST', `/bills/${bill.billId}/payments`, { paymentId: proof.id }, { ...proof, ...invalid })), /matching captured payment/);
+  assert.throws(() => store.transaction(() => engine.execute(actor, 'POST', `/bills/${bill.billId}/payments`, {}, { ...proof, id: undefined })), /matching captured payment/);
   assert.equal(engine.execute(actor, 'GET', '/bills', {}).data.bills[0].status, 'UNPAID');
   const paid = store.transaction(() => engine.execute(actor, 'POST', `/bills/${bill.billId}/payments`, { paymentId: proof.id }, proof));
   assert.equal(paid.data.bill.status, 'PAID');
   assert.throws(() => store.transaction(() => engine.execute(actor, 'POST', `/bills/${bill.billId}/payments`, { paymentId: proof.id }, proof)), /already settled/);
+});
+
+test('legacy toll and fine effects reject proof identities from another payment or account', t => {
+  const toll=seeded(t,'rta');
+  const tollBody={paymentId:'pay-1',reference:'request-1',amount:10};
+  const tollProof={id:'pay-other',accountId:toll.actor.accountId,currency:'AED',status:'CAPTURED',refunded:false,merchant:'rta',reference:'salik:request-1',amountMinor:1000};
+  const before=toll.engine.execute(toll.actor,'GET','/salik',{}).data.balance;
+  assert.throws(()=>toll.store.transaction(()=>toll.engine.execute(toll.actor,'POST','/salik/recharges',tollBody,tollProof)),/matching captured payment/);
+  assert.equal(toll.engine.execute(toll.actor,'GET','/salik',{}).data.balance,before);
+  const policeStore=database(t),police=new ProviderEngine('police',policeStore),actor=actorFor({sub:'fines-owner'});
+  policeStore.accounts(actor.sub);police.seed(actor);
+  const fine=police.execute(actor,'GET','/fines',{}).data.fines[0];
+  const fineBody={paymentId:'pay-1',fineIds:[fine.fineId]};
+  const fineProof={id:'pay-1',accountId:'other-account',currency:'AED',status:'CAPTURED',refunded:false,merchant:'police',reference:`fines:${fine.fineId}`,amountMinor:Math.round(fine.payableAmount*100)};
+  assert.throws(()=>policeStore.transaction(()=>police.execute(actor,'POST','/fine-payments',fineBody,fineProof)),/matching captured payment/);
+  assert.ok(police.execute(actor,'GET','/fines',{}).data.fines.some((item:{fineId:string})=>item.fineId===fine.fineId));
 });
 
 test('client credential requests coalesce, cache and refresh without end-user secrets', async t => {
@@ -116,6 +136,20 @@ test('provider HTTP endpoints verify signed service roles, ownership, schemas an
   assert.equal((await request(`/charges/${paymentId}/settlement/ack`,claimant,'POST',ack)).status,200);
   const current=await (await request(claimPath,claimant,'POST',claimBody,claimKey)).json() as any;assert.equal(current.claim.state,'APPLIED');
   assert.equal((await request(`/charges/${paymentId}/settlement/release`,claimant,'POST',{claimId:ack.claimId,attemptId:ack.attemptId,reason:'NOT_APPLIED'})).status,409);
+
+  const fakePayments=new ProviderClient('fixture','');let claimCalls=0;
+  let returnedProof:Record<string,unknown>={id:'other-payment',accountId:accountIdFor('alice')};
+  t.mock.method(fakePayments,'call',async()=>({success:true,charge:returnedProof}));
+  const dewa=createProviderServer('dewa',':memory:',{paymentClient:fakePayments,settlementTransport:{call:async()=>{claimCalls++;throw new Error('unexpected claim');}}});
+  dewa.server.listen(0,'127.0.0.1');await once(dewa.server,'listening');t.after(()=>{dewa.server.close();dewa.store.close();});
+  const dewaRoot=`http://127.0.0.1:${(dewa.server.address() as {port:number}).port}/v1/accounts/${accountIdFor('alice')}`;
+  const foodToken=mint({azp:'service-food',realm_access:{roles:['provider:dewa']}});
+  for(const proof of [{id:'other-payment',accountId:accountIdFor('alice')},{id:'payment_1',accountId:accountIdFor('bob')},null]){
+    returnedProof=proof as Record<string,unknown>;
+    const result=await fetch(`${dewaRoot}/bills/test-bill/payments`,{method:'POST',headers:{Authorization:`Bearer ${foodToken}`,'X-User-Subject':'alice','Content-Type':'application/json','Idempotency-Key':randomUUID()},body:JSON.stringify({paymentId:'payment_1'})});
+    assert.equal(result.status,503);assert.equal((await result.json() as {code:string}).code,'PAYMENT_PROOF_UNCONFIRMED');
+  }
+  assert.equal(claimCalls,0);assert.equal(dewa.store.db.prepare('SELECT count(*) AS n FROM provider_settlement_attempts').get()?.n,0);
 
 });
 

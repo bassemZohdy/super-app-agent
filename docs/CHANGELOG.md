@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bind legacy settlement proofs (P1-13, step)
+
+Source providers reject payment proof mismatches before creating a claim, and legacy effects recheck the exact payment, account, currency and capture status. Guide: [payment reconciliation](development/payment-reconciliation.md).
+
 ## 2 November 2026 — Preserve unconfirmed returned settlement outcomes (P1-02, step)
 
 Returned settlement errors and contradictory success responses now roll back local effects and keep the original claim fenced unless an explicit reviewed refusal proves non-application. Guide: [payment reconciliation](development/payment-reconciliation.md).
