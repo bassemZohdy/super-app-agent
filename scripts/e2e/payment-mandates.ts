@@ -9,7 +9,7 @@ import { MANDATE_ACTOR, type MandatePolicy, type PaymentMandate } from '../../pa
 let env:Awaited<ReturnType<typeof startEnvironment>>|undefined;
 try{
   env=await startEnvironment();
-  const login=async(username:string)=>{const r=await fetch(`${keycloakIssuerUrl}/protocol/openid-connect/token`,{method:'POST',body:new URLSearchParams({grant_type:'password',client_id:'superapp-shell',username,password:'demo123'}),signal:AbortSignal.timeout(10000)});assert.equal(r.status,200);return(await r.json() as any).access_token as string;};
+  const login=async(username:string)=>{const r=await fetch(`${keycloakIssuerUrl}/protocol/openid-connect/token`,{method:'POST',body:new URLSearchParams({grant_type:'password',client_id:'superapp-shell',username,password:'demo123'}),signal:AbortSignal.timeout(10000)});assert.equal(r.status,200);return(await r.json() as { access_token: string }).access_token;};
   const [token,other]=await Promise.all([login('bassem'),login('demo-commuter')]);
   const request=async(url:string,body?:unknown,bearer=token,key=randomUUID())=>{const r=await fetch(url,{method:body?'POST':'GET',headers:{Authorization:`Bearer ${bearer}`,'Content-Type':'application/json','Idempotency-Key':key},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(30000)});return{status:r.status,data:await r.json() as any};};
   const accounts=(await request(`${env.coreUrl}/api/accounts`)).data.accounts,accountId=accounts.find((a:{id:string;label:string})=>a.label==='Personal account').id,household=accounts.find((a:{id:string;label:string})=>a.label==='Household account').id;
@@ -17,7 +17,7 @@ try{
   const provider=(name:string,path:string,body?:unknown,bearer=token)=>request(`http://localhost:${env!.corePort+101+['rta','dewa','etisalat','du','police','dld','payments'].indexOf(name)}/v1/accounts/${accountId}${path}`,body,bearer);
   const realm=JSON.parse(await readFile('services/keycloak/realm-export.json','utf8'));
   const machineResponse=await fetch(`${keycloakIssuerUrl}/protocol/openid-connect/token`,{method:'POST',body:new URLSearchParams({grant_type:'client_credentials',client_id:'service-wallet',client_secret:realm.clients.find((c:{clientId:string;secret?:string})=>c.clientId==='service-wallet').secret}),signal:AbortSignal.timeout(10000)});assert.equal(machineResponse.status,200);
-  const machine=(await machineResponse.json() as any).access_token;assert.equal((await provider('payments','/payment-mandates',undefined,machine)).status,403);
+  const machine=(await machineResponse.json() as { access_token: string }).access_token;assert.equal((await provider('payments','/payment-mandates',undefined,machine)).status,403);
   const first=(await api('overview')).data,card=(await api('methods',{preset:'approved',nickname:'Mandate source'})).data.method;
   const links=new Map<string,any>();for(const candidate of first.candidates){const result=await api('billing-accounts',{provider:candidate.provider,reference:candidate.reference,nickname:candidate.label});assert.equal(result.status,200);links.set(`${candidate.provider}:${candidate.reference}`,result.data.billingAccount);}
   // Set up one real synthetic parking session before the zero-effect consent baseline.

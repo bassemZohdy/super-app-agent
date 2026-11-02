@@ -14,7 +14,7 @@ const record=process.argv.includes('--record'),stamp=new Date().toISOString().re
 let env:Awaited<ReturnType<typeof startEnvironment>>|undefined,browser:Browser|undefined,page:Page|undefined;
 try{
   const issuer=keycloakIssuerUrl;process.env.KEYCLOAK_ISSUER=issuer;process.env.KEYCLOAK_JWKS_URL=`${issuer}/protocol/openid-connect/certs`;
-  const login=async(username:string)=>{const r=await fetch(`${issuer}/protocol/openid-connect/token`,{method:'POST',body:new URLSearchParams({grant_type:'password',client_id:'superapp-shell',username,password:'demo123'}),signal:AbortSignal.timeout(10000)});assert.equal(r.status,200);return(await r.json() as any).access_token as string;};
+  const login=async(username:string)=>{const r=await fetch(`${issuer}/protocol/openid-connect/token`,{method:'POST',body:new URLSearchParams({grant_type:'password',client_id:'superapp-shell',username,password:'demo123'}),signal:AbortSignal.timeout(10000)});assert.equal(r.status,200);return(await r.json() as { access_token: string }).access_token;};
   const [operatorToken,token]=await Promise.all([login('bassem'),login('demo-commuter')]),operator=await verifyJwt(`Bearer ${operatorToken}`,'provider-api');
   env=await startEnvironment({issuerOperatorSub:operator.sub});assert.ok(env.issuerRunId);const control=`http://localhost:${env.corePort+107}/internal/issuer-scenarios/${env.issuerRunId}`;await mkdir(dir,{recursive:true});
   browser=await chromium.launch({channel:process.env.E2E_BROWSER_CHANNEL||'chrome',headless:true});const context=await browser.newContext({viewport:{width:1440,height:1050},...(record?{recordVideo:{dir,size:{width:1440,height:1050}}}:{})});page=await context.newPage();page.setDefaultTimeout(30000);

@@ -141,6 +141,8 @@ Offline tests cover trace isolation/parent links/redaction, protected operations
 
 ## The `any` ratchet
 
+Browser verification scripts describe the identity token response field they consume; this is a compile-time assertion, not a runtime validation of the identity server response.
+
 `npm run check:any` (part of `npm run check`) counts explicit `any` in type positions in every TypeScript file under `apps`, `packages`, `services`, `scripts`, `test` and `mini-apps`, and compares each file with `scripts/any-types.baseline.json`. A file that gains one, or a new file that has any, fails: name a type, or use `unknown` and narrow it. A file that loses some fails until `npm run any:baseline` lowers the baseline, so the count only goes down (809 in 159 files when it was introduced). Comments and strings are not counted.
 
 ## Fast signed-issuer suite

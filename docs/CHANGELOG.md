@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Type browser verification token responses (P2-05, step)
+
+The browser verification scripts now describe the `access_token` field they read from identity responses instead of casting those responses to `any`. This narrows the static type without changing the request or adding runtime validation. Guide: [testing](development/testing.md).
+
 ## 1 November 2026 — Type the shared voice and recorder code (P2-05, step)
 
 The microphone recorder and the voice client are shared by the React and Angular shells and take the browser's objects through an environment parameter so tests can pass fakes. Those objects were typed `any`; they now use small interfaces naming only what the code touches (`CaptureStream`, `CaptureTrack`, `CaptureRecorder`, `RecognitionResultEvent`, `SpeechUtterance`, `AudioPlayer`). The package, the React type check and the Angular build pass against the real browser objects, the voice tests pass with their fakes, and the `any` baseline fell by 13. Behavior is unchanged. Guide: [testing](development/testing.md).
