@@ -23,6 +23,10 @@ const claimScript = `local existing=redis.call('GET',KEYS[1]); if existing then
  redis.call('EXPIRE',KEYS[1],ARGV[4]); redis.call('SADD',KEYS[2],KEYS[1]); redis.call('EXPIRE',KEYS[2],ARGV[4]); return {'OK',existing} end
  if ARGV[5]~='1' then return {'NOT_FOUND'} end
  redis.call('SET',KEYS[1],ARGV[3],'EX',ARGV[4]); redis.call('SADD',KEYS[2],KEYS[1]); redis.call('EXPIRE',KEYS[2],ARGV[4]); return {'OK',ARGV[3]}`;
+type CivicAction = 'confirm_smartcity_checkout' | 'pay_utilities_bill' | 'pay_dewa_bill' | 'pay_police_fines';
+type CivicOwner = { subject: string; accountId: string; sessionId: string; action: CivicAction };
+const civicOwnerDigest = (subject: string, accountId: string) => createHash('sha256').update(JSON.stringify([subject, accountId])).digest('hex');
+const civicActions: ReadonlySet<string> = new Set(['confirm_smartcity_checkout', 'pay_utilities_bill', 'pay_dewa_bill', 'pay_police_fines']);
 export class RedisSessionStore {
   readonly client: RedisClientType;
   readonly ttl: number;
@@ -54,15 +58,29 @@ export class RedisSessionStore {
     return decodeRecord(result[1]).state;
   }
   /** A shared fixture has one civic-payment lane. Retain this record after an uncertain outcome or process loss. */
-  async acquireCivicFence() {
+  async acquireCivicFence(owner: CivicOwner) {
+    if (!owner.subject || !owner.accountId || !/^[a-zA-Z0-9_-]{8,128}$/.test(owner.sessionId) || !civicActions.has(owner.action)) throw new SessionError(400, 'CIVIC_CONTEXT_INVALID', 'The civic payment context is invalid.');
     await this.connect();
-    const key = `${this.prefix}offline-civic-fence`, token = randomUUID();
+    const key = `${this.prefix}offline-civic-fence`, token = JSON.stringify({ version: 1, nonce: randomUUID(), owner: civicOwnerDigest(owner.subject, owner.accountId), sessionId: owner.sessionId, action: owner.action });
     if (await this.client.set(key, token, { NX: true }) !== 'OK')
       throw new SessionError(409, 'CIVIC_RECONCILIATION_REQUIRED', 'An offline civic payment is in progress or needs reconciliation.');
     return { release: async () => {
       await this.connect();
       await this.client.eval(`if redis.call('GET',KEYS[1])==ARGV[1] then return redis.call('DEL',KEYS[1]) else return 0 end`, { keys: [key], arguments: [token] });
     } };
+  }
+  async inspectCivicFence(subject: string, accountId: string): Promise<{ status: 'CLEAR' | 'BLOCKED'; sessionId?: string; action?: CivicAction }> {
+    await this.connect();
+    const raw = await this.client.get(`${this.prefix}offline-civic-fence`);
+    if (raw === null) return { status: 'CLEAR' };
+    try {
+      const record = JSON.parse(raw) as { version?: unknown; owner?: unknown; sessionId?: unknown; action?: unknown };
+      if (record && record.version === 1 && record.owner === civicOwnerDigest(subject, accountId) &&
+          typeof record.sessionId === 'string' && /^[a-zA-Z0-9_-]{8,128}$/.test(record.sessionId) &&
+          typeof record.action === 'string' && civicActions.has(record.action))
+        return { status: 'BLOCKED', sessionId: record.sessionId, action: record.action as CivicAction };
+    } catch { /* A legacy or unreadable fence stays blocked without exposing its contents. */ }
+    return { status: 'BLOCKED' };
   }
   async acquire(sid: string) {
     await this.connect();

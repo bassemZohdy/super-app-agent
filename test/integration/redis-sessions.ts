@@ -33,16 +33,33 @@ test('civic coordination survives client restart and only its owner can release 
   const prefix = `cityside-civic-test:${randomUUID()}:`, url = process.env.TEST_REDIS_URL || 'redis://127.0.0.1:6379';
   const first = new RedisSessionStore(url, 60, prefix), second = new RedisSessionStore(url, 60, prefix);
   t.after(async () => { await second.connect(); const keys = await second.client.keys(`${prefix}*`); if (keys.length) await second.client.del(keys); await first.close(); await second.close(); });
-  const held = await first.acquireCivicFence();
+  const owner = { subject: 'owner', accountId: 'account', sessionId: 'test_civic_session', action: 'confirm_smartcity_checkout' as const };
+  const held = await first.acquireCivicFence(owner);
   assert.equal(await first.client.ttl(`${prefix}offline-civic-fence`), -1, 'uncertain effects must never unlock on a timer');
-  await assert.rejects(() => second.acquireCivicFence(), /civic payment/i);
+  await assert.rejects(() => second.acquireCivicFence(owner), /civic payment/i);
   await first.close();
-  await assert.rejects(() => second.acquireCivicFence(), /civic payment/i, 'a restart retains the fence');
+  await assert.rejects(() => second.acquireCivicFence(owner), /civic payment/i, 'a restart retains the fence');
   await held.release();
-  const current = await second.acquireCivicFence();
+  const current = await second.acquireCivicFence(owner);
   await held.release();
-  await assert.rejects(() => first.acquireCivicFence(), /civic payment/i, 'an old token cannot release a newer fence');
+  await assert.rejects(() => first.acquireCivicFence(owner), /civic payment/i, 'an old token cannot release a newer fence');
   await current.release();
-  const fresh = await first.acquireCivicFence();
+  const fresh = await first.acquireCivicFence(owner);
   await fresh.release();
+});
+
+
+test('civic fence inspection exposes journey details only to its owner and account', async t => {
+  const prefix = `cityside-civic-owner-test:${randomUUID()}:`, url = process.env.TEST_REDIS_URL || 'redis://127.0.0.1:6379';
+  const store = new RedisSessionStore(url, 60, prefix);
+  t.after(async () => { await store.connect(); const key = `${prefix}offline-civic-fence`; await store.client.del(key); await store.close(); });
+  const owner = { subject: 'alice', accountId: accountIdFor('alice'), sessionId: 'civic_owner_session', action: 'confirm_smartcity_checkout' as const };
+  assert.deepEqual(await store.inspectCivicFence(owner.subject, owner.accountId), { status: 'CLEAR' });
+  const fence = await store.acquireCivicFence(owner);
+  assert.deepEqual(await store.inspectCivicFence(owner.subject, owner.accountId), { status: 'BLOCKED', sessionId: owner.sessionId, action: owner.action });
+  assert.deepEqual(await store.inspectCivicFence('bob', owner.accountId), { status: 'BLOCKED' });
+  assert.deepEqual(await store.inspectCivicFence(owner.subject, accountIdFor('alice', 'household')), { status: 'BLOCKED' });
+  await fence.release();
+  await store.client.set(`${prefix}offline-civic-fence`, 'legacy-unattributed-token');
+  assert.deepEqual(await store.inspectCivicFence(owner.subject, owner.accountId), { status: 'BLOCKED' });
 });

@@ -150,6 +150,14 @@ async function handleGatewayRequest(
     try{actor.eligibilityEpoch=(await eligibilityReader.require(actor)).epoch;}
     catch(e){return {status:e instanceof EligibilityReadError&&[403,409].includes(e.status)?e.status:503,data:{success:false,code:e instanceof EligibilityReadError&&e.status===403?'ACCOUNT_RESTRICTED':'ELIGIBILITY_UNAVAILABLE',error:'Current owner or workspace membership prevents access. History is retained.'}};}
   }
+  if (normMethod === 'GET' && pathname === '/api/civic/reconciliation') {
+    if (process.env.PROVIDER_INTEGRATION === 'true' || process.env.DOMAIN_TRANSPORT !== 'http') return { status: 503, data: { success: false, code: 'CIVIC_STATUS_UNAVAILABLE', error: 'Shared offline civic status is unavailable in this mode.' } };
+    try {
+      const store = redisSessions();
+      if (!store) throw new Error('Shared storage unavailable');
+      return { status: 200, data: { success: true, ...await store.inspectCivicFence(actor.sub, actor.accountId) } };
+    } catch { return { status: 503, data: { success: false, code: 'CIVIC_STATUS_UNAVAILABLE', error: 'Shared offline civic status is unavailable.' } }; }
+  }
   const paymentAccounts = await handlePaymentAccounts(actor, normMethod, pathname, normMethod==='GET'?query:body);
   if (paymentAccounts) return paymentAccounts;
   // What the providers advertise and what this owner's calls to them did (P2-11). Reading is cached for 30 seconds; refresh=1 reads again.

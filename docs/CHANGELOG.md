@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Identify the fenced civic journey (P1-13, step)
+
+Shared offline civic fences retain an owner/account-bound session and action, with an authenticated read-only status that hides journey details from other accounts and preserves legacy fences. Live Redis and gateway tests cover ownership, legacy records and session-save failure. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Hold the civic fence until session save (P1-13, step)
 
 Confirmed separate-service civic payments keep their shared fence until the gateway saves the completed session. A live Redis and local HTTP test exercises both a successful save and a failed save after payment; the latter retains the fence. Guide: [integrations](integrations.md).

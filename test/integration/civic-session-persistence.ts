@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { RedisGraphSaver } from '../../services/agent-core/src/langgraph/checkpointer.ts';
 import { executeGatewayRequest } from '../../services/agent-core/src/index.ts';
 import { domainHandlers } from '../../services/agent-core/src/domain-operations.ts';
+import { accountIdFor } from '../../packages/backend-kit/src/context.ts';
 import { redisSessions, RedisSessionStore, SessionError } from '../../services/agent-core/src/session-store.ts';
 import { executeWalletRequest, balance, transactions } from '../../services/service-wallet/src/index.ts';
 
@@ -48,6 +49,9 @@ test('shared civic fence is released after session save and retained if session 
     }
     await check.client.del(key); await check.close(); await store.close();
   });
+  const clear = await executeGatewayRequest('GET', '/api/civic/reconciliation', {}, {}, headers);
+  assert.equal(clear.status, 200); assert.equal(clear.data.status, 'CLEAR');
+  assert.equal((await executeGatewayRequest('GET', '/api/civic/reconciliation', {}, {}, { authorization: 'Bearer invalid' })).status, 401);
   assert.equal(executeWalletRequest('POST', '/wallet/topup', {}, { amount: 5000 }).status, 200);
   const good = await review(ids[0]), store = redisSessions()!, acquire = store.acquire.bind(store);
   let observedDuringSave = false;
@@ -69,5 +73,10 @@ test('shared civic fence is released after session save and retained if session 
   mock.mock.restore();
   assert.ok(balance < before); assert.equal(transactions.length, ledger + 1);
   assert.equal(await check.client.exists(key), 1, 'failed session save retains the fence after effects');
-  await assert.rejects(() => check.acquireCivicFence(), /civic payment/i);
+  await assert.rejects(() => check.acquireCivicFence({ subject: 'local-demo-user', accountId: 'account', sessionId: 'other_civic_session', action: 'confirm_smartcity_checkout' }), /civic payment/i);
+  const status = await executeGatewayRequest('GET', '/api/civic/reconciliation', {}, {}, headers);
+  assert.deepEqual(status.data, { success: true, status: 'BLOCKED', sessionId: ids[1], action: 'confirm_smartcity_checkout', outcome: 'SUCCEEDED', steps: [] });
+  const other = await executeGatewayRequest('GET', '/api/civic/reconciliation', { accountId: accountIdFor('local-demo-user', 'household') }, {}, headers);
+  assert.deepEqual(other.data, { success: true, status: 'BLOCKED', outcome: 'SUCCEEDED', steps: [] });
+  assert.equal((await executeGatewayRequest('GET', '/api/civic/reconciliation', { accountId: accountIdFor('different-user') }, {}, headers)).status, 403);
 });

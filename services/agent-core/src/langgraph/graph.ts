@@ -377,7 +377,8 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
     if (guardedOfflineCivicAction && process.env.DOMAIN_TRANSPORT === 'http') {
       const store = redisSessions();
       if (!store) throw new SessionError(503, 'SESSION_STORE_UNAVAILABLE', 'Shared civic payment coordination is required for separate services.');
-      try { sharedFence = await store.acquireCivicFence(); }
+      if (!actor) throw new SessionError(401, 'AUTHENTICATION_REQUIRED', 'An authenticated civic payment owner is required.');
+      try { sharedFence = await store.acquireCivicFence({ subject: actor.sub, accountId: actor.accountId, sessionId: state.sessionId, action: action as 'confirm_smartcity_checkout' | 'pay_utilities_bill' | 'pay_dewa_bill' | 'pay_police_fines' }); }
       catch (error) { if (error instanceof SessionError) throw error; throw new SessionError(503, 'SESSION_STORE_UNAVAILABLE', 'Shared civic payment coordination is unavailable.'); }
     }
     if (action === 'pay_telecom_bill') {
