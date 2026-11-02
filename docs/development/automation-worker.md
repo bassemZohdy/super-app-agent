@@ -10,6 +10,8 @@ The worker refuses to start unless `AUTOMATION_WORKER_ENABLED=true`, never runs 
 
 One job is one rule version, occurrence and target: the id is a hash of `(mandateId, policyVersion, occurrenceKey, target)`, so enqueueing again, or from another process, returns the same job, and a revised rule is a different job. The preparation request key is derived from the job id, so every retry is the same preparation.
 
+At startup the worker atomically binds an empty jobs database to the configured run before the scheduler or worker can use it. Later startups must name that same run, including when scheduling is disabled. Use a separate database for each isolated run. An older database containing jobs, notices or threshold history without this binding is refused: its full scheduling history cannot be attributed safely from the database alone. Preserve it for inspection and reconciliation; do not copy its jobs into a fresh store or assume that an unrecorded occurrence is safe to repeat.
+
 States: `QUEUED → PREPARING → PREPARED → CREDENTIALING → EXECUTING`, then `SETTLED`, `SKIPPED`, `FAILED` or `HELD`. `HELD` means the outcome is unknown or needs a person (an unknown capture, a lost credential); the worker does not touch it again. The one exception is a card challenge, held with reason `REQUIRES_ACTION`: the worker parks it for a wait and polls the owner's answer (see Needs the owner below).
 
 ## Leases and fencing

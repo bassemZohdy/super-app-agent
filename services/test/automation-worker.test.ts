@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { JobStore, StaleWorkerError, jobIdentity } from '../automation-worker/src/jobs.ts';
 import { AutomationWorker, type ExecutionGateway, type GatewayFailure, type PrepareResult, type ExecutedOrder } from '../automation-worker/src/worker.ts';
+import { createWorkerFromEnv } from '../automation-worker/src/index.ts';
 
 const rule = { mandateId: 'mandate_1', policyVersion: 1, occurrenceKey: 'occ_2026_11', target: 'dewa:home' };
 const fail = (status: number | undefined, code: string) => Object.assign(new Error(code), { status, code }) as GatewayFailure;
@@ -338,4 +339,36 @@ test('AUTO-11: skips that need the owner to decide are recorded as requiring act
   const job = store.enqueue(rule);
   await worker(store, g).runOnce();
   assert.deepEqual(store.outbox(job.id).map(e => e.kind), ['SKIPPED'], 'an ordinary skip needs no one');
+});
+
+test('job databases bind atomically to one isolated run and reject ambiguous legacy history', () => {
+  const runA = 'autorn_00000000-0000-4000-8000-000000000000', runB = 'autorn_11111111-1111-4111-8111-111111111111';
+  const dir = mkdtempSync(join(tmpdir(), 'worker-run-binding-')), path = join(dir, 'jobs.sqlite');
+  const first = new JobStore(path), second = new JobStore(path);
+  try {
+    first.bindRun(runA);
+    second.bindRun(runA);
+    first.enqueue(rule);
+    assert.throws(() => second.bindRun(runB), /run/i);
+    assert.equal(second.list()[0].state, 'QUEUED');
+  } finally { first.close(); second.close(); cleanup(dir); }
+  const legacy = new JobStore(':memory:');
+  try {
+    legacy.enqueue(rule);
+    assert.throws(() => legacy.bindRun(runA), /run/i);
+  } finally { legacy.close(); }
+});
+
+test('worker startup refuses a different run before scheduling or claiming queued work', () => {
+  const runA = 'autorn_00000000-0000-4000-8000-000000000000', runB = 'autorn_11111111-1111-4111-8111-111111111111';
+  const dir = mkdtempSync(join(tmpdir(), 'worker-run-startup-')), path = join(dir, 'jobs.sqlite');
+  const env = { AUTOMATION_WORKER_ENABLED: 'true', AUTOMATION_SCHEDULE_ENABLED: 'true', AUTOMATION_WORKER_CLIENT_SECRET: 'test-secret', AUTOMATION_JOBS_DB: path, AUTOMATION_RUN_ID: runA };
+  try {
+    const first = createWorkerFromEnv(env);
+    first.store.enqueue(rule);
+    first.store.close();
+    assert.throws(() => createWorkerFromEnv({ ...env, AUTOMATION_RUN_ID: runB }), /another run/i);
+    const again = createWorkerFromEnv(env);
+    try { assert.equal(again.store.list()[0].state, 'QUEUED'); } finally { again.store.close(); }
+  } finally { cleanup(dir); }
 });

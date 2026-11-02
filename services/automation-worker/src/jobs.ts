@@ -54,6 +54,7 @@ export class JobStore {
       CREATE TABLE IF NOT EXISTS job_outbox(seq INTEGER PRIMARY KEY AUTOINCREMENT,job_id TEXT NOT NULL REFERENCES jobs(id),kind TEXT NOT NULL,body TEXT NOT NULL,at INTEGER NOT NULL,delivered_at INTEGER,UNIQUE(job_id,kind));
       CREATE TABLE IF NOT EXISTS job_notices(mandate_id TEXT NOT NULL,occurrence_key TEXT NOT NULL,kind TEXT NOT NULL,body TEXT NOT NULL,at INTEGER NOT NULL,PRIMARY KEY(mandate_id,occurrence_key,kind));
       CREATE TABLE IF NOT EXISTS kill_switch(id TEXT PRIMARY KEY CHECK(id='global'),engaged INTEGER NOT NULL CHECK(engaged IN (0,1)),reason TEXT,at INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS job_store_run(id TEXT PRIMARY KEY CHECK(id='global'),run_id TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS threshold_state(mandate_id TEXT NOT NULL,policy_version INTEGER NOT NULL,armed INTEGER NOT NULL DEFAULT 1 CHECK(armed IN (0,1)),seq INTEGER NOT NULL DEFAULT 0,debit_mark INTEGER,PRIMARY KEY(mandate_id,policy_version));
       CREATE TRIGGER IF NOT EXISTS job_attempts_no_update BEFORE UPDATE OF job_id,fence,worker_id,step,at ON job_attempts BEGIN SELECT RAISE(ABORT,'Attempts are append-only');END;
       CREATE TRIGGER IF NOT EXISTS job_attempts_no_delete BEFORE DELETE ON job_attempts BEGIN SELECT RAISE(ABORT,'Attempts are append-only');END;`);
@@ -66,6 +67,23 @@ export class JobStore {
     if (!hasAmount()) try { this.db.exec('ALTER TABLE jobs ADD COLUMN amount_minor INTEGER'); } catch (error) { if (!hasAmount()) throw error; }
   }
   private atomic<T>(fn: () => T): T { this.db.exec('BEGIN IMMEDIATE'); try { const out = fn(); this.db.exec('COMMIT'); return out; } catch (e) { this.db.exec('ROLLBACK'); throw e; } }
+
+  /** Bind scheduling history and queued jobs to one run before either worker or scheduler starts. */
+  bindRun(runId: string) {
+    if (!/^autorn_[a-f0-9-]{36}$/.test(runId)) throw new JobError('RUN_INVALID', 'Name the isolated automation run.');
+    this.atomic(() => {
+      const bound = this.db.prepare("SELECT run_id FROM job_store_run WHERE id='global'").get();
+      if (bound) {
+        if (bound.run_id !== runId) throw new JobError('RUN_MISMATCH', 'This job store belongs to another run.');
+        return;
+      }
+      const ambiguous = this.db.prepare('SELECT 1 FROM jobs LIMIT 1').get()
+        || this.db.prepare('SELECT 1 FROM job_notices LIMIT 1').get()
+        || this.db.prepare('SELECT 1 FROM threshold_state LIMIT 1').get();
+      if (ambiguous) throw new JobError('RUN_UNKNOWN', 'The existing job store has jobs whose run cannot be safely bound.');
+      this.db.prepare("INSERT INTO job_store_run(id,run_id) VALUES('global',?)").run(runId);
+    });
+  }
 
   get(id: string): Job | undefined { const r = this.db.prepare('SELECT * FROM jobs WHERE id=?').get(id); return r ? row(r) : undefined; }
   list(): Job[] { return this.db.prepare('SELECT * FROM jobs ORDER BY created_at,id').all().map(row); }

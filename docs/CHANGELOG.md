@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bind automation stores to one run (P1-02, step)
+
+Worker startup binds an empty job store to its isolated run and refuses a different run or an older store with unbound scheduling history. Guide: [automation worker](development/automation-worker.md).
+
 ## 2 November 2026 — Bind automation jobs to their run before preparation (P1-02, step)
 
 The worker records its configured run before dispatch and refuses to retry or obtain credentials through a different run. Unbound older in-flight preparations remain held. Guide: [automation worker](development/automation-worker.md).

@@ -19,8 +19,12 @@ export function createWorkerFromEnv(env: NodeJS.ProcessEnv = process.env) {
   const secret = env.AUTOMATION_WORKER_CLIENT_SECRET || (env.AUTOMATION_WORKER_CLIENT_SECRET_FILE ? readFileSync(env.AUTOMATION_WORKER_CLIENT_SECRET_FILE, 'utf8').trim() : '');
   if (!secret || !env.AUTOMATION_RUN_ID) throw new Error('Configure AUTOMATION_RUN_ID and the worker client secret.');
   const store = new JobStore(env.AUTOMATION_JOBS_DB || '.data/automation-worker/jobs.sqlite');
-  const gateway = new HttpExecutionGateway({ runId: env.AUTOMATION_RUN_ID, clientSecret: secret,
-    paymentsUrl: paymentsUrl(env), brokerUrl: delegationAuthorityUrl(env) });
+  let gateway: HttpExecutionGateway;
+  try {
+    gateway = new HttpExecutionGateway({ runId: env.AUTOMATION_RUN_ID, clientSecret: secret,
+      paymentsUrl: paymentsUrl(env), brokerUrl: delegationAuthorityUrl(env) });
+    store.bindRun(env.AUTOMATION_RUN_ID);
+  } catch (error) { store.close(); throw error; }
   const worker = new AutomationWorker(store, gateway, { workerId: env.AUTOMATION_WORKER_ID || `worker-${process.pid}` });
   // Scheduling is a second, separate opt-in: without it the worker only runs jobs someone else enqueued.
   const scheduler = env.AUTOMATION_SCHEDULE_ENABLED === 'true'
