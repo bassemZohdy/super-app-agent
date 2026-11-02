@@ -34,11 +34,22 @@ test('move-in confirmation matches the tenancy and reported utility and permit s
   }
 });
 
+test('move-in receipt must match an explicitly reviewed premise', async t => {
+  const previous = process.env.DOMAIN_TRANSPORT;
+  process.env.DOMAIN_TRANSPORT = 'local';
+  t.after(() => { if (previous === undefined) delete process.env.DOMAIN_TRANSPORT; else process.env.DOMAIN_TRANSPORT = previous; });
+  t.mock.method(domainHandlers, 'catalog', () => ({ status: 200, data: { success: true, ejariContract: 'contract-1', unit: 'Unit', dewaConnected: { premiseId: 'other', status: 'CONNECTED_ACTIVE', depositWaived: true }, residentialParking: { permitNumber: 'permit-1', status: 'ISSUED' } } }));
+  const steps: Step[] = [];
+  await assert.rejects(trackDomainOperations(steps, async () => callDomain('catalog', 'POST', '/housing/move-in', {}, { contractNumber: 'contract-1', expectedPremiseId: 'premise-1' })), (error: unknown) => error instanceof DomainOperationError && error.code === 'DOMAIN_OUTCOME_UNKNOWN');
+  assert.equal(steps[0].state, 'UNKNOWN');
+});
+
 test('the fixture move-in receipt confirms its selected tenancy', async t => {
   const previous = process.env.DOMAIN_TRANSPORT;
   process.env.DOMAIN_TRANSPORT = 'local';
   t.after(() => { if (previous === undefined) delete process.env.DOMAIN_TRANSPORT; else process.env.DOMAIN_TRANSPORT = previous; });
   const contract = callDomain('catalog', 'GET', '/housing/ejari').data.contract.contractNumber;
+  assert.equal(domainHandlers.catalog('POST', '/housing/move-in', {}, { contractNumber: contract, expectedPremiseId: 'other-premise' }).status, 409);
   const steps: Step[] = [];
   const result = await trackDomainOperations(steps, async () => callDomain('catalog', 'POST', '/housing/move-in', {}, { contractNumber: contract }));
   assert.equal(result.data.ejariContract, contract);

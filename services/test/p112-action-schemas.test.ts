@@ -26,5 +26,5 @@ test('P1-12: a mangled payload for an advertised action is refused at the gatewa
   assert.equal(wrongType?.status, 400, 'pay_police_fines refuses fineIds that is not a list');
   const valid = validateRequest('agent-core', 'POST', '/api/a2ui/action', {}, { ...envelope, action: 'pay_police_fines', payload: { fineIds: ['FINE-1'] } });
   assert.equal(valid, undefined, 'a well-formed pay_police_fines payload is accepted');
-  assert.equal(validateRequest('agent-core', 'POST', '/api/a2ui/action', {}, { ...envelope, action: 'confirm_movein', payload: {} }), undefined, 'an empty confirm_movein payload is accepted');
+  assert.equal(validateRequest('agent-core', 'POST', '/api/a2ui/action', {}, { ...envelope, action: 'confirm_movein', payload: {} })?.status, 400, 'move-in requires reviewed tenancy and premise');
 });

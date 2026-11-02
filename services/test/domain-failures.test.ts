@@ -281,10 +281,35 @@ test('P1-13: a move-in receipt for another contract blocks parking and a replace
     return method === 'POST' ? { ...result, data: { ...result.data, ejariContract: 'other-contract' } } : result;
   });
   const before = activeParkingMeters.size;
+  const review = offered(sid, 'confirm_movein');
   const result = await action(sid, 'confirm_movein');
   assert.equal(result.data.outcome, 'UNKNOWN');
   assert.equal(result.data.steps[0].state, 'UNKNOWN');
   assert.equal(activeParkingMeters.size, before);
-  assert.equal((await action(sid, 'confirm_movein')).data.code, 'RECONCILIATION_REQUIRED');
+  assert.equal((await core('POST', '/api/a2ui/action', {}, { sessionId: sid, surfaceRevision: getOrCreateSession(sid).currentSurface?.revision, action: 'confirm_movein', payload: review })).data.code, 'RECONCILIATION_REQUIRED');
+  assert.equal(activeParkingMeters.size, before);
+});
+
+test('P1-13: move-in approval binds the reviewed tenancy and premise and refuses changed details', async t => {
+  const sid = 'failure_movein_changed_review';
+  assert.equal((await intent(sid, 'I signed my Ejari lease; connect my utilities and parking')).status, 200);
+  const review = offered(sid, 'confirm_movein');
+  assert.ok(review.contractNumber);
+  assert.ok(review.premiseId);
+  const altered = await core('POST', '/api/a2ui/action', {}, { sessionId: sid, surfaceRevision: getOrCreateSession(sid).currentSurface?.revision, action: 'confirm_movein', payload: { ...review, premiseId: 'other-premise' } });
+  assert.equal(altered.status, 403);
+  const realCatalog = domainHandlers.catalog;
+  let writes = 0;
+  t.mock.method(domainHandlers, 'catalog', (method, path, query, body) => {
+    if (method === 'POST') writes++;
+    const result = realCatalog(method, path, query, body);
+    return method === 'GET' && path === '/housing/ejari'
+      ? { ...result, data: { ...result.data, contract: { ...result.data.contract, property: { ...result.data.contract.property, premiseId: 'changed-premise' } } } }
+      : result;
+  });
+  const before = activeParkingMeters.size;
+  const result = await action(sid, 'confirm_movein');
+  assert.equal(result.status, 409);
+  assert.equal(writes, 0);
   assert.equal(activeParkingMeters.size, before);
 });

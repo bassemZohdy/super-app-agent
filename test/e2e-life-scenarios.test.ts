@@ -573,7 +573,7 @@ test('E2E Life Scenario 14: Smart Housing - Ejari Move-In Autonomous Onboarding'
   const confirmRes = await executeCoreRequest('POST', '/api/a2ui/action', {}, {
     sessionId, surfaceRevision: getOrCreateSession(sessionId).currentSurface?.revision,
     action: 'confirm_movein',
-    payload: {},
+    payload: surface.view.children.find((child: { id: string }) => child.id === 'btn_confirm_movein').onEvents[0].payload,
   });
   assert.strictEqual(confirmRes.status, 200);
   const confirmedSurface = confirmRes.data.surface;

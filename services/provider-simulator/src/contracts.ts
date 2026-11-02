@@ -85,7 +85,7 @@ export const operations: Record<ProviderId, Operation[]> = {
     op('GET', '/parking/sessions', 'listParkingSessions', { meters: list, count: { type: 'integer' } }, 'List this account’s parking sessions.'),
     op('POST', '/parking/sessions', 'activateParking', { meter: opaque }, 'Create a parking session for an account-owned plate.', object({ zoneId: text, durationHours: { type: 'integer', minimum: 1, maximum: 720 }, plateNumber: text, paymentId: text, reference: text })),
     op('POST', '/parking/sessions/{ticketId}/extensions', 'extendParking', { meter: opaque }, 'Extend an existing, owned parking session.', object({ additionalHours: { type: 'integer', minimum: 1, maximum: 720 }, paymentId: text, reference: text })),
-    op('POST', '/residential-permits', 'issueResidentialPermit', { permit: opaque }, 'Issue an account-owned simulated residential permit.', object({ contractNumber: text })),
+    op('POST', '/residential-permits', 'issueResidentialPermit', { permit: opaque }, 'Issue an account-owned simulated residential permit.', object({ contractNumber: text, expectedPremiseId: text }, ['contractNumber'])),
     op('GET', '/salik', 'getSalikBalance', { balance: { type: 'number' }, tagNumber: text, status: text, currency: { const: 'AED' } }, 'Read this account’s simulated toll tag balance.'),
     op('POST', '/salik/recharges', 'rechargeSalik', { transactionId: text, newBalance: { type: 'number' }, amountRecharged: { type: 'number' } }, 'Recharge the toll tag using a captured payment.', object({ amount: { type: 'number', exclusiveMinimum: 0, maximum: 1000000, multipleOf: 0.01 }, paymentId: text, reference: text })),
     op('GET', '/salik/passings', 'listTollPassings', { passings: list }, 'Read simulated toll passings.'),
@@ -103,7 +103,7 @@ export const operations: Record<ProviderId, Operation[]> = {
     op('GET', '/consumption', 'getConsumption', { account: opaque, ecoStatus: text }, 'Read an account-owned smart meter and consumption snapshot.'),
     op('GET', '/bills', 'listUtilityBills', { bills: list }, 'Read this account’s utility bills.'),
     op('POST', '/bills/{billId}/payments', 'settleUtilityBill', { bill: opaque, receipt: opaque }, 'Settle a bill after checking its captured payment reference and amount.', paymentProof),
-    op('POST', '/connections', 'activateConnection', { connection: opaque }, 'Activate a simulated utility connection for the current account.', object({ contractNumber: text })),
+    op('POST', '/connections', 'activateConnection', { connection: opaque }, 'Activate a simulated utility connection for the current account.', object({ contractNumber: text, expectedPremiseId: text }, ['contractNumber'])),
   ],
   etisalat: telecom, du: telecom,
   police: [
@@ -118,7 +118,7 @@ export const operations: Record<ProviderId, Operation[]> = {
   ],
   dld: [
     op('GET', '/tenancy', 'getTenancy', { contract: opaque }, 'Read the account-owned tenancy contract.'),
-    op('POST', '/move-ins', 'registerMoveIn', { ejariContract: text, unit: text, residentialParking: opaque }, 'Register a move-in proposal. Utility and parking activation are separate operations.', object({ contractNumber: text })),
+    op('POST', '/move-ins', 'registerMoveIn', { ejariContract: text, unit: text, residentialParking: opaque }, 'Register a move-in proposal. Utility and parking activation are separate operations.', object({ contractNumber: text, expectedPremiseId: text }, ['contractNumber'])),
   ],
   payments: [
     op('GET','/payment-mandates','listPaymentMandates',{mandates:{type:'array',maxItems:100,items:mandateRecordSchema},executionEnabled:{const:false}},'Read owned finite consent records. No scheduler, execution permit or spending authority is enabled.'),

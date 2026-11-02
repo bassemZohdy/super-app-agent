@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bind move-in approval to reviewed tenancy (P1-13, step)
+
+Move-in approval carries the displayed contract and premise, rechecks them before dispatch and checks the premise again at the fixture boundary. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Verify compatibility move-in receipts (P1-13, step)
 
 Move-in confirmations require the requested tenancy, connected utility, waived deposit and issued parking permit before continuing. Guide: [agent flow](agent-flow.md).

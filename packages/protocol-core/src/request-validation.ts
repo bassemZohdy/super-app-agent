@@ -43,7 +43,7 @@ const actionSchemas: Record<string, Schema> = {
   activate_parking: object({ selectedChoice: id, zoneId: id, durationHours: hours, plateNumber: text(128) }),
   extend_parking: object({ ticketId: id, additionalHours: hours }, ['ticketId']),
   pay_utilities_bill: object({ billId: id,expectedPayableRevision:{type:'string',pattern:'^[a-f0-9]{64}$'},expectedAmountMinor:{type:'integer',minimum:1,maximum:100000000} }), pay_police_fines: object({ fineIds: {...list(id,20),minItems:1,uniqueItems:true},expectedPayables:fineSelectionItemsSchema,expectedAmountMinor:{type:'integer',minimum:1,maximum:100000000} }, ['fineIds']),
-  confirm_smartcity_checkout: object({expectedPayables:{type:'array',minItems:0,maxItems:30,items:paymentObject({provider:{enum:['dewa','police']},payableId:id,expectedRevision:{type:'string',pattern:'^[a-f0-9]{64}$'}})},expectedAmountMinor:{type:'integer',minimum:1,maximum:100000000},targetReference:text(160),expectedTargetVersion:{type:'integer',minimum:1,maximum:1000000},offlineReview:object({billId:id,billAmountMinor:{type:'integer',minimum:0,maximum:100000000},fines:{type:'array',maxItems:20,items:object({fineId:id,amountMinor:{type:'integer',minimum:1,maximum:100000000}},['fineId','amountMinor'])},tagNumber:text(160)},['billId','billAmountMinor','fines','tagNumber'])}), confirm_movein: object({ contractNumber: id, unit: text() }),
+  confirm_smartcity_checkout: object({expectedPayables:{type:'array',minItems:0,maxItems:30,items:paymentObject({provider:{enum:['dewa','police']},payableId:id,expectedRevision:{type:'string',pattern:'^[a-f0-9]{64}$'}})},expectedAmountMinor:{type:'integer',minimum:1,maximum:100000000},targetReference:text(160),expectedTargetVersion:{type:'integer',minimum:1,maximum:1000000},offlineReview:object({billId:id,billAmountMinor:{type:'integer',minimum:0,maximum:100000000},fines:{type:'array',maxItems:20,items:object({fineId:id,amountMinor:{type:'integer',minimum:1,maximum:100000000}},['fineId','amountMinor'])},tagNumber:text(160)},['billId','billAmountMinor','fines','tagNumber'])}), confirm_movein: object({ contractNumber: id, premiseId: id }, ['contractNumber', 'premiseId']),
   book_ride: object({ selectedChoice: id, driverId: id }), order_food: object({ selectedChoice: id }),
   confirm_composite_checkout: object(), topup_wallet: object({ amount: moneySchema }, ['amount']),
   pay_telecom_bill: object({ provider: { enum: ['etisalat', 'du'] }, billId: id,expectedPayableRevision:{type:'string',pattern:'^[a-f0-9]{64}$'},expectedAmountMinor:{type:'integer',minimum:1,maximum:100000000} }, ['provider','billId']),
@@ -173,7 +173,7 @@ route('service-profile', 'GET', '/profile/preferences', object(), [], 'profile_g
 route('service-profile', 'POST', '/profile/preferences', preferencesSchema, [], 'profile_updatePreferences');
 route('service-profile', 'GET', '/profile/prompt-context', object(), [], 'profile_getPromptContext');
 route('service-catalog', 'GET', '/housing/ejari', object(), ['/ejari'], 'housing_getEjari');
-route('service-catalog', 'POST', '/housing/move-in', object({ contractNumber: id }, ['contractNumber']), ['/move-in'], 'housing_moveIn');
+route('service-catalog', 'POST', '/housing/move-in', object({ contractNumber: id, expectedPremiseId: id }, ['contractNumber']), ['/move-in'], 'housing_moveIn');
 for (const path of ['/miniapps', '/tools', '/capabilities']) route('service-catalog', 'GET', path);
 route('service-catalog', 'GET', '/miniapps/{id}', object({ id }, ['id']));
 route('service-catalog', 'GET', '/capabilities/{id}', object({ id }, ['id']));

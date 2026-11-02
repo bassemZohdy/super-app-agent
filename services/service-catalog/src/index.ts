@@ -171,6 +171,7 @@ function handleCatalogRequest(
 
   if (normMethod === 'POST' && (pathname === '/housing/move-in' || pathname === '/move-in')) {
     if (body.contractNumber !== defaultEjariContract.contractNumber) return { status: 404, data: { error: 'Tenancy contract not found' } };
+    if (body.expectedPremiseId !== undefined && body.expectedPremiseId !== defaultEjariContract.property.premiseId) return { status: 409, data: { error: 'Tenancy premise changed' } };
     return {
       status: 200,
       data: {

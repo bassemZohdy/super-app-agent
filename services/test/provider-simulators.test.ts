@@ -12,7 +12,7 @@ import { AccountDatabase } from '../provider-simulator/src/database.ts';
 import { ProviderEngine } from '../provider-simulator/src/engine.ts';
 import { createProviderServer, callers } from '../provider-simulator/src/index.ts';
 import { openApi, providerIds } from '../provider-simulator/src/contracts.ts';
-import { actorFor, accountIdFor } from '../../packages/backend-kit/src/context.ts';
+import { actorFor, accountIdFor, assetsFor } from '../../packages/backend-kit/src/context.ts';
 import { ClientCredentials } from '../../packages/backend-kit/src/oauth.ts';
 import { ProviderClient } from '../../packages/backend-kit/src/provider-client.ts';
 
@@ -21,6 +21,16 @@ function seeded(t: test.TestContext, provider: 'payments'|'dewa'|'rta') {
   const store = database(t), engine = new ProviderEngine(provider, store), actor = actorFor({ sub: 'citizen-alice', name: 'Alice' });
   store.accounts(actor.sub); engine.seed(actor); return { store, engine, actor };
 }
+
+test('move-in providers reject a premise different from the reviewed one', t => {
+  const actor = actorFor({ sub: 'movein-review-resident' }), asset = assetsFor(actor.accountId);
+  for (const [provider, path] of [['dld', '/move-ins'], ['dewa', '/connections'], ['rta', '/residential-permits']] as const) {
+    const store = database(t), engine = new ProviderEngine(provider, store);
+    store.accounts(actor.sub); engine.seed(actor);
+    assert.throws(() => store.transaction(() => engine.execute(actor, 'POST', path, { contractNumber: asset.contractNumber, expectedPremiseId: 'different' })));
+    assert.equal(store.transaction(() => engine.execute(actor, 'POST', path, { contractNumber: asset.contractNumber, expectedPremiseId: asset.premiseId })).status, 200);
+  }
+});
 
 test('all seven checked-in OpenAPI 3.1 contracts are valid and match the runtime', async () => {
   for (const provider of providerIds) {

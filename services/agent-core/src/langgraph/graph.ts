@@ -680,7 +680,10 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
       }
     } else if (action === 'confirm_movein') {
       onProgress?.('🏠 Finalizing Move-In Golden Path with Dubai Land Department...');
-      const res = await executeCatalogRequest('POST', '/housing/move-in', {}, { contractNumber: (await executeCatalogRequest('GET', '/housing/ejari')).data.contract.contractNumber });
+      const current = (await executeCatalogRequest('GET', '/housing/ejari')).data.contract;
+      if (!current || current.contractNumber !== payload.contractNumber || current.property?.premiseId !== payload.premiseId)
+        throw new HttpError(409, 'The tenancy details changed. Start a new move-in review.');
+      const res = await executeCatalogRequest('POST', '/housing/move-in', {}, { contractNumber: payload.contractNumber, expectedPremiseId: payload.premiseId });
       if (process.env.PROVIDER_INTEGRATION !== 'true') await executeRideRequest('POST', '/mobility/parking/activate', {}, { zoneId: 'zone_302a', durationHours: 720, plateNumber: 'Dubai B-74892' });
 
       state.currentSurface = {
@@ -1750,7 +1753,7 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
               {
                 event: 'onPress',
                 actionType: 'AGENT_ACTION_DISPATCH',
-                payload: { action: 'confirm_movein' },
+                payload: { action: 'confirm_movein', contractNumber: contract.contractNumber, premiseId: contract.property.premiseId },
               },
             ],
           },
