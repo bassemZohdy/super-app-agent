@@ -4,12 +4,18 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class CitizenFrame {
-  CitizenFrame(this.id, this.envelope, {this.unreadable = false});
+  CitizenFrame(
+    this.id,
+    this.envelope, {
+    this.unreadable = false,
+    this.invalidId = false,
+  });
   final String? id;
   final Map<String, dynamic> envelope;
 
   /// The event's data was not a JSON object. It is still reported, with its id, so the stream can move its cursor past it.
   final bool unreadable;
+  final bool invalidId;
 }
 
 // Split UTF-8 lines without buffering an unlimited unterminated line.
@@ -40,6 +46,7 @@ Stream<String> _boundedLines(Stream<List<int>> source) async* {
 Stream<CitizenFrame> readCitizenFrames(Stream<List<int>> source) async* {
   final lines = <String>[];
   String? id;
+  var invalidId = false;
   var bytes = 0;
   await for (final line in _boundedLines(source)) {
     bytes += utf8.encode(line).length;
@@ -55,19 +62,26 @@ Stream<CitizenFrame> readCitizenFrames(Stream<List<int>> source) async* {
           decoded = null;
         }
         yield decoded is Map<String, dynamic>
-            ? CitizenFrame(id, decoded)
-            : CitizenFrame(id, const {}, unreadable: true);
+            ? CitizenFrame(id, decoded, invalidId: invalidId)
+            : CitizenFrame(
+                id,
+                const {},
+                unreadable: true,
+                invalidId: invalidId,
+              );
       }
       lines.clear();
       id = null;
+      invalidId = false;
       bytes = 0;
     } else if (line.startsWith('data:')) {
       lines.add(line.substring(5).replaceFirst(RegExp(r'^ '), ''));
-    } else if (line.startsWith('id:')) {
-      id = line.substring(3).trim();
-      if (id.length > 128 || id.contains('\u0000')) {
-        throw const FormatException('Invalid stream cursor');
-      }
+    } else if (line == 'id' || line.startsWith('id:')) {
+      final value = line == 'id'
+          ? ''
+          : line.substring(3).replaceFirst(RegExp(r'^ '), '');
+      invalidId = !RegExp(r'^[A-Za-z0-9_.:-]{0,128}$').hasMatch(value);
+      id = invalidId ? null : value;
     }
   }
 }
@@ -125,11 +139,19 @@ class CitizenEventStream {
             if (frame.unreadable || frame.envelope['sessionId'] != sessionId) {
               // An event that cannot be read, or that belongs to another session, is skipped. The cursor still moves past it, or every
               // reconnect would replay the same event and nothing after it would arrive.
-              if (frame.id != null) _cursor = frame.id;
+              if (frame.invalidId || frame.id == '') {
+                _cursor = null;
+              } else if (frame.id != null) {
+                _cursor = frame.id;
+              }
               continue;
             }
             onEnvelope(frame.envelope);
-            if (frame.id != null) _cursor = frame.id;
+            if (frame.invalidId || frame.id == '') {
+              _cursor = null;
+            } else if (frame.id != null) {
+              _cursor = frame.id;
+            }
           }
         }
       } catch (_) {

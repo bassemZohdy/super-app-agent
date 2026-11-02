@@ -176,6 +176,93 @@ void main() {
     );
   });
 
+  test('unsafe cursors request a fresh snapshot after readable and unreadable events', () async {
+    for (final cursor in [
+      'x' * 129,
+      'unicode-م',
+      'bad\u0000id',
+      'bad\tid',
+      '',
+      '<bare>',
+    ]) {
+      for (final readable in [true, false]) {
+        final resumedFrom = <String?>[];
+        final messages = <int>[];
+        late CitizenEventStream stream;
+        final client = MockClient((request) async {
+          resumedFrom.add(request.headers['Last-Event-ID']);
+          if (resumedFrom.length == 1) {
+            final payload = readable
+                ? '{"sessionId":"session1","n":2}'
+                : '{invalid';
+            final idField = cursor == '<bare>' ? 'id' : 'id: $cursor';
+            return http.Response(
+              'id: good-1\ndata: {"sessionId":"session1","n":1}\n\n$idField\ndata: $payload\n\n',
+              200,
+              headers: {'content-type': 'text/event-stream; charset=utf-8'},
+            );
+          }
+          return http.Response('data: {"sessionId":"session1","n":3}\n\n', 200);
+        });
+        stream = CitizenEventStream(
+          url: Uri.parse('http://localhost/stream'),
+          sessionId: 'session1',
+          authorization: () async => 'Bearer token',
+          onStatus: (_) {},
+          onAuthRequired: () => fail('Unexpected auth rejection'),
+          onEnvelope: (envelope) {
+            messages.add(envelope['n'] as int);
+            if (envelope['n'] == 3) stream.close();
+          },
+        );
+        await http.runWithClient(
+          () => stream.run().timeout(const Duration(seconds: 8)),
+          () => client,
+        );
+        expect(resumedFrom, [
+          null,
+          null,
+        ], reason: 'unsafe cursor must clear stale replay state');
+        expect(messages, readable ? [1, 2, 3] : [1, 3]);
+      }
+    }
+  });
+
+  test('a failed handler retains the previous cursor even if the new one is unsafe', () async {
+    final resumedFrom = <String?>[];
+    late CitizenEventStream stream;
+    var failed = false;
+    final client = MockClient((request) async {
+      resumedFrom.add(request.headers['Last-Event-ID']);
+      if (resumedFrom.length == 1) {
+        return http.Response(
+          'id: good-1\ndata: {"sessionId":"session1","n":1}\n\nid: bad\tid\ndata: {"sessionId":"session1","n":2}\n\n',
+          200,
+        );
+      }
+      return http.Response('data: {"sessionId":"session1","n":3}\n\n', 200);
+    });
+    stream = CitizenEventStream(
+      url: Uri.parse('http://localhost/stream'),
+      sessionId: 'session1',
+      authorization: () async => 'Bearer token',
+      onStatus: (_) {},
+      onAuthRequired: () => fail('Unexpected auth rejection'),
+      onEnvelope: (envelope) {
+        if (envelope['n'] == 2 && !failed) {
+          failed = true;
+          throw StateError('handler failed');
+        }
+        if (envelope['n'] == 3) stream.close();
+      },
+    );
+    await http.runWithClient(
+      () => stream.run().timeout(const Duration(seconds: 8)),
+      () => client,
+    );
+    expect(resumedFrom, [null, 'good-1']);
+  });
+
   test('a handler failure replays the unhandled event after reconnect', () async {
     final resumedFrom = <String?>[];
     final attempts = <int>[];
