@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 - Report container qualification source state (P2-03, step)
+
+Focused-container qualification distinguishes a clean checkout from uncommitted changes or a revision that changes during the build, instead of attributing a modified image to a commit alone. Guide: [local development](development/local-development.md).
+
 ## 2 November 2026 - Reject ambiguous integrated fine reports (P1-13, step)
 
 Fine lookups reject missing or duplicated provider fine identities before displaying the selected plate and totals. Guide: [integrations](integrations.md).

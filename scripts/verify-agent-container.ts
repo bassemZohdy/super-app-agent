@@ -7,7 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { withQualificationCleanup } from './qualification-cleanup.ts';
-import { assertApprovalReplay, assertPaymentCount } from './qualification-evidence.ts';
+import { assertApprovalReplay, assertPaymentCount, describeBuildSource } from './qualification-evidence.ts';
 
 // Its own compose project, so the data volume it starts from empty and removes at the end is never a developer's own agent data.
 const PROJECT = 'super-app-agent-qualify';
@@ -24,16 +24,23 @@ const call = async (path: string, body?: unknown, key = randomUUID(), bearer = t
   const response = await fetch(base + path, { method: body === undefined ? 'GET' : 'POST', signal: AbortSignal.timeout(15_000), headers: { Authorization: `Bearer ${bearer}`, 'Content-Type': 'application/json', 'Idempotency-Key': key }, body: body === undefined ? undefined : JSON.stringify(body) });
   return { status: response.status, data: await response.json().catch(() => null) as any };
 };
+const gitState = () => {
+  const revision = spawnSync('git', ['rev-parse', '--verify', 'HEAD'], { encoding: 'utf8' });
+  const status = spawnSync('git', ['status', '--porcelain=v1', '-z', '--untracked-files=normal'], { encoding: 'utf8' });
+  if (revision.status !== 0 || status.status !== 0) throw new Error('Cannot establish the source checkout state.');
+  return { revision: revision.stdout.trim(), dirty: status.stdout.length > 0 };
+};
 const ready = async () => { for (let i = 0; i < 60; i++) { try { if ((await fetch(`${base}/ready`, { signal: AbortSignal.timeout(2000) })).ok) return; } catch { /* not up yet */ } await new Promise(done => setTimeout(done, 1000)); } throw new Error('the agent never became ready'); };
 
 await withQualificationCleanup(async () => {
-const revision = spawnSync('git', ['rev-parse', '--short', 'HEAD'], { encoding: 'utf8' }).stdout.trim();
+const sourceBefore = gitState();
 must(compose('down', '-v'), 'start from an empty volume');
 must(compose('build'), 'build');
+const sourceAfter = gitState();
 const image = must(spawnSync('docker', ['image', 'inspect', `${PROJECT}-agent`, '--format', '{{.Id}}'], { encoding: 'utf8' }), 'image inspect');
 must(compose('up', '-d', '--wait'), 'up');
 await ready();
-console.log(`PASS: built from revision ${revision} and ready (image ${image.slice(0, 19)})`);
+console.log(`PASS: container ready (image ${image.slice(0, 19)}); source: ${describeBuildSource(sourceBefore, sourceAfter)}`);
 
 assert.equal((await fetch(`${base}/ready`)).status, 200);
 assert.equal((await call('/api/agent/threads', {}, randomUUID(), 'not-a-token')).status, 401, 'an unknown bearer is refused');
