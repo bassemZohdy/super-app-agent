@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bound ignored focused-agent request bodies (P0-11, step)
+
+Conversation creation, cancellation and recovery now consume any ignored body within the same size and time bounds before performing the action. Empty bodies remain supported. A loopback test covers incomplete uploads, no premature creation or cancellation, and recovery of the original unresolved payment after a timed-out request. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Bound focused-agent JSON body reads (P0-11, step)
 
 The focused API applies an absolute deadline to JSON body reads after authentication, including uploads that continually trickle bytes. Timed-out and oversized bodies are rejected before a transition and their connections are closed. Loopback tests cover both failures and a subsequent valid request. This does not limit all connections, authentication time or graph execution. Guide: [agent flow](agent-flow.md).

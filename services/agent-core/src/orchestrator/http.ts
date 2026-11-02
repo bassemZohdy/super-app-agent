@@ -7,17 +7,18 @@ import type { AgentService } from './service.ts';
 import { logEvent } from '../../../../packages/backend-kit/src/redact.ts';
 import { corsOrigins } from '../../../../packages/backend-kit/src/local-endpoints.ts';
 
-async function readBody(req: http.IncomingMessage, timeoutMs: number): Promise<unknown> {
+async function readBody(req: http.IncomingMessage, timeoutMs: number, ignored = false): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = []; let bytes = 0, settled = false;
     const finish = (error?: Error) => {
       if (settled) return; settled = true;
       clearTimeout(timer); req.off('data', onData); req.off('end', onEnd);
       if (error) { req.pause(); reject(error); return; }
+      if (ignored) { resolve(undefined); return; }
       try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8'))); }
       catch { reject(new AgentError('INVALID_JSON')); }
     };
-    const onData = (chunk: Buffer) => { bytes += chunk.length; if (bytes > 8192) finish(new AgentError('BODY_TOO_LARGE', 413)); else chunks.push(chunk); };
+    const onData = (chunk: Buffer) => { bytes += chunk.length; if (bytes > 8192) finish(new AgentError('BODY_TOO_LARGE', 413)); else if (!ignored) chunks.push(chunk); };
     const onEnd = () => finish();
     const onError = () => finish(new AgentError('BODY_READ_FAILED', 400));
     const timer = setTimeout(() => finish(new AgentError('BODY_READ_TIMEOUT', 408)), timeoutMs);
@@ -66,7 +67,10 @@ export function createServer(service: AgentService, auth: Authenticator, workloa
           throw new AgentError('NOT_FOUND', 404);
         }
         authorize(principal, 'fines:read');
-        if (req.method === 'POST' && path === '/api/agent/threads') return send(201, { threadId: await service.store.createThread(principal) });
+        if (req.method === 'POST' && path === '/api/agent/threads') {
+          await readBody(req, bodyTimeoutMs, true);
+          return send(201, { threadId: await service.store.createThread(principal) });
+        }
         const match = /^\/api\/agent\/threads\/([a-f0-9-]{36})(?:\/(messages|resume|cancel|recover))?$/.exec(path);
         if (!match) throw new AgentError('NOT_FOUND', 404);
         const id = z.string().uuid().parse(match[1]);
@@ -77,6 +81,7 @@ export function createServer(service: AgentService, auth: Authenticator, workloa
         let body: unknown = undefined;
         if (action === 'message') body = z.object({ message: Message }).strict().parse(await readBody(req, bodyTimeoutMs)).message;
         if (action === 'resume') body = Decision.parse(await readBody(req, bodyTimeoutMs));
+        if (action === 'cancel' || action === 'recover') await readBody(req, bodyTimeoutMs, true);
         const streaming = req.headers.accept === 'text/event-stream';
         if (streaming) {
           res.writeHead(200, { 'Content-Type': 'text/event-stream', 'X-Accel-Buffering': 'no' });
