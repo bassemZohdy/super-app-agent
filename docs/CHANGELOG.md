@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Verify settled bill state (P1-13, step)
+
+After integrated utility or telecom settlement, the application checks the refreshed bill's identity, paid state, exact amount and receipt reference before reporting success. Conflicting or unavailable evidence remains unknown. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Refuse ambiguous bill identities (P1-13, step)
 
 Integrated utility and telecom settlement now requires one matching bill and one matching payable; duplicate provider identities stop before an order or already-paid receipt. Guide: [integrations](integrations.md).

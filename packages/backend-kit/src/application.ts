@@ -131,7 +131,18 @@ export async function integratedRequest(service: string, actor: Actor, method: s
     };
     const order=await executePayable(provider,payable,sameOrder);
     if(!order.receipt||typeof order.receipt.receiptNumber!=='string'||!order.receipt.receiptNumber.trim()||order.receipt.receiptNumber.length>200||order.receipt.obligationId!==bill.billId||order.receipt.amountMinor!==payable.amountMinor||order.receipt.currency!=='AED')throw new UpstreamError(503,'PROVIDER_OUTCOME_UNKNOWN','The bill settlement could not be confirmed. Inspect the original payment order.');
-    const paid=(await call(provider,'GET','/bills')).bills.find((b:Bill)=>b.billId===bill.billId),wallet=await call('payments','GET','/wallet');
+    let refreshed: unknown;
+    try { refreshed = (await call(provider,'GET','/bills')).bills; }
+    catch { throw new UpstreamError(503,'PROVIDER_OUTCOME_UNKNOWN','The settled bill could not be confirmed. Inspect the original payment order.'); }
+    if(!Array.isArray(refreshed))throw new UpstreamError(503,'PROVIDER_OUTCOME_UNKNOWN','The settled bill could not be confirmed. Inspect the original payment order.');
+    const matches=refreshed.filter((b:Bill)=>b?.billId===bill.billId);
+    if(matches.length!==1)throw new UpstreamError(503,'PROVIDER_OUTCOME_UNKNOWN','The settled bill could not be confirmed. Inspect the original payment order.');
+    const paid=matches[0] as Bill;
+    let refreshedAmount: number;
+    try { refreshedAmount=toMinor(paid.totalAmount); }
+    catch { throw new UpstreamError(503,'PROVIDER_OUTCOME_UNKNOWN','The settled bill could not be confirmed. Inspect the original payment order.'); }
+    if(paid.status!=='PAID'||paid.receiptNumber!==order.receipt.receiptNumber||refreshedAmount!==payable.amountMinor||provider==='dewa'&&!ownedUtility(paid))throw new UpstreamError(503,'PROVIDER_OUTCOME_UNKNOWN','The settled bill could not be confirmed. Inspect the original payment order.');
+    const wallet=await call('payments','GET','/wallet');
     return {success:true,bill:paid,receipt:{billId:bill.billId,receiptNumber:order.receipt.receiptNumber,amountPaid:(order.receipt.amountMinor/100).toFixed(2),currency:'AED',...(bill.premiseId?{premiseId:bill.premiseId}:{})},chargedAmount:order.quote.totalMinor/100,remainingBalance:wallet.balance};
   };
   const settleFines = async (fineIds?: string[]) => {
