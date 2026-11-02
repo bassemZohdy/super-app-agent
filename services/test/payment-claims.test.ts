@@ -141,7 +141,7 @@ test('legacy captures gain conservative unknown claims and backup without alteri
 });
 
 test('uncertain settlement errors keep the original claim fenced without exposing provider text', async t => {
-  for (const incoming of ['SETTLEMENT_STATUS_UNKNOWN', 'ALREADY_PAID', 'IDEMPOTENCY_CONFLICT', 'PRIVATE_MARKER']) {
+  for (const incoming of ['SETTLEMENT_STATUS_UNKNOWN', 'ALREADY_PAID', 'IDEMPOTENCY_CONFLICT', 'ELIGIBILITY_CHANGED', 'ACCOUNT_RESTRICTED', 'PRIVATE_MARKER']) {
     const f = fixture(t);
     await assert.rejects(f.coordinator.execute(f.actor, `request-${incoming}`, fp(incoming), f.charge, () => {
       throw new ApiError(409, incoming, 'private-marker');
@@ -169,6 +169,8 @@ test('returned uncertain or contradictory settlement responses roll back and kee
     { status: 409, data: { success: false, code: 'SETTLEMENT_STATUS_UNKNOWN', error: 'private-marker' } },
     { status: 409, data: { success: false, code: 'ALREADY_PAID', error: 'private-marker' } },
     { status: 409, data: { success: false, code: 'PRIVATE_MARKER', error: 'private-marker' } },
+    { status: 403, data: { success: false, code: 'PAYABLE_CHANGED', error: 'private-marker' } },
+    { status: 409, data: { success: false, code: 'ELIGIBILITY_CHANGED', error: 'private-marker' } },
     { status: 503, data: { success: false, code: 'PAYABLE_CHANGED', error: 'private-marker' } },
     { status: 200, data: { success: true, error: 'private-marker' } },
     { status: 200, data: { success: false, code: 'PAYABLE_CHANGED' } },

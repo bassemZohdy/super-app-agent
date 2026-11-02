@@ -43,6 +43,11 @@ test('contradictory or ambiguous provider write replies remain unknown', async t
     { status: 409, data: { code: 'UNCLASSIFIED' } },
     { status: 409, data: { success: false, code: 'UNCLASSIFIED', error: 'unclassified' } },
     { status: 403, data: { success: false, error: 'unclassified' } },
+    { status: 403, data: { success: false, code: 'ACCOUNT_RESTRICTED', error: 'restricted' } },
+    { status: 403, data: { success: false, code: 'PAYABLE_CHANGED', error: 'forbidden' } },
+    { status: 409, data: { success: false, code: 'ELIGIBILITY_CHANGED', error: 'permission changed' } },
+    { status: 404, data: { success: false, code: 'ACCOUNT_NOT_FOUND', error: 'account unavailable' } },
+    { status: 429, data: { success: false, code: 'PAYABLE_CHANGED', error: 'rate limited' } },
     { status: 400, data: { code: 'PAYABLE_CHANGED', error: 'changed' } },
     ...['ALREADY_APPLIED', 'ALREADY_CAPTURED', 'ALREADY_DECIDED', 'ALREADY_PAID', 'PAYMENT_ALREADY_USED', 'AUTOMATION_ALREADY_DISPATCHED', 'IDEMPOTENCY_CONFLICT'].map(code => ({ status: 409, data: { success: false, code, error: 'already recorded' } })),
     { status: 409, data: { success: false, code: 'PROVIDER_OUTCOME_UNKNOWN', error: 'unconfirmed' } },
@@ -108,6 +113,13 @@ test('known provider rejection codes remain available to callers', async t => {
     try { await assert.rejects(client.call('dewa', actor, 'POST', '/payments', {}), (error: unknown) => error instanceof UpstreamError && error.code === code); }
     finally { mock.mock.restore(); }
   }
+});
+
+test('read-only authority denials retain their status and code', async t => {
+  const actor = actorFor({ sub: 'read-denial-test' }, 'test-account', 'Bearer test');
+  const client = new ProviderClient('test-client', '');
+  t.mock.method(globalThis, 'fetch', async () => Response.json({ success: false, code: 'ACCOUNT_RESTRICTED', error: 'Restricted' }, { status: 403 }));
+  await assert.rejects(client.call('dewa', actor, 'GET', '/bills'), (error: unknown) => error instanceof UpstreamError && error.status === 403 && error.code === 'ACCOUNT_RESTRICTED');
 });
 
 test('service-token 401 never automatically repeats a provider write', async t => {

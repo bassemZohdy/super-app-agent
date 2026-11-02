@@ -28,7 +28,7 @@ The plan selects only `list_fines`, `pay_fines`, `renew_registration`, `clarify`
 
 The focused tool wrapper stops waiting at its deadline and signals cancellation to the adapter. A dispatched write whose result is not confirmed remains unknown and can be recovered only with its original operation identity. The deadline cannot forcibly stop in-process work that ignores the signal; adapters must cooperate with cancellation and preserve idempotency.
 
-For compatibility domain writes, both local and HTTP adapters treat authentication failures, rate limits, and responses indicating a prior effect or conflicting operation identity as unknown outcomes. These responses do not establish that the original write was absent.
+For compatibility domain writes, both local and HTTP adapters treat authentication or authority denials, changed eligibility, rate limits, and responses indicating a prior effect or conflicting operation identity as unknown outcomes. Provider writes and settlement claims apply the same authority-denial rule: a current refusal does not establish that the original write was absent. Read-only denials retain their status, and a documented business refusal can still be treated as definitive.
 
 Compatibility domain adapters dispatch only the registered write routes with route-specific receipt checks; unrecognized mutations are rejected before a local handler or HTTP service is called. Adding a write requires registering its route and receipt validation together.
 

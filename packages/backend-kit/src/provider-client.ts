@@ -1,4 +1,4 @@
-import { isPriorEffectCode, isUncertainOutcomeCode } from './outcome.ts';
+import { isAuthorityDenial, isPriorEffectCode, isUncertainOutcomeCode } from './outcome.ts';
 import { PROVIDER_REJECTION_CODES } from './provider-rejection-codes.ts';
 import { boundedJsonResponse } from './bounded-json.ts';
 import { tracedFetch as fetch } from './observability.ts';
@@ -73,7 +73,7 @@ export class ProviderClient {
     const unknownCode = isUncertainOutcomeCode(upstreamCode);
     const rejection = response.status >= 400 && response.status < 500 && response.status !== 408 &&
       data.success !== true && !unknownCode && (data.success === false || typeof data.error === 'string' && data.error.length > 0) &&
-      (method !== 'POST' || (data.success === false && PROVIDER_REJECTION_CODES.has(upstreamCode) && !isPriorEffectCode(upstreamCode)));
+      (method !== 'POST' || (response.status !== 429 && !isAuthorityDenial(response.status, upstreamCode) && data.success === false && PROVIDER_REJECTION_CODES.has(upstreamCode) && !isPriorEffectCode(upstreamCode)));
     if (!rejection) {
       const code = method === 'POST' ? 'PROVIDER_OUTCOME_UNKNOWN' : 'PROVIDER_UNAVAILABLE';
       record(503, code);

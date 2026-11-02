@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Hold writes after authority denials (P1-02, step)
+
+Compatibility writes and settlement claims retain unconfirmed outcomes when a current authority denial cannot prove the original effect was absent. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Preserve approval permission across service calls (P1-02, step)
 
 Integrated writes carry the checked eligibility version through the application and provider boundaries, where a changed version is refused. Guide: [agent flow](agent-flow.md).
