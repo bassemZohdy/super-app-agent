@@ -81,6 +81,8 @@ export class FixturePlanner implements Planner {
       if (request === 'أريد دفعها') return { intent: selectedFines(messages).length ? 'pay_fines' : 'clarify', fineIds: [] };
       return { intent: 'out_of_scope', fineIds: [] };
     }
+    // Do not infer a consequential review from an explicitly negated English request.
+    if (/\b(?:do\s+not|don['’]t|never|not)\b[\s\S]{0,120}\b(?:pay(?:ing)?|payment|renew(?:ing|al)?)\b/i.test(text) || /\bno\s+(?:payment|renewal)\b/i.test(text)) return { intent: 'out_of_scope', fineIds: [] };
     const prior = messages.slice(0, -1).some(m => /fine/.test(m.content));
     if (/renew/.test(text) && /(registration|vehicle|car)/.test(text)) return { intent: 'renew_registration', fineIds: [] };
     return { intent: /pay/.test(text) && (/fine/.test(text) || prior) ? 'pay_fines' : /fine/.test(text) ? 'list_fines' : /^(hi|hello)/.test(text) ? 'clarify' : 'out_of_scope', fineIds: [] };

@@ -237,3 +237,17 @@ test('an Arabic batch review binds exactly the named fines and waits for confirm
     assert.equal((h.store.db.prepare('SELECT count(*) AS n FROM sa_sim_payments').get() as { n: number }).n, 1);
   } finally { await h.close(); }
 });
+
+test('explicitly negated English payment requests create no review or effect', async () => {
+  const h = await harness();
+  try {
+    const root = `/api/agent/threads/${await h.thread()}`;
+    for (const message of ['do not pay fine-1', "show fine-1 but don't pay it", 'no payment for fine-1']) {
+      const result = await h.req(`${root}/messages`, { message });
+      assert.equal(result.data.approval, null);
+      assert.notEqual(result.data.status, 'awaiting_approval');
+      assert.equal((h.store.db.prepare('SELECT count(*) AS n FROM sa_sim_payments').get() as { n: number }).n, 0);
+    }
+    assert.deepEqual((await h.req(`${root}/messages`, { message: 'pay fine-1' })).data.approval.quote.fineIds, ['fine-1']);
+  } finally { await h.close(); }
+});

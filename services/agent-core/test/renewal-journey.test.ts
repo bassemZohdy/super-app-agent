@@ -38,6 +38,20 @@ test('renewal never accepts a vehicle invented by a planner', async () => {
   } finally { await h.close(); }
 });
 
+test('explicitly negated English renewal requests create no approval or effect', async () => {
+  const { h, say } = await journey();
+  try {
+    for (const message of ['do not renew my car registration', "don't renew the vehicle"]) {
+      const result = await say(message);
+      assert.equal(result.data.approval, null);
+      assert.equal(result.data.renewalApproval, null);
+      assert.equal(count(h, 'sa_sim_payments'), 0);
+      assert.equal(count(h, 'sa_sim_renewals'), 0);
+    }
+    assert.equal((await say('renew my car registration')).data.status, 'awaiting_approval');
+  } finally { await h.close(); }
+});
+
 test('a new request does not retain vehicles from an earlier renewal review', async () => {
   const { h, say, decide, payFinesDirectly } = await journey({ planner: { async plan(messages) {
     if (messages.at(-1)?.content === 'planner fails') throw new Error('unavailable');

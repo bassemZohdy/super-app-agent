@@ -23,6 +23,16 @@ test('fixture intent and multi-turn routing; canonical quote produces stable key
   const fines = [{ id: 'fine-2', description: 'b', amountMinor: 200, version: 1 }, { id: 'fine-1', description: 'a', amountMinor: 100, version: 1 }];
   assert.equal(digest(quoteFor(fines)), digest(quoteFor(fines.reverse())));
 });
+test('fixture planner does not turn explicit English negation into payment or renewal reviews', async () => {
+  const planner = new FixturePlanner();
+  for (const content of [
+    'do not pay fine-1', "don't pay fine-1", 'never pay fine-1',
+    'show fine-1 but do not pay it', 'no payment for fine-1',
+    'do not renew my car registration', 'never renew the vehicle',
+  ]) assert.equal((await planner.plan([{ role: 'user', content }])).intent, 'out_of_scope');
+  assert.equal((await planner.plan([{ role: 'user', content: 'pay fine-1' }])).intent, 'pay_fines');
+  assert.equal((await planner.plan([{ role: 'user', content: 'renew my car registration' }])).intent, 'renew_registration');
+});
 test('fixture planner recognizes explicit Arabic fines and renewal requests without inferring negated payment', async () => {
   const planner = new FixturePlanner();
   for (const [message, intent] of [

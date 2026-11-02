@@ -242,6 +242,25 @@ test('a named Arabic fine review pays only that fine and negated requests do not
   expect(result.receipt.quote.fineIds).toEqual(['fine-1']); expect(focused.payments()).toBe(1);
 });
 
+test('explicit English negation does not create payment or renewal reviews', async ({ page, focused }) => {
+  await page.goto(focused.url);
+  await page.getByLabel('Access token', { exact: true }).fill(focused.renewalToken);
+  await page.getByRole('button', { name: 'Open my fines' }).click();
+  const composer = page.getByRole('textbox', { name: 'Message about fines' });
+  for (const message of ['do not pay fine-1', 'do not renew my car registration']) {
+    await composer.fill(message);
+    await page.getByRole('button', { name: 'Send message' }).click();
+    await expect(page.getByText(message, { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Confirm simulated payment' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Confirm simulated renewal' })).toHaveCount(0);
+    expect(focused.payments()).toBe(0); expect(focused.renewals()).toBe(0);
+  }
+  await composer.fill('pay fine-1');
+  await page.getByRole('button', { name: 'Send message' }).click();
+  await expect(page.getByRole('button', { name: 'Confirm simulated payment' })).toBeVisible();
+  expect(focused.payments()).toBe(0);
+});
+
 test('rejecting an Arabic payment review reports that no payment was made', async ({ page, focused }) => {
   await page.addInitScript(() => localStorage.setItem('cityside.locale', 'ar'));
   await page.goto(focused.url);

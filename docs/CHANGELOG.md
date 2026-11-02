@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Respect explicit English negation in demo requests (P1-13, step)
+
+The deterministic demo planner declines recognized negated payment and renewal requests rather than preparing a review. Guide: [shell parity](development/shell-parity.md).
+
 ## 2 November 2026 — Reject duplicate focused resource IDs (P1-02, step)
 
 Focused fine and vehicle tool outputs require unique IDs. Duplicate records make the read unavailable and cannot start payment or renewal review. Guide: [integrations](integrations.md).
