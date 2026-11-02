@@ -76,6 +76,8 @@ Before an integrated composite checkout dispatches, the gateway saves its origin
 
 For an unresolved integrated attempt, `GET /api/composite/reconciliation?accountId=…&sessionId=…` compares the saved review with independent wallet, ride and food operation lookups. Each step is `MATCH` or `UNCONFIRMED`; missing, inconsistent or unavailable evidence never proves that an effect did not occur. Inspection is owner- and account-scoped, does not dispatch or retry an effect, and does not clear the session's reconciliation marker, even when all three steps match.
 
+The owner may explicitly request `POST /api/composite/reconciliation/resolve` with the account, session and original operation identity. The gateway locks the session, rechecks all three sources and rechecks current workspace eligibility; only three matches with current permission clear the marker and save the original terms as a session resolution. Repeating the same resolution is idempotent. The observations are separate provider reads, not a distributed transaction; partial or unavailable evidence remains blocked, and this does not add a cross-session fence.
+
 An application server closes its local database each time it stops, including when a test reuses the server for another isolated run.
 
 The React payment panel maps a `PAYABLE_CHANGED` rejection to localized guidance to review the obligation again. The provider's rejection remains sanitized at the gateway; the panel does not need to display the provider's text.

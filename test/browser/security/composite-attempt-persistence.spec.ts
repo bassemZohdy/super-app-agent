@@ -1,6 +1,7 @@
 import { expect, isolatedTest as test, login } from '../stack.ts';
 import { ProviderClient, UpstreamError } from '../../../packages/backend-kit/src/provider-client.ts';
 import { accountIdFor } from '../../../packages/backend-kit/src/context.ts';
+import { EligibilityClient, EligibilityReadError } from '../../../packages/backend-kit/src/eligibility-client.ts';
 import { redisSessions } from '../../../services/agent-core/src/session-store.ts';
 
 test('the reviewed composite identity is saved before dispatch and survives a lost wallet response', async ({ residentApi, stack }) => {
@@ -52,12 +53,17 @@ test('the reviewed composite identity is saved before dispatch and survives a lo
     const report = await evidence.json() as { operationId: string; evidence: Array<{ step: string; assessment: string }> };
     expect(report.operationId).toBe(expectedOperation);
     expect(report.evidence).toEqual([{ step: 'WALLET', assessment: 'MATCH' }, { step: 'RIDE', assessment: 'UNCONFIRMED' }, { step: 'FOOD', assessment: 'UNCONFIRMED' }]);
+    const incomplete = await send('/api/composite/reconciliation/resolve', { operationId: expectedOperation });
+    expect(incomplete.status).toBe(409);
+    expect(incomplete.data.code).toBe('COMPOSITE_EVIDENCE_UNCONFIRMED');
     expect(stack.stores.get('payments')!.list(residentApi.accountId, 'charge')).toHaveLength(chargesBefore);
     expect(stack.stores.get('rta')!.list(residentApi.accountId, 'ride')).toHaveLength(ridesBefore);
     const otherToken = await login('bassem');
     const otherClaims = JSON.parse(Buffer.from(otherToken.split('.')[1], 'base64url').toString()) as { sub: string };
     const other = await fetch(`${endpoint}/api/composite/reconciliation?${new URLSearchParams({ sessionId, accountId: accountIdFor(otherClaims.sub) })}`, { headers: { Authorization: `Bearer ${otherToken}` } });
     expect(other.status).toBe(403);
+    const otherResolve = await fetch(`${endpoint}/api/composite/reconciliation/resolve`, { method: 'POST', headers: { Authorization: `Bearer ${otherToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId, accountId: accountIdFor(otherClaims.sub), operationId: expectedOperation }) });
+    expect(otherResolve.status).toBe(403);
     expect((await send('/api/a2ui/intent', { text: 'Book a ride downtown and order pizza, pay with my wallet' })).data.code).toBe('RECONCILIATION_REQUIRED');
   } finally { ProviderClient.prototype.call = original; }
 });
@@ -128,4 +134,42 @@ test('composite inspection matches all original effects after the food response 
   expect(stack.stores.get('payments')!.list(residentApi.accountId, 'charge')).toHaveLength(charges);
   expect(stack.stores.get('rta')!.list(residentApi.accountId, 'ride')).toHaveLength(rides);
   expect((await send('/api/a2ui/intent', { text: 'Book a ride downtown and order pizza, pay with my wallet' })).data.code).toBe('RECONCILIATION_REQUIRED');
+  const operationId = `${surface.revision}:confirm_composite_checkout`;
+  const wrong = await send('/api/composite/reconciliation/resolve', { operationId: '11111111-1111-4111-8111-111111111111:confirm_composite_checkout' });
+  expect(wrong.status).toBe(409);
+  const store = stack.stores.get('rta')!;
+  const savedRide = store.list(residentApi.accountId, 'ride')[0] as { bookingId: string; dropoff: string };
+  store.put(residentApi.accountId, 'ride', { ...savedRide, dropoff: 'Changed destination' }, savedRide.bookingId);
+  const stale = await send('/api/composite/reconciliation/resolve', { operationId });
+  expect(stale.status).toBe(409);
+  expect(stale.data.code).toBe('COMPOSITE_EVIDENCE_UNCONFIRMED');
+  store.put(residentApi.accountId, 'ride', savedRide, savedRide.bookingId);
+  const originalEligibility = EligibilityClient.prototype.require;
+  let gatewayReader: EligibilityClient | undefined, gatewayReads = 0;
+  EligibilityClient.prototype.require = async function (actor, epoch) {
+    gatewayReader ??= this;
+    if (this === gatewayReader && ++gatewayReads === 2) throw new EligibilityReadError(403, 'Simulated revoked access');
+    return originalEligibility.call(this, actor, epoch);
+  };
+  try {
+    const revoked = await send('/api/composite/reconciliation/resolve', { operationId });
+    expect(revoked.status).toBe(403);
+    expect(revoked.data.code).toBe('ELIGIBILITY_DENIED');
+  } finally { EligibilityClient.prototype.require = originalEligibility; }
+  const competing = await Promise.all([send('/api/composite/reconciliation/resolve', { operationId }), send('/api/composite/reconciliation/resolve', { operationId })]);
+  expect(competing.filter(result => result.status === 200 && result.data.resolution === 'RESOLVED')).toHaveLength(1);
+  expect(competing.every(result => result.status === 200 || result.status === 409 && result.data.code === 'SESSION_BUSY')).toBe(true);
+  expect(competing.find(result => result.data.resolution === 'RESOLVED')!.data.surface.view.id).toBe('composite_reconciled_card');
+  const repeated = await send('/api/composite/reconciliation/resolve', { operationId });
+  expect(repeated.status).toBe(200);
+  expect(repeated.data.resolution).toBe('ALREADY_RESOLVED');
+  expect(stack.stores.get('payments')!.list(residentApi.accountId, 'charge')).toHaveLength(charges);
+  expect(store.list(residentApi.accountId, 'ride')).toHaveLength(rides);
+  const session = await fetch(`${endpoint}/api/sessions/${sessionId}`, { headers: { Authorization: `Bearer ${residentApi.token}` } });
+  const saved = await session.json() as { compositeResolution?: { operationId: string; terms: Record<string, unknown>; resolvedAt: number }; compositeAttempt?: unknown; reconciliation?: unknown };
+  expect(saved.compositeResolution).toMatchObject({ operationId, terms: binding });
+  expect(Number.isSafeInteger(saved.compositeResolution?.resolvedAt)).toBe(true);
+  expect(saved.compositeAttempt).toBeUndefined();
+  expect(saved.reconciliation).toBeUndefined();
+  expect((await send('/api/a2ui/intent', { text: 'Show my wallet balance' })).status).toBe(200);
 });

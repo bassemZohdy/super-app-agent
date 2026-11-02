@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Resolve verified composite checkout (P1-13, step)
+
+An owner can resolve a retained integrated checkout after its payment, ride and meal independently match the original review; no effect is repeated. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Compare composite checkout evidence (P1-13, step)
 
 Owners can inspect each retained integrated checkout step against the reviewed terms without retrying or resolving it. Guide: [agent flow](agent-flow.md).
