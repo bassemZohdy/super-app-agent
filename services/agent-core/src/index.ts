@@ -202,6 +202,25 @@ async function handleGatewayRequest(
       return { status: 503, data: { success: false, code: 'CIVIC_STATUS_UNAVAILABLE', error: 'Shared offline civic status is unavailable.' } };
     }
   }
+  if (normMethod === 'POST' && pathname === '/api/civic/reconciliation/observe-fines') {
+    if (process.env.PROVIDER_INTEGRATION === 'true' || process.env.DOMAIN_TRANSPORT !== 'http') return { status: 503, data: { success: false, code: 'CIVIC_STATUS_UNAVAILABLE', error: 'Shared offline civic status is unavailable in this mode.' } };
+    try {
+      const store = redisSessions();
+      if (!store) throw new Error('Shared storage unavailable');
+      const status = await store.inspectCivicFence(actor.sub, actor.accountId);
+      if (status.finesObservedFromRevision === body.revision) return { status: 200, data: { success: true, observation: 'ALREADY_RECORDED', revision: status.revision } };
+      if (status.revision !== body.revision || status.action !== 'confirm_smartcity_checkout' || !status.civicReview || !status.civicSteps || status.civicSteps.length !== (status.civicReview.billAmountMinor ? 3 : 2) || !status.civicReview.fines.length || status.civicSteps[0].name !== 'WALLET' || status.civicSteps[0].state !== 'CONFIRMED' || (status.civicReview.billAmountMinor > 0 && (status.civicSteps[1].name !== 'UTILITY' || status.civicSteps[1].state !== 'CONFIRMED')) || status.civicSteps.at(-1)?.name !== 'FINES' || !['STARTED', 'UNKNOWN'].includes(status.civicSteps.at(-1)?.state || ''))
+        return { status: 409, data: { success: false, code: 'CIVIC_REVIEW_CHANGED', error: 'The original fine observation is not available.' } };
+      const evidence = await compareCivicEvidence(status.civicReview, status.civicSteps, (source, reference) => actorContext.run(actor, async () => (await callDomainAsync(source === 'fine-receipt' || source === 'wallet-operation' || source === 'fine-operation' ? 'wallet' : source === 'utility-operation' ? 'food' : source, 'GET', source === 'wallet' ? '/wallet/transactions' : source === 'wallet-operation' ? `/wallet/unified-operations/${encodeURIComponent(reference || '')}` : source === 'food' ? '/utilities/bill' : source === 'utility-operation' ? `/utilities/payment-operations/${encodeURIComponent(reference || '')}` : source === 'fine-receipt' ? `/fines/receipts/${encodeURIComponent(reference || '')}` : source === 'fine-operation' ? `/fines/payment-operations/${encodeURIComponent(reference || '')}` : `/mobility/salik/recharges/${encodeURIComponent(reference || '')}`)).data));
+      const observation = evidence.at(-1);
+      if (evidence.length !== status.civicSteps.length || evidence.slice(0, -1).some(item => item.assessment !== 'MATCH') || observation?.assessment !== 'OBSERVED' || !observation.observedReceiptReference) return { status: 409, data: { success: false, code: 'CIVIC_EVIDENCE_INCOMPLETE', error: 'The original fine outcome could not be confirmed.' } };
+      const revision = await store.observeCivicFines(actor.sub, actor.accountId, body.revision, observation.observedReceiptReference);
+      return { status: 200, data: { success: true, observation: 'RECORDED', revision } };
+    } catch (error) {
+      if (error instanceof SessionError && error.status === 409) return { status: 409, data: { success: false, code: error.code, error: error.message } };
+      return { status: 503, data: { success: false, code: 'CIVIC_STATUS_UNAVAILABLE', error: 'Shared offline civic status is unavailable.' } };
+    }
+  }
   if (normMethod === 'POST' && pathname === '/api/civic/reconciliation/resolve') {
     if (process.env.PROVIDER_INTEGRATION === 'true' || process.env.DOMAIN_TRANSPORT !== 'http') return { status: 503, data: { success: false, code: 'CIVIC_STATUS_UNAVAILABLE', error: 'Shared offline civic status is unavailable in this mode.' } };
     try {

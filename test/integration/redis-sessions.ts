@@ -152,3 +152,35 @@ test('older utility identity journals remain recoverable after fine identities a
   assert.equal(after.observedFromRevision, before.revision); assert.equal(after.utilityObservedFromRevision, utility.revision);
   assert.equal(after.civicSteps?.[0].recoveredFrom, 'UNKNOWN'); assert.equal(after.civicSteps?.[1].recoveredFrom, 'UNKNOWN');
 });
+
+test('fine observation preserves prior recoveries and supports reviews without a utility step', async t => {
+  const prefix = `cityside-fines-observe-test:${randomUUID()}:`, url = process.env.TEST_REDIS_URL || 'redis://127.0.0.1:6379';
+  const store = new RedisSessionStore(url, 60, prefix), key = `${prefix}offline-civic-fence`;
+  t.after(async () => { await store.connect(); await store.client.del(key); await store.close(); });
+  const owner = { subject: 'owner', accountId: 'account', sessionId: 'fine_observe_session', action: 'confirm_smartcity_checkout' as const };
+  await store.acquireCivicFence(owner);
+  const raw = await store.client.get(key); assert.ok(raw);
+  const base = JSON.parse(raw);
+  for (const version of [12, 13, 14, 15]) {
+    const walletRecovered = version === 13 || version === 15, utilityRecovered = version === 14 || version === 15;
+    const wallet = { name: 'WALLET', state: 'CONFIRMED', operationId: `CIVIC-${randomUUID()}`, receiptReference: 'W1', ...(walletRecovered ? { recoveredFrom: 'UNKNOWN' } : {}) };
+    const utility = { name: 'UTILITY', state: 'CONFIRMED', operationId: `CIVIC-${randomUUID()}`, receiptReference: 'U1', ...(utilityRecovered ? { recoveredFrom: 'STARTED' } : {}) };
+    const fine = { name: 'FINES', state: 'UNKNOWN', operationId: `CIVIC-${randomUUID()}` };
+    const record = { ...base, version, review: { billId: 'B1', billAmountMinor: 200, fines: [{ fineId: 'F1', amountMinor: 300 }], tagNumber: 'T1', tollAmountMinor: 10000 }, steps: [wallet, utility, fine], ...(walletRecovered ? { observedFromRevision: 'a'.repeat(64) } : {}), ...(utilityRecovered ? { utilityObservedFromRevision: 'b'.repeat(64) } : {}) };
+    await store.client.set(key, JSON.stringify(record));
+    const before = await store.inspectCivicFence(owner.subject, owner.accountId); assert.ok(before.revision);
+    await assert.rejects(() => store.observeCivicFines(owner.subject, 'other-account', before.revision!, 'F1'), /changed/i);
+    await store.observeCivicFines(owner.subject, owner.accountId, before.revision, 'F1');
+    const after = await store.inspectCivicFence(owner.subject, owner.accountId);
+    assert.equal(after.finesObservedFromRevision, before.revision); assert.equal(after.civicSteps?.[2].recoveredFrom, 'UNKNOWN');
+    assert.equal(after.observedFromRevision, walletRecovered ? 'a'.repeat(64) : undefined);
+    assert.equal(after.utilityObservedFromRevision, utilityRecovered ? 'b'.repeat(64) : undefined);
+    await assert.rejects(() => store.observeCivicFines(owner.subject, owner.accountId, before.revision!, 'F1'), /changed/i);
+  }
+  const record = { ...base, version: 12, review: { billId: 'B1', billAmountMinor: 0, fines: [{ fineId: 'F1', amountMinor: 300 }], tagNumber: 'T1', tollAmountMinor: 10000 }, steps: [{ name: 'WALLET', state: 'CONFIRMED', operationId: `CIVIC-${randomUUID()}`, receiptReference: 'W1' }, { name: 'FINES', state: 'STARTED', operationId: `CIVIC-${randomUUID()}` }] };
+  await store.client.set(key, JSON.stringify(record));
+  const before = await store.inspectCivicFence(owner.subject, owner.accountId); assert.ok(before.revision);
+  await store.observeCivicFines(owner.subject, owner.accountId, before.revision, 'F1');
+  const after = await store.inspectCivicFence(owner.subject, owner.accountId);
+  assert.equal(after.civicSteps?.[1].recoveredFrom, 'STARTED'); assert.equal(after.finesObservedFromRevision, before.revision);
+});

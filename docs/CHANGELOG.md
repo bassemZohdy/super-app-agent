@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Record an observed fine outcome (P1-13, step)
+
+The owner can record independently matched fine evidence against the original civic journal without repeating settlement or clearing the fence. Redis/HTTP tests cover changed evidence, account isolation, retries, prior recoveries and a response still in flight. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Identify a lost offline fine response (P1-13, step)
 
 Separate-service civic checkout saves a fine operation ID before dispatch and compares lost responses with the exact fine operation, receipt and wallet ledger. Redis/HTTP and evidence tests cover uncertain responses, changed records and account isolation. Guide: [integrations](integrations.md).
