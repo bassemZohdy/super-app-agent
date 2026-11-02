@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 3 November 2026 - Bound browser replay cursors (P0-02, step)
+
+Browser streams discard unsafe event IDs and request a fresh snapshot on reconnect, while retaining the previous cursor if event handling fails. Guide: [security](security.md).
+
 ## 3 November 2026 - Stop streams during token acquisition (P0-02, step)
 
 Closing a browser event stream no longer waits for token acquisition, and a late token cannot start a connection. Guide: [security](security.md).

@@ -1,6 +1,6 @@
 import type { A2UIMessageEnvelope } from './a2-ui.ts';
 
-export interface StreamEvent { data: string; id?: string; event?: string }
+export interface StreamEvent { data: string; id?: string; event?: string; invalidId?: boolean }
 
 /** Incremental UTF-8 SSE parser; comments, multi-line data, CR/LF and split frames. */
 export async function* readEventStream(response: Response): AsyncGenerator<StreamEvent> {
@@ -9,6 +9,7 @@ export async function* readEventStream(response: Response): AsyncGenerator<Strea
   const decoder = new TextDecoder();
   let buffer = '', data: string[] = [], id: string | undefined;
   let event: string | undefined;
+  let invalidId = false;
   let eventBytes = 0;
   try {
     while (true) {
@@ -21,8 +22,8 @@ export async function* readEventStream(response: Response): AsyncGenerator<Strea
         const line = buffer.slice(0, match.index);
         buffer = buffer.slice(match.index + match[0].length);
         if (!line) {
-          if (data.length) yield { data: data.join('\n'), id, ...(event ? { event } : {}) };
-          data = []; id = undefined; event = undefined; eventBytes = 0;
+          if (data.length) yield { data: data.join('\n'), id, ...(event ? { event } : {}), ...(invalidId ? { invalidId: true } : {}) };
+          data = []; id = undefined; event = undefined; invalidId = false; eventBytes = 0;
           continue;
         }
         if (line.startsWith(':')) continue;
@@ -31,7 +32,10 @@ export async function* readEventStream(response: Response): AsyncGenerator<Strea
         const text = separator < 0 ? '' : line.slice(separator + 1).replace(/^ /, '');
         if (field === 'data') { data.push(text); eventBytes += text.length; }
         if (field === 'event') event = text;
-        if (field === 'id' && !text.includes('\0')) id = text;
+        if (field === 'id') {
+          invalidId = !/^[A-Za-z0-9_.:-]{0,128}$/.test(text);
+          id = invalidId ? undefined : text;
+        }
         if (eventBytes > 1_000_000) throw new Error('Stream frame exceeds client limit');
       }
       if (done) break;
@@ -62,6 +66,10 @@ export async function connectEventStream(options: {
   onError?: (error: Error) => void;
 }): Promise<void> {
   let cursor = '', delay = 500;
+  const advanceCursor = (event: StreamEvent) => {
+    if (event.invalidId) { cursor = ''; options.onError?.(new Error('An invalid stream cursor was discarded; the next connection will request a fresh snapshot')); }
+    else if (event.id !== undefined) cursor = event.id;
+  };
   while (!options.signal.aborted) {
     try {
       const token = await tokenOrAbort(options.getToken, options.signal);
@@ -84,12 +92,12 @@ export async function connectEventStream(options: {
         try { message = JSON.parse(event.data); } catch {
           // The stream resumes from the last event handled. An event that cannot be read must still move the cursor past it, or every
           // reconnect would replay the same bad event and nothing after it would ever arrive.
-          if (event.id !== undefined) cursor = event.id;
+          advanceCursor(event);
           options.onError?.(new Error('A stream event could not be read and was skipped'));
           continue;
         }
         options.onMessage(message);
-        if (event.id !== undefined) cursor = event.id;
+        advanceCursor(event);
         delay = 500;
       }
     } catch (error) {
