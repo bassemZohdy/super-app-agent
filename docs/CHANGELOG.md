@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 - Enforce automation mandate windows (P1-10, step)
+
+Automatic preparations cannot outlive their mandate window, and existing preparations are rechecked against the current window before credential issuance, admission and pending authorization. Guide: [automation worker](development/automation-worker.md).
+
 ## 2 November 2026 - Recheck pending automatic payments (P1-10, step)
 
 Admitted automatic payments and wallet reloads recheck current mandate authority before beginning authorization or capture. Already started payment captures keep their original recovery path. Guide: [automation worker](development/automation-worker.md).

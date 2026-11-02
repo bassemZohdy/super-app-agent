@@ -619,3 +619,35 @@ test('a mandate paused after admission cannot start a pending automatic payment'
     assert.equal(x.effects(), 0);
   }
 });
+
+
+test('a preparation admission window never outlives its mandate', t => {
+  const now = Date.parse('2026-10-25T12:00:00.000Z');
+  t.mock.timers.enable({ apis: ['Date'], now });
+  const f = fixture(t), initial = f.mandate();
+  const expiry = new Date(now + 60_000).toISOString();
+  const draft = f.payments.mandates!.revise(f.actor, initial.id, initial.version, { ...initial.policy, expiresAt: expiry });
+  const mandate = f.payments.mandates!.approve(f.actor, draft.id, draft.version, draft.approvalDigest);
+  f.bill('short-mandate-window', 150, 1);
+  const execution = prepared(f.prepare(mandate.id, 'occ_short_window'));
+  assert.equal(execution.admissionExpiresAt, expiry);
+});
+
+test('an older preparation cannot be admitted or resumed after its mandate window ends', t => {
+  const now = Date.parse('2026-10-25T12:00:00.000Z');
+  t.mock.timers.enable({ apis: ['Date'], now });
+  const f = fixture(t), initial = f.mandate();
+  const expiry = new Date(now + 60_000).toISOString();
+  const draft = f.payments.mandates!.revise(f.actor, initial.id, initial.version, { ...initial.policy, expiresAt: expiry });
+  const mandate = f.payments.mandates!.approve(f.actor, draft.id, draft.version, draft.approvalDigest);
+  f.bill('legacy-mandate-window', 150, 1);
+  const execution = prepared(f.prepare(mandate.id, 'occ_legacy_window'));
+  const row = JSON.parse(String(f.db.db.prepare('SELECT body FROM automation_executions WHERE id=?').get(execution.id)!.body));
+  f.db.db.prepare('UPDATE automation_executions SET body=? WHERE id=?').run(JSON.stringify({ ...row, admissionExpiresAt: new Date(now + 600_000).toISOString() }), execution.id);
+  t.mock.timers.setTime(now + 60_000);
+  assert.throws(() => f.db.automationRuns!.readExecution('auto-worker', execution.id), (e: unknown) => (e as { code?: string }).code === 'AUTOMATION_MANDATE_WINDOW_CLOSED');
+  assert.throws(() => f.db.automationRuns!.requireCurrentAuthority(execution.id), (e: unknown) => (e as { code?: string }).code === 'AUTOMATION_AUTHORITY_CHANGED');
+  assert.throws(() => f.db.automationRuns!.admit(execution.id, f.actor.sub), (e: unknown) => (e as { code?: string }).code === 'AUTOMATION_ADMISSION_REJECTED');
+  assert.equal(f.db.automationRuns!.dispatchState(execution.id), 'REJECTED');
+  assert.equal(f.payments.orders!.get(f.actor, execution.orderId!).state, 'AWAITING_APPROVAL');
+});

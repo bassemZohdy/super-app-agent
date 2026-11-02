@@ -298,7 +298,7 @@ export class AutomationRuns{
         boundDigest:createHash('sha256').update(JSON.stringify({mandateId:m.id,policyVersion:m.policyVersion,occurrenceKey:input.occurrenceKey,payableId:item.id,payableRevision:item.revision,amountMinor:item.amountMinor,sourceId:current.id,sourceVersion:current.version,purpose:policy.purpose})).digest('hex'),
         periodKey:key,reservedPeriodMinor:reservedPeriodMinor+item.amountMinor,reservedPeriodCount:reservedPeriodCount+1,
         reservedLifetimeMinor:reservedLifetimeMinor+item.amountMinor,reservedLifetimeCount:reservedLifetimeCount+1,
-        preparedAt:new Date(now).toISOString(),admissionExpiresAt:new Date(Math.min(now+ADMISSION_WINDOW_MS,quoted?.expiresAt?Date.parse(quoted.expiresAt)-5000:Infinity)).toISOString()};
+        preparedAt:new Date(now).toISOString(),admissionExpiresAt:new Date(Math.min(now+ADMISSION_WINDOW_MS,Date.parse(policy.expiresAt),quoted?.expiresAt?Date.parse(quoted.expiresAt)-5000:Infinity)).toISOString()};
       // The provider-side claim runs first; a gateway failure releases it so no claim outlives its execution. A reload has no provider obligation to claim.
       if(providerStore&&claimAutomationPayable(providerStore,accountId,item.id,preparation.id)!=='CLAIMED')
         return deny('AUTOMATION_PAYABLE_RESERVED','This payable is already reserved by another execution or order.');
@@ -335,8 +335,9 @@ export class AutomationRuns{
   /** The immutable preparation plus current authority freshness, for the credential broker. */
   readExecution(worker:string,executionId:string){
     if(worker!==this.context.workerSub)return deny('AUTOMATION_WORKER_REQUIRED',"Only this run's exact workload identity reads a prepared execution.",403);
-    const {policyCurrent,...view}=this.view(executionId);
+    const {policyCurrent,windowCurrent,...view}=this.view(executionId);
     if(!policyCurrent)return deny('AUTOMATION_POLICY_CHANGED','The mandate policy changed after this execution was prepared.');
+    if(!windowCurrent)return deny('AUTOMATION_MANDATE_WINDOW_CLOSED','The mandate is outside its approved time window.');
     return view;
   }
   private view(executionId:string){
@@ -345,7 +346,7 @@ export class AutomationRuns{
     if(!row)return deny('AUTOMATION_EXECUTION_NOT_FOUND','No such prepared execution exists in this run.',404);
     const preparation=JSON.parse(String(row!.body)) as AutomationPreparation;
     if(preparation.runId!==this.context.runId)return deny('AUTOMATION_EXECUTION_NOT_FOUND','No such prepared execution exists in this run.',404);
-    const mandate=this.mandate(preparation.mandateId).m;
+    const mandate=this.mandate(preparation.mandateId).m,now=Date.now();
     const owner=this.store.db.prepare('SELECT owner FROM accounts WHERE id=?').get(preparation.accountId);
     if(!owner)return deny('AUTOMATION_EXECUTION_NOT_FOUND','The prepared execution has no workspace owner.',404);
     const source=mandate.policy.sources[0],current=source.methodId==='wallet'
@@ -368,13 +369,13 @@ export class AutomationRuns{
     const order=orderRow?JSON.parse(String(orderRow!.body)) as {state?:string;authorization?:{challengeId?:string}}:undefined;
     const challenged=!!order?.authorization?.challengeId;
     const challenge:'APPROVED'|'PENDING'|'REJECTED'|'NONE'=!challenged?'NONE':order!.state==='AUTHORIZED'?'APPROVED':order!.state==='REQUIRES_ACTION'?'PENDING':order!.state==='FAILED'||order!.state==='CANCELLED'?'REJECTED':'NONE';
-    return {policyCurrent:mandate.policyVersion===preparation.policyVersion,executionId:preparation.id,runId:this.context.runId,accountId:preparation.accountId,ownerSub:String(owner!.owner),eligibilityEpoch:mandate.eligibilityEpoch||'1:1',
+    return {policyCurrent:mandate.policyVersion===preparation.policyVersion,windowCurrent:Date.parse(mandate.policy.startsAt)<=now&&Date.parse(mandate.policy.expiresAt)>now,executionId:preparation.id,runId:this.context.runId,accountId:preparation.accountId,ownerSub:String(owner!.owner),eligibilityEpoch:mandate.eligibilityEpoch||'1:1',
       mandate:{id:mandate.id,state:mandate.state,policyVersion:mandate.policyVersion,skipNext:mandate.skipNext===true},
       source:{id:preparation.sourceId,version:preparation.sourceVersion,current:current?.status==='ACTIVE'&&current?.version===source.expectedVersion},
       biller:mandate.policy.target.kind==='BILLER'?{id:mandate.policy.target.billingAccountId,current:biller?.status==='ACTIVE'&&biller?.version===mandate.policy.target.expectedVersion}:undefined,
       payable:{id:preparation.payableId,revision:preparation.payableRevision,amountMinor:preparation.amountMinor,current:payableCurrent},
       boundDigest:preparation.boundDigest,challenge,preparedAt:preparation.preparedAt,admissionExpiresAt:preparation.admissionExpiresAt,
-      expired:Date.now()>Date.parse(preparation.admissionExpiresAt)};
+      expired:now>=Date.parse(preparation.admissionExpiresAt)};
   }
   /** Reservations the preview counts against the current budget period; a read of the same rows preparation sums. */
   usage(mandateId:string,at:number){
@@ -482,7 +483,7 @@ export class AutomationRuns{
     return row?row.state as 'ADMITTED'|'REJECTED':undefined;
   }
   private staleAuthority(v:ReturnType<AutomationRuns['view']>){
-    return v.expired?'ADMISSION_EXPIRED':!v.policyCurrent?'POLICY_CHANGED':v.mandate.state!=='APPROVED'?'MANDATE_NOT_ACTIVE':v.mandate.skipNext?'SKIP_PENDING':!v.source.current?'SOURCE_CHANGED':v.biller&&!v.biller.current?'BILLER_CHANGED':!v.payable.current?'PAYABLE_CHANGED':undefined;
+    return v.expired?'ADMISSION_EXPIRED':!v.policyCurrent?'POLICY_CHANGED':!v.windowCurrent?'MANDATE_WINDOW_CLOSED':v.mandate.state!=='APPROVED'?'MANDATE_NOT_ACTIVE':v.mandate.skipNext?'SKIP_PENDING':!v.source.current?'SOURCE_CHANGED':v.biller&&!v.biller.current?'BILLER_CHANGED':!v.payable.current?'PAYABLE_CHANGED':undefined;
   }
   /** Recheck before starting a still-unstarted payment, in the order's transaction. */
   requireCurrentAuthority(executionId:string){
