@@ -41,8 +41,21 @@ export class ProviderClient {
       record(503, code);
       throw new UpstreamError(503, code, `The ${provider} simulator response could not be read.`);
     }
-    record(response.status, !response.ok || data.success !== true ? (typeof data.code === 'string' ? data.code : 'PROVIDER_REJECTED') : undefined);
-    if (!response.ok || data.success !== true) throw new UpstreamError(response.status, typeof data.code === 'string' ? data.code : 'PROVIDER_REJECTED', typeof data.error === 'string' ? data.error : `The ${provider} request was rejected.`);
-    return data;
+    if (response.ok && data.success === true && !Object.hasOwn(data, 'error')) {
+      record(response.status);
+      return data;
+    }
+    const upstreamCode = typeof data.code === 'string' ? data.code : '';
+    const unknownCode = upstreamCode === 'OUTCOME_UNKNOWN' || upstreamCode.endsWith('_OUTCOME_UNKNOWN');
+    const rejection = response.status >= 400 && response.status < 500 && response.status !== 408 &&
+      data.success !== true && !unknownCode && (data.success === false || typeof data.error === 'string' && data.error.length > 0);
+    if (!rejection) {
+      const code = method === 'POST' ? 'PROVIDER_OUTCOME_UNKNOWN' : 'PROVIDER_UNAVAILABLE';
+      record(503, code);
+      throw new UpstreamError(503, code, `The ${provider} simulator response could not be confirmed.`);
+    }
+    const code = upstreamCode || 'PROVIDER_REJECTED';
+    record(response.status, code);
+    throw new UpstreamError(response.status, code, typeof data.error === 'string' ? data.error : `The ${provider} request was rejected.`);
   }
 }

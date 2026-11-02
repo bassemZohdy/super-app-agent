@@ -30,3 +30,30 @@ test('provider responses are bounded and unreadable writes remain unknown', asyn
   try { assert.deepEqual((await client.call('dewa', actor, 'GET', '/bills')).bills, []); }
   finally { fetchMock.mock.restore(); }
 });
+
+
+test('contradictory or ambiguous provider write replies remain unknown', async t => {
+  const actor = actorFor({ sub: 'test-user' }, 'test-account', 'Bearer test');
+  const client = new ProviderClient('test-client', '');
+  const cases = [
+    { status: 200, data: { success: true, error: 'contradictory' } },
+    { status: 200, data: { success: false, code: 'DECLINED', error: 'declined' } },
+    { status: 409, data: { success: true, error: 'contradictory' } },
+    { status: 409, data: { code: 'UNCLASSIFIED' } },
+    { status: 409, data: { success: false, code: 'PROVIDER_OUTCOME_UNKNOWN', error: 'unconfirmed' } },
+    { status: 408, data: { success: false, code: 'TIMEOUT', error: 'timed out' } },
+    { status: 503, data: { success: false, code: 'UNAVAILABLE', error: 'unavailable' } },
+  ];
+  for (const sample of cases) {
+    const fetchMock = t.mock.method(globalThis, 'fetch', async () => Response.json(sample.data, { status: sample.status }));
+    try {
+      await assert.rejects(client.call('dewa', actor, 'POST', '/payments', {}),
+        (error: unknown) => error instanceof UpstreamError && error.status === 503 && error.code === 'PROVIDER_OUTCOME_UNKNOWN');
+    } finally { fetchMock.mock.restore(); }
+  }
+  const fetchMock = t.mock.method(globalThis, 'fetch', async () => Response.json({ success: false, code: 'PAYABLE_CHANGED', error: 'changed' }, { status: 409 }));
+  try {
+    await assert.rejects(client.call('dewa', actor, 'POST', '/payments', {}),
+      (error: unknown) => error instanceof UpstreamError && error.status === 409 && error.code === 'PAYABLE_CHANGED');
+  } finally { fetchMock.mock.restore(); }
+});

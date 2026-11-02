@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Classify ambiguous application provider replies (P1-02, step)
+
+The application provider client no longer accepts a success response containing an error, or treats a contradictory, timed-out, unclassified or server-error write as a definite rejection. Such writes remain unknown; clear client-error rejections retain their status and code. The regression covers those cases and an explicit rejection. This does not replace durable reconciliation or qualify real providers. Guide: [testing](testing.md).
+
 ## 2 November 2026 — Bound application provider responses (P1-02, step)
 
 The application provider client now shares the agent adapter’s one-MiB response reader. Oversized bodies are cancelled, and oversized, malformed or non-object responses become provider-unavailable reads or unknown writes without exposing response details. Tests cover these cases and ordinary responses. Other outbound clients and global quotas remain separate work. Guide: [testing](testing.md).

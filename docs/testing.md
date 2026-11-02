@@ -41,6 +41,8 @@ Execution results for the implementation milestone belong in the dated [evidence
 
 `services/test/receipt-contracts.test.ts` also checks that already-paid utility and telecom bills reject mismatched reviewed amounts without issuing another payment, and retain the receipt for matching amounts. Provider calls in that test are mocked.
 
+`services/test/provider-response-limit.test.ts` also checks contradictory, timed-out and unclassified application provider replies remain unknown for writes, while an explicit client rejection retains its status and code.
+
 `services/test/provider-redirect.test.ts` uses a loopback provider to verify that application-client reads and writes refuse redirects and that a redirected write remains unknown.
 
 `services/test/domain-response-limit.test.ts` sends oversized streamed HTTP domain responses and checks that the client cancels them early, reports a read failure and keeps a write outcome unknown. The application provider client uses the same limit; `services/test/provider-response-limit.test.ts` covers oversized, malformed and non-object replies, including unknown write outcomes. Other outbound clients are not covered.
