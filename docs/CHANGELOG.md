@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Compare synthetic toll receipts (P1-13, step)
+
+The offline toll fixture keeps a bounded in-memory recharge history, allowing owner-scoped civic evidence checks to compare the confirmed receipt, reviewed tag and amount. Missing or evicted records remain unverified; integrated provider mode does not fall back to the fixture. Focused and live Redis/HTTP tests cover matching and missing records. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Compare saved civic references (P1-13, step)
 
 The owner-scoped offline civic status can compare confirmed wallet, fine and utility references with current fixture records. Unknown, missing, duplicate and unavailable evidence stays unverified; toll lookup is explicitly unsupported. Live Redis/HTTP and focused tests cover matching, ambiguous and inaccessible records without clearing the fence. Guide: [integrations](integrations.md).

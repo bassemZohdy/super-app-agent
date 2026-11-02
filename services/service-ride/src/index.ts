@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { shutdownOnSignal } from '../../../packages/backend-kit/src/shutdown.ts';
 import { createApplicationServer } from '../../../packages/backend-kit/src/application.ts';
 import { validateRequest, toolSchema, invalidInput, toMinor, fromMinor, MAX_MONEY, MAX_DURATION_HOURS } from '../../../packages/protocol-core/src/request-validation.ts';
@@ -125,6 +126,7 @@ export interface ParkingMeterSession {
 
 export const activeParkingMeters = new Map<string, ParkingMeterSession>();
 const offlineSalikTag = 'SLK-8492019';
+const offlineTollRecharges: Array<{ transactionId: string; tagId: string; amountMinor: number; currency: 'AED' }> = [];
 export let salikBalance = 14.0; // Low balance alert triggered if < 20 AED
 
 export interface EVChargerStation {
@@ -313,12 +315,21 @@ function handleRideRequest(
     };
   }
 
+  const tollReceipt = /^\/mobility\/salik\/recharges\/([^/]+)$/.exec(pathname);
+  if (normMethod === 'GET' && tollReceipt) {
+    const recharge = offlineTollRecharges.find(item => item.transactionId === decodeURIComponent(tollReceipt[1]));
+    return { status: 200, data: { success: true, recharge: recharge ? { ...recharge } : null } };
+  }
+
   if (normMethod === 'POST' && (pathname === '/mobility/salik/recharge' || pathname === '/salik/recharge')) {
     if (body.expectedTag !== undefined && body.expectedTag !== offlineSalikTag) return { status: 409, data: { success: false, code: 'PAYABLE_CHANGED', error: 'The reviewed toll tag changed.' } };
     const amount = body.amount;
     const nextBalance = toMinor(salikBalance) + toMinor(amount);
     if (nextBalance > MAX_MONEY * 100) return invalidInput('Toll balance exceeds demo limit');
     salikBalance = fromMinor(nextBalance);
+    const transactionId = `SLK-TX-${randomUUID()}`;
+    offlineTollRecharges.push({ transactionId, tagId: offlineSalikTag, amountMinor: toMinor(amount), currency: 'AED' });
+    if (offlineTollRecharges.length > 256) offlineTollRecharges.shift();
     return {
       status: 200,
       data: {
@@ -326,7 +337,7 @@ function handleRideRequest(
         rechargedAmount: amount,
         newBalance: salikBalance,
         tagId: offlineSalikTag,
-        transactionId: `SLK-TX-${Date.now()}`,
+        transactionId,
         timestamp: new Date().toISOString(),
       },
     };

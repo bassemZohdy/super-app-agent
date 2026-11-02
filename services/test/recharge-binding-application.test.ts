@@ -26,6 +26,8 @@ test('recharge orders and receipts stay bound to the selected target', async t =
     throw new Error('Unexpected provider operation');
   });
   const actor = actorFor({ sub: 'recharge-binding-user' }), legacy = () => ({ status: 404, data: {} });
+  const unavailableLookup = await integratedRequest('service-ride', actor, 'GET', '/mobility/salik/recharges/unknown', {}, {}, legacy);
+  assert.equal(unavailableLookup.status, 404, 'integrated mode must not fall back to a shared fixture lookup');
   const beforeMismatch = executions;
   const mismatch = await integratedRequest('service-ride', actor, 'POST', '/mobility/salik/recharge', {}, { amount: 100, expectedTag: 'other-tag' }, legacy);
   assert.equal(mismatch.status, 409); assert.equal(executions, beforeMismatch);

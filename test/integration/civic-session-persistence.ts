@@ -82,7 +82,7 @@ test('shared civic fence is released after session save and retained if session 
   assert.deepEqual(status.data.civicSteps.map((step: { name: string; state: string }) => [step.name, step.state]), [['WALLET', 'CONFIRMED'], ['TOLL', 'CONFIRMED']]);
   const beforeVerify = balance, ledgerBeforeVerify = transactions.length;
   const verified = await executeGatewayRequest('GET', '/api/civic/reconciliation', { verify: '1' }, {}, headers);
-  assert.deepEqual(verified.data.civicEvidence, [{ name: 'WALLET', assessment: 'MATCH' }, { name: 'TOLL', assessment: 'UNSUPPORTED' }]);
+  assert.deepEqual(verified.data.civicEvidence, [{ name: 'WALLET', assessment: 'MATCH' }, { name: 'TOLL', assessment: 'MATCH' }]);
   assert.equal(balance, beforeVerify); assert.equal(transactions.length, ledgerBeforeVerify);
   const privateStatus = await executeGatewayRequest('GET', '/api/civic/reconciliation', { accountId: accountIdFor('local-demo-user', 'household'), verify: '1' }, {}, headers);
   assert.equal(privateStatus.data.civicEvidence, undefined);

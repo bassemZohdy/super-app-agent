@@ -128,6 +128,7 @@ route('service-ride', 'POST', '/mobility/parking/extend', object({ ticketId: id,
 route('service-ride', 'GET', '/mobility/parking/active', object(), ['/parking/active'], 'mobility_getActiveParking');
 route('service-ride', 'GET', '/mobility/salik/balance', object(), ['/salik/balance'], 'mobility_getTollBalance');
 route('service-ride', 'POST', '/mobility/salik/recharge', object({ amount: moneySchema, currency: currency('AED'), expectedTag: id }, ['amount']), ['/salik/recharge'], 'mobility_rechargeToll');
+route('service-ride', 'GET', '/mobility/salik/recharges/{transactionId}', object({ transactionId: id }, ['transactionId']));
 route('service-ride', 'GET', '/mobility/salik/passings', object(), ['/salik/passings'], 'mobility_getTollPassings');
 route('service-ride', 'GET', '/mobility/ev/chargers', object(), ['/ev/chargers'], 'mobility_getEVChargers');
 route('service-ride', 'POST', '/mobility/ev/start', object({ chargerId: id, plateNumber: text(128) }, ['chargerId', 'plateNumber']), ['/ev/start'], 'mobility_startEVSession');
