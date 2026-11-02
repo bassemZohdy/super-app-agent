@@ -27,7 +27,7 @@ type RequestBody = {
   billId: string; operationId: string; expectedServiceEpoch: string; expectedPayables: PayableRevision[]; expectedFineAmounts: Array<{ fineId: string; amountMinor: number }>; expectedPayableRevision: string; expectedAmountMinor: number;
   zoneId: string; plateNumber: string; durationHours: number; additionalHours: number; ticketId: string; amount: number;
   restaurantId: string; items: string[]; referenceId: string; fineIds: string[]; methodId: string; expectedMethodVersion: number;
-  lineId: string; expectedTag: string; targetReference: string; amountMinor: number; expectedTargetVersion: number; mobility: Record<string, unknown>; ui: Record<string, unknown>;
+  lineId: string; expectedTag: string; targetReference: string; amountMinor: number; expectedTargetVersion: number; contractNumber: string; expectedPremiseId: string; mobility: Record<string, unknown>; ui: Record<string, unknown>;
 };
 type Result = { status: number; data: unknown };
 function canonicalJson(value: unknown): string {
@@ -396,10 +396,22 @@ export async function integratedRequest(service: string, actor: Actor, method: s
     if (service === 'service-catalog') {
       if (method === 'GET' && path === '/housing/ejari') return successfulWithoutDuplicate(await call('dld', method, '/tenancy'));
       if (method === 'POST' && path === '/housing/move-in') {
-        const proposal = await call('dld', 'POST', '/move-ins', body);
-        const { connection } = await call('dewa', 'POST', '/connections', body);
-        const { permit } = await call('rta', 'POST', '/residential-permits', body);
-        return successful({ ...proposal, dewaConnected: connection, residentialParking: permit });
+        let proposal;
+        try { proposal = await call('dld', 'POST', '/move-ins', body); }
+        catch (error) {
+          if (error instanceof UpstreamError) throw new UpstreamError(error.status, error.code, 'The tenancy request could not be confirmed.');
+          throw error;
+        }
+        try {
+          if (!proposal || proposal.ejariContract !== body.contractNumber || typeof proposal.unit !== 'string' || !proposal.unit.trim()) throw new Error('Invalid tenancy response');
+          const { connection } = await call('dewa', 'POST', '/connections', body);
+          if (!connection || connection.premiseId !== asset.premiseId || connection.status !== 'CONNECTED_ACTIVE' || connection.depositWaived !== true) throw new Error('Invalid utility response');
+          const { permit } = await call('rta', 'POST', '/residential-permits', body);
+          if (!permit || typeof permit.permitNumber !== 'string' || !permit.permitNumber.trim() || permit.status !== 'ISSUED') throw new Error('Invalid permit response');
+          return successful({ ...proposal, dewaConnected: connection, residentialParking: permit });
+        } catch {
+          throw new UpstreamError(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The move-in outcome is unconfirmed. Inspect the original provider operations.');
+        }
       }
       if (method === 'GET') return legacy(method, path, query, body);
     }

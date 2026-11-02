@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Preserve partial integrated move-in outcomes (P1-13, step)
+
+The integrated move-in path checks each provider result before the next effect and keeps a later refusal or inconsistent result unconfirmed after an earlier provider responds. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Repair payment accessibility browser checks (P2-05, step)
 
 The payment-state browser check now detects unmasked card digits and waits for rule controls to become enabled before exercising keyboard actions. Guide: [testing](testing.md).

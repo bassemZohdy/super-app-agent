@@ -40,6 +40,8 @@ Compatibility parking activation confirmations match the selected zone, vehicle 
 
 Compatibility move-in approval binds the displayed tenancy and premise, rechecks both before dispatch, and sends the reviewed premise to the fixture for a further check. Confirmations match those identifiers and require the utility connection, deposit waiver and residential permit statuses claimed by the success surface. Inconsistent responses remain unknown and stop the following parking action.
 
+The integrated move-in path validates the tenancy proposal, utility connection and permit in sequence. Once the first provider has responded successfully, a later refusal, failure or inconsistent result leaves the overall outcome unconfirmed and stops subsequent provider calls; it does not claim that prior effects were rolled back.
+
 Before dispatching any consequential tool, the wrapper independently revalidates the caller, requires the same subject and workload, and checks the current tool permission. This second check is within the tool deadline; if it finishes after the deadline, the tool is not dispatched. Identity-check failures do not expose provider text. Read-only tools use the already authenticated request context.
 
 Fine references are bound at the graph boundary from the resident's current message, independently of which planner is used. For supported “pay them” or “pay it” follow-ups, only the immediately preceding user turn supplies a selection; an intervening user request does not revive an older one. The graph rejects planner-invented references, preserves named ones if the planner omits them, and refuses a payment review if a selected fine is unavailable. Without a selection, the ordinary payment review includes the outstanding fines.
