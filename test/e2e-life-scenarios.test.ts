@@ -587,6 +587,8 @@ test('E2E Life Scenario 14: Smart Housing - Ejari Move-In Autonomous Onboarding'
 // ==============================================================================
 test('E2E Life Scenario 15: Unified Municipal Settlement across DEWA, Police & Salik', async () => {
   const sessionId = `sess_unified_${Date.now()}`;
+  // The offline wallet has no implicit card source; fund this fixture explicitly.
+  assert.strictEqual(executeWalletRequest('POST', '/wallet/topup', {}, { amount: 2000 }).status, 200);
 
   // 1. Citizen requests composite civic reconciliation
   const intentRes = await executeCoreRequest('POST', '/api/a2ui/intent', {}, {

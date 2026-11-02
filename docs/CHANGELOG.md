@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Refuse invented offline checkout funding (P1-13, step)
+
+Reject underfunded legacy unified wallet settlements instead of fabricating a card charge and replacing the wallet balance. Verify both route aliases and the composite action leave fixtures unchanged after refusal. Guide: [grouped checkout](development/checkout-groups.md).
+
 ## 2 November 2026 — Verify selected grouped checkout on Compose (P0-08, step)
 
 An isolated authenticated qualification-stack check exercises rejected selections, a selected fine and toll recharge, unchanged unrelated resources and original-request replay. It ran against source revision `9cf6ffa` with Node 24.16.0, Docker 29.9.2 and Compose 5.6.1; the full application contract write check also passed on that stack. This is synthetic Compose evidence, not real-provider or native-device qualification. Guide: [testing](testing.md).

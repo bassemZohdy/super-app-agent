@@ -2,6 +2,8 @@
 
 PAY-16 adds an owned, durable group of one to ten child payment orders using one explicitly selected wallet or saved card. Each provider settles separately. A later failure preserves earlier receipts; unknown work blocks later lines until the original payment is inspected. No split tender, source fallback or cross-provider atomic settlement is implied.
 
+The separate offline legacy unified-payment fixture uses its simulated wallet only. If its balance cannot cover the requested total, it refuses without changing the wallet or inventing card funding. A composite action stops when that refusal reaches the domain adapter. The legacy composite action still uses hardcoded amounts and can debit fines a second time; it is not equivalent to the integrated group flow and should not be used to verify settlement totals.
+
 ## Use the React demo
 
 1. Open **Payment accounts**, link the billers and save a synthetic card if desired.

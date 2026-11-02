@@ -204,13 +204,10 @@ function handleWalletRequest(
     if (totalMinor > MAX_MONEY * 100) return invalidInput('Settlement total exceeds demo limit');
     const grandTotal = fromMinor(totalMinor);
 
-    // DubaiPay / TAMM Unified Gateway supports direct card backing / Apple Pay when wallet is below grand total
-    if (balance >= grandTotal) {
-      balance = fromMinor(toMinor(balance) - totalMinor);
-    } else {
-      // Settled via DubaiPay registered card (Visa **** 4242)
-      balance = 250.0; // Wallet topped up / kept positive
+    if (toMinor(balance) < totalMinor) {
+      return { status: 400, data: { error: 'Insufficient citizen wallet balance for unified settlement', currentBalance: balance, requiredAmount: grandTotal } };
     }
+    balance = fromMinor(toMinor(balance) - totalMinor);
 
     const govTxHash = `GOV-TX-DXB-${Date.now()}-${Math.floor(Math.random() * 90000 + 10000)}`;
 
