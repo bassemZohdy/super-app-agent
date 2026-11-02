@@ -61,10 +61,31 @@ test('P1-13: composite review rejects modified bindings and changed prices befor
   assert.equal(balance, before);
 });
 
+test('P1-13: offsetting meal and delivery price changes require a fresh composite review', async t => {
+  ensureFunds();
+  const sid = 'composite_offsetting_prices';
+  assert.equal((await intent(sid)).status, 200);
+  const binding = offered(sid, 'confirm_composite_checkout');
+  assert.equal(binding.itemAmountMinor, 1800);
+  assert.equal(binding.deliveryFeeMinor, 299);
+  const realFood = domainHandlers.food, realWallet = domainHandlers.wallet, before = balance;
+  let writes = 0;
+  t.mock.method(domainHandlers, 'wallet', (method, path, query, body) => { if (method === 'POST') writes++; return realWallet(method, path, query, body); });
+  t.mock.method(domainHandlers, 'food', (method, path, query, body) => {
+    const result = realFood(method, path, query, body);
+    if (method !== 'GET' || path !== '/restaurants/search') return result;
+    return { ...result, data: { ...result.data, restaurants: result.data.restaurants.map((restaurant: { id: string; deliveryFee: number; items: Array<{ id: string; price: number }> }) => restaurant.id !== binding.restaurantId ? restaurant : { ...restaurant, deliveryFee: restaurant.deliveryFee - 1, items: restaurant.items.map(item => item.id === binding.itemId ? { ...item, price: item.price + 1 } : item) }) } };
+  });
+  assert.equal((await action(sid)).status, 409);
+  assert.equal(writes, 0);
+  assert.equal(balance, before);
+});
+
 test('P1-13: local ride and meal handlers reject changed reviewed prices before booking', () => {
   const rides = activeRides.size, orders = activeOrders.size;
   assert.equal(ride('POST', '/rides/book', {}, { driverId: 'drv_3', expectedFareMinor: 1 }).status, 409);
   assert.equal(food('POST', '/orders/create', {}, { restaurantId: 'rest_1', items: ['item_diavola'], expectedAmountMinor: 1 }).status, 409);
+  assert.equal(food('POST', '/orders/create', {}, { restaurantId: 'rest_1', items: ['item_diavola'], expectedAmountMinor: 2099, expectedItemPriceMinor: 1801, expectedDeliveryFeeMinor: 298 }).status, 409);
   assert.equal(activeRides.size, rides);
   assert.equal(activeOrders.size, orders);
 });

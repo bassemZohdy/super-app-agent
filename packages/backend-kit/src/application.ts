@@ -26,7 +26,7 @@ type PlannedItem = { provider: string; payableId: string; expectedPayableRevisio
 type RequestBody = {
   billId: string; operationId: string; expectedServiceEpoch: string; expectedPayables: PayableRevision[]; expectedFineAmounts: Array<{ fineId: string; amountMinor: number }>; expectedPayableRevision: string; expectedAmountMinor: number;
   zoneId: string; plateNumber: string; durationHours: number; additionalHours: number; ticketId: string; amount: number;
-  restaurantId: string; items: string[]; deliveryAddress: string; referenceId: string; fineIds: string[]; methodId: string; expectedMethodVersion: number;
+  restaurantId: string; items: string[]; deliveryAddress: string; expectedItemPriceMinor: number; expectedDeliveryFeeMinor: number; referenceId: string; fineIds: string[]; methodId: string; expectedMethodVersion: number;
   lineId: string; expectedTag: string; targetReference: string; amountMinor: number; expectedTargetVersion: number; contractNumber: string; expectedPremiseId: string; mobility: Record<string, unknown>; ui: Record<string, unknown>;
 };
 type Result = { status: number; data: unknown };
@@ -302,6 +302,7 @@ export async function integratedRequest(service: string, actor: Actor, method: s
         const items = body.items.map((id: string) => restaurant?.items.find(item => item.id === id));
         if (!restaurant || items.some((item) => !item)) throw new UpstreamError(404, 'NOT_FOUND', 'Menu item not found.');
         const totalMinor = items.reduce((sum: number, item) => sum + toMinor(item!.price), 0) + toMinor(restaurant.deliveryFee);
+        if (body.expectedItemPriceMinor !== undefined && (items.length !== 1 || body.expectedItemPriceMinor !== toMinor(items[0]!.price)) || body.expectedDeliveryFeeMinor !== undefined && body.expectedDeliveryFeeMinor !== toMinor(restaurant.deliveryFee)) throw new UpstreamError(409, 'PRICE_CHANGED', 'Order price changed.');
         if (body.expectedAmountMinor !== undefined && body.expectedAmountMinor !== totalMinor) throw new UpstreamError(409, 'PRICE_CHANGED', 'Order price changed.');
         const order = { orderId: randomUUID(), restaurantId: restaurant.id, restaurantName: restaurant.name, items, deliveryAddress: body.deliveryAddress || '100 Market St, Apt 4B', totalAmount: totalMinor / 100, status: 'CONFIRMED', estimatedDeliveryTime: '25 min', timestamp: Date.now() };
         db.put(actor.accountId, 'order', order, order.orderId); return successful({ order });

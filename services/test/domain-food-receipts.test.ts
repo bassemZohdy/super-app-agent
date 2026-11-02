@@ -37,3 +37,14 @@ test('food confirmations match the restaurant, item quantities and supplied addr
     } finally { local.mock.restore(); remote.mock.restore(); }
   }
 });
+
+test('meal receipts must match separately reviewed item and delivery prices', async t => {
+  const previous = process.env.DOMAIN_TRANSPORT;
+  process.env.DOMAIN_TRANSPORT = 'local';
+  t.after(() => { if (previous === undefined) delete process.env.DOMAIN_TRANSPORT; else process.env.DOMAIN_TRANSPORT = previous; });
+  const body = { restaurantId: 'restaurant-1', items: ['pizza'], expectedAmountMinor: 2099, expectedItemPriceMinor: 1800, expectedDeliveryFeeMinor: 299 };
+  const steps: Step[] = [];
+  t.mock.method(domainHandlers, 'food', () => ({ status: 200, data: { success: true, order: { orderId: 'order-1', restaurantId: 'restaurant-1', status: 'CONFIRMED', items: [{ id: 'pizza', price: 19 }], totalAmount: 20.99 } } }));
+  await assert.rejects(trackDomainOperations(steps, async () => callDomain('food', 'POST', '/orders/create', {}, body)), (error: unknown) => error instanceof DomainOperationError && error.code === 'DOMAIN_OUTCOME_UNKNOWN');
+  assert.equal(steps[0].state, 'UNKNOWN');
+});

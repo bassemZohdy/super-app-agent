@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bind composite meal price and delivery fee (P1-13, step)
+
+The composite review displays and binds the meal price and delivery fee separately, rechecks both and verifies the resulting order. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Bind composite checkout to reviewed terms (P1-13, step)
 
 Composite approval binds the displayed ride, meal, delivery fee, total and currency, rechecks prices before dispatch and passes reviewed amounts to each service. Wallet receipts require the selected mode's currency. Guide: [agent flow](agent-flow.md).

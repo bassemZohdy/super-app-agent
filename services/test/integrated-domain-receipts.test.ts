@@ -22,6 +22,8 @@ test('integrated ride and food responses pass the compatibility adapter with the
   assert.throws(() => store.transaction(() => engine.execute(actor, 'POST', '/rides/bookings', { driverId: 'drv_1', expectedFareMinor: 1 })));
   const wrongFood = await integratedRequest('service-food', actor, 'POST', '/orders/create', {}, { restaurantId: 'rest_1', items: ['item_diavola'], expectedAmountMinor: 1 }, () => ({ status: 404, data: {} }));
   assert.equal(wrongFood.status, 409);
+  const changedComponents = await integratedRequest('service-food', actor, 'POST', '/orders/create', {}, { restaurantId: 'rest_1', items: ['item_diavola'], expectedAmountMinor: 2099, expectedItemPriceMinor: 1801, expectedDeliveryFeeMinor: 298 }, () => ({ status: 404, data: {} }));
+  assert.equal(changedComponents.status, 409);
   t.mock.method(globalThis, 'fetch', async (input, init) => {
     const path = new URL(String(input)).pathname;
     const service = path.startsWith('/rides/') ? 'service-ride' : 'service-food';

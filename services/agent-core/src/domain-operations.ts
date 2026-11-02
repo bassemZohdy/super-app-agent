@@ -158,24 +158,32 @@ function confirmedReceipt(service: string, path: string, data: any, body: unknow
   if (service === 'food') {
     if (path === '/orders/create') {
       if (!record(body) || !record(data.order)) return false;
-      const request = body as { restaurantId?: unknown; items?: unknown; deliveryAddress?: unknown; expectedAmountMinor?: unknown }, order = data.order;
+      const request = body as { restaurantId?: unknown; items?: unknown; deliveryAddress?: unknown; expectedAmountMinor?: unknown; expectedItemPriceMinor?: unknown; expectedDeliveryFeeMinor?: unknown }, order = data.order;
       if (!named(request.restaurantId) || order.restaurantId !== request.restaurantId || !named(order.orderId) ||
         !['ACCEPTED_BY_KITCHEN', 'CONFIRMED'].includes(order.status) || !Array.isArray(request.items) || request.items.length === 0 ||
         !request.items.every(named) || !Array.isArray(order.items) ||
         (request.deliveryAddress !== undefined && (!named(request.deliveryAddress) || order.deliveryAddress !== request.deliveryAddress))) return false;
       const counts = new Map<string, number>();
       for (const id of request.items) counts.set(id, (counts.get(id) ?? 0) + 1);
+      let singleItemPrice: number | undefined;
       for (const line of order.items) {
         if (!record(line)) return false;
         if (!record(line.item) && Object.hasOwn(line, 'quantity')) return false;
         const item = record(line.item) ? line.item : line;
         const quantity = record(line.item) ? line.quantity : 1;
         if (!named(item.id) || !Number.isSafeInteger(quantity) || quantity <= 0) return false;
+        if (order.items.length === 1 && quantity === 1 && typeof item.price === 'number') singleItemPrice = item.price;
         const remaining = (counts.get(item.id) ?? 0) - quantity;
         if (remaining < 0) return false;
         counts.set(item.id, remaining);
       }
-      try { const total = toMinor(order.totalAmount); return [...counts.values()].every(count => count === 0) && total >= 0 && (request.expectedAmountMinor === undefined || Number.isSafeInteger(request.expectedAmountMinor) && total === request.expectedAmountMinor); }
+      try {
+        const total = toMinor(order.totalAmount);
+        if (request.expectedItemPriceMinor !== undefined || request.expectedDeliveryFeeMinor !== undefined) {
+          if (!Number.isSafeInteger(request.expectedItemPriceMinor) || !Number.isSafeInteger(request.expectedDeliveryFeeMinor) || singleItemPrice === undefined || toMinor(singleItemPrice) !== request.expectedItemPriceMinor || total - toMinor(singleItemPrice) !== request.expectedDeliveryFeeMinor) return false;
+        }
+        return [...counts.values()].every(count => count === 0) && total >= 0 && (request.expectedAmountMinor === undefined || Number.isSafeInteger(request.expectedAmountMinor) && total === request.expectedAmountMinor);
+      }
       catch { return false; }
     }
     if (path === '/utilities/pay') {

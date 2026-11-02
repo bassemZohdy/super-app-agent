@@ -852,9 +852,9 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
       const ride = Array.isArray(rides) ? rides.filter(option => option.id === payload.driverId) : [];
       const restaurant = Array.isArray(restaurants) ? restaurants.filter(option => option.id === payload.restaurantId) : [];
       const items = restaurant.length === 1 && Array.isArray(restaurant[0].items) ? restaurant[0].items.filter(item => item.id === payload.itemId) : [];
-      let totalMinor = -1, rideMinor = -1, mealMinor = -1;
-      try { if (ride.length === 1 && items.length === 1) { rideMinor = toMinor(ride[0].fare); mealMinor = toMinor(items[0].price) + toMinor(restaurant[0].deliveryFee); totalMinor = rideMinor + mealMinor; } } catch { /* Reject changed or malformed quotes. */ }
-      if (!Number.isSafeInteger(totalMinor) || totalMinor <= 0 || totalMinor !== payload.amountMinor || rideMinor !== payload.rideAmountMinor || mealMinor !== payload.mealAmountMinor || payload.currency !== walletCurrency())
+      let totalMinor = -1, rideMinor = -1, mealMinor = -1, itemMinor = -1, feeMinor = -1;
+      try { if (ride.length === 1 && items.length === 1) { rideMinor = toMinor(ride[0].fare); itemMinor = toMinor(items[0].price); feeMinor = toMinor(restaurant[0].deliveryFee); mealMinor = itemMinor + feeMinor; totalMinor = rideMinor + mealMinor; } } catch { /* Reject changed or malformed quotes. */ }
+      if (!Number.isSafeInteger(totalMinor) || totalMinor <= 0 || totalMinor !== payload.amountMinor || rideMinor !== payload.rideAmountMinor || itemMinor !== payload.itemAmountMinor || feeMinor !== payload.deliveryFeeMinor || mealMinor !== payload.mealAmountMinor || payload.currency !== walletCurrency())
         throw new HttpError(409, 'The reviewed ride or meal changed. Start a new review.');
       onProgress?.(`💳 Deducting ${formatWalletAmount(totalMinor / 100)} from Wallet for the reviewed ride and meal...`);
       const payRes = await executeWalletRequest('POST', '/wallet/pay', {}, {
@@ -866,7 +866,7 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
       await executeRideRequest('POST', '/rides/book', {}, { driverId: payload.driverId, expectedFareMinor: rideMinor });
 
       onProgress?.('🍕 Dispatching the reviewed meal...');
-      await executeFoodRequest('POST', '/orders/create', {}, { restaurantId: payload.restaurantId, items: [payload.itemId], expectedAmountMinor: mealMinor });
+      await executeFoodRequest('POST', '/orders/create', {}, { restaurantId: payload.restaurantId, items: [payload.itemId], expectedAmountMinor: mealMinor, expectedItemPriceMinor: itemMinor, expectedDeliveryFeeMinor: feeMinor });
 
       state.currentSurface = {
         version: '1.0.0',
@@ -1783,7 +1783,7 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
     const preferredTierId = preferences?.mobility?.preferredTier;
     const selectedRide = rideData.options.find((o) => o.id === preferredTierId) || rideData.options[0];
     const selectedFood = foodData.restaurants[0].items[0];
-    const mealMinor = toMinor(selectedFood.price) + toMinor(foodData.restaurants[0].deliveryFee);
+    const itemMinor = toMinor(selectedFood.price), feeMinor = toMinor(foodData.restaurants[0].deliveryFee), mealMinor = itemMinor + feeMinor;
     const totalMinor = toMinor(selectedRide.fare) + mealMinor;
     const totalEst = totalMinor / 100;
 
@@ -1825,8 +1825,9 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
             type: 'MetricWidget',
             id: 'metric_dinner',
             properties: {
-              label: `2. Dinner: ${selectedFood.name} (including delivery)`,
-              value: formatWalletAmount(mealMinor / 100),
+              label: `2. Dinner: ${selectedFood.name}`,
+              value: formatWalletAmount(itemMinor / 100),
+              subtext: `Delivery: ${formatWalletAmount(feeMinor / 100)}`,
             },
           },
           {
@@ -1850,7 +1851,7 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
               {
                 event: 'onPress',
                 actionType: 'AGENT_ACTION_DISPATCH',
-                payload: { action: 'confirm_composite_checkout', driverId: selectedRide.id, restaurantId: foodData.restaurants[0].id, itemId: selectedFood.id, rideAmountMinor: toMinor(selectedRide.fare), mealAmountMinor: mealMinor, amountMinor: totalMinor, currency: walletCurrency() },
+                payload: { action: 'confirm_composite_checkout', driverId: selectedRide.id, restaurantId: foodData.restaurants[0].id, itemId: selectedFood.id, rideAmountMinor: toMinor(selectedRide.fare), itemAmountMinor: itemMinor, deliveryFeeMinor: feeMinor, mealAmountMinor: mealMinor, amountMinor: totalMinor, currency: walletCurrency() },
               },
             ],
           },
