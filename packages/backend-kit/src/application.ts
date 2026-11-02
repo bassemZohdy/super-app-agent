@@ -11,8 +11,8 @@ import { verifyJwt } from './jwt.ts';
 import { validateRequest } from '../../protocol-core/src/request-validation.ts';
 import { currentProfile, currentPreferences, generatePromptContext } from '../../../services/service-profile/src/index.ts';
 import { restaurants } from '../../../services/service-food/src/index.ts';
-type PayableRevision = { payableId: string; expectedRevision: number };
-type Payable = { id: string; kind: string; status: string; reference: string; revision: number; obligationId: string; amountMinor: number };
+type PayableRevision = { payableId: string; expectedRevision: string };
+type Payable = { id: string; kind: string; provider: string; status: string; reference: string; revision: string; obligationId: string; amountMinor: number };
 type Bill = { billId: string; status: string; totalAmount: number; receiptNumber: string; expiresAt?: string; premiseId?: string };
 type Fine = { fineId: string; payableId: string; payableRevision: number };
 type BillingAccount = { status: string; provider: string; reference: string };
@@ -20,10 +20,10 @@ type RechargeTarget = { reference: string; version: number };
 type Zone = { id: string; tariffPerHour: number };
 type Meter = { ticketId: string; zoneId: string; durationHours: number };
 type CheckoutOrder = { id: string; state: string; receipt: unknown; quote: { payable: { provider: string }; totalMinor: number } };
-type PlannedItem = { provider: string; payableId: string; expectedPayableRevision: number };
+type PlannedItem = { provider: string; payableId: string; expectedPayableRevision: string };
 // Documentary shape of the JSON request body. Fields are the ones these routes read; runtime is unchanged.
 type RequestBody = {
-  billId: string; expectedPayables: PayableRevision[]; expectedPayableRevision: number; expectedAmountMinor: number;
+  billId: string; expectedPayables: PayableRevision[]; expectedPayableRevision: string; expectedAmountMinor: number;
   zoneId: string; plateNumber: string; durationHours: number; additionalHours: number; ticketId: string; amount: number;
   restaurantId: string; items: string[]; referenceId: string; fineIds: string[]; methodId: string; expectedMethodVersion: number;
   lineId: string; amountMinor: number; expectedTargetVersion: number; mobility: Record<string, unknown>; ui: Record<string, unknown>;
@@ -61,7 +61,7 @@ export async function integratedRequest(service: string, actor: Actor, method: s
   const call = (provider: string, verb: string, route: string, data?: unknown, key?: string) => client.call(provider, actor, verb, route, data, key);
   const stableKey = (value: string) => createHash('sha256').update(`${actor.accountId}:${value}`).digest('hex');
   const charge = async (provider: string, reference: string, amount: number) => call('payments', 'POST', '/charges', { amountMinor: Math.round(amount * 100), merchant: provider, reference, source: 'wallet' }, stableKey(`charge:${provider}:${reference}`));
-  const executePayable = async (provider:string,payable:Payable) => {
+  const executePayable = async (provider:string,payable:Payable, verifyOrder?: (order: unknown) => boolean) => {
     const prefix=payable.kind==='RECHARGE'?'recharge':provider==='police'?'fine':'bill';
     const links=(await call('payments','GET','/billing-accounts')).billingAccounts;
     if(!links.some((b:BillingAccount)=>b.status==='ACTIVE'&&b.provider===provider&&b.reference===payable.reference)) {
@@ -70,9 +70,13 @@ export async function integratedRequest(service: string, actor: Actor, method: s
     }
     const created=await call('payments','POST','/payment-orders',{provider,payableId:payable.id,expectedPayableRevision:payable.revision,methodId:'wallet',expectedMethodVersion:1},stableKey(`${prefix}-order:${provider}:${payable.obligationId}:${payable.revision}:${actor.requestId}`));
     let order=(await call('payments','GET',`/payment-orders/${created.order.id}`)).order;
+    const verify = () => { if (verifyOrder && !verifyOrder(order)) throw new UpstreamError(503,'PROVIDER_OUTCOME_UNKNOWN','The original payment order could not be confirmed. Inspect the original payment order.'); };
+    verify();
     if(order.state==='AWAITING_APPROVAL')order=(await call('payments','POST',`/payment-orders/${order.id}/approve`,{expectedVersion:order.version,approvalDigest:order.approvalDigest},stableKey(`${prefix}-authorize:${order.id}`))).order;
+    verify();
     if(order.state==='AUTHORIZED')order=(await call('payments','POST',`/payment-orders/${order.id}/execute`,{expectedVersion:order.version,approvalDigest:order.approvalDigest},stableKey(`${prefix}-execute:${order.id}`))).order;
     else if(['CAPTURING','CAPTURED','RECONCILIATION_REQUIRED'].includes(order.state))order=(await call('payments','POST',`/payment-orders/${order.id}/recover`,{},stableKey(`${prefix}-recover:${order.id}:${actor.requestId}`))).order;
+    verify();
     if(order.state!=='SETTLED')throw new UpstreamError(order.fundsCaptured?502:409,order.failureCode||'PAYMENT_REQUIRES_REVIEW',order.fundsCaptured?'Payment was captured but settlement needs reconciliation. Inspect the original payment order.':'Payment stopped without capture. Review the original order.');
     return order;
   };
@@ -87,8 +91,14 @@ export async function integratedRequest(service: string, actor: Actor, method: s
     }
     if (bill.status !== 'UNPAID' || bill.expiresAt && Date.parse(bill.expiresAt) <= Date.now()) throw new UpstreamError(409, 'PAYABLE_UNAVAILABLE', 'This bill is no longer payable.');
     const payable=(await call(provider,'GET','/payables')).payables.find((p:Payable)=>p.obligationId===bill.billId);
-    if(!payable||payable.status!=='UNPAID'||payable.amountMinor!==Math.round(bill.totalAmount*100)||body.expectedPayableRevision&&body.expectedPayableRevision!==payable.revision||body.expectedAmountMinor!==undefined&&body.expectedAmountMinor!==payable.amountMinor)throw new UpstreamError(409,'PAYABLE_CHANGED','The reviewed bill changed. Review its current terms again.');
-    const order=await executePayable(provider,payable);
+    if(!payable||payable.kind!=='BILL'||payable.provider!==provider||typeof payable.id!=='string'||!payable.id||typeof payable.reference!=='string'||!payable.reference||typeof payable.revision!=='string'||!payable.revision||!Number.isSafeInteger(payable.amountMinor)||payable.amountMinor<0||payable.status!=='UNPAID'||payable.amountMinor!==Math.round(bill.totalAmount*100)||body.expectedPayableRevision&&body.expectedPayableRevision!==payable.revision||body.expectedAmountMinor!==undefined&&body.expectedAmountMinor!==payable.amountMinor)throw new UpstreamError(409,'PAYABLE_CHANGED','The reviewed bill changed. Review its current terms again.');
+    const sameOrder=(value:unknown)=>{
+      if(!value||typeof value!=='object'||Array.isArray(value))return false;
+      const order=value as {quote?:{totalMinor?:unknown;payable?:Payable}}, quoted=order.quote?.payable;
+      return !!quoted&&quoted.kind==='BILL'&&quoted.provider===provider&&quoted.id===payable.id&&quoted.revision===payable.revision&&quoted.obligationId===bill.billId&&quoted.reference===payable.reference&&quoted.amountMinor===payable.amountMinor&&order.quote?.totalMinor===payable.amountMinor;
+    };
+    const order=await executePayable(provider,payable,sameOrder);
+    if(!order.receipt||typeof order.receipt.receiptNumber!=='string'||!order.receipt.receiptNumber||order.receipt.obligationId!==bill.billId||order.receipt.amountMinor!==payable.amountMinor||order.receipt.currency!=='AED')throw new UpstreamError(503,'PROVIDER_OUTCOME_UNKNOWN','The bill settlement could not be confirmed. Inspect the original payment order.');
     const paid=(await call(provider,'GET','/bills')).bills.find((b:Bill)=>b.billId===bill.billId),wallet=await call('payments','GET','/wallet');
     return {success:true,bill:paid,receipt:{billId:bill.billId,receiptNumber:order.receipt.receiptNumber,amountPaid:(order.receipt.amountMinor/100).toFixed(2),currency:'AED',...(bill.premiseId?{premiseId:bill.premiseId}:{})},chargedAmount:order.quote.totalMinor/100,remainingBalance:wallet.balance};
   };

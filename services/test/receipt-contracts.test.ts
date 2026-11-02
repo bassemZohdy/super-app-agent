@@ -16,12 +16,13 @@ test('integrated receipt mappings preserve utility premise, owned fine plate/dis
   t.after(async () => { if (previous === undefined) delete process.env.APP_DATA_DIR; else process.env.APP_DATA_DIR = previous; removeTemp(dir); });
   let status = 'UNPAID'; let captures = 0;
   const bill = { billId: 'dewa_contract_bill', premiseId: 'DEWA-CONTRACT-PREMISE', status, totalAmount: 420.4 };
+  const payable = { id:'dewa:bill:dewa_contract_bill', obligationId:bill.billId, kind:'BILL', provider:'dewa', reference:'owned-dewa', amountMinor:42040, status:'UNPAID', revision:'a'.repeat(64) };
   let orderState='AWAITING_APPROVAL';
-  const mappingOrder=()=>({id:'mapping-order',state:orderState,version:orderState==='AWAITING_APPROVAL'?1:2,approvalDigest:'a'.repeat(64),fundsCaptured:orderState==='SETTLED',quote:{totalMinor:42040},receipt:{receiptNumber:'receipt_contract_capture',amountMinor:42040}});
+  const mappingOrder=()=>({id:'mapping-order',state:orderState,version:orderState==='AWAITING_APPROVAL'?1:2,approvalDigest:'a'.repeat(64),fundsCaptured:orderState==='SETTLED',quote:{totalMinor:42040,payable},receipt:{receiptNumber:'receipt_contract_capture',obligationId:bill.billId,amountMinor:42040,currency:'AED'}});
   t.mock.method(ProviderClient.prototype, 'call', async (provider, _actor, method, route) => {
     if (provider === 'police' && method === 'GET') return { fines: [], count: 0, totalOriginal: 450, totalDiscount: 30, totalPayable: 420 };
     if (provider === 'dewa' && method === 'GET' && route === '/bills') return { bills: [{ ...bill, status }] };
-    if(provider==='dewa'&&route==='/payables')return{payables:[{id:'dewa:bill:dewa_contract_bill',obligationId:bill.billId,provider:'dewa',reference:'owned-dewa',amountMinor:42040,status:'UNPAID',revision:'a'.repeat(64)}]};
+    if(provider==='dewa'&&route==='/payables')return{payables:[payable]};
     if(provider==='payments'&&route==='/billing-accounts')return{billingAccounts:[{status:'ACTIVE',provider:'dewa',reference:'owned-dewa'}]};
     if(provider==='payments'&&route==='/payment-orders')return{order:mappingOrder()};
     if(provider==='payments'&&route==='/payment-orders/mapping-order')return{order:mappingOrder()};

@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bind integrated bill orders (P1-13, step)
+
+Integrated utility and telecom payments check each frozen order against the selected payable before approval, execution and recovery, and require the final receipt to match the bill, amount and currency. Inconsistent results retain an unknown outcome. Tests exercise substituted orders and receipts for all three providers. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Bind compatibility utility receipts (P1-13, step)
 
 The compatibility agent confirms utility receipts name the selected bill and match the reviewed AED amount before reporting success. Malformed or mismatched receipts leave the write outcome unknown in both local and HTTP transports. Tests exercise both receipt formats and the local utility handler. Guide: [integrations](integrations.md).

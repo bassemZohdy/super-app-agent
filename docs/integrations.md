@@ -8,6 +8,8 @@ For the compatibility fines action, the local wallet returns the IDs it actually
 
 Compatibility utility receipts must identify the requested bill, report an AED amount and match the reviewed amount when one was supplied. Both the local fixture's suffixed amount and the integrated application's separate currency field are accepted. A mismatched response after dispatch remains unknown for reconciliation.
 
+Integrated utility and telecom payments additionally compare each returned order's frozen payable and total with the selected bill before approval and execution, and verify the settled receipt's bill, amount and currency. An inconsistent original order or receipt remains unknown for inspection rather than reporting payment success.
+
 MCP, A2A, SOAP and controlled browser execution are protocol values at the extension boundary, not implemented transports in this entry point. The existing integrated MCP server remains in its original path. Add a real protocol adapter only for a concrete service, with its own authority, schema, timeout and retry tests.
 
 ## HTTP API
