@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Explain account-wide wallet evidence holds (P1-12, step)
+
+The payment overview and React panel also report wallet review holds caused by unreadable transactions and orphaned payment journals. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Explain legacy wallet review holds (P1-12, step)
 
 The account-scoped payment overview and React panel show when older concierge wallet payments need review, with localized guidance and an unavailable state. Guide: [agent flow](agent-flow.md).

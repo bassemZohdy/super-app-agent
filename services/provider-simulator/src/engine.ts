@@ -58,6 +58,14 @@ export class ProviderEngine {
     return this.store.db.prepare(`SELECT 1 FROM payment_journal_entries j WHERE j.account_id=? AND j.kind='PAYMENT' AND j.reference LIKE 'charge:%'
       AND NOT EXISTS (SELECT 1 FROM resources r WHERE r.account_id=j.account_id AND r.kind='charge' AND r.id=substr(j.reference,8)) LIMIT 1`).get(accountId) !== undefined;
   }
+  private hasAccountWideWalletEvidence(accountId: string): boolean {
+    if (this.hasUnboundLegacyWalletEvidence(accountId)) return true;
+    const unreadable = this.store.db.prepare(`SELECT 1 FROM resources WHERE account_id=? AND kind='transaction' AND CASE
+      WHEN json_valid(body)=0 THEN 1 WHEN json_type(body)<>'object' THEN 1 ELSE 0 END LIMIT 1`).get(accountId);
+    if (unreadable) return true;
+    return this.store.db.prepare(`SELECT 1 FROM payment_journal_entries j WHERE j.account_id=? AND j.kind='PAYMENT' AND j.reference LIKE 'charge:%'
+      AND NOT EXISTS (SELECT 1 FROM resources r WHERE r.account_id=j.account_id AND r.kind='charge' AND r.id=substr(j.reference,8)) LIMIT 1`).get(accountId) !== undefined;
+  }
   private hasUnboundLegacyWalletEvidence(accountId: string): boolean {
     return this.store.db.prepare(`SELECT 1 FROM resources WHERE account_id=? AND kind='charge' AND CASE
       WHEN json_valid(body)=0 THEN 1 WHEN json_type(body)<>'object' THEN 1
@@ -253,7 +261,7 @@ export class ProviderEngine {
       const registry = paymentRegistry(db, a, method, path, body, this.resourceUses!);
       if (registry) return ok({...registry,...(path==='/payment-methods'&&method==='GET'?{cardBalances:(registry.methods||[]).filter((m:any)=>m.kind==='card').map((m:any)=>this.issuer!.summary(a,m.id))}:{})});
       const wallet = this.ledger!.summary(a);
-      if (method === 'GET' && path === '/wallet') return ok({ ...wallet, balance: major(wallet.balanceMinor), legacyPaymentReview: this.hasUnboundLegacyWalletEvidence(a) ? 'REQUIRED' : 'NOT_DETECTED' });
+      if (method === 'GET' && path === '/wallet') return ok({ ...wallet, balance: major(wallet.balanceMinor), legacyPaymentReview: this.hasUnboundLegacyWalletEvidence(a) ? 'REQUIRED' : 'NOT_DETECTED', walletPaymentReview: this.hasAccountWideWalletEvidence(a) ? 'REQUIRED' : 'NOT_DETECTED' });
       if (method === 'GET' && path === '/transactions') {
         const transactions=db.list(a,'transaction').map(tx=>{
           const charge=db.get(a,'charge',tx.id),funding=db.db.prepare('SELECT id FROM wallet_funding_orders WHERE account_id=? AND id=?').get(a,tx.id),refund=db.db.prepare('SELECT body FROM payment_refunds WHERE account_id=? AND id=?').get(a,tx.id);

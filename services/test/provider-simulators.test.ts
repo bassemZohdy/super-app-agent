@@ -78,6 +78,24 @@ test('payments preserve integer balances, persist declines and prevent double re
   assert.throws(() => store.transaction(() => engine.execute(actor, 'POST', `/charges/${charge.id}/refunds`, { reason: 'again' })), /cannot be refunded/);
 });
 
+test('wallet review status covers unreadable transactions and orphaned payment journals by account', t => {
+  const { engine, store, actor } = seeded(t, 'payments');
+  const other = actorFor({ sub: 'other-wallet-review-owner' }); store.accounts(other.sub); engine.seed(other);
+  const review = (who = actor) => store.transaction(() => engine.execute(who, 'GET', '/wallet', {})).data.walletPaymentReview;
+  assert.equal(review(), 'NOT_DETECTED');
+  const charge = store.transaction(() => engine.execute(actor, 'POST', '/charges', { amountMinor: 100, merchant: 'superapp', reference: 'review-op', operationId: 'review-op', source: 'wallet' })).data.charge;
+  assert.equal(review(), 'NOT_DETECTED');
+  const tx = store.get(actor.accountId, 'transaction', charge.id);
+  store.db.prepare("UPDATE resources SET body='{' WHERE account_id=? AND kind='transaction' AND id=?").run(actor.accountId, charge.id);
+  assert.equal(review(), 'REQUIRED'); assert.equal(review(other), 'NOT_DETECTED');
+  assert.throws(() => store.transaction(() => engine.execute(actor, 'POST', '/charges', { amountMinor: 100, merchant: 'superapp', reference: 'another', operationId: 'another', source: 'wallet' })), /original wallet payment/);
+  store.put(actor.accountId, 'transaction', tx, charge.id);
+  assert.equal(review(), 'NOT_DETECTED');
+  store.db.prepare("DELETE FROM resources WHERE account_id=? AND kind='charge' AND id=?").run(actor.accountId, charge.id);
+  assert.equal(review(), 'REQUIRED'); assert.equal(review(other), 'NOT_DETECTED');
+  assert.throws(() => store.transaction(() => engine.execute(actor, 'POST', '/charges', { amountMinor: 100, merchant: 'superapp', reference: 'another', operationId: 'another', source: 'wallet' })), /original wallet payment/);
+});
+
 test('DEWA rejects mismatched captured proofs and settles only its own exact bill', t => {
   const { engine, store, actor } = seeded(t, 'dewa');
   const bill = engine.execute(actor, 'GET', '/bills', {}).data.bills[0];

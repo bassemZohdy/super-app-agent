@@ -97,6 +97,28 @@ test('wallet operation identity survives different trace IDs and rejects changed
   expect(charges()).toHaveLength(previousCharges + 1);
 });
 
+test('wallet panel explains unreadable account-wide payment evidence', async ({ resident, residentApi, stack }) => {
+  const account = residentApi.accountId, store = stack.stores.get('payments')!;
+  const response = await fetch(`http://localhost:${stack.corePort + 3}/wallet/pay`, {
+    method: 'POST', headers: { Authorization: `Bearer ${residentApi.token}`, 'Content-Type': 'application/json', 'X-Account-Id': account, 'X-Operation-Id': 'panel-review-operation' },
+    body: JSON.stringify({ amount: 1, purpose: 'Review status test' }),
+  });
+  expect(response.status).toBe(200);
+  const result = await response.json() as { charge: { id: string } }, id = result.charge.id;
+  const transaction = store.get<Record<string, unknown>>(account, 'transaction', id)!;
+  expect((await residentApi.call('overview')).data.wallet.walletPaymentReview).toBe('NOT_DETECTED');
+  store.db.prepare("UPDATE resources SET body='{' WHERE account_id=? AND kind='transaction' AND id=?").run(account, id);
+  try {
+    const wallet = (await residentApi.call('overview')).data.wallet;
+    expect(wallet.legacyPaymentReview).toBe('NOT_DETECTED');
+    expect(wallet.walletPaymentReview).toBe('REQUIRED');
+    await resident.getByRole('button', { name: 'Payment accounts', exact: true }).click();
+    const panel = resident.getByRole('region', { name: 'Payment accounts', exact: true });
+    await expect(panel.getByText('Some wallet payment records need review before new concierge wallet payments. Review your payment history; there is no automatic clearance.', { exact: true })).toBeVisible();
+  } finally { store.put(account, 'transaction', transaction, id); }
+  expect((await residentApi.call('overview')).data.wallet.walletPaymentReview).toBe('NOT_DETECTED');
+});
+
 test('wallet operation identity is independent of an external payment reference', async ({ residentApi, stack }) => {
   const operation = 'external-reference-operation', account = residentApi.accountId;
   const store = stack.stores.get('payments')!, before = store.list(account, 'charge').length;
@@ -152,15 +174,13 @@ test('legacy reference-only wallet payments hold ambiguous new operations', asyn
   expect((await residentApi.call('overview')).data.wallet.legacyPaymentReview).toBe('REQUIRED');
   await resident.getByRole('button', { name: 'Payment accounts', exact: true }).click();
   const panel = resident.getByRole('region', { name: 'Payment accounts', exact: true });
-  await expect(panel.getByText('Older wallet payments need review before new concierge wallet payments. Review your payment history; there is no automatic clearance.', { exact: true })).toBeVisible();
+  await expect(panel.getByText('Some wallet payment records need review before new concierge wallet payments. Review your payment history; there is no automatic clearance.', { exact: true })).toBeVisible();
   const overviewRoute = '**/api/payments/overview?*';
-  await resident.route(overviewRoute, async route => {
-    const upstream = await route.fetch(), data = await upstream.json();
-    delete data.wallet.legacyPaymentReview;
-    await route.fulfill({ response: upstream, json: data });
-  });
+  const incompleteOverview = structuredClone((await residentApi.call('overview')).data);
+  delete incompleteOverview.wallet.walletPaymentReview;
+  await resident.route(overviewRoute, route => route.fulfill({ status: 200, json: incompleteOverview }));
   await panel.getByRole('button', { name: 'Refresh payment accounts', exact: true }).click();
-  await expect(panel.getByText('Unable to check whether older concierge wallet payments need review.', { exact: true })).toBeVisible();
+  await expect(panel.getByText('Unable to check whether concierge wallet payments need review.', { exact: true })).toBeVisible();
   await resident.unroute(overviewRoute);
   const pay = async (accountId: string, operation: string, referenceId?: string) => {
     const response = await fetch(`http://localhost:${stack.corePort + 3}/wallet/pay`, {

@@ -83,7 +83,7 @@ test('review snapshots bind owned biller/source/current amount, are non-executab
 
 test('provider-backed overview preserves signed identity and reads current rather than hardcoded amounts', async () => {
   const actor=actorFor({sub:'overview-alice'},undefined,'Bearer signed');
-  let legacyPaymentReview: unknown = 'REQUIRED';
+  let legacyPaymentReview: unknown = 'REQUIRED', walletPaymentReview: unknown = 'REQUIRED';
   const client={call:async(provider:string,forwarded:typeof actor,method:string,path:string)=>{
     assert.equal(forwarded.authorization,'Bearer signed');assert.equal(method,'GET');
     if(path==='/payment-events')return{events:{pending:0,failed:0,received:0,updates:[]}};
@@ -93,7 +93,7 @@ test('provider-backed overview preserves signed identity and reads current rathe
     if(path==='/wallet-funding-orders')return{orders:[]};
     if(path==='/payment-orders')return{orders:[]};
     if(path==='/payment-methods') return {methods:[],dependencies:[],defaultMethodId:'wallet',presets:[]};
-    if(path==='/billing-accounts') return {billingAccounts:[],dependencies:[]};if(path==='/wallet')return{balanceMinor:120000,heldMinor:0,availableMinor:120000,legacyPaymentReview};
+    if(path==='/billing-accounts') return {billingAccounts:[],dependencies:[]};if(path==='/wallet')return{balanceMinor:120000,heldMinor:0,availableMinor:120000,legacyPaymentReview,walletPaymentReview};
     if(path==='/consumption')return{account:{accountNumber:'DEWA-own'}};
     if(path==='/subscriptions')return{subscriptions:[{subscriptionId:`${provider}-own`,status:'ACTIVE',name:'Internet'}]};
     if(path==='/payables')return{payables:provider==='police'?[]:[{id:`${provider}:bill:current`,provider,reference:`${provider}-own`,label:'Current provider bill',amountMinor:12345,currency:'AED',status:'UNPAID',revision:'source-owned-revision'}]};
@@ -102,7 +102,9 @@ test('provider-backed overview preserves signed identity and reads current rathe
     if(path==='/salik')return{tagNumber:'toll-own'};if(path==='/fines')return{fines:[]};throw new Error('unexpected path');
   }} as unknown as ProviderClient;
   const data=await paymentOverview(actor,client);assert.equal(data.payables.length,3);assert.ok(data.payables.every(p=>p.amountMinor===12345));assert.equal(data.wallet.balanceMinor,120000);assert.equal(data.candidates.filter(c=>c.reference.endsWith('-prepaid')).length,2);assert.ok(data.candidates.some(c=>c.provider==='police'&&c.reference==='Demo-plate'));
-  assert.equal(data.wallet.legacyPaymentReview, 'REQUIRED');
+  assert.equal(data.wallet.legacyPaymentReview, 'REQUIRED'); assert.equal(data.wallet.walletPaymentReview, 'REQUIRED');
+  walletPaymentReview = 'NOT_DETECTED'; assert.equal((await paymentOverview(actor,client)).wallet.walletPaymentReview, 'NOT_DETECTED');
+  for (const unknown of [undefined, 'unexpected', false]) { walletPaymentReview = unknown; assert.equal((await paymentOverview(actor,client)).wallet.walletPaymentReview, 'UNKNOWN'); }
   legacyPaymentReview = 'NOT_DETECTED'; assert.equal((await paymentOverview(actor,client)).wallet.legacyPaymentReview, 'NOT_DETECTED');
   for (const unknown of [undefined, 'unexpected', false]) { legacyPaymentReview = unknown; assert.equal((await paymentOverview(actor,client)).wallet.legacyPaymentReview, 'UNKNOWN'); }
 });
