@@ -12,7 +12,7 @@ import { executeFoodRequest, activeUtilityBill } from '../../services/service-fo
 import { executeRideRequest, salikBalance } from '../../services/service-ride/src/index.ts';
 import { toMinor } from '../../packages/protocol-core/src/request-validation.ts';
 
-test('fresh agent processes complete the original checkout after the first dies with a debit in flight', async t => {
+test('fresh agents recover after the original debit and a later utility step are interrupted', async t => {
   process.env.DOMAIN_TRANSPORT = 'http'; process.env.SESSION_STORE = 'redis';
   process.env.REDIS_URL = process.env.TEST_REDIS_URL || 'redis://127.0.0.1:6379';
   const store = new RedisSessionStore(process.env.REDIS_URL), key = 'superapp:offline-civic-fence';
@@ -20,9 +20,12 @@ test('fresh agent processes complete the original checkout after the first dies 
   const sessionId = `restart_${randomUUID()}`, surfaceRevision = randomUUID(), account = accountIdFor('local-demo-user');
   const owner = createHash('sha256').update(JSON.stringify(['local-demo-user', account])).digest('hex');
   const retired = `superapp:civic-retired:${createHash('sha256').update(JSON.stringify([owner, sessionId, surfaceRevision])).digest('hex')}`;
-  let unblock!: () => void, reached!: () => void, resolutionKey = '', writes = 0;
+  let unblock!: () => void, reached!: () => void, unblockUtility!: () => void, reachedUtility!: () => void, resolutionKey = '', writes = 0;
+  let continuationChild: ReturnType<typeof spawn> | undefined;
   const hold = new Promise<void>(resolve => { unblock = resolve; });
   const dispatched = new Promise<void>(resolve => { reached = resolve; });
+  const utilityHold = new Promise<void>(resolve => { unblockUtility = resolve; });
+  const utilityDispatched = new Promise<void>(resolve => { reachedUtility = resolve; });
   const server = http.createServer(async (req, res) => {
     const chunks: Buffer[] = []; for await (const chunk of req) chunks.push(Buffer.from(chunk));
     const path = new URL(req.url!, 'http://localhost').pathname, method = req.method!, body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : {};
@@ -30,6 +33,7 @@ test('fresh agent processes complete the original checkout after the first dies 
     const handler = path.startsWith('/utilities/') ? domainHandlers.food : path.startsWith('/mobility/') ? domainHandlers.ride : domainHandlers.wallet;
     const result = handler(method, path, {}, body);
     if (method === 'POST' && path === '/pay/unified') { reached(); await hold; }
+    if (method === 'POST' && path === '/utilities/pay') { reachedUtility(); await utilityHold; }
     if (!res.destroyed) { res.writeHead(result.status, { 'content-type': 'application/json' }); res.end(JSON.stringify(result.data)); }
   });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -43,7 +47,7 @@ test('fresh agent processes complete the original checkout after the first dies 
   const childCode = `import { SuperAppAgentGraph } from './services/agent-core/src/langgraph/graph.ts'; import { actorContext, actorFor } from './packages/backend-kit/src/context.ts'; const actor = actorFor({sub:'local-demo-user'}, undefined, 'Bearer test'); actor.requestId = process.env.TASK_CIVIC_SURFACE + ':confirm_smartcity_checkout'; await actorContext.run(actor, () => SuperAppAgentGraph.resumeWithAction({sessionId:process.env.TASK_CIVIC_SESSION,messages:[],activeDomain:'composite'},'confirm_smartcity_checkout',{offlineReview:JSON.parse(process.env.TASK_CIVIC_REVIEW)}));`;
   const child = spawn(process.execPath, ['--experimental-strip-types', '--input-type=module', '-e', childCode], { cwd: process.cwd(), env: { ...process.env, TASK_CIVIC_REVIEW: JSON.stringify(review), TASK_CIVIC_SESSION: sessionId, TASK_CIVIC_SURFACE: surfaceRevision }, stdio: 'ignore' });
   const exited = new Promise<{ code: number | null; signal: string | null }>((resolve, reject) => { child.once('error', reject); child.once('exit', (code, signal) => resolve({ code, signal })); });
-  t.after(async () => { if (child.exitCode === null && child.signalCode === null) child.kill(); unblock(); await new Promise<void>(resolve => server.close(() => resolve())); await store.client.del([key, retired, ...(resolutionKey ? [resolutionKey] : [])]); await store.close(); });
+  t.after(async () => { if (child.exitCode === null && child.signalCode === null) child.kill(); if (continuationChild && continuationChild.exitCode === null && continuationChild.signalCode === null) continuationChild.kill(); unblock(); unblockUtility(); await new Promise<void>(resolve => server.close(() => resolve())); await store.client.del([key, retired, ...(resolutionKey ? [resolutionKey] : [])]); await store.close(); });
   await Promise.race([dispatched, exited.then(result => { throw new Error(`Original agent exited before dispatch: ${result.code ?? result.signal}`); }), new Promise<never>((_, reject) => { const timer = setTimeout(() => reject(new Error('Original agent did not dispatch')), 15000); timer.unref(); })]);
   const inFlight = await store.inspectCivicFence('local-demo-user', account);
   assert.equal(inFlight.civicSteps?.[0].state, 'STARTED'); assert.ok(inFlight.civicSteps?.[0].operationId); assert.equal(writes, 1); assert.ok(balance < before); assert.equal(transactions.length, ledger + 1);
@@ -57,11 +61,21 @@ test('fresh agent processes complete the original checkout after the first dies 
   assert.equal(status.data.civicEvidence[0].assessment, 'OBSERVED'); assert.equal(status.data.civicSteps[0].state, 'STARTED');
   const observed = await runRequest('POST', '/api/civic/reconciliation/observe-wallet', {}, { revision: status.data.revision });
   assert.equal(observed.status, 200);
-  let revision = observed.data.revision;
-  for (const step of ['UTILITY', 'FINES', 'TOLL']) {
-    const next = await runRequest('POST', '/api/civic/reconciliation/continue', {}, { revision });
-    assert.equal(next.status, 200, JSON.stringify(next.data)); assert.equal(next.data.step, step); revision = next.data.revision;
-  }
+  const continuationInput = { method: 'POST', path: '/api/civic/reconciliation/continue', query: {}, body: { revision: observed.data.revision } };
+  continuationChild = spawn(process.execPath, ['--experimental-strip-types', '--input-type=module', '-e', requestCode], { cwd: process.cwd(), env: { ...process.env, TASK_CIVIC_REQUEST: JSON.stringify(continuationInput) }, stdio: 'ignore' });
+  const continuationExited = new Promise<{ code: number | null; signal: string | null }>((resolve, reject) => { continuationChild!.once('error', reject); continuationChild!.once('exit', (code, signal) => resolve({ code, signal })); });
+  await Promise.race([utilityDispatched, continuationExited.then(result => { throw new Error(`Continuation agent exited before dispatch: ${result.code ?? result.signal}`); }), new Promise<never>((_, reject) => { const timer = setTimeout(() => reject(new Error('Continuation agent did not dispatch')), 15000); timer.unref(); })]);
+  const utilityInFlight = await store.inspectCivicFence('local-demo-user', account);
+  assert.equal(utilityInFlight.civicSteps?.[1].state, 'STARTED'); assert.ok(utilityInFlight.civicSteps?.[1].operationId); assert.equal(activeUtilityBill.status, 'PAID'); assert.equal(writes, 2);
+  assert.equal(continuationChild.kill(), true); const stoppedContinuation = await continuationExited; assert.notEqual(stoppedContinuation.code, 0); unblockUtility();
+  const utilityStatus = await runRequest('GET', '/api/civic/reconciliation', { verify: '1' });
+  assert.equal(utilityStatus.data.civicSteps[1].state, 'STARTED'); assert.equal(utilityStatus.data.civicEvidence[1].assessment, 'OBSERVED');
+  const utilityObserved = await runRequest('POST', '/api/civic/reconciliation/observe-utility', {}, { revision: utilityStatus.data.revision }); assert.equal(utilityObserved.status, 200);
+  const attempts = await Promise.all([1, 2].map(() => runRequest('POST', '/api/civic/reconciliation/continue', {}, { revision: utilityObserved.data.revision })));
+  const successful = attempts.filter(result => result.status === 200);
+  assert.equal(successful.length, 1); assert.equal(successful[0].data.step, 'FINES'); assert.ok(attempts.every(result => result.status === 200 || result.status === 409));
+  const toll = await runRequest('POST', '/api/civic/reconciliation/continue', {}, { revision: successful[0].data.revision });
+  assert.equal(toll.status, 200); assert.equal(toll.data.step, 'TOLL'); const revision = toll.data.revision;
   assert.equal(writes, 4); assert.equal(transactions.length, ledger + 2); assert.equal(activeUtilityBill.status, 'PAID'); assert.equal(salikBalance, tollBefore + 100);
   const final = await runRequest('GET', '/api/civic/reconciliation', { verify: '1' });
   assert.equal(final.data.revision, revision); assert.ok(final.data.civicEvidence.every((item: { assessment: string }) => item.assessment === 'MATCH'));
