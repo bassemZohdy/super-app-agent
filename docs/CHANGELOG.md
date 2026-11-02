@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bind grouped checkout to a toll target (P1-13, step)
+
+The integrated manual grouped-checkout API accepts a selected toll target and version, validates the returned quote, and refuses an ambiguous implicit target. The offline wallet rejects target-specific fields without changing funds. The application OpenAPI and targeted tests cover explicit selection, stale or substituted targets and the single-target case. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Bind grouped checkout to its plan (P0-04, step)
 
 Compatibility grouped checkout verifies its saved item set, owner, source, child quotes and totals before approval or execution, retains a local group binding across requests, and checks settled child receipts. Inconsistent results remain unknown. Tests cover substituted groups, changed terms after reopening, wrong receipts and original-child recovery. Guide: [integrations](integrations.md).

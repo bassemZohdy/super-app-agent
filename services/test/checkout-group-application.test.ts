@@ -9,7 +9,7 @@ import { ProviderClient,UpstreamError } from '../../packages/backend-kit/src/pro
 import { actorFor } from '../../packages/backend-kit/src/context.ts';
 test('legacy unified checkout persists one group plan and resumes original children after lost response, with one chosen source',async t=>{
   const dir=await mkdtemp(join(tmpdir(),'group-application-')),previous=process.env.APP_DATA_DIR;process.env.APP_DATA_DIR=dir;t.after(async()=>{if(previous===undefined)delete process.env.APP_DATA_DIR;else process.env.APP_DATA_DIR=previous;removeTemp(dir);});
-  const actor=actorFor({sub:'group-application-owner'}),p={id:'rta:recharge:original',obligationId:'rta:recharge:original',kind:'RECHARGE',recharge:{balanceBeforeMinor:0},provider:'rta',reference:'tag',revision:'a'.repeat(64)},source={id:'card-owned',accountId:actor.accountId,kind:'card',currency:'AED',status:'ACTIVE',version:1};let intent=false,groupCreated=0,runs=0,group:any;
+  const actor=actorFor({sub:'group-application-owner'}),p={id:'rta:recharge:original',obligationId:'rta:recharge:original',kind:'RECHARGE',currency:'AED',amountMinor:10000,recharge:{kind:'TOLL',targetVersion:1,balanceBeforeMinor:0},provider:'rta',reference:'tag',revision:'a'.repeat(64)},source={id:'card-owned',accountId:actor.accountId,kind:'card',currency:'AED',status:'ACTIVE',version:1};let intent=false,groupCreated=0,runs=0,group:any;
   t.mock.method(ProviderClient.prototype,'call',async(provider,_actor,method,path,body)=>{
     if(path==='/payables')return{payables:[]};
     if(path.startsWith('/recharge-intents/')){if(!intent)throw new UpstreamError(404,'NOT_FOUND','No intent');return{payable:p};}

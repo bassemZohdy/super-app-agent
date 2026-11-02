@@ -198,6 +198,7 @@ function handleWalletRequest(
   // Unified Multi-Agency Government Settlement (DubaiPay / TAMM Pay)
   // ---------------------------------------------------------------------------
   if (normMethod === 'POST' && (pathname === '/pay/unified' || pathname === '/pay/multi-agency')) {
+    if (body.targetReference !== undefined || body.expectedTargetVersion !== undefined) return invalidInput('Target-specific checkout requires integrated provider mode');
     const items: Array<{ agency: string; purpose: string; amount: number }> = body.items;
     const totalMinor = items.reduce((acc, item) => acc + toMinor(item.amount), 0);
     if (totalMinor > MAX_MONEY * 100) return invalidInput('Settlement total exceeds demo limit');

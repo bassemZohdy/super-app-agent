@@ -14,7 +14,7 @@ test('unified checkout binds the original group, child order, owner and funding 
   t.after(() => { if (previous === undefined) delete process.env.APP_DATA_DIR; else process.env.APP_DATA_DIR = previous; removeTemp(dir); });
   const actor = actorFor({ sub: 'group-binding-user' });
   const source = { id: 'wallet', accountId: actor.accountId, kind: 'wallet', version: 1, currency: 'AED', status: 'ACTIVE' };
-  const payable = { id: 'rta:recharge:one', obligationId:'rta:recharge:one', kind:'RECHARGE', recharge:{balanceBeforeMinor:0}, provider: 'rta', reference: 'tag', revision: 'a'.repeat(64) };
+  const payable = { id: 'rta:recharge:one', obligationId:'rta:recharge:one', kind:'RECHARGE', currency:'AED', amountMinor:10000, recharge:{kind:'TOLL',targetVersion:1,balanceBeforeMinor:0}, provider: 'rta', reference: 'tag', revision: 'a'.repeat(64) };
   let scenario = 'valid', approvals = 0, runs = 0;
   const group = (state: string) => {
     const quote = { payable: scenario === 'wrong-item' ? { ...payable, id: 'other' } : payable, source, currency: 'AED', totalMinor: 10000, feeMinor: scenario === 'changed-terms' && state === 'READY' || scenario === 'changed-after-reopen' ? 1 : 0 };

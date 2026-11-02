@@ -26,7 +26,7 @@ type RequestBody = {
   billId: string; expectedPayables: PayableRevision[]; expectedPayableRevision: string; expectedAmountMinor: number;
   zoneId: string; plateNumber: string; durationHours: number; additionalHours: number; ticketId: string; amount: number;
   restaurantId: string; items: string[]; referenceId: string; fineIds: string[]; methodId: string; expectedMethodVersion: number;
-  lineId: string; amountMinor: number; expectedTargetVersion: number; mobility: Record<string, unknown>; ui: Record<string, unknown>;
+  lineId: string; targetReference: string; amountMinor: number; expectedTargetVersion: number; mobility: Record<string, unknown>; ui: Record<string, unknown>;
 };
 type Result = { status: number; data: unknown };
 function canonicalJson(value: unknown): string {
@@ -226,6 +226,7 @@ export async function integratedRequest(service: string, actor: Actor, method: s
       if (method === 'POST' && path === '/wallet/pay') return successfulWithoutDuplicate(await charge('superapp', body.referenceId || actor.requestId, body.amount));
       if (method === 'POST' && path === '/fines/pay') return successfulWithoutDuplicate(await settleFines(body.fineIds));
       if (method === 'POST' && ['/pay/unified','/pay/multi-agency'].includes(path)) {
+        if((body.targetReference===undefined)!==(body.expectedTargetVersion===undefined))throw new UpstreamError(400,'VALIDATION_ERROR','Select a recharge target and its reviewed version together.');
         // Persist the reviewed plan before dispatch. A lost response resumes these child IDs, never a new recharge.
         const intentId=stableKey(`unified:${actor.requestId}`),terms=JSON.stringify(body);
         let intent=db.get(actor.accountId,'checkout-intent',intentId);
@@ -237,7 +238,20 @@ export async function integratedRequest(service: string, actor: Actor, method: s
           if(fines.length){const p=(await call('police','POST','/fine-selections',{items:fines.map((p:Payable)=>({payableId:p.id,expectedRevision:p.revision}))},stableKey(`unified-fines:${intentId}`))).payable;items.push({provider:p.provider,payableId:p.id,expectedPayableRevision:p.revision});}
           let rechargeQuote;
           try{rechargeQuote=(await call('rta','GET',`/recharge-intents/${intentId}`)).payable;}catch(e){if(!(e instanceof UpstreamError)||e.status!==404)throw e;}
-          if(!rechargeQuote){const target=(await call('rta','GET','/recharge-targets')).targets[0];rechargeQuote=(await call('rta','POST','/recharge-quotes',{targetReference:target.reference,amountMinor:10000,expectedTargetVersion:target.version,intentId},stableKey(`unified-recharge:${intentId}`))).payable;}
+          if(!rechargeQuote){
+            const targets=(await call('rta','GET','/recharge-targets')).targets;
+            if(!Array.isArray(targets))throw new UpstreamError(503,'PROVIDER_UNAVAILABLE','The recharge targets could not be read.');
+            if(body.targetReference===undefined&&targets.length!==1)throw new UpstreamError(409,'RECHARGE_TARGET_REQUIRED','Choose a specific recharge target before checkout.');
+            const matches=body.targetReference===undefined?targets:targets.filter((t:RechargeTarget)=>t.reference===body.targetReference);
+            if(matches.length>1)throw new UpstreamError(503,'PROVIDER_UNAVAILABLE','The selected recharge target could not be confirmed.');
+            const target=matches[0];
+            if(!target)throw new UpstreamError(404,'RECHARGE_TARGET_NOT_FOUND','The selected recharge target is not owned by the workspace.');
+            if(typeof target.reference!=='string'||!target.reference||!Number.isSafeInteger(target.version)||target.version<1)throw new UpstreamError(503,'PROVIDER_UNAVAILABLE','The recharge target could not be confirmed.');
+            if(body.expectedTargetVersion!==undefined&&body.expectedTargetVersion!==target.version)throw new UpstreamError(409,'PAYABLE_CHANGED','The selected recharge target changed. Review it again.');
+            rechargeQuote=(await call('rta','POST','/recharge-quotes',{targetReference:target.reference,amountMinor:10000,expectedTargetVersion:target.version,intentId},stableKey(`unified-recharge:${intentId}`))).payable;
+            if(rechargeQuote?.reference!==target.reference||rechargeQuote?.recharge?.targetVersion!==target.version)throw new UpstreamError(503,'PROVIDER_UNAVAILABLE','The recharge quote could not be confirmed.');
+          }else if(body.targetReference!==undefined&&(rechargeQuote.reference!==body.targetReference||rechargeQuote.recharge?.targetVersion!==body.expectedTargetVersion))throw new UpstreamError(409,'RECHARGE_INTENT_CONFLICT','This checkout already has different recharge terms.');
+          if(rechargeQuote?.provider!=='rta'||rechargeQuote.kind!=='RECHARGE'||rechargeQuote.currency!=='AED'||rechargeQuote.amountMinor!==10000||typeof rechargeQuote.id!=='string'||!rechargeQuote.id||typeof rechargeQuote.revision!=='string'||!rechargeQuote.revision||typeof rechargeQuote.reference!=='string'||!rechargeQuote.reference||rechargeQuote.recharge?.kind!=='TOLL'||!Number.isSafeInteger(rechargeQuote.recharge?.targetVersion)||rechargeQuote.recharge.targetVersion<1)throw new UpstreamError(503,'PROVIDER_UNAVAILABLE','The recharge quote could not be confirmed.');
           items.push({provider:'rta',payableId:rechargeQuote.id,expectedPayableRevision:rechargeQuote.revision});
           const links=(await call('payments','GET','/billing-accounts')).billingAccounts;
           for(const item of items){const p=(await call(item.provider,'GET',`/payables/${encodeURIComponent(item.payableId)}`)).payable;if(!links.some((b:BillingAccount)=>b.status==='ACTIVE'&&b.provider===p.provider&&b.reference===p.reference)){try{await call('payments','POST','/billing-accounts',{provider:p.provider,reference:p.reference,nickname:`${p.provider.toUpperCase()} account`},stableKey(`unified-link:${p.provider}:${p.reference}`));}catch(e){if(!(e instanceof UpstreamError)||e.code!=='BILLER_ALREADY_LINKED')throw e;}}}
