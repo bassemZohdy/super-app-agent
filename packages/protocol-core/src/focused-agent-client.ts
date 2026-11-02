@@ -57,7 +57,7 @@ export class FocusedAgentClient {
   }
   private async requireSuccess(response: Response) {
     if (!response.ok) {
-      await response.body?.cancel();
+      void response.body?.cancel().catch(() => {});
       const unavailable = [401, 403, 404].includes(response.status);
       throw new AgentClientError(unavailable ? 'This conversation or access token is unavailable for this account. Sign in with its owner’s token, or start a new conversation.' : 'The request was not confirmed. Inspect or recover this conversation before continuing.', unavailable ? 'ACCESS_UNAVAILABLE' : undefined);
     }
@@ -79,7 +79,10 @@ export class FocusedAgentClient {
     if (!threadId.test(id)) throw new AgentClientError('The saved conversation ID is invalid.');
     const response = await this.request(`/threads/${id}/${action}`, signal, body);
     await this.requireSuccess(response);
-    if (!response.headers.get('content-type')?.includes('text/event-stream')) throw new AgentClientError('The request stream was interrupted. Inspect this conversation.');
+    if (!response.headers.get('content-type')?.includes('text/event-stream')) {
+      void response.body?.cancel().catch(() => {});
+      throw new AgentClientError('The request stream was interrupted. Inspect this conversation.');
+    }
     let complete: AgentResult | undefined;
     for await (const frame of readEventStream(response)) {
       const data: unknown = JSON.parse(frame.data);

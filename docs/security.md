@@ -40,6 +40,8 @@ The payment key binds subject, operation version and sorted fine IDs/amount/vers
 
 The application runs as a single process against a local SQLite file. It limits concurrent graph transitions and rejects overlaps on a thread; it does not claim cross-process locking, replicated availability, immutable auditing, production tenant isolation or zero-loss host recovery. Use one replica and a persistent volume. TLS, identity provisioning, live model evaluation, container qualification and production release are outside the verified local slice.
 
+The shared browser event-stream client cancels rejected, oversized or interrupted responses without waiting for the sender to acknowledge cancellation. A focused action whose stream fails remains unconfirmed and is not automatically retried; the resident must inspect or recover the original conversation.
+
 The focused simulator and compatible planner bound JSON response size. On overflow, they request cancellation but do not wait for an uncooperative response stream to finish cancelling. A write remains unknown for original-operation recovery; a model failure releases its active concurrency slot.
 
 Focused planning and compatibility chat use shared LiteLLM deployment validation, bounded messages and per-owner model budgets. Identifiers are scrubbed before transport. Focused planning withholds assistant amounts and binds selected fine IDs server-side outside provider input. Neither planner receives the end-user token or supplies business authority. The quotas are process-local.

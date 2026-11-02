@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 3 November 2026 - Bound browser stream cancellation (P0-02, step)
+
+Browser stream readers and focused-agent failures request cancellation without waiting for an uncooperative upstream, retaining unknown outcomes for recovery. Guide: [security](security.md).
+
 ## 3 November 2026 - Guard isolated environment ownership (P2-06, step)
 
 An isolated environment has exclusive ownership of its process settings until cleanup finishes; overlapping starts fail clearly and concurrent cleanup requests share one operation. Guide: [testing](development/testing.md).

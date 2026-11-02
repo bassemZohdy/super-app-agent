@@ -37,7 +37,7 @@ export async function* readEventStream(response: Response): AsyncGenerator<Strea
       if (done) break;
     }
   } finally {
-    await reader.cancel().catch(() => {});
+    void reader.cancel().catch(() => {});
     reader.releaseLock();
   }
 }
@@ -57,12 +57,14 @@ export async function connectEventStream(options: {
       const headers: Record<string, string> = { Authorization: `Bearer ${token}`, Accept: 'text/event-stream' };
       if (cursor) headers['Last-Event-ID'] = cursor;
       const response = await fetch(options.url, { headers, signal: options.signal, cache: 'no-store', redirect: 'error' });
-      if (response.status === 409 && cursor) { cursor = ''; continue; }
+      if (response.status === 409 && cursor) { void response.body?.cancel().catch(() => {}); cursor = ''; continue; }
       if ([401, 403, 400].includes(response.status)) {
+        void response.body?.cancel().catch(() => {});
         options.onError?.(new Error(`Stream authorization/request rejected (${response.status})`));
         return;
       }
       if (!response.ok || !response.headers.get('content-type')?.includes('text/event-stream')) {
+        void response.body?.cancel().catch(() => {});
         throw new Error(`Stream unavailable (${response.status})`);
       }
       for await (const event of readEventStream(response)) {
