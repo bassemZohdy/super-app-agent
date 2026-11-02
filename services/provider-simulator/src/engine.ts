@@ -71,6 +71,19 @@ export class ProviderEngine {
     if (!journal || journal.kind !== 'PAYMENT' || journal.wallet_delta !== -charge.amountMinor || journal.currency !== 'AED' || journal.finalized !== 1 || !postings || postings.length !== 2 || postings[0].ledger_account !== 'wallet' || postings[0].amount_minor !== -charge.amountMinor || postings[1].ledger_account !== 'merchant-clearing' || postings[1].amount_minor !== charge.amountMinor) return fail(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original wallet payment could not be confirmed.');
     return { charge, transaction: tx };
   }
+  private hasUnconfirmedRideEvidence(accountId: string): boolean {
+    const rides = this.store.db.prepare("SELECT id FROM resources WHERE account_id=? AND kind='ride'").all(accountId) as Array<{ id: string }>;
+    if (!rides.length) return false;
+    const records = this.store.db.prepare('SELECT fingerprint,status,body FROM idempotency WHERE account_id=? AND status=200').all(accountId) as Array<{ fingerprint: unknown; status: unknown; body: unknown }>;
+    const verified = new Set<string>();
+    for (const record of records) {
+      try {
+        const booking = this.verifyRideReplay(accountId, record);
+        if (booking && typeof booking.bookingId === 'string') verified.add(booking.bookingId);
+      } catch { /* Unreadable or mismatched evidence cannot establish a booking. */ }
+    }
+    return rides.some(ride => !verified.has(ride.id));
+  }
   verifyRideReplay(a: string, record: { fingerprint: unknown; status: unknown; body: unknown }, expected?: { driverId?: unknown; pickup?: unknown; dropoff?: unknown; expectedFareMinor?: unknown }) {
     const db = this.store;
     let saved: unknown;
@@ -320,10 +333,14 @@ export class ProviderEngine {
         if (!/^[A-Za-z0-9_.:-]{1,200}$/.test(operationId)) return fail(400, 'VALIDATION_ERROR', 'Invalid operation identity.');
         const key = providerOperationKey(operationId, 'rta', '/rides/bookings');
         const record = db.db.prepare('SELECT fingerprint,status,body FROM idempotency WHERE account_id=? AND key=?').get(a, key) as { fingerprint: unknown; status: unknown; body: unknown } | undefined;
-        if (!record) return fail(404, 'NOT_FOUND', 'The original ride operation was not found.');
+        if (!record) {
+          if (this.hasUnconfirmedRideEvidence(a)) return fail(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original ride could not be confirmed.');
+          return fail(404, 'NOT_FOUND', 'The original ride operation was not found.');
+        }
         return ok({ operationId, booking: this.verifyRideReplay(a, record) });
       }
       if (method === 'POST' && path === '/rides/bookings') {
+        if (this.hasUnconfirmedRideEvidence(a)) return fail(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original ride could not be confirmed.');
         const driver = drivers.find(d => d.id === body.driverId); if (!driver) fail(404, 'NOT_FOUND', 'Driver not found.');
         if (body.expectedFareMinor !== undefined && body.expectedFareMinor !== minor(driver.fare)) fail(409, 'PRICE_CHANGED', 'Ride fare changed.');
         const booking = { bookingId: randomUUID(), driver, status: 'CONFIRMED', pickup: body.pickup || 'Current location', dropoff: body.dropoff || 'Downtown', fare: driver.fare, etaMinutes: driver.etaMinutes, estimatedArrival: `${driver.etaMinutes} min`, timestamp: Date.now() }; db.put(a, 'ride', booking, booking.bookingId); return ok({ booking });

@@ -68,7 +68,7 @@ The integrated wallet service provides `GET /wallet/operations/{operationId}` to
 
 Local application database initialization retries a busy journal-mode transition for up to five seconds. A cross-process check exercises simultaneous first opens and the same food operation against one database; it is not distributed deployment or cross-service recovery evidence.
 
-Integrated ride-booking replays, including direct provider calls, verify the stored booking and its requested driver, route and reviewed fare before returning success. The provider reads the replay and booking together in its transaction; missing or altered evidence stays unconfirmed.
+Integrated ride-booking replays, including direct provider calls, verify the stored booking and its requested driver, route and reviewed fare before returning success. The provider reads the replay and booking together in its transaction; missing or altered evidence stays unconfirmed. When an account has a booking that cannot be matched to a valid saved response, missing-operation inspections and new bookings are held for reconciliation; verified replays and other accounts are unaffected. If both the booking and its retry record are lost, this evidence cannot establish the earlier effect.
 
 The local and integrated simulators use different successful ride and food statuses and item shapes; the adapter accepts their documented forms while applying the same selected-resource checks. The integrated food receipt includes the requested delivery address.
 

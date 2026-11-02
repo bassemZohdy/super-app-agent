@@ -192,7 +192,11 @@ test('ride receipts persist the selected driver ETA instead of dropping or hardc
   const { engine, store, actor } = seeded(t, 'rta');
   const options = engine.execute(actor, 'GET', '/rides/options', {}).data.options;
   for (const driver of options.slice(0, 2)) {
-    const booking = store.transaction(() => engine.execute(actor, 'POST', '/rides/bookings', { driverId: driver.id })).data.booking;
+    const booking = store.transaction(() => {
+      const result = engine.execute(actor, 'POST', '/rides/bookings', { driverId: driver.id });
+      store.db.prepare('INSERT INTO idempotency(account_id,key,fingerprint,status,body) VALUES(?,?,?,?,?)').run(actor.accountId, `eta-${driver.id}`, 'a'.repeat(64), result.status, JSON.stringify(result.data));
+      return result.data.booking;
+    });
     assert.equal(booking.etaMinutes, driver.etaMinutes);
     assert.equal(booking.estimatedArrival, `${driver.etaMinutes} min`);
     assert.equal(engine.execute(actor, 'GET', `/rides/bookings/${booking.bookingId}`, {}).data.booking.etaMinutes, driver.etaMinutes);
