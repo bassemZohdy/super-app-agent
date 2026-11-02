@@ -54,6 +54,9 @@ export class HttpExecutionGateway implements ExecutionGateway {
 
   async prepare(input: { mandateId: string; policyVersion: number; occurrenceKey: string; requestKey: string }): Promise<PrepareResult> {
     const data = await this.call(this.config.paymentsUrl, this.run('/prepare'), await this.credentials.token(), { mandateId: input.mandateId, occurrenceKey: input.occurrenceKey, requestKey: input.requestKey });
+    return this.preparation(data, input);
+  }
+  private preparation(data: Record<string, unknown>, input: { mandateId: string; policyVersion: number; occurrenceKey: string }): PrepareResult {
     if (data.mandateId !== input.mandateId || data.occurrenceKey !== input.occurrenceKey) throw failure(502, 'PREPARATION_INVALID', 'The preparation response was incomplete.');
     if (data.skipped === true) {
       if (typeof data.reason !== 'string' || ['id', 'orderId', 'runId', 'policyVersion', 'state', 'amountMinor', 'currency'].some(key => Object.hasOwn(data, key))) throw failure(502, 'PREPARATION_INVALID', 'The preparation response was incomplete.');
@@ -61,6 +64,27 @@ export class HttpExecutionGateway implements ExecutionGateway {
     }
     if (data.runId !== this.config.runId || data.policyVersion !== input.policyVersion || data.state !== 'PREPARED' || typeof data.id !== 'string' || !/^autoexec_[A-Za-z0-9_-]{1,100}$/.test(data.id) || typeof data.orderId !== 'string' || !/^(?:order|funding)_[A-Za-z0-9_-]{1,100}$/.test(data.orderId) || typeof data.amountMinor !== 'number' || !Number.isSafeInteger(data.amountMinor) || data.amountMinor <= 0 || data.amountMinor > 100000000 || data.currency !== 'AED') throw failure(502, 'PREPARATION_INVALID', 'The preparation response was incomplete.');
     return { id: data.id, runId: this.config.runId, orderId: data.orderId, amountMinor: data.amountMinor };
+  }
+  /** Read only: absence is not proof that an earlier in-flight request will not later commit. */
+  async inspectPreparation(input: { mandateId: string; policyVersion: number; occurrenceKey: string; requestKey: string }): Promise<PrepareResult | undefined> {
+    if (!/^[A-Za-z0-9_-]{8,100}$/.test(input.requestKey)) throw failure(400, 'PREPARATION_INVALID', 'Name the original preparation request.');
+    const bearer = await this.credentials.token();
+    let response: Response;
+    try {
+      response = await fetch(new URL(this.run(`/requests/${encodeURIComponent(input.requestKey)}`), endpoint(this.config.paymentsUrl)), { method: 'GET', redirect: 'error', signal: AbortSignal.timeout(5000), headers: { Authorization: `Bearer ${bearer}` } });
+    } catch { throw failure(undefined, 'UNREACHABLE', 'The preparation could not be inspected.'); }
+    if (!response.ok) { void response.body?.cancel().catch(() => {}); throw failure(502, 'PREPARATION_INVALID', 'The preparation could not be inspected.'); }
+    let body: unknown;
+    try { body = await boundedJsonResponse(response, 65536); } catch { throw failure(502, 'PREPARATION_INVALID', 'The preparation could not be inspected.'); }
+    if (!body || typeof body !== 'object' || Array.isArray(body)) throw failure(502, 'PREPARATION_INVALID', 'The preparation could not be inspected.');
+    const data = body as Record<string, unknown>;
+    if (data.success !== true || Object.hasOwn(data, 'error') || typeof data.found !== 'boolean') throw failure(502, 'PREPARATION_INVALID', 'The preparation could not be inspected.');
+    if (!data.found) {
+      if (Object.hasOwn(data, 'preparation')) throw failure(502, 'PREPARATION_INVALID', 'The preparation could not be inspected.');
+      return undefined;
+    }
+    if (!data.preparation || typeof data.preparation !== 'object' || Array.isArray(data.preparation)) throw failure(502, 'PREPARATION_INVALID', 'The preparation could not be inspected.');
+    return this.preparation(data.preparation as Record<string, unknown>, input);
   }
   async credential(runId: string, executionId: string) {
     const data = await this.call(this.config.brokerUrl, `/api/delegation/automation/executions/${encodeURIComponent(executionId)}/credential`, await this.credentials.token(), { runId });

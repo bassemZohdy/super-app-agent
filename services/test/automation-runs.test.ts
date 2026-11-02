@@ -88,6 +88,20 @@ test('AUTO-03: preparation resolves the server-owned due invoice, reserves share
   assert.equal(status.reservedMinor,15000);
 });
 
+test('the exact worker can inspect a recorded preparation by its original request key without creating or repeating it',t=>{
+  const f=fixture(t),m=f.mandate(),key='req_inspection_key_01',runs=f.db.automationRuns!;
+  assert.equal(runs.readPreparation('auto-worker',key),undefined);
+  assert.throws(()=>runs.readPreparation('other-worker',key),(e:unknown)=>(e as {code?:string}).code==='AUTOMATION_WORKER_REQUIRED');
+  assert.throws(()=>runs.readPreparation('auto-worker','../bad'),(e:unknown)=>(e as {code?:string}).code==='AUTOMATION_INPUT_INVALID');
+  const skip=skipped(f.prepare(m.id,'occ_none',key));
+  assert.deepEqual(runs.readPreparation('auto-worker',key),skip);
+  const otherKey='req_inspection_key_02';f.bill('auto-bill-inspect',150,1);
+  const first=prepared(f.prepare(m.id,'occ_bill',otherKey));
+  const snapshot=runs.status('automation-operator');
+  assert.deepEqual(runs.readPreparation('auto-worker',otherKey),first);
+  assert.deepEqual(runs.status('automation-operator'),snapshot,'inspection never creates an execution or changes reservations');
+});
+
 test('AUTO-03: only the exact workload identity prepares and only the run operator reads status',t=>{
   const f=fixture(t),m=f.mandate();f.bill('auto-bill-1',150,1);
   assert.throws(()=>f.db.automationRuns!.prepare('automation-operator',{mandateId:m.id,occurrenceKey:'occ_x',requestKey:`req_${randomUUID()}`}),(e:any)=>e.code==='AUTOMATION_WORKER_REQUIRED');

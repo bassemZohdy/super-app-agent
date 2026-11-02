@@ -325,6 +325,13 @@ export class AutomationRuns{
       }catch(error){if(providerStore)releaseAutomationPayable(providerStore,preparation.id);throw error;}
     });
   }
+  /** Read an original request outcome without creating a preparation or changing reservations. */
+  readPreparation(worker:string,requestKey:string):AutomationPreparation|AutomationSkip|undefined{
+    if(worker!==this.context.workerSub)return deny('AUTOMATION_WORKER_REQUIRED',"Only this run's exact workload identity reads a preparation request.",403);
+    if(typeof requestKey!=='string'||!/^[A-Za-z0-9_-]{8,100}$/.test(requestKey))return deny('AUTOMATION_INPUT_INVALID','Use the original bounded request key.',400);
+    const row=this.store.db.prepare('SELECT body FROM automation_requests WHERE key=?').get(requestKey);
+    return row?JSON.parse(String(row.body)) as AutomationPreparation|AutomationSkip:undefined;
+  }
   /** The immutable preparation plus current authority freshness, for the credential broker. */
   readExecution(worker:string,executionId:string){
     if(worker!==this.context.workerSub)return deny('AUTOMATION_WORKER_REQUIRED',"Only this run's exact workload identity reads a prepared execution.",403);

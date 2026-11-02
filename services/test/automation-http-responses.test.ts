@@ -176,3 +176,26 @@ test('automation execution HTTP responses require a readable order identity and 
   order = { id: 'order_1', state: 'SETTLED', fundsCaptured: true };
   assert.deepEqual(await gateway.execute(runId, 'autoexec_1', 'fixture-execution-token'), { id: 'order_1', state: 'SETTLED', fundsCaptured: true, failureCode: undefined, receipt: undefined });
 });
+
+test('preparation inspection reads the original identity without dispatching or accepting mismatched evidence', async t => {
+  const previous = process.env.KEYCLOAK_TOKEN_URL; process.env.KEYCLOAK_TOKEN_URL = 'http://127.0.0.1/token';
+  t.after(() => { if (previous === undefined) delete process.env.KEYCLOAK_TOKEN_URL; else process.env.KEYCLOAK_TOKEN_URL = previous; });
+  const runId = 'autorn_00000000-0000-4000-8000-000000000000', input = { mandateId: 'mandate_1', occurrenceKey: 'occ_1', policyVersion: 1, requestKey: 'req_original_1' };
+  const prepared = { id: 'autoexec_1', orderId: 'order_1', runId, mandateId: input.mandateId, occurrenceKey: input.occurrenceKey, policyVersion: 1, state: 'PREPARED', amountMinor: 10000, currency: 'AED' };
+  let body: unknown = { success: true, found: false }, method = '', path = '';
+  t.mock.method(globalThis, 'fetch', async (url, init) => {
+    path = new URL(String(url)).pathname;
+    if (path === '/token') return Response.json({ access_token: 'fixture-service-token', expires_in: 300 });
+    method = init?.method || 'GET'; return Response.json(body);
+  });
+  const gateway = new HttpExecutionGateway({ runId, paymentsUrl: 'http://127.0.0.1/', brokerUrl: 'http://127.0.0.1/', clientSecret: 'fixture-secret' });
+  assert.equal(await gateway.inspectPreparation(input), undefined);
+  assert.equal(method, 'GET'); assert.equal(path, `/internal/automation-runs/${runId}/requests/${input.requestKey}`);
+  body = { success: true, found: true, preparation: prepared };
+  assert.deepEqual(await gateway.inspectPreparation(input), { id: 'autoexec_1', runId, orderId: 'order_1', amountMinor: 10000 });
+  body = { success: true, found: true, preparation: { mandateId: input.mandateId, occurrenceKey: input.occurrenceKey, skipped: true, reason: 'NO_DUE_INVOICE' } };
+  assert.deepEqual(await gateway.inspectPreparation(input), { skipped: true, reason: 'NO_DUE_INVOICE' });
+  for (const invalid of [{ success: true, found: false, preparation: prepared }, { success: true, found: true, preparation: { ...prepared, occurrenceKey: 'other' } }, { success: true, found: true, preparation: { ...prepared, runId: 'other' } }, { success: false, found: true, preparation: prepared }, { success: true, error: 'private-token-marker', found: true, preparation: prepared }]) {
+    body = invalid; await assert.rejects(gateway.inspectPreparation(input));
+  }
+});

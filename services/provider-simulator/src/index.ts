@@ -116,11 +116,17 @@ export function createProviderServer(provider: ProviderId, path: string, options
       }
       const automationRoute=/^\/internal\/automation-runs\/(autorn_[a-f0-9-]{36})(?:\/(prepare)|\/(execution)\/([A-Za-z0-9_-]+)(?:\/(execute))?)?$/.exec(url.pathname);
       const rulesRoute=/^\/internal\/automation-runs\/(autorn_[a-f0-9-]{36})\/rules(?:\/([A-Za-z0-9_.:-]{1,160})\/(invoices|balance|fines|session))?$/.exec(url.pathname);
+      const requestRoute=/^\/internal\/automation-runs\/(autorn_[a-f0-9-]{36})\/requests\/([A-Za-z0-9_-]{8,100})$/.exec(url.pathname);
       if(url.pathname.startsWith('/internal/automation-runs/')){
         const runs=store.automationRuns;
-        if(!runs||(!automationRoute&&!rulesRoute)||url.search||(automationRoute??rulesRoute)![1]!==runs.context.runId)throw new ApiError(404,'AUTOMATION_RUN_NOT_FOUND','No automatic execution run is installed here.');
+        if(!runs||(!automationRoute&&!rulesRoute&&!requestRoute)||url.search||(automationRoute??rulesRoute??requestRoute)![1]!==runs.context.runId)throw new ApiError(404,'AUTOMATION_RUN_NOT_FOUND','No automatic execution run is installed here.');
         // The dedicated worker service account may only read a prepared execution; everything else needs the signed-in run operator.
         const worker=!interactive&&!delegated&&claims.act===undefined&&claims.azp==='automation-worker'&&String(claims.preferred_username||'').startsWith('service-account-')&&String(claims.scope||'').split(' ').includes('automation.execute');
+        if(requestRoute){
+          if(!worker||req.method!=='GET')throw new ApiError(403,'AUTOMATION_ROLE_REQUIRED','Only the automation worker reads a preparation request.');
+          const preparation=runs.readPreparation(claims.sub,requestRoute[2]);
+          return send({status:200,data:preparation?{success:true,found:true,preparation}:{success:true,found:false}});
+        }
         if(rulesRoute){
           if(!worker||req.method!=='GET')throw new ApiError(403,'AUTOMATION_ROLE_REQUIRED','Only the automation worker reads the scheduling view.');
           if(!rulesRoute[2])return send({status:200,data:{success:true,rules:runs.rules(claims.sub)}});

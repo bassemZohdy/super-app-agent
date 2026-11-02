@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Inspect original automation preparations (P1-02, step)
+
+The isolated provider and worker adapter expose a read-only, worker-scoped lookup of a preparation by its original request key, with rule and run binding checks. Guide: [automation worker](development/automation-worker.md).
+
 ## 2 November 2026 — Preserve uncertain automation preparations (P1-02, step)
 
 Exhausted preparation retries and refusals after a lost or interrupted preparation remain held for reconciliation under the original request identity. Guide: [automation worker](development/automation-worker.md).
