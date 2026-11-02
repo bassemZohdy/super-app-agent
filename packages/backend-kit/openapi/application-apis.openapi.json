@@ -1261,11 +1261,20 @@
                   "type": "object",
                   "properties": {
                     "success": {
-                      "type": "boolean"
+                      "const": true
                     },
-                    "transactionId": {},
-                    "newBalance": {},
-                    "amountRecharged": {}
+                    "transactionId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "newBalance": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "amountRecharged": {
+                      "type": "number",
+                      "minimum": 0
+                    }
                   },
                   "required": [
                     "success",
@@ -2082,11 +2091,46 @@
                   "type": "object",
                   "properties": {
                     "success": {
-                      "type": "boolean"
+                      "const": true
                     },
-                    "bill": {},
-                    "receipt": {},
-                    "chargedAmount": {}
+                    "bill": {
+                      "type": "object"
+                    },
+                    "receipt": {
+                      "type": "object",
+                      "required": [
+                        "billId",
+                        "amountPaid",
+                        "currency"
+                      ],
+                      "properties": {
+                        "billId": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "receiptNumber": {
+                          "type": "string"
+                        },
+                        "premiseId": {
+                          "type": "string"
+                        },
+                        "amountPaid": {
+                          "type": "string",
+                          "pattern": "^[0-9]+\\.[0-9]{2}$"
+                        },
+                        "currency": {
+                          "const": "AED"
+                        }
+                      },
+                      "additionalProperties": true
+                    },
+                    "chargedAmount": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "remainingBalance": {
+                      "type": "number"
+                    }
                   },
                   "required": [
                     "success",
@@ -3589,13 +3633,30 @@
                   "type": "object",
                   "properties": {
                     "success": {
-                      "type": "boolean"
+                      "const": true
                     },
-                    "receiptNumber": {},
-                    "finesCleared": {},
-                    "fineIds": {},
-                    "amountPaid": {},
-                    "remainingBalance": {}
+                    "receiptNumber": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "finesCleared": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "fineIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "amountPaid": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "remainingBalance": {
+                      "type": "number"
+                    }
                   },
                   "required": [
                     "success",
@@ -5978,11 +6039,20 @@
                   "type": "object",
                   "properties": {
                     "success": {
-                      "type": "boolean"
+                      "const": true
                     },
-                    "transactionId": {},
-                    "newBalance": {},
-                    "amountRecharged": {}
+                    "transactionId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "newBalance": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "amountRecharged": {
+                      "type": "number",
+                      "minimum": 0
+                    }
                   },
                   "required": [
                     "success",
@@ -6544,10 +6614,46 @@
                   "type": "object",
                   "properties": {
                     "success": {
-                      "type": "boolean"
+                      "const": true
                     },
-                    "receipt": {},
-                    "chargedAmount": {}
+                    "receipt": {
+                      "type": "object",
+                      "required": [
+                        "billId",
+                        "amountPaid",
+                        "currency"
+                      ],
+                      "properties": {
+                        "billId": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "receiptNumber": {
+                          "type": "string"
+                        },
+                        "premiseId": {
+                          "type": "string"
+                        },
+                        "amountPaid": {
+                          "type": "string",
+                          "pattern": "^[0-9]+\\.[0-9]{2}$"
+                        },
+                        "currency": {
+                          "const": "AED"
+                        }
+                      },
+                      "additionalProperties": true
+                    },
+                    "chargedAmount": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "bill": {
+                      "type": "object"
+                    },
+                    "remainingBalance": {
+                      "type": "number"
+                    }
                   },
                   "required": [
                     "success",

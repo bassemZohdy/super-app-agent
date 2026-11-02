@@ -20,7 +20,7 @@ export const APPLICATION_SERVICES = {
 export type ApplicationService = keyof typeof APPLICATION_SERVICES;
 
 type JsonSchema = Record<string, unknown>;
-type ResponseSpec = { description: string; keys: string[] };
+type ResponseSpec = { description: string; keys: string[]; properties?: Record<string, JsonSchema> };
 type ErrorStatuses = Partial<Record<'404' | '409' | '502', string>>;
 
 export type ApplicationOperation = {
@@ -41,7 +41,11 @@ export type ApplicationOperation = {
 
 const ok = (description: string, keys: string[] = []): ResponseSpec => ({ description, keys });
 const RAW = 'Provider data passed through unchanged. Shape is defined by the provider simulator contract.';
-const ENVELOPE = (description: string, keys: string[]) => ok(description, ['success', ...keys]);
+const ENVELOPE = (description: string, keys: string[], properties?: Record<string, JsonSchema>): ResponseSpec => ({ ...ok(description, ['success', ...keys]), properties });
+const money = { type: 'number', minimum: 0 };
+const rechargeReceipt = { success: { const: true }, transactionId: { type: 'string', minLength: 1 }, newBalance: money, amountRecharged: money };
+const fineReceipt = { success: { const: true }, receiptNumber: { type: 'string', minLength: 1 }, finesCleared: { type: 'integer', minimum: 0 }, fineIds: { type: 'array', items: { type: 'string', minLength: 1 } }, amountPaid: money, remainingBalance: { type: 'number' } };
+const billReceipt = { success: { const: true }, bill: { type: 'object' }, chargedAmount: money, remainingBalance: { type: 'number' }, receipt: { type: 'object', required: ['billId', 'amountPaid', 'currency'], properties: { billId: { type: 'string', minLength: 1 }, receiptNumber: { type: 'string' }, premiseId: { type: 'string' }, amountPaid: { type: 'string', pattern: '^[0-9]+\\.[0-9]{2}$' }, currency: { const: 'AED' } }, additionalProperties: true } };
 const providerBody = (required: string[], properties: Record<string, JsonSchema>) =>
   ({ type: 'object', required, properties, additionalProperties: false }) as JsonSchema;
 const TELECOM_PROVIDER = ['etisalat', 'du'];
@@ -61,7 +65,7 @@ export const APPLICATION_OPERATIONS: ApplicationOperation[] = [
   { service: 'service-ride', method: 'GET', path: '/mobility/salik/balance', operationId: 'getTollBalance', summary: 'Get Salik toll balance', response: ok(RAW) },
   { service: 'service-ride', method: 'GET', path: '/mobility/salik/passings', operationId: 'getTollPassings', summary: 'List Salik toll passings', response: ok(RAW) },
   { service: 'service-ride', method: 'POST', path: '/mobility/salik/recharge', operationId: 'rechargeToll', summary: 'Recharge the Salik toll tag', bodyRequired: true,
-    response: ENVELOPE('Recharge receipt.', ['transactionId', 'newBalance', 'amountRecharged']), errors: { '404': 'Toll target not owned by the workspace.', ...PAYMENT_ERRORS } },
+    response: ENVELOPE('Recharge receipt.', ['transactionId', 'newBalance', 'amountRecharged'], rechargeReceipt), errors: { '404': 'Toll target not owned by the workspace.', ...PAYMENT_ERRORS } },
   { service: 'service-ride', method: 'GET', path: '/mobility/ev/chargers', operationId: 'getEvChargers', summary: 'List EV chargers', response: ok(RAW) },
   { service: 'service-ride', method: 'POST', path: '/mobility/ev/start', operationId: 'startEvSession', summary: 'Start an EV charging session', bodyRequired: true, response: ok(RAW) },
 
@@ -70,7 +74,7 @@ export const APPLICATION_OPERATIONS: ApplicationOperation[] = [
   { service: 'service-food', method: 'GET', path: '/utilities/consumption', operationId: 'getUtilityConsumption', summary: 'Get utility consumption', response: ok(RAW) },
   { service: 'service-food', method: 'GET', path: '/utilities/bill', operationId: 'getUtilityBill', summary: 'Get the current utility bill', response: ENVELOPE('Current bill with its payable revision.', ['bill']) },
   { service: 'service-food', method: 'POST', path: '/utilities/pay', operationId: 'payUtilityBill', summary: 'Pay a utility bill', bodyRequired: true,
-    response: ENVELOPE('Payment receipt.', ['bill', 'receipt', 'chargedAmount']), errors: { '404': 'Bill not found.', ...PAYMENT_ERRORS } },
+    response: ENVELOPE('Payment receipt.', ['bill', 'receipt', 'chargedAmount'], billReceipt), errors: { '404': 'Bill not found.', ...PAYMENT_ERRORS } },
   { service: 'service-food', method: 'GET', path: '/utilities/eco-advice', operationId: 'getEcoAdvice', summary: 'Get utility eco advice', response: ENVELOPE('Advice for the account premise.', ['premiseId', 'advice']) },
   { service: 'service-food', method: 'POST', path: '/orders/create', operationId: 'createFoodOrder', summary: 'Create a food order', bodyRequired: true,
     response: ENVELOPE('Confirmed order.', ['order']), errors: { '404': 'Restaurant or menu item not found.' } },
@@ -86,7 +90,7 @@ export const APPLICATION_OPERATIONS: ApplicationOperation[] = [
   { service: 'service-wallet', method: 'POST', path: '/wallet/topup', operationId: 'topUpWallet', summary: 'Top up the wallet', bodyRequired: true, response: ok(RAW) },
   { service: 'service-wallet', method: 'POST', path: '/wallet/pay', operationId: 'authorizeWalletPayment', summary: 'Pay from the wallet', bodyRequired: true, response: ok(RAW) },
   { service: 'service-wallet', method: 'POST', path: '/fines/pay', operationId: 'payFines', summary: 'Pay selected traffic fines', bodyRequired: true,
-    response: ENVELOPE('Fines receipt.', ['receiptNumber', 'finesCleared', 'fineIds', 'amountPaid', 'remainingBalance']), errors: { '404': 'Unpaid fines not found.', ...PAYMENT_ERRORS } },
+    response: ENVELOPE('Fines receipt.', ['receiptNumber', 'finesCleared', 'fineIds', 'amountPaid', 'remainingBalance'], fineReceipt), errors: { '404': 'Unpaid fines not found.', ...PAYMENT_ERRORS } },
   { service: 'service-wallet', method: 'POST', path: '/pay/unified', operationId: 'payUnified', summary: 'Pay multiple agency items in one checkout', bodyRequired: true, integratedRequired:['expectedPayables'],
     response: ENVELOPE('Completed checkout group.', ['group', 'govTransactionHash', 'settlementPlatform', 'grandTotal', 'breakdown', 'remainingBalance', 'steps']), errors: PAYMENT_ERRORS },
   { service: 'service-wallet', method: 'POST', path: '/pay/multi-agency', operationId: 'payMultiAgency', summary: 'Alias of unified checkout', bodyRequired: true, integratedRequired:['expectedPayables'],
@@ -111,13 +115,13 @@ export const APPLICATION_OPERATIONS: ApplicationOperation[] = [
   // service-telecom (Etisalat and du; paths are validated or passed through to the provider)
   { service: 'service-telecom', method: 'GET', path: '/telecom/{provider}/prepaid', operationId: 'getPrepaidLine', summary: 'Get the prepaid line', response: ENVELOPE('Prepaid line.', []), contract: '/telecom/etisalat/prepaid' },
   { service: 'service-telecom', method: 'POST', path: '/telecom/{provider}/prepaid/recharges', operationId: 'rechargePrepaidLine', summary: 'Recharge a prepaid line', bodyRequired: true, contract: '/telecom/etisalat/prepaid/recharges',
-    response: ENVELOPE('Recharge receipt.', ['transactionId', 'newBalance', 'amountRecharged']), errors: { '404': 'Recharge target not owned by the workspace.', ...PAYMENT_ERRORS } },
+    response: ENVELOPE('Recharge receipt.', ['transactionId', 'newBalance', 'amountRecharged'], rechargeReceipt), errors: { '404': 'Recharge target not owned by the workspace.', ...PAYMENT_ERRORS } },
   { service: 'service-telecom', method: 'GET', path: '/telecom/{provider}/subscriptions', operationId: 'listTelecomSubscriptions', summary: 'List subscriptions', manualSchema: NO_QUERY, response: ok(RAW) },
   { service: 'service-telecom', method: 'GET', path: '/telecom/{provider}/plans', operationId: 'listTelecomPlans', summary: 'List available plans', manualSchema: NO_QUERY, response: ok(RAW) },
   { service: 'service-telecom', method: 'GET', path: '/telecom/{provider}/bills', operationId: 'listTelecomBills', summary: 'List telecom bills', manualSchema: NO_QUERY, response: ENVELOPE('Bills with payable revisions.', ['bills']) },
   { service: 'service-telecom', method: 'POST', path: '/telecom/{provider}/bills/{billId}/payments', operationId: 'payTelecomBill', summary: 'Pay a telecom bill',
     manualSchema: { type: 'object', properties: { expectedPayableRevision: { type: 'string' }, expectedAmountMinor: { type: 'integer', minimum: 1 } } },
-    response: ENVELOPE('Payment receipt.', ['receipt', 'chargedAmount']), errors: PAYMENT_ERRORS },
+    response: ENVELOPE('Payment receipt.', ['receipt', 'chargedAmount'], billReceipt), errors: PAYMENT_ERRORS },
   { service: 'service-telecom', method: 'POST', path: '/telecom/{provider}/subscriptions/{subscriptionId}/plan', operationId: 'changeTelecomPlan', summary: 'Change a subscription plan', bodyRequired: true,
     manualSchema: providerBody(['planId'], { planId: { type: 'string', minLength: 1 } }), response: ok(RAW) },
 ];
@@ -148,6 +152,7 @@ function errorResponse(description: string) {
 function responseFor(spec: ResponseSpec) {
   const properties: Record<string, JsonSchema> = {};
   for (const key of spec.keys) properties[key] = key === 'success' ? { type: 'boolean' } : {};
+  Object.assign(properties, spec.properties);
   const schema: JsonSchema = { type: 'object', properties, ...(spec.keys.length ? { required: spec.keys } : {}), additionalProperties: true };
   return { description: spec.description, content: { 'application/json': { schema } } };
 }

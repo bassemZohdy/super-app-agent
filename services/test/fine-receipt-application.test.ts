@@ -7,6 +7,8 @@ import { join } from 'node:path';
 import { integratedRequest } from '../../packages/backend-kit/src/application.ts';
 import { ProviderClient } from '../../packages/backend-kit/src/provider-client.ts';
 import { actorFor, assetsFor } from '../../packages/backend-kit/src/context.ts';
+import { buildApplicationOpenApi } from '../../packages/backend-kit/src/application-openapi.ts';
+import { Ajv } from 'ajv';
 
 test('compatibility fine receipts use the exact frozen and settled selection', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'fines-contract-')), previous = process.env.APP_DATA_DIR;
@@ -30,6 +32,8 @@ test('compatibility fine receipts use the exact frozen and settled selection', a
   });
   const run = () => integratedRequest('service-wallet', actor, 'POST', '/fines/pay', {}, { fineIds: ['fine-one', 'fine-two'], expectedAmountMinor: 115 }, () => ({ status: 404, data: {} }));
   const good = await run(); assert.equal(good.status, 200); assert.deepEqual(good.data.fineIds, ['fine-one', 'fine-two']);
+  const operation = buildApplicationOpenApi().paths['/fines/pay'].post as { responses: { '200': { content: { 'application/json': { schema: object } } } } };
+  assert.equal(new Ajv({ strict: false }).compile(operation.responses['200'].content['application/json'].schema)(good.data), true);
   scenario = 'wrong-selection'; const before = orders; const badSelection = await run(); assert.notEqual(badSelection.status, 200); assert.equal(orders, before);
   for (scenario of ['wrong-order', 'wrong-total']) { const beforeApproval = approvals, beforeExecution = executions; const bad = await run(); assert.equal(bad.status, 503); assert.equal(bad.data.code, 'PROVIDER_OUTCOME_UNKNOWN'); assert.equal(approvals, beforeApproval); assert.equal(executions, beforeExecution); }
   scenario = 'wrong-authorized'; const priorExecution = executions; const changed = await run(); assert.equal(changed.status, 503); assert.equal(changed.data.code, 'PROVIDER_OUTCOME_UNKNOWN'); assert.equal(executions, priorExecution);

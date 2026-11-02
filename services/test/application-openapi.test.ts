@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import SwaggerParser from '@apidevtools/swagger-parser';
 import { buildApplicationOpenApi, APPLICATION_OPERATIONS, APPLICATION_SERVICES } from '../../packages/backend-kit/src/application-openapi.ts';
 import { requestSchema } from '../../packages/protocol-core/src/request-validation.ts';
+import { Ajv } from 'ajv';
 
 const checkedIn = new URL('../../packages/backend-kit/openapi/application-apis.openapi.json', import.meta.url);
 const handlerSources = ['../../packages/backend-kit/src/application.ts', '../../packages/protocol-core/src/request-validation.ts']
@@ -50,5 +51,26 @@ test('integrated grouped-checkout contracts require the reviewed payable selecti
   for(const path of ['/pay/unified','/pay/multi-agency']) {
     const operation = document.paths[path].post as { requestBody: { content: { 'application/json': { schema: { required: string[] } } } } };
     assert.ok(operation.requestBody.content['application/json'].schema.required.includes('expectedPayables'));
+  }
+});
+
+test('integrated payment receipt contracts describe types and reject malformed success responses', () => {
+  const document = buildApplicationOpenApi(), ajv = new Ajv({ strict: false });
+  const check = (path: string) => {
+    const operation = document.paths[path].post as { responses: { '200': { content: { 'application/json': { schema: object } } } } };
+    return ajv.compile(operation.responses['200'].content['application/json'].schema);
+  };
+  const fines = check('/fines/pay');
+  const fineReceipt = { success: true, receiptNumber: 'receipt-1', finesCleared: 1, fineIds: ['fine-1'], amountPaid: 10, remainingBalance: 50 };
+  assert.equal(fines(fineReceipt), true);
+  for (const invalid of [{ ...fineReceipt, success: false }, { ...fineReceipt, fineIds: 'fine-1' }, { ...fineReceipt, finesCleared: 1.5 }, { ...fineReceipt, amountPaid: '10' }]) assert.equal(fines(invalid), false);
+  const bill = check('/utilities/pay');
+  const billReceipt = { success: true, bill: { billId: 'bill-1' }, chargedAmount: 45, receipt: { billId: 'bill-1', receiptNumber: 'r1', amountPaid: '45.00', currency: 'AED' } };
+  assert.equal(bill(billReceipt), true);
+  for (const invalid of [{ ...billReceipt, chargedAmount: '45' }, { ...billReceipt, receipt: { ...billReceipt.receipt, currency: 'USD' } }, { ...billReceipt, receipt: { ...billReceipt.receipt, amountPaid: '45 AED' } }]) assert.equal(bill(invalid), false);
+  for (const path of ['/mobility/salik/recharge', '/telecom/{provider}/prepaid/recharges']) {
+    const recharge = check(path), receipt = { success: true, transactionId: 'tx-1', newBalance: 20, amountRecharged: 10 };
+    assert.equal(recharge(receipt), true);
+    assert.equal(recharge({ ...receipt, amountRecharged: '10' }), false);
   }
 });

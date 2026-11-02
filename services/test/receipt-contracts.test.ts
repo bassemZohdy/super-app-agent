@@ -8,6 +8,13 @@ import { integratedRequest } from '../../packages/backend-kit/src/application.ts
 import { ProviderClient } from '../../packages/backend-kit/src/provider-client.ts';
 import { actorFor, assetsFor } from '../../packages/backend-kit/src/context.ts';
 import { restaurants } from '../service-food/src/index.ts';
+import { buildApplicationOpenApi } from '../../packages/backend-kit/src/application-openapi.ts';
+import { Ajv } from 'ajv';
+
+function receiptSchema(path: string) {
+  const operation = buildApplicationOpenApi().paths[path].post as { responses: { '200': { content: { 'application/json': { schema: object } } } } };
+  return new Ajv({ strict: false }).compile(operation.responses['200'].content['application/json'].schema);
+}
 
 // Exercise the actual application mapping, not an invented UI receipt fixture.
 test('integrated receipt mappings preserve utility premise, owned fine plate/discount and dining delivery fields', async t => {
@@ -39,6 +46,7 @@ test('integrated receipt mappings preserve utility premise, owned fine plate/dis
   const pay = () => integratedRequest('service-food', actor, 'POST', '/utilities/pay', {}, { billId: bill.billId }, legacy);
   const paid = await pay(); assert.equal(paid.status, 200); assert.equal(paid.data.receipt.premiseId, bill.premiseId);
   status = 'PAID'; const replay = await pay(); assert.equal(replay.data.receipt.premiseId, bill.premiseId); assert.equal(captures, 1);
+  const validReceipt = receiptSchema('/utilities/pay'); assert.equal(validReceipt(paid.data), true); assert.equal(validReceipt(replay.data), true);
   const mismatch = await integratedRequest('service-food', actor, 'POST', '/utilities/pay', {}, { billId: bill.billId, expectedAmountMinor: 42041 }, legacy);
   assert.equal(mismatch.status, 409); assert.equal(mismatch.data.code, 'PAYABLE_CHANGED'); assert.equal(captures, 1);
   const matching = await integratedRequest('service-food', actor, 'POST', '/utilities/pay', {}, { billId: bill.billId, expectedAmountMinor: 42040 }, legacy);
@@ -71,6 +79,7 @@ test('paid telecom bill refuses a mismatched reviewed amount without creating an
     assert.equal(mismatch.status, 409); assert.equal(mismatch.data.code, 'PAYABLE_CHANGED');
     const matching = await pay(4500);
     assert.equal(matching.status, 200); assert.equal(matching.data.receipt.billId, 'bill123');
+    assert.equal(receiptSchema('/telecom/{provider}/bills/{billId}/payments')(matching.data), true);
   }
   assert.equal(writes, 0);
 });

@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Type application payment receipt contracts (P2-04, step)
+
+Application OpenAPI now describes the types of fine, utility and telecom bill, and toll and prepaid recharge receipt fields, with checks against mapped application responses. Guide: [application API](development/application-api.md).
+
 ## 2 November 2026 — Bound current-eligibility reads (P1-10, step)
 
 The shared authority reader limits response bytes, refuses contradictory success responses and cancels rejected bodies before a token retry. Guide: [payment lifecycle](development/payment-lifecycle.md).
