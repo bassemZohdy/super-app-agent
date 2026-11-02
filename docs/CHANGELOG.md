@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 3 November 2026 - Keep operation keys out of simulator errors (P1-02, step)
+
+Focused payment and renewal refusals use a fresh request nonce for correlation instead of returning the operation key. Guide: [security](security.md).
+
 ## 3 November 2026 - Bind focused write refusals to their operation (P1-02, step)
 
 Simulator payment and renewal refusals identify the dispatched operation; missing or mismatched identities leave the original outcome unresolved. Guide: [security](security.md).

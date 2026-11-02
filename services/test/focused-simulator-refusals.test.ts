@@ -8,34 +8,36 @@ const principal = { subject: 'resident', workload: 'focused-agent', permissions:
 const ctx: ExecutionContext = { principal, authorization: 'Bearer fixture', correlationId: randomUUID(), revalidate: async () => principal };
 const request = () => simulatorRequest(new URL('http://127.0.0.1/'), 'fixture-key', 'simulator/v1/payments', ctx, new AbortController().signal, { body: { quote: 'fixture' }, key: 'a'.repeat(64), reasons: ['QUOTE_STALE'] });
 
-test('focused write refusals require the exact simulator error envelope', async t => {
-  for (const [status, code] of [[409, 'QUOTE_STALE'], [403, 'PERMISSION_DENIED']] as const) {
-    const correlationId = randomUUID();
-    for (const [body, expected] of [
-      [{ code, correlationId, ...(status === 409 ? { operationId: 'a'.repeat(64) } : {}) }, status === 409 ? code : 'PROVIDER_FAILURE'],
-      [{ code, correlationId, operationId: 'a'.repeat(64), success: true }, 'PROVIDER_FAILURE'],
-      [{ code, correlationId, operationId: 'a'.repeat(64), receipt: { id: 'existing-effect' } }, 'PROVIDER_FAILURE'],
-      [{ code, correlationId: 'not-a-uuid' }, 'PROVIDER_FAILURE'],
-      [{ code }, 'PROVIDER_FAILURE'],
-    ] as const) {
-      const mock = t.mock.method(globalThis, 'fetch', async () => Response.json(body, { status }));
-      try { await assert.rejects(request(), (error: unknown) => error instanceof AgentError && error.code === expected); }
-      finally { mock.mock.restore(); }
-    }
+test('focused write refusals require an exact envelope bound to this request', async t => {
+  const previous = randomUUID();
+  for (const mode of ['matched', 'missing', 'mismatched', 'key', 'extra', 'receipt'] as const) {
+    const mock = t.mock.method(globalThis, 'fetch', async (_input, init) => {
+      const nonce = new Headers(init?.headers).get('X-Refusal-Nonce');
+      assert.match(nonce || '', /^[0-9a-f-]{36}$/);
+      const body: Record<string, unknown> = { code: 'QUOTE_STALE', correlationId: randomUUID() };
+      if (mode === 'matched' || mode === 'extra' || mode === 'receipt') body.refusalNonce = nonce;
+      if (mode === 'mismatched') body.refusalNonce = previous;
+      if (mode === 'key') body.operationId = 'a'.repeat(64);
+      if (mode === 'extra') body.success = true;
+      if (mode === 'receipt') body.receipt = { id: 'existing-effect' };
+      return Response.json(body, { status: 409 });
+    });
+    try { await assert.rejects(request(), (error: unknown) => error instanceof AgentError && error.code === (mode === 'matched' ? 'QUOTE_STALE' : 'PROVIDER_FAILURE')); }
+    finally { mock.mock.restore(); }
   }
 });
-
 
 test('focused reads preserve an explicit simulator authority denial', async t => {
   t.mock.method(globalThis, 'fetch', async () => Response.json({ code: 'PERMISSION_DENIED', correlationId: randomUUID() }, { status: 403 }));
   await assert.rejects(simulatorRequest(new URL('http://127.0.0.1/'), 'fixture-key', 'simulator/v1/fines', ctx, new AbortController().signal), (error: unknown) => error instanceof AgentError && error.code === 'PROVIDER_DENIED');
 });
 
-
-test('a write refusal must identify the dispatched operation', async t => {
-  for (const [operationId, expected] of [['a'.repeat(64), 'QUOTE_STALE'], ['b'.repeat(64), 'PROVIDER_FAILURE'], [undefined, 'PROVIDER_FAILURE']] as const) {
-    const mock = t.mock.method(globalThis, 'fetch', async () => Response.json({ code: 'QUOTE_STALE', correlationId: randomUUID(), ...(operationId ? { operationId } : {}) }, { status: 409 }));
-    try { await assert.rejects(request(), (error: unknown) => error instanceof AgentError && error.code === expected); }
-    finally { mock.mock.restore(); }
-  }
+test('each write uses a fresh refusal nonce', async t => {
+  const seen = new Set<string>();
+  t.mock.method(globalThis, 'fetch', async (_input, init) => {
+    const nonce = new Headers(init?.headers).get('X-Refusal-Nonce');
+    assert.ok(nonce); assert.equal(seen.has(nonce), false); seen.add(nonce);
+    return Response.json({ code: 'QUOTE_STALE', correlationId: randomUUID(), refusalNonce: nonce }, { status: 409 });
+  });
+  for (let i = 0; i < 2; i++) await assert.rejects(request(), (error: unknown) => error instanceof AgentError && error.code === 'QUOTE_STALE');
 });

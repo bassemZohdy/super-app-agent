@@ -49,6 +49,14 @@ test('renewal is refused while fines are outstanding, then succeeds exactly once
     const first = approve(quote);
     const blocked = await renew(quote, first.consentId, first.key);
     assert.equal(blocked.status, 409); assert.equal(blocked.data.code, 'FINES_OUTSTANDING');
+    assert.equal(JSON.stringify(blocked.data).includes(first.key), false, 'the error must not expose the operation key');
+    const nonce = randomUUID();
+    const correlated = await h.req('/simulator/v1/renewals', { quote, consentId: first.consentId }, { key: first.key, headers: { ...headers, 'X-Refusal-Nonce': nonce } });
+    assert.equal(correlated.status, 409); assert.equal(correlated.data.refusalNonce, nonce);
+    assert.equal(JSON.stringify(correlated.data).includes(first.key), false);
+    const malformed = await h.req('/simulator/v1/renewals', { quote, consentId: first.consentId }, { key: first.key, headers: { ...headers, 'X-Refusal-Nonce': 'not-a-uuid' } });
+    assert.equal(malformed.status, 409); assert.equal('refusalNonce' in malformed.data, false);
+    assert.equal(JSON.stringify(malformed.data).includes(first.key), false);
     assert.equal(count(h, 'sa_sim_renewals'), 0);
     payFines();
     const done = await renew(quote, first.consentId, first.key);

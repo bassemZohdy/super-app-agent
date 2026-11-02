@@ -128,10 +128,10 @@ export function createServer(service: AgentService, auth: Authenticator, workloa
       }
       if (res.headersSent) res.end(`event: error\ndata: ${JSON.stringify({ code, correlationId })}\n\n`);
       else {
-        const key = req.headers['idempotency-key'];
+        const nonce = z.string().uuid().safeParse(req.headers['x-refusal-nonce']);
         const writeRefusal = status === 409 && req.method === 'POST' && ['/simulator/v1/payments', '/simulator/v1/renewals'].includes(requestPath)
-          && equalSecret(String(req.headers['x-agent-key'] || ''), workloadKey) && typeof key === 'string' && /^[a-f0-9]{64}$/.test(key);
-        send(status, { code, correlationId, ...(writeRefusal ? { operationId: key } : {}) });
+          && equalSecret(String(req.headers['x-agent-key'] || ''), workloadKey) && nonce.success;
+        send(status, { code, correlationId, ...(writeRefusal ? { refusalNonce: nonce.data } : {}) });
       }
     });
   });
