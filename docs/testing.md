@@ -1,5 +1,7 @@
 # Focused agent verification
 
+For the compatibility API, `npm run qualify -- run -- npm run demo:verify:group-selection` exercises selected-fine grouped checkout using the synthetic household account on a freshly created isolated qualification stack. It checks refused stale, duplicate, unknown and changed selections, settlement of only the selected fine and toll target, unchanged unrelated resources, and replay without a second debit. The script refuses non-qualification ports; it changes the qualification account and expects its initial fixtures, so use a fresh disposable qualification stack. It does not establish real-provider or production identity behavior.
+
 ```bash
 npm ci --ignore-scripts
 npm rebuild better-sqlite3

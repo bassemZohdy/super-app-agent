@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Verify selected grouped checkout on Compose (P0-08, step)
+
+An isolated authenticated qualification-stack check exercises rejected selections, a selected fine and toll recharge, unchanged unrelated resources and original-request replay. It ran against source revision `9cf6ffa` with Node 24.16.0, Docker 29.9.2 and Compose 5.6.1; the full application contract write check also passed on that stack. This is synthetic Compose evidence, not real-provider or native-device qualification. Guide: [testing](testing.md).
+
 ## 2 November 2026 — Select reviewed grouped-checkout payables (P1-13, step)
 
 Integrated manual grouped checkout now requires reviewed bill and fine IDs and revisions and plans only those payables; an empty selection means recharge only. It rejects stale, duplicate or unknown selections and checks the selected fine set. The utility bill read exposes its payable ID, the integrated OpenAPI and verification scripts are updated, and the offline fixture refuses selected-resource requests. Guide: [integrations](integrations.md).
