@@ -42,6 +42,17 @@ export async function* readEventStream(response: Response): AsyncGenerator<Strea
   }
 }
 
+/** Stop waiting when closed; an uncancellable refresh may finish later but cannot start a stream. */
+async function tokenOrAbort(getToken: () => string | Promise<string>, signal: AbortSignal): Promise<string | undefined> {
+  let onAbort!: () => void;
+  const aborted = new Promise<undefined>(resolve => {
+    onAbort = () => resolve(undefined);
+    if (signal.aborted) onAbort(); else signal.addEventListener('abort', onAbort, { once: true });
+  });
+  try { return await Promise.race([Promise.resolve().then(() => signal.aborted ? undefined : getToken()), aborted]); }
+  finally { signal.removeEventListener('abort', onAbort); }
+}
+
 /** Tokens stay in headers. Caller supplies an in-memory token getter (including refresh). */
 export async function connectEventStream(options: {
   url: string;
@@ -53,7 +64,8 @@ export async function connectEventStream(options: {
   let cursor = '', delay = 500;
   while (!options.signal.aborted) {
     try {
-      const token = await options.getToken();
+      const token = await tokenOrAbort(options.getToken, options.signal);
+      if (options.signal.aborted || token === undefined) return;
       const headers: Record<string, string> = { Authorization: `Bearer ${token}`, Accept: 'text/event-stream' };
       if (cursor) headers['Last-Event-ID'] = cursor;
       const response = await fetch(options.url, { headers, signal: options.signal, cache: 'no-store', redirect: 'error' });

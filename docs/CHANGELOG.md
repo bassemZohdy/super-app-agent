@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 3 November 2026 - Stop streams during token acquisition (P0-02, step)
+
+Closing a browser event stream no longer waits for token acquisition, and a late token cannot start a connection. Guide: [security](security.md).
+
 ## 3 November 2026 - Bound browser stream cancellation (P0-02, step)
 
 Browser stream readers and focused-agent failures request cancellation without waiting for an uncooperative upstream, retaining unknown outcomes for recovery. Guide: [security](security.md).

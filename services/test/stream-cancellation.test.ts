@@ -80,3 +80,32 @@ test('stale cursor and terminal responses are cancelled before reconnect or stop
   assert.equal(requests[2].get('Last-Event-ID'), null);
   assert.equal(stale.wasCancelled(), true); assert.equal(refused.wasCancelled(), true);
 });
+
+
+test('closing a stream while token acquisition is pending returns promptly and never connects', async t => {
+  const controller = new AbortController();
+  let release!: (value: string) => void, fetches = 0, started = false;
+  const token = new Promise<string>(resolve => { release = resolve; });
+  t.mock.method(globalThis, 'fetch', async () => { fetches++; return new Response('', { status: 401 }); });
+  const run = connectEventStream({ url: 'http://localhost/stream', getToken: () => { started = true; return token; }, signal: controller.signal, onMessage: () => {} });
+  await Promise.resolve(); assert.equal(started, true);
+  controller.abort();
+  await within(run);
+  release('late-test-token');
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(fetches, 0, 'late authentication must not start a request after closure');
+});
+
+test('closing a stream tolerates a later rejected token request', async t => {
+  const controller = new AbortController();
+  let rejectToken!: (error: Error) => void, fetches = 0, started = false;
+  const token = new Promise<string>((_resolve, reject) => { rejectToken = reject; });
+  t.mock.method(globalThis, 'fetch', async () => { fetches++; return new Response('', { status: 401 }); });
+  const run = connectEventStream({ url: 'http://localhost/stream', getToken: () => { started = true; return token; }, signal: controller.signal, onMessage: () => {} });
+  await Promise.resolve(); assert.equal(started, true);
+  controller.abort();
+  await within(run);
+  rejectToken(new Error('private token failure'));
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(fetches, 0);
+});
