@@ -28,6 +28,7 @@ const aed = (minor: number) => `AED ${(minor / 100).toFixed(2)}`;
 const paidSentence = (receipt: Receipt | null | undefined) => receipt ? `Simulated fines payment completed: ${aed(receipt.quote.amountMinor)}. ` : '';
 // A refusal here is definitive: the simulator or the authority check said no, so no renewal exists.
 const REFUSED = ['AUTHORITY_EXPIRED', 'PERMISSION_DENIED', 'AUTHORITY_CHANGED', 'CONSENT_REQUIRED_OR_EXPIRED', 'APPROVAL_EXPIRED', 'PROVIDER_DENIED', 'QUOTE_STALE', 'FINES_OUTSTANDING'];
+const RECONCILIATION_REPLY = 'A previous operation is not confirmed. Inspect and recover the original interaction before starting another.';
 
 /** Acyclic, bounded graph. Only list, execute and the renewal nodes invoke business tools. */
 export function createGraph(planner: Planner, tools: FinesAdapter, vehicles: VehiclesAdapter, store: Store, checkpointer: BaseCheckpointSaver, approvalTtlMs = 300000) {
@@ -52,6 +53,7 @@ export function createGraph(planner: Planner, tools: FinesAdapter, vehicles: Veh
       progress('listVehicles');
       // Refuse before any fine is paid: a resident who cannot renew must not be asked to clear fines for it.
       authorize(context().principal, 'vehicles:renew');
+      if (store.hasUnresolvedOperation(context().principal.subject)) return { status: 'reconciliation_required', reply: RECONCILIATION_REPLY };
       try {
         const due = await invokeTool(vehicles.list, {}, context());
         if (!due.length) return { vehicles: [], status: 'complete', reply: 'No vehicle is due for a simulated registration renewal.' };
@@ -66,6 +68,7 @@ export function createGraph(planner: Planner, tools: FinesAdapter, vehicles: Veh
     .addNode('prepare', state => {
       progress('prepare');
       authorize(context().principal, 'fines:pay');
+      if (store.hasUnresolvedOperation(context().principal.subject)) return { status: 'reconciliation_required', reply: RECONCILIATION_REPLY };
       const renewing = state.plan.intent === 'renew_registration';
       const ids = renewing ? [] : [...new Set(state.plan.fineIds)];
       const fines = ids.length ? state.fines.filter(f => ids.includes(f.id)) : state.fines;
@@ -95,7 +98,7 @@ export function createGraph(planner: Planner, tools: FinesAdapter, vehicles: Veh
         authorize(principal, 'fines:pay');
         await store.consent(pending.id, principal, pending.key, pending.quote, pending.expiresAt);
         await store.verifyConsent(pending.id, principal, pending.key, pending.quote);
-        const prior = await store.operation(pending.key, principal.subject, pending.quote);
+        const prior = await store.operation(pending.key, principal.subject, pending.quote, pending.id);
         // Retrying this one provider is safe ONLY because it durably implements this original key.
         const receipt = prior || await invokeTool(tools.pay, { quote: pending.quote, consentId: pending.id }, { ...ctx, principal }, pending.key);
         if (receipt.idempotencyKey !== pending.key || digest(receipt.quote) !== digest(pending.quote)) throw new AgentError('RECEIPT_MISMATCH', 502);
@@ -103,8 +106,13 @@ export function createGraph(planner: Planner, tools: FinesAdapter, vehicles: Veh
         return { receipt, status: 'complete', reply: `Simulated payment completed: ${aed(receipt.quote.amountMinor)}. No real funds were used.` };
       } catch (error) {
         const code = error instanceof AgentError ? error.code : 'PAYMENT_OUTCOME_UNKNOWN';
+        if (code === 'OTHER_OPERATION_PENDING') return { status: 'reconciliation_required', reply: RECONCILIATION_REPLY };
+        if (!hadOperation && REFUSED.includes(code)) {
+          store.releaseRefusedOperation(pending.key, context().principal.subject, pending.id);
+          return { status: code === 'QUOTE_STALE' ? 'stale' : 'denied', reply: `Payment not confirmed (${code}). No payment was made.` };
+        }
         await store.finish(pending.key);
-        return { status: hadOperation ? 'unknown' : ['AUTHORITY_EXPIRED', 'PERMISSION_DENIED', 'AUTHORITY_CHANGED', 'CONSENT_REQUIRED_OR_EXPIRED', 'APPROVAL_EXPIRED', 'PROVIDER_DENIED'].includes(code) ? 'denied' : code === 'QUOTE_STALE' ? 'stale' : 'unknown', reply: `Payment not confirmed (${code}). Inspect this interaction; never create a replacement payment for an unknown outcome.` };
+        return { status: 'unknown', reply: `Payment not confirmed (${code}). Inspect this interaction; never create a replacement payment for an unknown outcome.` };
       }
     })
     .addNode('renewPrepare', state => {
@@ -116,6 +124,7 @@ export function createGraph(planner: Planner, tools: FinesAdapter, vehicles: Veh
         if (!state.receipt) throw error;
         return { status: 'partial', reply: `${paid}The registration was not renewed (${error instanceof AgentError ? error.code : 'PERMISSION_DENIED'}).` };
       }
+      if (store.hasUnresolvedOperation(context().principal.subject)) return { status: 'reconciliation_required', reply: `${paid}${RECONCILIATION_REPLY}` };
       const vehicle = state.vehicles[0];
       if (!vehicle) return { status: state.receipt ? 'partial' : 'complete', reply: `${paid}No vehicle is due for a simulated registration renewal.` };
       const quote = RenewalQuote.parse({ vehicleId: vehicle.id, amountMinor: vehicle.renewalFeeMinor, currency: 'AED', version: vehicle.version });
@@ -144,7 +153,7 @@ export function createGraph(planner: Planner, tools: FinesAdapter, vehicles: Veh
         authorize(principal, 'vehicles:renew');
         await store.renewalConsent(pending.id, principal, pending.key, pending.quote, pending.expiresAt);
         await store.verifyRenewalConsent(pending.id, principal, pending.key, pending.quote);
-        const prior = await store.renewalOperation(pending.key, principal.subject, pending.quote);
+        const prior = await store.renewalOperation(pending.key, principal.subject, pending.quote, pending.id);
         // Retrying this one provider is safe ONLY because it durably implements this original key.
         const receipt = prior || await invokeTool(vehicles.renew, { quote: pending.quote, consentId: pending.id }, { ...ctx, principal }, pending.key);
         if (receipt.idempotencyKey !== pending.key || digest(receipt.quote) !== digest(pending.quote)) throw new AgentError('RECEIPT_MISMATCH', 502);
@@ -152,7 +161,11 @@ export function createGraph(planner: Planner, tools: FinesAdapter, vehicles: Veh
         return { renewal: receipt, status: 'complete', reply: `${paid}Simulated registration renewal completed: ${aed(receipt.quote.amountMinor)}. No real funds were used.` };
       } catch (error) {
         const code = error instanceof AgentError ? error.code : 'RENEWAL_OUTCOME_UNKNOWN';
-        if (!hadOperation && REFUSED.includes(code)) return { status: state.receipt ? 'partial' : code === 'QUOTE_STALE' ? 'stale' : 'denied', reply: `${paid}The registration was not renewed (${code}). No renewal was made.` };
+        if (code === 'OTHER_OPERATION_PENDING') return { status: 'reconciliation_required', reply: `${paid}${RECONCILIATION_REPLY}` };
+        if (!hadOperation && REFUSED.includes(code)) {
+          store.releaseRefusedOperation(pending.key, context().principal.subject, pending.id);
+          return { status: state.receipt ? 'partial' : code === 'QUOTE_STALE' ? 'stale' : 'denied', reply: `${paid}The registration was not renewed (${code}). No renewal was made.` };
+        }
         // An unknown outcome blocks any replacement until the same operation is reconciled.
         await store.finish(pending.key);
         return { status: 'unknown', reply: `Renewal not confirmed (${code}). ${paid ? 'The fines payment is complete. ' : ''}Inspect this interaction; never create a replacement renewal for an unknown outcome.` };

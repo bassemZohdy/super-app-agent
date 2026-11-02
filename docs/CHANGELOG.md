@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Fence unresolved operations across conversations (P0-06, step)
+
+The focused agent now reserves one pending or unknown operation per resident in SQLite and binds its retry to the original consent. New payment and renewal reviews, including approvals opened before the reservation, cannot dispatch while another operation is unresolved; read-only requests and other residents remain available. Explicit initial refusals release their reservation. On upgrade, an older unresolved operation is bound only when its consent is unambiguous; ambiguous records remain blocked for inspection. Tests cover concurrent and separate conversations, both journeys, reopen, legacy records and subject isolation. This is a single-process local-demo guard, not distributed locking or production reconciliation. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Verify authority-loss recovery after reopening SQLite (P0-06, step)
 
 The focused payment and renewal recovery tests now close and reopen the SQLite-backed harness after a simulated effect and lost response, before testing expired consent and revoked permission. Both remain unknown and block replacement; after test authority is restored, recovery returns the original operation without a second effect. This is an in-process reopen, not a crash, real identity or distributed failover test. Guide: [testing](testing.md).

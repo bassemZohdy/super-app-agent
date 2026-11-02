@@ -6,7 +6,7 @@ import { AgentError, Fine, Quote, Receipt, RenewalQuote, RenewalReceipt, Vehicle
 
 type Thread = { subject: string; workload: string; expires_at: number; cancelled: number };
 type Consent = { quote: string; expires_at: number };
-type Operation = { subject: string; quote: string; receipt: string | null };
+type Operation = { subject: string; quote: string; status: 'pending' | 'unknown' | 'complete'; receipt: string | null };
 export class Store {
   private readonly active = new Set<string>();
   readonly db: Database;
@@ -28,6 +28,9 @@ export class Store {
       CREATE TABLE IF NOT EXISTS sa_operations (
         key TEXT PRIMARY KEY, subject TEXT NOT NULL, quote TEXT NOT NULL,
         status TEXT NOT NULL CHECK(status IN ('pending','unknown','complete')), receipt TEXT);
+      CREATE TABLE IF NOT EXISTS sa_operation_owners (
+        operation_key TEXT PRIMARY KEY REFERENCES sa_operations(key) ON DELETE CASCADE, consent_id TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS sa_operations_subject_status ON sa_operations(subject,status);
       CREATE TABLE IF NOT EXISTS sa_sim_accounts (subject TEXT PRIMARY KEY);
       CREATE TABLE IF NOT EXISTS sa_sim_fines (
         subject TEXT NOT NULL, id TEXT NOT NULL, fine TEXT NOT NULL,
@@ -40,6 +43,10 @@ export class Store {
         renewal_id TEXT, PRIMARY KEY(subject,id));
       CREATE TABLE IF NOT EXISTS sa_sim_renewals (
         key TEXT PRIMARY KEY, subject TEXT NOT NULL, quote TEXT NOT NULL, receipt TEXT NOT NULL);
+      -- Upgrade legacy unresolved rows only when one consent can be identified without guessing.
+      INSERT OR IGNORE INTO sa_operation_owners(operation_key, consent_id)
+        SELECT o.key, MIN(c.id) FROM sa_operations o JOIN sa_consents c ON c.operation_key=o.key AND c.subject=o.subject
+        WHERE o.status IN ('pending','unknown') GROUP BY o.key HAVING COUNT(*)=1;
     `);
   }
   ready() { this.db.prepare('SELECT 1').get(); }
@@ -96,17 +103,45 @@ export class Store {
   hasOperation(key: string, subject: string): boolean {
     return !!this.db.prepare('SELECT 1 FROM sa_operations WHERE key=? AND subject=?').get(key, subject);
   }
-  operation(key: string, subject: string, quote: Quote): Receipt | undefined {
-    this.db.prepare("INSERT INTO sa_operations VALUES(?,?,?,'pending',NULL) ON CONFLICT(key) DO NOTHING").run(key, subject, JSON.stringify(quote));
-    const row = this.db.prepare('SELECT * FROM sa_operations WHERE key=?').get(key) as Operation;
-    if (row.subject !== subject || digest(Quote.parse(JSON.parse(row.quote))) !== digest(quote)) throw new AgentError('IDEMPOTENCY_CONFLICT', 409);
-    return row.receipt ? Receipt.parse(JSON.parse(row.receipt)) : undefined;
+  hasUnresolvedOperation(subject: string): boolean {
+    return !!this.db.prepare("SELECT 1 FROM sa_operations WHERE subject=? AND status IN ('pending','unknown') LIMIT 1").get(subject);
   }
-  renewalOperation(key: string, subject: string, quote: RenewalQuote): RenewalReceipt | undefined {
-    this.db.prepare("INSERT INTO sa_operations VALUES(?,?,?,'pending',NULL) ON CONFLICT(key) DO NOTHING").run(key, subject, JSON.stringify(quote));
-    const row = this.db.prepare('SELECT * FROM sa_operations WHERE key=?').get(key) as Operation;
-    if (row.subject !== subject || digest(RenewalQuote.parse(JSON.parse(row.quote))) !== digest(quote)) throw new AgentError('IDEMPOTENCY_CONFLICT', 409);
-    return row.receipt ? RenewalReceipt.parse(JSON.parse(row.receipt)) : undefined;
+  /** Atomically reserve one operation per subject, binding retries to its original consent. */
+  private reserveOperation<T>(key: string, subject: string, quote: T, consentId: string, schema: z.ZodType<T>): string | null {
+    return this.db.transaction(() => {
+      const row = this.db.prepare('SELECT * FROM sa_operations WHERE key=?').get(key) as Operation | undefined;
+      if (row) {
+        if (row.subject !== subject || digest(schema.parse(JSON.parse(row.quote))) !== digest(quote)) throw new AgentError('IDEMPOTENCY_CONFLICT', 409);
+        if (row.status === 'complete') return row.receipt;
+        let owner = this.db.prepare('SELECT consent_id FROM sa_operation_owners WHERE operation_key=?').get(key) as { consent_id: string } | undefined;
+        if (!owner) {
+          // Older databases have no owner record. Recover only when the original consent is unambiguous.
+          const candidates = this.db.prepare('SELECT id FROM sa_consents WHERE operation_key=? AND subject=? LIMIT 2').all(key, subject) as Array<{ id: string }>;
+          if (candidates.length !== 1) throw new AgentError('OPERATION_OWNER_AMBIGUOUS', 409);
+          if (candidates[0].id !== consentId) throw new AgentError('OTHER_OPERATION_PENDING', 409);
+          this.db.prepare('INSERT INTO sa_operation_owners VALUES(?,?)').run(key, consentId);
+          owner = { consent_id: consentId };
+        }
+        if (owner.consent_id !== consentId) throw new AgentError('OTHER_OPERATION_PENDING', 409);
+        return null;
+      }
+      if (this.hasUnresolvedOperation(subject)) throw new AgentError('OTHER_OPERATION_PENDING', 409);
+      this.db.prepare("INSERT INTO sa_operations VALUES(?,?,?,'pending',NULL)").run(key, subject, JSON.stringify(quote));
+      this.db.prepare('INSERT INTO sa_operation_owners VALUES(?,?)').run(key, consentId);
+      return null;
+    }).immediate();
+  }
+  operation(key: string, subject: string, quote: Quote, consentId: string): Receipt | undefined {
+    const receipt = this.reserveOperation(key, subject, quote, consentId, Quote);
+    return receipt ? Receipt.parse(JSON.parse(receipt)) : undefined;
+  }
+  renewalOperation(key: string, subject: string, quote: RenewalQuote, consentId: string): RenewalReceipt | undefined {
+    const receipt = this.reserveOperation(key, subject, quote, consentId, RenewalQuote);
+    return receipt ? RenewalReceipt.parse(JSON.parse(receipt)) : undefined;
+  }
+  /** Only an initial, explicit refusal can release a reservation with no effect. */
+  releaseRefusedOperation(key: string, subject: string, consentId: string) {
+    this.db.prepare("DELETE FROM sa_operations WHERE key=? AND subject=? AND status='pending' AND EXISTS (SELECT 1 FROM sa_operation_owners WHERE operation_key=? AND consent_id=?)").run(key, subject, key, consentId);
   }
   finish(key: string, receipt?: Receipt | RenewalReceipt) {
     if (receipt) this.db.prepare("UPDATE sa_operations SET status='complete',receipt=? WHERE key=?").run(JSON.stringify(receipt), key);

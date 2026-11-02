@@ -187,8 +187,11 @@ test('two independently approved threads cannot pay the same fine set twice', as
     const reviews = await Promise.all(roots.map(root => h.req(`${root}/messages`, { message: 'pay fines' })));
     assert.equal(reviews[0].data.approval.key, reviews[1].data.approval.key);
     const payments = await Promise.all(roots.map((root, i) => h.req(`${root}/resume`, { approvalId: reviews[i].data.approval.id, decision: 'approve' })));
-    assert.equal(payments[0].data.status, 'complete'); assert.equal(payments[1].data.status, 'complete');
-    assert.equal(payments[0].data.receipt.id, payments[1].data.receipt.id);
+    const statuses = payments.map(payment => payment.data.status);
+    assert.ok(statuses.includes('complete'));
+    assert.ok(statuses.every(status => ['complete', 'reconciliation_required'].includes(status)));
+    const completed = payments.filter(payment => payment.data.status === 'complete');
+    if (completed.length === 2) assert.equal(completed[0].data.receipt.id, completed[1].data.receipt.id);
     assert.equal((h.store.db.prepare('SELECT count(*) AS n FROM sa_sim_payments').get() as { n: number }).n, 1);
   } finally { await h.close(); }
 });
