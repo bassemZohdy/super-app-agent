@@ -131,3 +131,45 @@ for (const intermediate of [false, true]) test(`follow-up selection uses only th
     assert.deepEqual(review.data.approval.quote.fineIds, intermediate ? ['fine-1', 'fine-2'] : ['fine-1']);
   } finally { await h.close(); }
 });
+
+test('pronoun payment requests require an immediately preceding successful fine list', async () => {
+  const h = await harness({ planner: { async plan(messages) {
+    const text = messages.at(-1)?.content || '';
+    return { intent: text.startsWith('show') ? 'list_fines' : text.startsWith('other') ? 'out_of_scope' : text === 'hello' ? 'clarify' : 'pay_fines', fineIds: [] };
+  } } });
+  try {
+    for (const prior of [undefined, 'other fine-1', 'show fine-9', 'hello']) {
+      const root = `/api/agent/threads/${await h.thread()}`;
+      if (prior) await h.req(`${root}/messages`, { message: prior });
+      for (const message of ['pay them', 'أريد دفعها']) {
+        const result = await h.req(`${root}/messages`, { message });
+        assert.equal(result.data.status, 'clarify');
+        assert.equal(result.data.approval, null);
+      }
+    }
+    for (const [prior, expected] of [['show fine-1', ['fine-1']], ['show all fines', ['fine-1', 'fine-2']]] as const) {
+      const root = `/api/agent/threads/${await h.thread()}`;
+      await h.req(`${root}/messages`, { message: prior });
+      if (prior === 'show all fines') h.store.db.prepare('INSERT INTO sa_sim_fines VALUES(?,?,?,NULL)').run('alice', 'fine-3', JSON.stringify({ id: 'fine-3', description: 'New fine', amountMinor: 10000, version: 1 }));
+      const result = await h.req(`${root}/messages`, { message: 'pay them' });
+      assert.deepEqual(result.data.approval.quote.fineIds, expected);
+    }
+    assert.equal((h.store.db.prepare('SELECT count(*) AS n FROM sa_sim_payments').get() as { n: number }).n, 0);
+  } finally { await h.close(); }
+});
+
+test('a follow-up to an empty list does not include fines that appeared afterwards', async () => {
+  const h = await harness({ planner: { async plan(messages) { return { intent: messages.at(-1)?.content === 'show all fines' ? 'list_fines' : 'pay_fines', fineIds: [] }; } } });
+  try {
+    h.store.fines('alice');
+    h.store.db.prepare('UPDATE sa_sim_fines SET receipt_id=? WHERE subject=?').run('earlier-payment', 'alice');
+    const root = `/api/agent/threads/${await h.thread()}`;
+    const list = await h.req(`${root}/messages`, { message: 'show all fines' });
+    assert.deepEqual(list.data.fines, []);
+    h.store.db.prepare('INSERT INTO sa_sim_fines VALUES(?,?,?,NULL)').run('alice', 'fine-new', JSON.stringify({ id: 'fine-new', description: 'New fine', amountMinor: 10000, version: 1 }));
+    const result = await h.req(`${root}/messages`, { message: 'pay them' });
+    assert.equal(result.data.status, 'clarify');
+    assert.equal(result.data.approval, null);
+    assert.equal((h.store.db.prepare('SELECT count(*) AS n FROM sa_sim_payments').get() as { n: number }).n, 0);
+  } finally { await h.close(); }
+});

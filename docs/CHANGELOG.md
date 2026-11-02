@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bind payment follow-ups to the displayed list (P1-13, step)
+
+Supported pronoun payment requests require a successful immediately preceding list and review only its fine IDs, excluding later additions. Empty or missing context asks for clarification. Guide: [shell parity](development/shell-parity.md).
+
 ## 2 November 2026 — Bind whole resource tokens (P1-13, step)
 
 Focused fine and vehicle selection retains prefixes and incomplete references, preventing substitution or a default selection; the model receives placeholders instead of these references. Guide: [shell parity](development/shell-parity.md).

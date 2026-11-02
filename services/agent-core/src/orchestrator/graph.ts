@@ -12,6 +12,7 @@ export interface PendingRenewal { id: string; quote: RenewalQuote; key: string; 
 export const State = Annotation.Root({
   messages: Annotation<Array<{ role: 'user' | 'assistant'; content: string }>>({ reducer: (a, b) => [...a, ...b].slice(-12), default: () => [] }),
   plan: Annotation<Plan>(),
+  followupFineIds: Annotation<string[] | null>({ reducer: (_a, b) => b, default: () => null }),
   fines: Annotation<Fine[]>({ reducer: (_a, b) => b, default: () => [] }),
   vehicles: Annotation<Vehicle[]>({ reducer: (_a, b) => b, default: () => [] }),
   pending: Annotation<PendingApproval | null>(),
@@ -43,10 +44,12 @@ export function createGraph(planner: Planner, tools: FinesAdapter, vehicles: Veh
       try {
         const plan = Plan.parse(await planner.plan(state.messages, [tools.list, tools.pay, vehicles.list, vehicles.renew].map(({ id, description }) => ({ id, description }))));
         const userMessage = [...state.messages].reverse().find(message => message.role === 'user')?.content || '';
+        const refersToPriorFines = /\bpay\s+(?:them|it)\b|أريد\s+دفعها/i.test(userMessage) && !/\bfines?\b/i.test(userMessage) && !selectedFines([{ role: 'user', content: userMessage }]).length;
+        if (plan.intent === 'pay_fines' && refersToPriorFines && !state.followupFineIds?.length) return { plan: { intent: 'clarify' as const, fineIds: [] }, status: 'clarify', reply: 'Please list outstanding fines or name the fines before asking to pay them.' };
         const selected = [...new Set((userMessage.match(/[a-z0-9_-]*veh-[a-z0-9_-]*/gi) || []).map(id => id.replace(/^veh-/i, 'veh-')))];
         if (plan.intent === 'renew_registration' && selected.length > 1) return { plan: { intent: 'clarify' as const, fineIds: [] }, pending: null, decision: null, receipt: null, vehicles: [], renewalPending: null, renewalDecision: null, renewal: null, status: 'clarify', reply: 'Please name one vehicle to renew and ask again.' };
         if (plan.vehicleId && !selected.includes(plan.vehicleId)) throw new AgentError('UNBOUND_VEHICLE_SELECTION');
-        const fines = selectedFines(state.messages);
+        const fines = plan.intent === 'pay_fines' && refersToPriorFines ? state.followupFineIds! : selectedFines(state.messages);
         if (plan.fineIds.some(id => !fines.includes(id))) throw new AgentError('UNBOUND_FINE_SELECTION');
         const bound = Plan.parse({ ...plan, fineIds: fines, vehicleId: plan.intent === 'renew_registration' ? selected[0] : undefined });
         return { plan: bound, pending: null, decision: null, receipt: null, vehicles: [], renewalPending: null, renewalDecision: null, renewal: null, status: 'planned' };
