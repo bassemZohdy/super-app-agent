@@ -69,9 +69,12 @@ test('civic fence inspection exposes journey details only to its owner and accou
   await fence.startStep('WALLET');
   assert.deepEqual((await store.inspectCivicFence(owner.subject, owner.accountId)).civicSteps, [{ name: 'WALLET', state: 'STARTED' }]);
   await assert.rejects(() => fence.startStep('UTILITY'), /step/i);
-  await fence.finishStep('WALLET', 'CONFIRMED');
-  await fence.startStep('UTILITY'); await fence.finishStep('UTILITY', 'UNKNOWN');
-  assert.deepEqual((await store.inspectCivicFence(owner.subject, owner.accountId)).civicSteps, [{ name: 'WALLET', state: 'CONFIRMED' }, { name: 'UTILITY', state: 'UNKNOWN' }]);
+  await assert.rejects(() => fence.finishStep('WALLET', 'CONFIRMED', 'invalid reference with spaces'), /step/i);
+  await fence.finishStep('WALLET', 'CONFIRMED', 'GOV-TX-1');
+  await fence.startStep('UTILITY');
+  await assert.rejects(() => fence.finishStep('UTILITY', 'UNKNOWN', 'unexpected-reference'), /step/i);
+  await fence.finishStep('UTILITY', 'UNKNOWN');
+  assert.deepEqual((await store.inspectCivicFence(owner.subject, owner.accountId)).civicSteps, [{ name: 'WALLET', state: 'CONFIRMED', receiptReference: 'GOV-TX-1' }, { name: 'UTILITY', state: 'UNKNOWN' }]);
   await assert.rejects(() => fence.startStep('FINES'), /step/i);
   assert.deepEqual(await store.inspectCivicFence('bob', owner.accountId), { status: 'BLOCKED' });
   assert.deepEqual(await store.inspectCivicFence(owner.subject, accountIdFor('alice', 'household')), { status: 'BLOCKED' });

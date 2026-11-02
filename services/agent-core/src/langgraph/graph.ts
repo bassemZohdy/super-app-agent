@@ -66,6 +66,14 @@ function requireConsistentFineSummary(data: FinesData): void {
     if (amounts.some(amount => amount <= 0) || amounts.reduce((sum, amount) => sum + amount, 0) !== toMinor(data.totalPayable)) throw new Error('Invalid fine total');
   } catch { throw new DomainOperationError(503, 'DOMAIN_UNAVAILABLE', 'wallet'); }
 }
+function civicReceiptReference(name: CivicStepName, result: unknown): string | undefined {
+  if (!result || typeof result !== 'object' || Array.isArray(result)) return;
+  const data = (result as { data?: unknown }).data;
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return;
+  const reply = data as { govTransactionHash?: unknown; receiptNumber?: unknown; transactionId?: unknown; receipt?: { receiptNumber?: unknown } };
+  const value = name === 'WALLET' ? reply.govTransactionHash : name === 'UTILITY' ? reply.receipt?.receiptNumber : name === 'FINES' ? reply.receiptNumber : reply.transactionId;
+  return typeof value === 'string' && value.length <= 128 && /^[A-Za-z0-9][A-Za-z0-9_.:-]*$/.test(value) ? value : undefined;
+}
 function offlineCheckoutReview(bill: UtilityBill, fines: FinesData, salik: SalikAccount) {
   return { billId: bill.billId, billAmountMinor: bill.status === 'PAID' ? 0 : toMinor(bill.totalAmount),
     fines: fines.fines.map(fine => ({ fineId: fine.fineId, amountMinor: toMinor(fine.payableAmount) })).sort((a, b) => a.fineId.localeCompare(b.fineId)),
@@ -383,7 +391,7 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
         throw error;
       }
       externalWriteConfirmed = true;
-      if (sharedFence) await sharedFence.finishStep(name, 'CONFIRMED');
+      if (sharedFence) await sharedFence.finishStep(name, 'CONFIRMED', civicReceiptReference(name, result));
       return result;
     };
     try {

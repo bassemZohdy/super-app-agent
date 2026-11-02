@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Preserve confirmed civic receipt references (P1-13, step)
+
+The owner-scoped civic journal retains bounded transaction or receipt references for confirmed wallet, utility, fines and toll steps. Live Redis/HTTP tests verify confirmed references remain available after partial outcomes and failed session saves; unknown steps do not gain a reference. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Bind civic toll receipts to the reviewed tag (P1-13, step)
 
 Offline composite checkout carries its reviewed toll tag through recharge, rejects a changed target before credit, and treats a mismatched tag or amount in the receipt as unknown. Focused tests and live Redis/HTTP tests cover wrong-target refusals and uncertain receipts after earlier confirmed steps. The application contract passed on a disposable synthetic stack using revision `26560d1` plus this change, Node 24.16.0, Docker 29.9.2 and Compose 5.6.1. Guide: [integrations](integrations.md).

@@ -36,5 +36,5 @@ test('a mismatched toll receipt retains an unknown step after earlier confirmati
   const actor = actorFor({ sub: 'partial-civic-owner' }, undefined, 'Bearer test'), before = balance, ledger = transactions.length, tollBefore = salikBalance;
   await assert.rejects(actorContext.run(actor, () => SuperAppAgentGraph.resumeWithAction({ sessionId: 'civic-partial', messages: [], activeDomain: 'composite' }, 'confirm_smartcity_checkout', { offlineReview: review })), /did not complete successfully/);
   assert.ok(balance < before); assert.equal(transactions.length, ledger + 2); assert.equal(activeUtilityBill.status, 'PAID'); assert.equal(salikBalance, tollBefore + 100); assert.equal(laterWrites, 2);
-  assert.deepEqual((await check.inspectCivicFence(actor.sub, actor.accountId)).civicSteps, [{ name: 'WALLET', state: 'CONFIRMED' }, { name: 'UTILITY', state: 'CONFIRMED' }, { name: 'FINES', state: 'CONFIRMED' }, { name: 'TOLL', state: 'UNKNOWN' }]);
+  assert.deepEqual((await check.inspectCivicFence(actor.sub, actor.accountId)).civicSteps, [{ name: 'WALLET', state: 'CONFIRMED', receiptReference: transactions.at(-2)?.id }, { name: 'UTILITY', state: 'CONFIRMED', receiptReference: activeUtilityBill.receiptNumber }, { name: 'FINES', state: 'CONFIRMED', receiptReference: transactions.at(-1)?.id }, { name: 'TOLL', state: 'UNKNOWN' }]);
 });

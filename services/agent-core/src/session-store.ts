@@ -27,7 +27,8 @@ type CivicAction = 'confirm_smartcity_checkout' | 'pay_utilities_bill' | 'pay_de
 type CivicOwner = { subject: string; accountId: string; sessionId: string; action: CivicAction };
 export type CivicStepName = 'WALLET' | 'UTILITY' | 'FINES' | 'TOLL';
 type CivicStepState = 'STARTED' | 'CONFIRMED' | 'REJECTED' | 'UNKNOWN';
-type CivicStep = { name: CivicStepName; state: CivicStepState };
+type CivicStep = { name: CivicStepName; state: CivicStepState; receiptReference?: string };
+const civicReference = (value: unknown): value is string => typeof value === 'string' && value.length <= 128 && /^[A-Za-z0-9][A-Za-z0-9_.:-]*$/.test(value);
 type CivicReview = { billId: string; billAmountMinor: number; fines: Array<{ fineId: string; amountMinor: number }>; tagNumber: string; tollAmountMinor: number };
 function civicReview(value: unknown): CivicReview | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return;
@@ -84,7 +85,7 @@ export class RedisSessionStore {
     if (!owner.subject || !owner.accountId || !/^[a-zA-Z0-9_-]{8,128}$/.test(owner.sessionId) || !civicActions.has(owner.action)) throw new SessionError(400, 'CIVIC_CONTEXT_INVALID', 'The civic payment context is invalid.');
     await this.connect();
     const key = `${this.prefix}offline-civic-fence`;
-    let record = { version: 3, nonce: randomUUID(), owner: civicOwnerDigest(owner.subject, owner.accountId), sessionId: owner.sessionId, action: owner.action, steps: [] as CivicStep[], review: null as CivicReview | null };
+    let record = { version: 4, nonce: randomUUID(), owner: civicOwnerDigest(owner.subject, owner.accountId), sessionId: owner.sessionId, action: owner.action, steps: [] as CivicStep[], review: null as CivicReview | null };
     let current = JSON.stringify(record);
     if (await this.client.set(key, current, { NX: true }) !== 'OK')
       throw new SessionError(409, 'CIVIC_RECONCILIATION_REQUIRED', 'An offline civic payment is in progress or needs reconciliation.');
@@ -106,10 +107,10 @@ export class RedisSessionStore {
         if (!civicStepNames.has(name) || record.steps.length >= 4 || record.steps.some(step => step.name === name || step.state !== 'CONFIRMED')) throw new SessionError(409, 'CIVIC_STEP_INVALID', 'The civic payment step cannot be started.');
         await save({ ...record, steps: [...record.steps, { name, state: 'STARTED' }] });
       },
-      finishStep: async (name: CivicStepName, state: Exclude<CivicStepState, 'STARTED'>) => {
+      finishStep: async (name: CivicStepName, state: Exclude<CivicStepState, 'STARTED'>, receiptReference?: string) => {
         const last = record.steps.at(-1);
-        if (!last || last.name !== name || last.state !== 'STARTED' || !['CONFIRMED', 'REJECTED', 'UNKNOWN'].includes(state)) throw new SessionError(409, 'CIVIC_STEP_INVALID', 'The civic payment step cannot be finished.');
-        await save({ ...record, steps: [...record.steps.slice(0, -1), { name, state }] });
+        if (!last || last.name !== name || last.state !== 'STARTED' || !['CONFIRMED', 'REJECTED', 'UNKNOWN'].includes(state) || receiptReference !== undefined && (state !== 'CONFIRMED' || !civicReference(receiptReference))) throw new SessionError(409, 'CIVIC_STEP_INVALID', 'The civic payment step cannot be finished.');
+        await save({ ...record, steps: [...record.steps.slice(0, -1), { name, state, ...(receiptReference ? { receiptReference } : {}) }] });
       },
       release: async () => {
         await this.connect();
@@ -123,14 +124,15 @@ export class RedisSessionStore {
     if (raw === null) return { status: 'CLEAR' };
     try {
       const record = JSON.parse(raw) as { version?: unknown; owner?: unknown; sessionId?: unknown; action?: unknown; steps?: unknown; review?: unknown };
-      if (record && (record.version === 1 || record.version === 2 || record.version === 3) && record.owner === civicOwnerDigest(subject, accountId) &&
+      if (record && (record.version === 1 || record.version === 2 || record.version === 3 || record.version === 4) && record.owner === civicOwnerDigest(subject, accountId) &&
           typeof record.sessionId === 'string' && /^[a-zA-Z0-9_-]{8,128}$/.test(record.sessionId) &&
           typeof record.action === 'string' && civicActions.has(record.action)) {
         if (record.version === 1) return { status: 'BLOCKED', sessionId: record.sessionId, action: record.action as CivicAction };
         if (Array.isArray(record.steps) && record.steps.length <= 4 && record.steps.every((step: unknown) => !!step && typeof step === 'object' && civicStepNames.has((step as CivicStep).name) && civicStepStates.has((step as CivicStep).state))) {
-          const review = record.version === 3 && record.review !== null ? civicReview(record.review) : undefined;
-          if (record.version === 3 && record.review !== null && !review) return { status: 'BLOCKED' };
-          return { status: 'BLOCKED', sessionId: record.sessionId, action: record.action as CivicAction, ...(review ? { civicReview: review } : {}), civicSteps: record.steps.map((step: CivicStep) => ({ name: step.name, state: step.state })) };
+          const review = (record.version === 3 || record.version === 4) && record.review !== null ? civicReview(record.review) : undefined;
+          if ((record.version === 3 || record.version === 4) && record.review !== null && !review) return { status: 'BLOCKED' };
+          if (record.version === 4 && record.steps.some((step: CivicStep) => step.receiptReference !== undefined && (step.state !== 'CONFIRMED' || !civicReference(step.receiptReference)))) return { status: 'BLOCKED' };
+          return { status: 'BLOCKED', sessionId: record.sessionId, action: record.action as CivicAction, ...(review ? { civicReview: review } : {}), civicSteps: record.steps.map((step: CivicStep) => ({ name: step.name, state: step.state, ...(record.version === 4 && step.receiptReference ? { receiptReference: step.receiptReference } : {}) })) };
         }
       }
     } catch { /* A legacy or unreadable fence stays blocked without exposing its contents. */ }
