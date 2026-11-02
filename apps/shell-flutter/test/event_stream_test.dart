@@ -214,6 +214,94 @@ void main() {
     expect(tokens, 0);
   });
 
+  test('closing while an HTTP response is pending returns without waiting', () async {
+    final started = Completer<void>();
+    final response = Completer<http.StreamedResponse>();
+    final client = MockClient.streaming((_, __) { started.complete(); return response.future; });
+    final stream = CitizenEventStream(
+      url: Uri.parse('http://localhost/stream'), sessionId: 'session1',
+      authorization: () async => 'Bearer token', onStatus: (_) {},
+      onAuthRequired: () => fail('Unexpected auth rejection'), onEnvelope: (_) => fail('Unexpected event'),
+    );
+    await http.runWithClient(() async {
+      final running = stream.run();
+      await started.future;
+      stream.close();
+      await running.timeout(const Duration(seconds: 2));
+      response.completeError(StateError('late network failure'));
+      await Future<void>.delayed(Duration.zero);
+    }, () => client);
+  });
+
+  test('a response arriving after closure has its body cancelled', () async {
+    final started = Completer<void>();
+    final response = Completer<http.StreamedResponse>();
+    var cancelled = false;
+    final body = StreamController<List<int>>(onCancel: () { cancelled = true; });
+    final client = MockClient.streaming((_, __) { started.complete(); return response.future; });
+    final stream = CitizenEventStream(
+      url: Uri.parse('http://localhost/stream'), sessionId: 'session1',
+      authorization: () async => 'Bearer token', onStatus: (_) {},
+      onAuthRequired: () => fail('Unexpected auth rejection'), onEnvelope: (_) => fail('Unexpected event'),
+    );
+    await http.runWithClient(() async {
+      final running = stream.run();
+      await started.future;
+      stream.close();
+      await running.timeout(const Duration(seconds: 2));
+      response.complete(http.StreamedResponse(body.stream, 200));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(cancelled, isTrue);
+      await body.close();
+    }, () => client);
+  });
+
+  test('closing in connected status cancels the body without listening for events', () async {
+    var cancelled = false;
+    final body = StreamController<List<int>>(onCancel: () { cancelled = true; });
+    final client = MockClient.streaming((_, __) async => http.StreamedResponse(body.stream, 200));
+    late CitizenEventStream stream;
+    stream = CitizenEventStream(
+      url: Uri.parse('http://localhost/stream'), sessionId: 'session1',
+      authorization: () async => 'Bearer token', onStatus: (status) { if (status == 'Live updates connected') stream.close(); },
+      onAuthRequired: () => fail('Unexpected auth rejection'), onEnvelope: (_) => fail('Unexpected event'),
+    );
+    await http.runWithClient(() => stream.run().timeout(const Duration(seconds: 2)), () => client);
+    expect(cancelled, isTrue);
+    await body.close();
+  });
+
+  test('closing a silent stream returns and cancels its subscription', () async {
+    final connected = Completer<void>();
+    var cancelled = false;
+    final source = StreamController<List<int>>(onCancel: () { cancelled = true; return Completer<void>().future; });
+    final client = MockClient.streaming((_, __) async => http.StreamedResponse(source.stream, 200));
+    final stream = CitizenEventStream(
+      url: Uri.parse('http://localhost/stream'), sessionId: 'session1',
+      authorization: () async => 'Bearer token', onStatus: (status) { if (status == 'Live updates connected') connected.complete(); },
+      onAuthRequired: () => fail('Unexpected auth rejection'), onEnvelope: (_) => fail('Unexpected event'),
+    );
+    await http.runWithClient(() async {
+      final running = stream.run();
+      await connected.future;
+      await Future<void>.delayed(Duration.zero);
+      stream.close();
+      await running.timeout(const Duration(seconds: 2));
+      expect(cancelled, isTrue);
+    }, () => client);
+  });
+
+  test('closing from the reconnect status does not start a delay', () async {
+    final client = MockClient((_) async => http.Response('', 409));
+    late CitizenEventStream stream;
+    stream = CitizenEventStream(
+      url: Uri.parse('http://localhost/stream'), sessionId: 'session1',
+      authorization: () async => 'Bearer token', onStatus: (status) { if (status.startsWith('Reconnecting')) stream.close(); },
+      onAuthRequired: () => fail('Unexpected auth rejection'), onEnvelope: (_) => fail('Unexpected event'),
+    );
+    await http.runWithClient(() => stream.run().timeout(const Duration(milliseconds: 200)), () => client);
+  });
+
   test('unsafe cursors request a fresh snapshot after readable and unreadable events', () async {
     for (final cursor in [
       'x' * 129,

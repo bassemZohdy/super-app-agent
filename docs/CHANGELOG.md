@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 3 November 2026 - Stop Flutter streams during network waits (P1-12, step)
+
+Closing a Flutter stream interrupts pending response and event waits, cancels the source and discards late response bodies. Guide: [integrations](integrations.md).
+
 ## 3 November 2026 - Stop Flutter streams during authorization (P1-12, step)
 
 Closing a Flutter stream promptly ends a pending authorization wait and prevents a late connection. Guide: [integrations](integrations.md).
