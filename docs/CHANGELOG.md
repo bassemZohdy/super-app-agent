@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Validate browser token responses (P0-01, step)
+
+The shared browser client rejects malformed token values and lifetimes on login and refresh, and clears an unchanged expired session when refresh fails. The Flutter bridge is regenerated; unit and desktop/mobile browser tests cover rejected responses and a valid refresh. Signature validation, subject continuity and server-side sessions remain separate. Guide: [security](security.md).
+
 ## 2 November 2026 — Fence browser sign-in races (P0-01, step)
 
 The shared browser OIDC client fences late login and refresh responses after sign-out or session replacement, clears pending PKCE state on sign-out and coalesces same-session refreshes across instances of the loaded client. The generated Flutter bridge is updated. Unit and desktop/mobile browser tests cover late success, failure and concurrent refresh. Cross-tab, native and production server-side sessions remain separate. Guide: [security](security.md).

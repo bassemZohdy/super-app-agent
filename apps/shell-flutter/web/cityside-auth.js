@@ -8,6 +8,7 @@ let loginExchange                           ;
 let authGeneration = 0;
 let refreshExchange                                                                                                 ;
 const encode = (bytes            ) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const validToken = (value         )                  => typeof value === 'string' && value.length > 0 && value.length <= 16384 && /^[\x21-\x7e]+$/.test(value);
 export class BrowserAuth {
           config                   ;
   constructor(config                   ) { this.config = config; }
@@ -17,7 +18,8 @@ export class BrowserAuth {
     const response = await fetch(`${this.config.issuer}/protocol/openid-connect/token`, { method: 'POST', redirect: 'error', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body, signal: AbortSignal.timeout(10000) });
     if (!response.ok) throw new Error('Sign-in expired or could not be completed. Sign in again.');
     const data = await response.json();
-    if (typeof data.access_token !== 'string' || typeof data.expires_in !== 'number') throw new Error('Invalid sign-in response.');
+    if (!data || !validToken(data.access_token) || !Number.isSafeInteger(data.expires_in) || data.expires_in <= 0 || !Number.isSafeInteger(Date.now() + data.expires_in * 1000) ||
+      (data.refresh_token !== undefined && !validToken(data.refresh_token)) || (data.id_token !== undefined && !validToken(data.id_token))) throw new Error('Invalid sign-in response.');
     if (generation !== authGeneration || sessionStorage.getItem(tokenKey) !== snapshot) throw new Error('Sign-in changed. Sign in again.');
     const tokens         = { access_token: data.access_token, refresh_token: data.refresh_token, id_token: data.id_token, expiresAt: Date.now() + data.expires_in * 1000 };
     sessionStorage.setItem(tokenKey, JSON.stringify(tokens)); return tokens.access_token;
