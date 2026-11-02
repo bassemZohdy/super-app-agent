@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Explain legacy wallet review holds (P1-12, step)
+
+The account-scoped payment overview and React panel show when older concierge wallet payments need review, with localized guidance and an unavailable state. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Hold ambiguous legacy wallet payments (P1-02, step)
 
 New wallet debits are held when older reference-only captures cannot be bound to their original operation; verified original replays remain available. Guide: [agent flow](agent-flow.md).

@@ -253,7 +253,7 @@ export class ProviderEngine {
       const registry = paymentRegistry(db, a, method, path, body, this.resourceUses!);
       if (registry) return ok({...registry,...(path==='/payment-methods'&&method==='GET'?{cardBalances:(registry.methods||[]).filter((m:any)=>m.kind==='card').map((m:any)=>this.issuer!.summary(a,m.id))}:{})});
       const wallet = this.ledger!.summary(a);
-      if (method === 'GET' && path === '/wallet') return ok({ ...wallet, balance: major(wallet.balanceMinor) });
+      if (method === 'GET' && path === '/wallet') return ok({ ...wallet, balance: major(wallet.balanceMinor), legacyPaymentReview: this.hasUnboundLegacyWalletEvidence(a) ? 'REQUIRED' : 'NOT_DETECTED' });
       if (method === 'GET' && path === '/transactions') {
         const transactions=db.list(a,'transaction').map(tx=>{
           const charge=db.get(a,'charge',tx.id),funding=db.db.prepare('SELECT id FROM wallet_funding_orders WHERE account_id=? AND id=?').get(a,tx.id),refund=db.db.prepare('SELECT body FROM payment_refunds WHERE account_id=? AND id=?').get(a,tx.id);

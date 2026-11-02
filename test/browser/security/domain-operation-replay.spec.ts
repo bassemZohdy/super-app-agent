@@ -138,7 +138,7 @@ test('wallet operation identity is independent of an external payment reference'
   expect(inspected.charge.reference).toBe('booking-reference-a');
 });
 
-test('legacy reference-only wallet payments hold ambiguous new operations', async ({ residentApi, stack }) => {
+test('legacy reference-only wallet payments hold ambiguous new operations', async ({ resident, residentApi, stack }) => {
   const account = residentApi.accountId, store = stack.stores.get('payments')!, legacyReference = 'legacy-booking-reference';
   const direct = async (reference = legacyReference) => {
     const response = await fetch(`http://localhost:${stack.corePort + 107}/v1/accounts/${account}/charges`, {
@@ -147,7 +147,21 @@ test('legacy reference-only wallet payments hold ambiguous new operations', asyn
     });
     return { status: response.status, data: await response.json() as { charge?: { id: string } } };
   };
+  expect((await residentApi.call('overview')).data.wallet.legacyPaymentReview).toBe('NOT_DETECTED');
   const legacy = await direct(); expect(legacy.status).toBe(200);
+  expect((await residentApi.call('overview')).data.wallet.legacyPaymentReview).toBe('REQUIRED');
+  await resident.getByRole('button', { name: 'Payment accounts', exact: true }).click();
+  const panel = resident.getByRole('region', { name: 'Payment accounts', exact: true });
+  await expect(panel.getByText('Older wallet payments need review before new concierge wallet payments. Review your payment history; there is no automatic clearance.', { exact: true })).toBeVisible();
+  const overviewRoute = '**/api/payments/overview?*';
+  await resident.route(overviewRoute, async route => {
+    const upstream = await route.fetch(), data = await upstream.json();
+    delete data.wallet.legacyPaymentReview;
+    await route.fulfill({ response: upstream, json: data });
+  });
+  await panel.getByRole('button', { name: 'Refresh payment accounts', exact: true }).click();
+  await expect(panel.getByText('Unable to check whether older concierge wallet payments need review.', { exact: true })).toBeVisible();
+  await resident.unroute(overviewRoute);
   const pay = async (accountId: string, operation: string, referenceId?: string) => {
     const response = await fetch(`http://localhost:${stack.corePort + 3}/wallet/pay`, {
       method: 'POST', headers: { Authorization: `Bearer ${residentApi.token}`, 'Content-Type': 'application/json', 'X-Account-Id': accountId, 'X-Operation-Id': operation },
@@ -176,6 +190,9 @@ test('legacy reference-only wallet payments hold ambiguous new operations', asyn
   } finally { store.db.prepare('INSERT INTO idempotency(account_id,key,fingerprint,status,body) VALUES(?,?,?,?,?)').run(account, legacyKey, record.fingerprint, record.status, record.body); }
   const claims = JSON.parse(Buffer.from(residentApi.token.split('.')[1], 'base64url').toString()) as { sub: string };
   const other = store.accounts(claims.sub).find(item => item.id !== account)!;
+  const otherStatus = await fetch(`http://localhost:${stack.corePort + 107}/v1/accounts/${other.id}/wallet`, { headers: { Authorization: `Bearer ${residentApi.token}` } });
+  expect(otherStatus.status).toBe(200);
+  expect((await otherStatus.json() as { legacyPaymentReview: string }).legacyPaymentReview).toBe('NOT_DETECTED');
   const normal = await pay(other.id, 'new-operation'); expect(normal.status).toBe(200);
   expect(normal.data.charge?.operationId).toBe('new-operation');
   expect((await pay(other.id, 'another-new-operation', 'new-booking-reference')).status).toBe(200);
