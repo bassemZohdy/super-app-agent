@@ -30,6 +30,8 @@ The focused tool wrapper stops waiting at its deadline and signals cancellation 
 
 For compatibility domain writes, both local and HTTP adapters treat authentication failures, rate limits, and responses indicating a prior effect or conflicting operation identity as unknown outcomes. These responses do not establish that the original write was absent.
 
+Compatibility domain adapters dispatch only the registered write routes with route-specific receipt checks; unrecognized mutations are rejected before a local handler or HTTP service is called. Adding a write requires registering its route and receipt validation together.
+
 Compatibility wallet payment and top-up confirmations require a settled USD fixture transaction of the expected type, with an exact requested amount and a valid nonnegative balance. An inconsistent receipt leaves the write unknown and stops the rest of a composite checkout.
 
 Compatibility ride booking confirmations require the selected driver, dispatched status and any supplied pickup and destination to match. A mismatched booking is unknown and prevents subsequent checkout effects.

@@ -38,6 +38,19 @@ export class DomainOperationError extends Error {
 const record = (value: any) => value && typeof value === 'object' && !Array.isArray(value);
 const named = (value: any) => typeof value === 'string' && value.length > 0;
 const finite = (value: any) => typeof value === 'number' && Number.isFinite(value);
+// Only mutations with an explicit receipt contract may be dispatched through this adapter.
+const writeRoutes: Record<string, ReadonlySet<string>> = {
+  wallet: new Set(['/wallet/pay', '/wallet/topup', '/fines/pay', '/pay/unified', '/pay/multi-agency']),
+  ride: new Set(['/rides/book', '/mobility/parking/activate', '/mobility/parking/extend', '/mobility/salik/recharge']),
+  food: new Set(['/orders/create', '/utilities/pay']),
+  catalog: new Set(['/housing/move-in']),
+  profile: new Set(['/profile/preferences']),
+};
+function requireKnownWrite(service: string, method: string, path: string): void {
+  if (method.toUpperCase() === 'GET') return;
+  if (method.toUpperCase() === 'POST' && (writeRoutes[service]?.has(path) || service === 'telecom' && /^\/telecom\/(?:etisalat|du)\/bills\/[^/]+\/payments$/.test(path))) return;
+  throw new DomainOperationError(400, 'DOMAIN_OPERATION_UNSUPPORTED', service);
+}
 // A mutation is only a definite rejection when the response actually says so. A timeout, an explicitly unknown outcome,
 // contradictory success, or an empty/malformed body cannot prove that the provider did not apply the effect.
 function definiteRejection(status: number, data: unknown, mutation: boolean): boolean {
@@ -181,10 +194,11 @@ function confirmedReceipt(service: string, path: string, data: any, body: unknow
       named(data.residentialParking.permitNumber) && data.residentialParking.status === 'ISSUED';
   }
   if (service === 'profile' && path === '/profile/preferences') return record(data.preferences) && named(data.promptContext);
-  return true;
+  return false;
 }
 export function callDomain(service: keyof typeof domainHandlers, method: string, path: string,
   query: Record<string, string> = {}, body: any = {}): Result {
+  requireKnownWrite(service, method, path);
   const mutation = method.toUpperCase() !== 'GET';
   const step: Step | undefined = mutation ? { service, method, path, state: 'PENDING' } : undefined;
   if (step) context.getStore()?.push(step);
@@ -233,6 +247,7 @@ async function callDomainRequest(service: keyof typeof domainHandlers | 'telecom
   catch { throw new DomainOperationError(503, 'DOMAIN_TRANSPORT_MISCONFIGURED', service); }
   if (url.origin !== origin.origin) throw new DomainOperationError(400, 'DOMAIN_PATH_INVALID', service);
   for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value);
+  requireKnownWrite(service, method, path);
   const mutation = method.toUpperCase() !== 'GET';
   if (mutation) await actor.assertLease?.();
   const step: Step | undefined = mutation ? { service, method, path, state: 'PENDING' } : undefined;

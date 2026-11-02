@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Restrict compatibility domain writes (P1-02, step)
+
+Compatibility domain adapters reject write routes without a specific receipt contract before dispatch, instead of accepting unchecked success responses. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Preserve partial integrated move-in outcomes (P1-13, step)
 
 The integrated move-in path checks each provider result before the next effect and keeps a later refusal or inconsistent result unconfirmed after an earlier provider responds. Guide: [agent flow](agent-flow.md).
