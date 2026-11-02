@@ -1,4 +1,5 @@
 import type { Page } from 'playwright/test';
+import { safeRouteFetch } from '../network-fence.ts';
 import { randomUUID } from 'node:crypto';
 import { test, expect } from './fixtures.ts';
 import { controlsBelowTarget, focusIsVisible, injectMotionCanary, stillMoving } from '../accessibility/measures.ts';
@@ -69,7 +70,7 @@ test('a lost payment result blocks new commands until the original operation is 
   await page.getByRole('button', { name: 'Open my fines' }).click();
   await page.getByRole('button', { name: 'Review payment', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Confirm simulated payment', exact: true })).toBeVisible();
-  await page.route('**/api/agent/threads/*/resume', async route => { await route.fetch(); await route.abort('connectionfailed'); });
+  await page.route('**/api/agent/threads/*/resume', async route => { await safeRouteFetch(route); await route.abort('connectionfailed'); });
   await page.getByRole('button', { name: 'Confirm simulated payment', exact: true }).click();
   await expect(page.getByRole('alert')).toBeVisible();
   expect(focused.payments()).toBe(1);

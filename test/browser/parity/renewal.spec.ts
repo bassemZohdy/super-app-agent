@@ -1,4 +1,5 @@
 import { mergeTests } from 'playwright/test';
+import { safeRouteFetch } from '../network-fence.ts';
 import { test as angularTest, expect } from '../angular.ts';
 import { test as flutterTest, enterFlutterAccessToken } from '../flutter.ts';
 import { test as focusedTest } from '../focused-agent/fixtures.ts';
@@ -11,7 +12,7 @@ for (const shell of ['react', 'angular', 'flutter'] as const) {
       const origin = shell === 'flutter' ? flutterUrl : angularUrl;
       await page.route(pattern, async route => {
         if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': origin, 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' } });
-        const response = await route.fetch({ url: new URL(new URL(route.request().url()).pathname, focused.url).href });
+        const response = await safeRouteFetch(route, new URL(new URL(route.request().url()).pathname, focused.url).href);
         await route.fulfill({ response, headers: { ...response.headers(), 'access-control-allow-origin': origin } });
       });
     }

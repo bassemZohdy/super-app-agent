@@ -1,4 +1,5 @@
 import { mergeTests } from 'playwright/test';
+import { safeRouteFetch } from '../network-fence.ts';
 import { test as flutterTest, expect, enterFlutterAccessToken } from '../flutter.ts';
 import { test as focusedTest } from '../focused-agent/fixtures.ts';
 const test = mergeTests(flutterTest, focusedTest);
@@ -91,7 +92,7 @@ test('Flutter web uses the same exact focused approval before making a simulated
   await page.route('http://127.0.0.1:4300/api/agent/**', async route => {
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': flutterUrl, 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' } });
     const url = new URL(route.request().url());
-    const response = await route.fetch({ url: new URL(url.pathname, focused.url).href });
+    const response = await safeRouteFetch(route, new URL(url.pathname, focused.url).href);
     await route.fulfill({ response, headers: { ...response.headers(), 'access-control-allow-origin': flutterUrl } });
   });
   await page.goto(`${flutterUrl}/services/fines`);

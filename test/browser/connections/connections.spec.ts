@@ -2,6 +2,7 @@
  *  view lists every provider with the operations it advertises, shows my own calls with failures in words, and re-reads the providers
  *  when asked. Checked on the phone and desktop projects: named controls, 44px targets, nothing that scrolls sideways. */
 import { expect, test } from '../stack.ts';
+import { safeRouteFetch } from '../network-fence.ts';
 import { controlsBelowTarget } from '../accessibility/measures.ts';
 
 test('the Connections view shows discovered operations, my calls and a failed call, and fits the screen', async ({ resident, residentApi }) => {
@@ -36,7 +37,7 @@ test('the Connections view shows discovered operations, my calls and a failed ca
 test('a provider that advertises a document pointing elsewhere is shown as refused, and the others stay usable', async ({ resident, stack }) => {
   void stack;
   await resident.route(/\/api\/connections/, async route => {
-    const response = await route.fetch();
+    const response = await safeRouteFetch(route);
     const body = await response.json();
     body.providers[0] = { provider: 'rta', ok: false, checkedAt: Date.now(), operations: [], problem: 'A server points away from the provider.' };
     await route.fulfill({ response, json: body });

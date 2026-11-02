@@ -1,4 +1,5 @@
 import { mergeTests } from 'playwright/test';
+import { safeRouteFetch } from '../network-fence.ts';
 import { test as angularTest, expect } from '../angular.ts';
 import { test as focusedTest } from '../focused-agent/fixtures.ts';
 import { gatewayUrl } from '../../../scripts/endpoints.ts';
@@ -43,7 +44,7 @@ test('Angular names the shared provider and preserves drafts through pane contro
 test('Angular focused fines use the same exact approval and restart recovery contract', async ({ page, angularUrl, focused }) => {
   await page.route('**/api/agent/**', async route => {
     const url = new URL(route.request().url());
-    const response = await route.fetch({ url: new URL(url.pathname, focused.url).href });
+    const response = await safeRouteFetch(route, new URL(url.pathname, focused.url).href);
     await route.fulfill({ response });
   });
   await page.goto(`${angularUrl}/services/fines`);

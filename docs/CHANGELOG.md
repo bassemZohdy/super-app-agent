@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Guard browser test-route forwarding (P0-08, step)
+
+Existing explicit browser forwarding checks for local, non-interactive targets and refuses redirects. A source check catches direct route forwarding, and live browser tests verify a redirect never reaches a second server. Node-side traffic and other page-level interception remain outside this guard. Guide: [testing](testing.md).
+
 ## 2 November 2026 — Fence qualification WebSockets (P0-08, step)
 
 The browser network fence also closes unhandled WebSockets to interactive-stack ports in qualification. A desktop and mobile browser test verifies HTTP and WebSocket interception against a disposable server and checks an unfenced control can reach it. Page-level forwarding and Node-side requests remain outside this fence. Guide: [testing](testing.md).

@@ -1,7 +1,7 @@
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { test, expect } from 'playwright/test';
-import { installNetworkFence } from '../network-fence.ts';
+import { installNetworkFence, safeRouteFetch } from '../network-fence.ts';
 
 test('qualification fence prevents HTTP and WebSocket traffic from reaching the protected port', async ({ browser }) => {
   let reached = 0;
@@ -36,4 +36,31 @@ test('qualification fence prevents HTTP and WebSocket traffic from reaching the 
       expect(reached).toBe(1);
     } finally { await control.close(); }
   } finally { await context.close(); await new Promise<void>(resolve => server.close(() => resolve())); }
+});
+
+test('explicit forwarding does not follow a redirect to another server', async ({ page }) => {
+  let destinationHits = 0, sourceHits = 0, refused = false;
+  const destination = http.createServer((_request, response) => { destinationHits++; response.writeHead(200).end(); });
+  await new Promise<void>(resolve => destination.listen(0, '127.0.0.1', resolve));
+  const destinationPort = (destination.address() as AddressInfo).port;
+  const source = http.createServer((request, response) => {
+    if (request.url === '/redirect') { sourceHits++; response.writeHead(302, { Location: `http://127.0.0.1:${destinationPort}/target` }).end(); }
+    else response.writeHead(200, { 'Content-Type': 'text/html' }).end('<title>forwarding test</title>');
+  });
+  await new Promise<void>(resolve => source.listen(0, '127.0.0.1', resolve));
+  const sourcePort = (source.address() as AddressInfo).port;
+  try {
+    await page.route('**/redirect', async route => {
+      try { await safeRouteFetch(route, undefined, 30000); } catch { refused = true; }
+      await route.abort();
+    });
+    await page.goto(`http://127.0.0.1:${sourcePort}/`);
+    await page.evaluate(() => fetch('/redirect').catch(() => undefined));
+    expect(refused).toBe(true);
+    expect(sourceHits).toBe(1);
+    expect(destinationHits).toBe(0);
+  } finally {
+    source.closeAllConnections(); destination.closeAllConnections();
+    await Promise.all([new Promise<void>(resolve => source.close(() => resolve())), new Promise<void>(resolve => destination.close(() => resolve()))]);
+  }
 });
