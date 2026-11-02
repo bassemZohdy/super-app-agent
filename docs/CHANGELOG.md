@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bind focused fine selection in the graph (P1-13, step)
+
+The focused graph now binds named fines independently of the planner, refuses invented or substituted references and preserves omitted explicit selections in the quote. A supported “pay them” follow-up uses only the immediately preceding user turn, avoiding stale older selections. Tests cover invalid references and verify an approved simulated payment leaves other fines outstanding. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Bind focused renewal vehicle selection (P1-13, step)
 
 The focused graph binds an exact `veh-` reference from the current resident request, rejects an unbound planner selection, and asks for clarification when several references are named. The compatible planner no longer receives exact vehicle references. Tests cover invented, mismatched, multiple, unavailable and selected vehicles without executing renewal. Guide: [agent flow](agent-flow.md).

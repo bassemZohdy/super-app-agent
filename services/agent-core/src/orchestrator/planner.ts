@@ -2,6 +2,7 @@ import { Plan, AgentError, boundedJson, execution } from './contracts.ts';
 import { acquireModelBudget, boundedMessages } from '../model-budget.ts';
 import { minimiseHistory } from '../model-input.ts';
 import { z } from 'zod/v4';
+import { selectedFines } from './selection.ts';
 
 const localPlanSchema = z.toJSONSchema(Plan);
 
@@ -32,12 +33,7 @@ export class CompatiblePlanner implements Planner {
   async plan(messages: Array<{ role: 'user' | 'assistant'; content: string }>, tools: Array<{ id: string; description: string }>): Promise<Plan> {
     let release: (() => void) | undefined;
     try {
-      const references = (text: string) => [...new Set((text.match(/\bfine-[a-z0-9_-]+\b/gi) || []).map(id => id.replace(/^fine-/i, 'fine-')))];
-      let selected = references(messages.at(-1)?.content || '');
-      if (!selected.length && /\bpay\s+(?:them|it)\b|أريد\s+دفعها/i.test(messages.at(-1)?.content || '')) {
-        const prior = messages.slice(0, -1).filter(item => item.role === 'user').reverse().find(item => references(item.content).length);
-        if (prior) selected = references(prior.content);
-      }
+      const selected = selectedFines(messages);
       const modelTurns = messages.map(item => ({ ...item, content: item.content.replace(/\bfine-[a-z0-9_-]+\b/gi, 'the selected fine').replace(/\bveh-[a-z0-9_-]+\b/gi, 'the selected vehicle') }));
       const safeMessages = boundedMessages([{ role: 'system', content: `Select a bounded plan using only these services: ${JSON.stringify(tools)}. Return ONLY one JSON object, without markdown or explanation. It must have keys intent (list_fines, pay_fines, renew_registration, clarify or out_of_scope) and fineIds (an array of strings); omit vehicleId. Exact vehicle references are withheld and bound by the server; never invent a reference or use null. Example: {"intent":"list_fines","fineIds":[]}. Use renew_registration for a request to renew, prepare or review renewal of vehicle registration (تجديد تسجيل المركبة). This intent prepares a review and never executes renewal. The agent itself handles any fines that must be paid first. Classify the whole requested task: polite wording such as help me or review does not make an explicit renewal request unclear. Examples: "Can you help me extend my registration?" and "ساعدني في إجراءات تجديد رخصة المركبة" both mean renew_registration. Intent meanings: list_fines only reads fines. pay_fines prepares a payment REVIEW and waits for separate explicit approval; it never executes payment. Choose pay_fines when the user asks to pay, prepare payment or review paying fines, including a combined retrieve/list-and-pay request. For example, "Retrieve my fines and review paying them" means {"intent":"pay_fines","fineIds":[]}; "Show outstanding fines" means {"intent":"list_fines","fineIds":[]}. A follow-up "Pay them" after a fines list also means pay_fines. Do not choose payment review for a read-only request or a negated payment request. Return fineIds as an empty array. Exact fine references are withheld from this prompt and bound by the server to the user selection; without an explicit selection the server lists all currently outstanding fines. Use clarify only for greetings or requests whose intended task is genuinely missing. An explicit request to review, prepare or get help with a supported task already identifies the intent and must not become clarify. A clear request for an unsupported service must use out_of_scope, even if you cannot help with it. Viewing/paying fines and renewing vehicle registration are the only supported tasks. You cannot authorize, consent or execute. Never echo user text or credentials.` }, ...minimiseHistory(modelTurns, { personalContext: false })]);
       const principal = execution.getStore()?.principal;

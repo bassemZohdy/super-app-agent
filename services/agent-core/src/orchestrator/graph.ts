@@ -5,6 +5,7 @@ import type { Planner } from './planner.ts';
 import { FinesAdapter, invokeTool } from './fines-adapter.ts';
 import type { VehiclesAdapter } from './vehicles-adapter.ts';
 import type { Store } from './store.ts';
+import { selectedFines } from './selection.ts';
 
 export interface PendingApproval { id: string; quote: Quote; key: string; expiresAt: number }
 export interface PendingRenewal { id: string; quote: RenewalQuote; key: string; expiresAt: number }
@@ -43,7 +44,9 @@ export function createGraph(planner: Planner, tools: FinesAdapter, vehicles: Veh
         const selected = [...new Set((userMessage.match(/\bveh-[a-z0-9_-]+\b/gi) || []).map(id => id.replace(/^veh-/i, 'veh-')))];
         if (plan.intent === 'renew_registration' && selected.length > 1) return { plan: { intent: 'clarify' as const, fineIds: [] }, pending: null, decision: null, receipt: null, vehicles: [], renewalPending: null, renewalDecision: null, renewal: null, status: 'clarify', reply: 'Please name one vehicle to renew and ask again.' };
         if (plan.vehicleId && !selected.includes(plan.vehicleId)) throw new AgentError('UNBOUND_VEHICLE_SELECTION');
-        const bound = Plan.parse({ ...plan, vehicleId: plan.intent === 'renew_registration' ? selected[0] : undefined });
+        const fines = selectedFines(state.messages);
+        if (plan.fineIds.some(id => !fines.includes(id))) throw new AgentError('UNBOUND_FINE_SELECTION');
+        const bound = Plan.parse({ ...plan, fineIds: fines, vehicleId: plan.intent === 'renew_registration' ? selected[0] : undefined });
         return { plan: bound, pending: null, decision: null, receipt: null, vehicles: [], renewalPending: null, renewalDecision: null, renewal: null, status: 'planned' };
       } catch {
         return { plan: { intent: 'clarify' as const, fineIds: [] }, status: 'model_unavailable', reply: 'The planning provider is unavailable or returned an invalid plan. No operation ran.' };
