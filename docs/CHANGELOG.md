@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Validate scheduled occurrence readings (P1-02, step)
+
+The automation scheduler rejects invalid invoice dates, ambiguous or invalid fine identifiers and malformed parking sessions before recording occurrences. Guide: [automation worker](development/automation-worker.md).
+
 ## 2 November 2026 — Validate automation scheduler readings (P1-02, step)
 
 Scheduler HTTP reads are bounded and require an unambiguous success envelope; balance and usage counts must be nonnegative safe integers before threshold state changes. Guide: [automation worker](development/automation-worker.md).

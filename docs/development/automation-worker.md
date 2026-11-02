@@ -36,6 +36,8 @@ For a local held job, set `AUTOMATION_JOBS_DB` to the existing jobs database, `A
 
 The HTTP scheduling reader limits each response to 64 KiB and requires an explicit, unambiguous success envelope. Threshold readings must contain nonnegative safe integers for both balance in fils and the qualifying debit count; a malformed or oversized reading does not re-arm or fire that threshold. An oversized rule list requires reducing the local run's data before scheduling can continue.
 
+Invoice lists must contain real calendar dates, fine lists must contain unique bounded identifiers, and parking sessions must have a usable ticket, status and expiry. The reader validates the entire returned list before the scheduler records any occurrence from that reading; invalid data is retried on a later tick rather than partially scheduled.
+
 - A rule schedules only while it is approved and inside its start and expiry window; time never revives consent.
 - Calendar rules produce one occurrence per local month (`CAL:YYYY-MM`) with the rule's `LAST_DAY` or `SKIP` month-end behaviour in its own time zone. Invoice-due rules produce one occurrence per due date (`INV:YYYY-MM-DD`) three local days, or the rule's `daysBefore`, ahead at 09:00.
 - `tick` is a function of the rules, the occurrence keys already recorded for the rule under any version, and `now`. Repeating it, running it from two processes or advancing time in small or large steps gives the same jobs, and a revised rule never repeats an occurrence an earlier version handled.

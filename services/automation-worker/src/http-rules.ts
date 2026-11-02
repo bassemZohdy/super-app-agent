@@ -5,6 +5,14 @@ import { ClientCredentials } from '../../../packages/backend-kit/src/oauth.ts';
 import { boundedJsonResponse } from '../../../packages/backend-kit/src/bounded-json.ts';
 import type { RuleSource, ScheduledRule } from './scheduler.ts';
 
+const item = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
+const id = (value: unknown, max: number): value is string => typeof value === 'string' && value.length <= max && /^[A-Za-z0-9][A-Za-z0-9_.:-]*$/.test(value);
+const date = (value: unknown): value is string => {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const millis = Date.parse(`${value}T00:00:00.000Z`);
+  return Number.isFinite(millis) && new Date(millis).toISOString().slice(0, 10) === value;
+};
+
 export class HttpRuleSource implements RuleSource {
   private readonly credentials: ClientCredentials; private readonly base: URL; private readonly runId: string;
   constructor(config: { runId: string; paymentsUrl: string; clientSecret: string; clientId?: string }) {
@@ -25,9 +33,24 @@ export class HttpRuleSource implements RuleSource {
     return data;
   }
   async rules(): Promise<ScheduledRule[]> { return (await this.get('')).rules as ScheduledRule[]; }
-  async dueInvoices(rule: ScheduledRule) { return (await this.get(`/${encodeURIComponent(rule.mandateId)}/invoices`)).invoices as { dueDate: string }[]; }
-  async parkingSession(rule: ScheduledRule) { return (await this.get(`/${encodeURIComponent(rule.mandateId)}/session`)).session as { ticketId: string; status: string; expiresAt: number } | null; }
-  async newFines(rule: ScheduledRule) { return (await this.get(`/${encodeURIComponent(rule.mandateId)}/fines`)).fines as { fineId: string }[]; }
+  async dueInvoices(rule: ScheduledRule): Promise<{ dueDate: string }[]> {
+    const invoices = (await this.get(`/${encodeURIComponent(rule.mandateId)}/invoices`)).invoices;
+    if (!Array.isArray(invoices) || !invoices.every(value => item(value) && date(value.dueDate))) throw new Error('Scheduling invoices could not be confirmed.');
+    return invoices.map(value => ({ dueDate: value.dueDate as string }));
+  }
+  async parkingSession(rule: ScheduledRule): Promise<{ ticketId: string; status: string; expiresAt: number } | null> {
+    const session = (await this.get(`/${encodeURIComponent(rule.mandateId)}/session`)).session;
+    if (session === null) return null;
+    if (!item(session) || !id(session.ticketId, 72) || !id(session.status, 30) || typeof session.expiresAt !== 'number' || !Number.isSafeInteger(session.expiresAt) || session.expiresAt <= 0) throw new Error('Scheduling session could not be confirmed.');
+    return { ticketId: session.ticketId, status: session.status, expiresAt: session.expiresAt };
+  }
+  async newFines(rule: ScheduledRule): Promise<{ fineId: string }[]> {
+    const fines = (await this.get(`/${encodeURIComponent(rule.mandateId)}/fines`)).fines;
+    if (!Array.isArray(fines) || !fines.every(value => item(value) && id(value.fineId, 96))) throw new Error('Scheduling fines could not be confirmed.');
+    const ids = fines.map(value => value.fineId as string);
+    if (new Set(ids).size !== ids.length) throw new Error('Scheduling fines could not be confirmed.');
+    return ids.map(fineId => ({ fineId }));
+  }
   async balanceMinor(rule: ScheduledRule) { return (await this.balance(rule)).balanceMinor; }
   async balance(rule: ScheduledRule) {
     const data = await this.get(`/${encodeURIComponent(rule.mandateId)}/balance`);

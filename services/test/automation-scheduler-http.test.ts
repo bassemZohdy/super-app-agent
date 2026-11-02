@@ -41,3 +41,42 @@ test('scheduler rejects untrustworthy HTTP balance readings without changing thr
     assert.equal(store.thresholdState(rule.mandateId, rule.policyVersion).armed, true);
   } finally { store.close(); }
 });
+
+test('scheduler rejects invalid invoice, fine and parking readings before creating jobs', async t => {
+  const previous = process.env.KEYCLOAK_TOKEN_URL;
+  process.env.KEYCLOAK_TOKEN_URL = 'http://127.0.0.1/token';
+  t.after(() => { if (previous === undefined) delete process.env.KEYCLOAK_TOKEN_URL; else process.env.KEYCLOAK_TOKEN_URL = previous; });
+  const invoiceRule = { ...rule, trigger: { type: 'INVOICE_DUE' as const, daysBefore: 3 } };
+  const fineRule = { ...rule, trigger: { type: 'NEW_FINE' as const } };
+  const parkRule = { ...rule, trigger: { type: 'PARKING_ENDING' as const, minutesBefore: 30 } };
+  let selectedRule: typeof invoiceRule | typeof fineRule | typeof parkRule = invoiceRule;
+  let payload: unknown;
+  t.mock.method(globalThis, 'fetch', async input => {
+    const path = new URL(String(input)).pathname;
+    if (path === '/token') return Response.json({ access_token: 'fixture-service-token', expires_in: 300 });
+    if (path.endsWith('/rules')) return Response.json({ success: true, rules: [selectedRule] });
+    return Response.json(payload);
+  });
+  const source = new HttpRuleSource({ runId: 'autorn_00000000-0000-4000-8000-000000000000', paymentsUrl: 'http://127.0.0.1', clientSecret: 'fixture-secret' });
+  const now = Date.parse('2026-11-13T05:00:00Z');
+  const examples: { selected: typeof selectedRule; body: unknown }[] = [
+    { selected: invoiceRule, body: { success: true, invoices: [{ dueDate: '2026-11-15' }, { dueDate: '2026-02-30' }] } },
+    { selected: invoiceRule, body: { success: true, invoices: [null] } },
+    { selected: fineRule, body: { success: true, fines: [{ fineId: 'fine_1' }, { fineId: '../bad' }] } },
+    { selected: fineRule, body: { success: true, fines: [{ fineId: 'fine_1' }, { fineId: 'fine_1' }] } },
+    { selected: parkRule, body: { success: true, session: { ticketId: 'ticket_1', status: 'ACTIVE', expiresAt: String(now + 1000) } } },
+    { selected: parkRule, body: { success: true, session: { ticketId: '../bad', status: 'ACTIVE', expiresAt: now + 1000 } } },
+  ];
+  for (const example of examples) {
+    selectedRule = example.selected; payload = example.body;
+    const store = new JobStore(':memory:');
+    try { await assert.rejects(new Scheduler(store, source).tick(now)); assert.deepEqual(store.list(), []); }
+    finally { store.close(); }
+  }
+  payload = { success: true, invoices: [{ dueDate: '2026-11-15' }] }; selectedRule = invoiceRule;
+  assert.deepEqual(await source.dueInvoices(invoiceRule), [{ dueDate: '2026-11-15' }]);
+  payload = { success: true, fines: [{ fineId: 'fine_1' }] }; selectedRule = fineRule;
+  assert.deepEqual(await source.newFines(fineRule), [{ fineId: 'fine_1' }]);
+  payload = { success: true, session: { ticketId: 'ticket_1', status: 'ACTIVE', expiresAt: now + 1000 } }; selectedRule = parkRule;
+  assert.deepEqual(await source.parkingSession(parkRule), { ticketId: 'ticket_1', status: 'ACTIVE', expiresAt: now + 1000 });
+});
