@@ -430,7 +430,7 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
               width: '100%',
               borderCollapse: 'collapse',
               fontSize: '13px',
-              textAlign: 'left',
+              textAlign: 'start',
             }}
           >
             <thead>
@@ -438,6 +438,7 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ node, onDispatchActi
                 {columns.map((col) => (
                   <th
                     key={col.key}
+                    scope="col"
                     style={{ padding: '10px 14px', color: 'var(--primitive-color-slate-500)', fontWeight: 600 }}
                   >
                     {col.title}

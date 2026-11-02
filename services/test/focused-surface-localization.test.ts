@@ -34,3 +34,16 @@ test('renewal labels keep the original approval identity and reject altered bind
   const altered = structuredClone(view); altered.children![1].onEvents![0].payload.decision = 'reject';
   assert.equal(localizeFocusedSurface(altered, approval, true, 'ar').children?.[1].properties?.label, 'Confirm simulated renewal');
 });
+
+test('Arabic table headers change only for the known column contracts and keep every row intact', () => {
+  const fines: UIComponentNode = { id: 'fines', type: 'DataTable', properties: { columns: [{ key: 'id', title: 'Fine' }, { key: 'description', title: 'Details' }, { key: 'amount', title: 'Amount (AED)' }], rows: [{ id: 'fine-1', description: 'Speeding', amount: '150.00' }] } };
+  const vehicles: UIComponentNode = { id: 'vehicles', type: 'DataTable', properties: { columns: [{ key: 'id', title: 'Vehicle' }, { key: 'description', title: 'Details' }, { key: 'fee', title: 'Renewal fee (AED)' }], rows: [{ id: 'vehicle-1', description: 'Car', fee: '400.00' }] } };
+  const view: UIComponentNode = { id: 'fines-service', type: 'SurfaceCard', children: [fines, vehicles] };
+  const before = structuredClone(view), localized = localizeFocusedSurface(view, null, false, 'ar');
+  assert.deepEqual(view, before);
+  assert.deepEqual(localized.children?.[0].properties?.columns?.map(column => column.title), ['المخالفة', 'التفاصيل', 'المبلغ (درهم)']);
+  assert.deepEqual(localized.children?.[1].properties?.columns?.map(column => column.title), ['المركبة', 'التفاصيل', 'رسوم التجديد (درهم)']);
+  assert.deepEqual(localized.children?.map(node => node.properties?.rows), [fines.properties?.rows, vehicles.properties?.rows]);
+  const altered = structuredClone(view); altered.children![0].properties!.columns![2].title = 'Amount (USD)';
+  assert.deepEqual(localizeFocusedSurface(altered, null, false, 'ar').children?.[0], altered.children![0]);
+});

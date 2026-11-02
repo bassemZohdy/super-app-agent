@@ -22,6 +22,9 @@ test('the React fines sign-in and navigation follow the saved Arabic language', 
   await expect(page.getByRole('heading', { name: 'راجع قبل الدفع' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'تأكيد الدفع التجريبي' })).toBeVisible();
   await expect(page.getByText('الإجمالي التجريبي:', { exact: false })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: 'المخالفة', exact: true })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: 'المبلغ (درهم)', exact: true })).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'fine-1', exact: true })).toBeVisible();
   await expect(page.getByText('كتابة «نعم» لا تؤكد الدفع.', { exact: false })).toBeVisible();
   expect(focused.payments()).toBe(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -63,6 +66,8 @@ test('Arabic fines and renewal reviews retain separate explicit approvals', asyn
   const paymentApproval = (await paymentRequest).postDataJSON().approvalId;
   await expect(page.getByRole('button', { name: 'تأكيد التجديد التجريبي', exact: true })).toBeVisible();
   await expect(page.getByText('رسوم التجديد التجريبية:', { exact: false })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: 'المركبة', exact: true })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: 'رسوم التجديد (درهم)', exact: true })).toBeVisible();
   expect(focused.payments()).toBe(1); expect(focused.renewals()).toBe(0);
   const renewalRequest = page.waitForRequest(req => req.url().endsWith('/resume') && req.method() === 'POST');
   await page.getByRole('button', { name: 'تأكيد التجديد التجريبي', exact: true }).click();

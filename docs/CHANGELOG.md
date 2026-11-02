@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Localize focused service tables (P2-01, step)
+
+The React focused fines and vehicle tables translate known column headings without changing rows or amounts. The shared renderer aligns tables to reading direction and marks column headers. Guide: [shell parity](development/shell-parity.md).
+
 ## 2 November 2026 — Localize focused review decisions (P2-01, step)
 
 The React focused fines and renewal reviews translate matching totals and decision controls while preserving their original approval payloads. Browser checks exercise separate approvals on desktop and phone; unexpected surface content is left unchanged. Guide: [shell parity](development/shell-parity.md).
