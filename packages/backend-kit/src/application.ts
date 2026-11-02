@@ -64,6 +64,7 @@ export async function integratedRequest(service: string, actor: Actor, method: s
   const client = clientFor(service), asset = assetsFor(actor.accountId);
   if(eligibilityEnforced())try{actor.eligibilityEpoch=(await eligibilityReader.require(actor)).epoch;}catch(e){return {status:e instanceof EligibilityReadError&&e.status===403?403:503,data:{success:false,code:e instanceof EligibilityReadError&&e.status===403?'ACCOUNT_RESTRICTED':'ELIGIBILITY_UNAVAILABLE',error:'Current owner/workspace eligibility does not admit this request. History is retained.'}};}
   const call = (provider: string, verb: string, route: string, data?: unknown, key?: string) => client.call(provider, actor, verb, route, data, key);
+  const ownedUtility = (value: unknown): boolean => !!value && typeof value === 'object' && !Array.isArray(value) && (value as Bill).accountNumber === asset.utilityAccount && ((value as Bill).premiseId === undefined || (value as Bill).premiseId === asset.premiseId);
   const stableKey = (value: string) => createHash('sha256').update(`${actor.accountId}:${value}`).digest('hex');
   const charge = async (provider: string, reference: string, amount: number) => call('payments', 'POST', '/charges', { amountMinor: Math.round(amount * 100), merchant: provider, reference, source: 'wallet' }, stableKey(`charge:${provider}:${reference}`));
   const executePayable = async (provider:string,payable:Payable, verifyOrder?: (order: unknown) => boolean) => {
@@ -98,8 +99,9 @@ export async function integratedRequest(service: string, actor: Actor, method: s
   };
   const settleBill = async (provider: string, billId?: string) => {
     const { bills } = await call(provider, 'GET', '/bills');
-    const bill: Bill | undefined = billId ? bills.find((b: Bill) => b.billId === billId) : bills[0];
-    if (!bill || provider === 'dewa' && (bill.accountNumber !== asset.utilityAccount || bill.premiseId !== undefined && bill.premiseId !== asset.premiseId)) throw new UpstreamError(404, 'NOT_FOUND', 'Bill not found.');
+    if (!Array.isArray(bills)) throw new UpstreamError(503, 'PROVIDER_UNAVAILABLE', 'The bills could not be read.');
+    const bill: Bill | undefined = bills.find((b: Bill) => (billId === undefined || b?.billId === billId) && (provider !== 'dewa' || ownedUtility(b)));
+    if (!bill) throw new UpstreamError(404, 'NOT_FOUND', 'Bill not found.');
     if (bill.status === 'PAID') {
       if (body.expectedAmountMinor !== undefined && body.expectedAmountMinor !== Math.round(bill.totalAmount * 100))
         throw new UpstreamError(409, 'PAYABLE_CHANGED', 'The reviewed bill changed. Review its current terms again.');
@@ -208,8 +210,21 @@ export async function integratedRequest(service: string, actor: Actor, method: s
       if (method === 'GET' && path.startsWith('/rides/track/')) return successfulWithoutDuplicate(await call('rta', method, `/rides/bookings/${encodeURIComponent(path.split('/').pop()!)}`));
     }
     if (service === 'service-food') {
-      if (method === 'GET' && path === '/utilities/consumption') return successfulWithoutDuplicate(await call('dewa', method, '/consumption'));
-      if (method === 'GET' && path === '/utilities/bill') {const bill=(await call('dewa',method,'/bills')).bills[0],payable=(await call('dewa',method,'/payables')).payables.find((p:Payable)=>p.obligationId===bill.billId);return successful({bill:{...bill,payableId:payable?.id,payableRevision:payable?.revision}});}
+      if (method === 'GET' && path === '/utilities/consumption') {
+        const result = await call('dewa', method, '/consumption');
+        if (!ownedUtility(result.account)) throw new UpstreamError(404, 'NOT_FOUND', 'Utility account not found.');
+        return successfulWithoutDuplicate(result);
+      }
+      if (method === 'GET' && path === '/utilities/bill') {
+        const bills = (await call('dewa', method, '/bills')).bills;
+        if (!Array.isArray(bills)) throw new UpstreamError(503, 'PROVIDER_UNAVAILABLE', 'The bills could not be read.');
+        const bill = bills.find(ownedUtility);
+        if (!bill) throw new UpstreamError(404, 'NOT_FOUND', 'Bill not found.');
+        const payables = (await call('dewa', method, '/payables')).payables;
+        if (!Array.isArray(payables)) throw new UpstreamError(503, 'PROVIDER_UNAVAILABLE', 'The bill payable could not be read.');
+        const payable = payables.find((p: Payable) => p?.obligationId === bill.billId && p.provider === 'dewa' && p.kind === 'BILL' && p.reference === asset.utilityAccount);
+        return successful({ bill: { ...bill, payableId: payable?.id, payableRevision: payable?.revision } });
+      }
       if (method === 'POST' && path === '/utilities/pay') return successfulWithoutDuplicate(await settleBill('dewa', body.billId));
       if (method === 'GET' && ['/restaurants/search','/utilities/eco-advice'].includes(path)) return legacy(method, path, query, body);
       if (method === 'POST' && path === '/orders/create') {

@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Scope utility reads to the account (P1-13, step)
+
+Utility bill and consumption reads and implicit bill settlement select the account's synthetic utility account; bill payable metadata must name that account too. Mixed-account, missing and malformed provider responses are covered by focused tests; the application contract passed on a disposable synthetic stack using revision `c08973d` plus this change, Node 24.16.0, Docker 29.9.2 and Compose 5.6.1. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Bind utility settlement to the account (P1-13, step)
 
 Standalone and grouped utility payments reject bills or payables outside the account's synthetic utility account, and reject a mismatched premise when present. Focused boundary tests and all 17 documented application contract writes passed; live checks used revision `3858ce6` plus this change, Node 24.16.0, Docker 29.9.2 and Compose 5.6.1 on a disposable synthetic stack. Guide: [integrations](integrations.md).
