@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 - Bound automation execution views (P1-10, step)
+
+The broker validates payment amounts, mandate and source versions, and preparation time ordering before issuing an automation permit. The local startup check also allows more time for process launch under load. Guide: [automation worker](development/automation-worker.md).
+
 ## 2 November 2026 - Reject ambiguous eligibility envelopes (P1-10, step)
 
 The current-eligibility reader rejects conflicting or unexpected response fields before granting access. Guide: [payment lifecycle](development/payment-lifecycle.md).

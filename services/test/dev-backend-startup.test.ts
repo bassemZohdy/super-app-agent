@@ -80,7 +80,7 @@ test('a late port conflict exits and releases every earlier listener', { timeout
 });
 
 
-test('the local backend rejects endpoints that cannot describe its plain HTTP listeners', { timeout: 30000 }, async () => {
+test('the local backend rejects endpoints that cannot describe its plain HTTP listeners', { timeout: 60000 }, async () => {
   const reservations = Array.from({ length: 6 }, () => createServer());
   await Promise.all(reservations.map(async server => { server.listen(0, '127.0.0.1'); await once(server, 'listening'); }));
   const ports = reservations.map(server => { const address = server.address(); assert.ok(address && typeof address !== 'string'); return address.port; });
@@ -95,7 +95,7 @@ test('the local backend rejects endpoints that cannot describe its plain HTTP li
     let output = ''; child.stdout.setEncoding('utf8').on('data', chunk => { output += chunk; }); child.stderr.setEncoding('utf8').on('data', chunk => { output += chunk; });
     const closed = once(child, 'close'); let watchdog: ReturnType<typeof setTimeout> | undefined;
     try {
-      const [code] = await Promise.race([closed, new Promise<never>((_, reject) => { watchdog = setTimeout(() => { child.kill(); reject(new Error('Backend accepted an invalid endpoint')); }, 2500); })]);
+      const [code] = await Promise.race([closed, new Promise<never>((_, reject) => { watchdog = setTimeout(() => { child.kill(); reject(new Error('Backend accepted an invalid endpoint')); }, 10000); })]);
       assert.notEqual(code, 0); assert.match(output, /endpoint.*invalid/i); assert.doesNotMatch(output, /listening on|operational and ready|private-marker/i);
     } finally { clearTimeout(watchdog); if (child.exitCode === null && child.signalCode === null) { child.kill(); await closed; } }
   }

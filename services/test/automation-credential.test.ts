@@ -123,6 +123,11 @@ test('malformed authority facts cannot be interpreted as permission to issue a c
     view({ biller: { id: 'biller_1', current: 'true' as never } }),
     view({ mandate: { ...view().mandate, policyVersion: 0 } }),
     view({ source: { ...view().source, version: 0 } }),
+    view({ mandate: { ...view().mandate, policyVersion: 1001 } }),
+    view({ source: { ...view().source, version: 1000001 } }),
+    view({ payable: { ...view().payable, amountMinor: 100000001 } }),
+    view({ preparedAt: new Date(Date.now() + 120000).toISOString() }),
+    view({ preparedAt: new Date(Date.now() + 900000).toISOString(), admissionExpiresAt: new Date(Date.now() + 600000).toISOString() }),
   ]) {
     const { d, calls } = deps({ readView: async () => malformed });
     try {

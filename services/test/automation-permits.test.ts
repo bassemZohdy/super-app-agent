@@ -37,6 +37,19 @@ test('AUTO-03 2b: a permit is issued only from a fresh execution view, with a bo
   assert.throws(() => store.issue(worker, view({ executionId: 'autoexec_0003', admissionExpiresAt: new Date(NOW + 5_000).toISOString() }), NOW), code('PERMIT_EXPIRED'));
 });
 
+test('execution-view contract limits remain inclusive at their valid boundaries', () => {
+  const store = fresh();
+  try {
+    const accepted = view({
+      mandate: { ...view().mandate, policyVersion: 1000 },
+      source: { ...view().source, version: 1000000 },
+      payable: { ...view().payable, amountMinor: 100000000 },
+      preparedAt: new Date(NOW).toISOString(),
+    });
+    assert.equal(store.issue(worker, accepted, NOW).state, 'ISSUED');
+  } finally { store.db.close(); }
+});
+
 test('AUTO-03 2b: every stale authority fact and malformed view refuses the credential', () => {
   const cases: [string, Partial<ExecutionView>][] = [
     ['PERMIT_MANDATE_INACTIVE', { mandate: { id: 'mandate_1', state: 'PAUSED', policyVersion: 1, skipNext: false } }],

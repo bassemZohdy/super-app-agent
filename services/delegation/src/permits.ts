@@ -10,6 +10,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
 import { automationOperation } from '../../../packages/protocol-core/src/automation-operation.ts';
+import { MAX_PAYMENT_MINOR } from '../../../packages/protocol-core/src/payments.ts';
 import { DelegationError, brokerClient, automationWorkerClient, deny, digest } from './policy.ts';
 
 export type ExecutionView = {
@@ -61,15 +62,15 @@ function admission(view: ExecutionView, now: number) {
   return { operationDigest, expiresAt };
 }
 
-function checkedView(view: ExecutionView) {
+function checkedView(view: ExecutionView, now: number) {
   const text = (value: unknown, pattern = id) => typeof value === 'string' && pattern.test(value);
   if (!view || typeof view !== 'object' || !text(view.executionId) || !text(view.runId) || !text(view.accountId) || !text(view.ownerSub) || !text(view.eligibilityEpoch, /^[1-9][0-9]{0,6}:[1-9][0-9]{0,6}$/) ||
-    !view.mandate || !text(view.mandate.id) || typeof view.mandate.state !== 'string' || typeof view.mandate.skipNext !== 'boolean' || !Number.isSafeInteger(view.mandate.policyVersion) || view.mandate.policyVersion < 1 ||
-    !view.source || !text(view.source.id) || typeof view.source.current !== 'boolean' || !Number.isSafeInteger(view.source.version) || view.source.version < 1 ||
+    !view.mandate || !text(view.mandate.id) || typeof view.mandate.state !== 'string' || typeof view.mandate.skipNext !== 'boolean' || !Number.isSafeInteger(view.mandate.policyVersion) || view.mandate.policyVersion < 1 || view.mandate.policyVersion > 1000 ||
+    !view.source || !text(view.source.id) || typeof view.source.current !== 'boolean' || !Number.isSafeInteger(view.source.version) || view.source.version < 1 || view.source.version > 1000000 ||
     (view.biller !== undefined && (!view.biller || !text(view.biller.id) || typeof view.biller.current !== 'boolean')) ||
-    !view.payable || !text(view.payable.id) || !text(view.payable.revision) || typeof view.payable.current !== 'boolean' || !Number.isSafeInteger(view.payable.amountMinor) || view.payable.amountMinor < 1 ||
+    !view.payable || !text(view.payable.id) || !text(view.payable.revision) || typeof view.payable.current !== 'boolean' || !Number.isSafeInteger(view.payable.amountMinor) || view.payable.amountMinor < 1 || view.payable.amountMinor > MAX_PAYMENT_MINOR ||
     typeof view.expired !== 'boolean' || (view.challenge !== undefined && !['APPROVED', 'PENDING', 'REJECTED', 'NONE'].includes(view.challenge)) ||
-    !hex64.test(String(view.boundDigest)) || !Number.isFinite(isoMs(view.preparedAt)) || !Number.isFinite(isoMs(view.admissionExpiresAt)))
+    !hex64.test(String(view.boundDigest)) || !Number.isFinite(isoMs(view.preparedAt)) || !Number.isFinite(isoMs(view.admissionExpiresAt)) || isoMs(view.preparedAt) > now || isoMs(view.preparedAt) >= isoMs(view.admissionExpiresAt))
     deny('PERMIT_VIEW_INVALID', 'The prepared execution view is incomplete or malformed; no credential is issued.');
 }
 
@@ -109,7 +110,7 @@ export class PermitStore {
   /** Issue the single permit for a prepared execution after re-checking every authority fact in the view. */
   issue(worker: { sub: string; azp: string }, view: ExecutionView, now = Date.now()): Permit {
     if (worker?.azp !== automationWorkerClient || typeof worker.sub !== 'string' || !worker.sub) deny('PERMIT_WORKER_REQUIRED', 'Only the dedicated automation workload may request an execution credential.');
-    checkedView(view);
+    checkedView(view, now);
     const { operationDigest, expiresAt } = admission(view, now);
     return this.atomic(() => {
       const rows = this.db.prepare('SELECT body,state,fingerprint FROM permits WHERE execution_id=? ORDER BY rowid DESC').all(view.executionId) as never[];
@@ -138,7 +139,7 @@ export class PermitStore {
    *  a resumed permit is never resumed again, so an uncertain resume is held for reconciliation, not repeated. */
   issueResume(worker: { sub: string; azp: string }, view: ExecutionView, now = Date.now()): Permit {
     if (worker?.azp !== automationWorkerClient || typeof worker.sub !== 'string' || !worker.sub) deny('PERMIT_WORKER_REQUIRED', 'Only the dedicated automation workload may request an execution credential.');
-    checkedView(view);
+    checkedView(view, now);
     if (view.challenge === 'PENDING') throw new DelegationError(409, 'CHALLENGE_PENDING', 'The owner has not answered the held card challenge yet.');
     if (view.challenge === 'REJECTED') throw new DelegationError(409, 'CHALLENGE_REJECTED', 'The owner rejected the held card challenge; nothing was paid.');
     if (view.challenge !== 'APPROVED') deny('PERMIT_NOT_RESUMABLE', 'Only an execution whose card challenge was approved can resume.');
