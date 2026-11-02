@@ -171,6 +171,27 @@ test('a typed Arabic request lists fines without making a payment', async ({ pag
   expect(focused.payments()).toBe(0);
 });
 
+test('a named Arabic fine review pays only that fine and negated requests do not create a review', async ({ page, focused }) => {
+  await page.addInitScript(() => localStorage.setItem('cityside.locale', 'ar'));
+  await page.goto(focused.url);
+  await page.getByLabel('رمز الوصول', { exact: true }).fill(focused.token);
+  await page.getByRole('button', { name: 'فتح مخالفاتي' }).click();
+  const composer = page.getByRole('textbox', { name: 'رسالة عن المخالفات' });
+  await composer.fill('لا تدفع fine-1 pay'); await page.getByRole('button', { name: 'إرسال الرسالة' }).click();
+  await expect(page.getByRole('button', { name: 'تأكيد الدفع التجريبي' })).toHaveCount(0);
+  expect(focused.payments()).toBe(0);
+  await composer.fill('مراجعة دفع المخالفة fine-1'); await page.getByRole('button', { name: 'إرسال الرسالة' }).click();
+  await expect(page.getByRole('button', { name: 'تأكيد الدفع التجريبي' })).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'fine-1', exact: true })).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'fine-2', exact: true })).toHaveCount(0);
+  expect(focused.payments()).toBe(0);
+  await page.getByRole('button', { name: 'تأكيد الدفع التجريبي' }).click();
+  await expect(page.getByRole('heading', { name: 'إيصالك التجريبي' })).toBeVisible();
+  const thread = await page.evaluate(() => sessionStorage.getItem('cityside.fines.thread.v1'));
+  const result = await (await page.request.get(`${new URL(focused.url).origin}/api/agent/threads/${thread}`, { headers: { Authorization: `Bearer ${focused.token}` } })).json();
+  expect(result.receipt.quote.fineIds).toEqual(['fine-1']); expect(focused.payments()).toBe(1);
+});
+
 test('rejecting an Arabic payment review reports that no payment was made', async ({ page, focused }) => {
   await page.addInitScript(() => localStorage.setItem('cityside.locale', 'ar'));
   await page.goto(focused.url);

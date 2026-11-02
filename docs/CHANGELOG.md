@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bind Arabic demo selections (P1-13, step)
+
+The deterministic demo planner recognizes exact Arabic requests naming a fine or vehicle, while refusing ambiguous or negated mixed-language requests. Browser checks verify a named fine is reviewed and paid only after confirmation. Guide: [shell parity](development/shell-parity.md).
+
 ## 2 November 2026 — Localize focused recovery outcomes (P2-01, step)
 
 The React focused journey distinguishes known refused and unknown payment or renewal outcomes in Arabic, preserving codes and any completed fines payment. Browser checks simulate an unknown response and recover the original payment without replacement. Guide: [shell parity](development/shell-parity.md).

@@ -33,6 +33,19 @@ test('fixture planner recognizes explicit Arabic fines and renewal requests with
     ['عرض المخالفات المستحقة ولا تدفع', 'out_of_scope'],
   ] as const) assert.equal((await planner.plan([{ role: 'user', content: message }])).intent, intent);
 });
+test('Arabic fixture requests bind selected resources and reject negated mixed-language payment', async () => {
+  const planner = new FixturePlanner();
+  for (const [message, intent] of [
+    ['عرض المخالفة fine-1', 'list_fines'],
+    ['مراجعة دفع المخالفة fine-1', 'pay_fines'],
+    ['تجديد تسجيل المركبة veh-1', 'renew_registration'],
+    ['لا تدفع fine-1 pay', 'out_of_scope'],
+    ['مراجعة دفع المخالفة fine-1 ولا تدفع', 'out_of_scope'],
+    ['أريد دفعها', 'clarify'],
+  ] as const) assert.equal((await planner.plan([{ role: 'user', content: message }])).intent, intent);
+  const followup = await planner.plan([{ role: 'user', content: 'عرض المخالفة fine-1' }, { role: 'assistant', content: 'fine-1' }, { role: 'user', content: 'أريد دفعها' }]);
+  assert.equal(followup.intent, 'pay_fines');
+});
 test('configuration fails closed without authority, model configuration or on production mocks', () => {
   assert.throws(() => config({}));
   assert.throws(() => config({ AGENT_WORKLOAD_KEY: 'x'.repeat(32), AGENT_PLANNER: 'compatible' }));
