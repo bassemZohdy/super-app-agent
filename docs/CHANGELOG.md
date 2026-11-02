@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bind offline fine settlement identities (P1-13, step)
+
+The synthetic fines fixture binds a supplied operation ID to the exact fine set and reviewed total, returns the original receipt on same-term repeats, and exposes the original settlement for later reconciliation. Integrated provider mode rejects this offline identity. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Record an observed utility outcome (P1-13, step)
 
 The owner can record verified utility evidence in the original civic journal without repeating settlement or releasing its fence. Redis/HTTP tests cover changed evidence, account isolation, retries, concurrency and a response still in flight. Guide: [integrations](integrations.md).

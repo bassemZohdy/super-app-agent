@@ -70,7 +70,8 @@ function confirmedReceipt(service: string, path: string, data: any, body: unknow
     if (path === '/wallet/topup') return record(data.transaction) && named(data.transaction.id) && finite(data.newBalance);
     if (path === '/fines/pay') {
       if (!record(body)) return false;
-      const request = body as { fineIds?: unknown; expectedAmountMinor?: unknown };
+      const request = body as { fineIds?: unknown; expectedAmountMinor?: unknown; operationId?: unknown };
+      if (request.operationId !== undefined && (!named(request.operationId) || data.operationId !== request.operationId)) return false;
       const requested = request.fineIds;
       if (!Array.isArray(requested) || requested.length === 0 || !requested.every(named) || new Set(requested).size !== requested.length ||
         !named(data.receiptNumber) || !finite(data.remainingBalance) || data.finesCleared !== requested.length ||

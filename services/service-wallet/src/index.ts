@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { shutdownOnSignal } from '../../../packages/backend-kit/src/shutdown.ts';
 import { createApplicationServer } from '../../../packages/backend-kit/src/application.ts';
 import { validateRequest, toolSchema, invalidInput, toMinor, fromMinor, MAX_MONEY } from '../../../packages/protocol-core/src/request-validation.ts';
@@ -16,6 +17,8 @@ export interface Transaction {
 
 type OfflineUnifiedOperation = { signature: string; items: Array<{ agency: string; purpose: string; amount: number }>; receiptReference: string; response: Record<string, unknown> };
 const offlineUnifiedOperations = new Map<string, OfflineUnifiedOperation>();
+type OfflineFineOperation = { signature: string; fines: Array<{ fineId: string; amountMinor: number }>; receiptReference: string; response: Record<string, unknown> };
+const offlineFineOperations = new Map<string, OfflineFineOperation>();
 
 export let balance = 142.5;
 export const currency = 'USD';
@@ -154,8 +157,20 @@ function handleWalletRequest(
     return { status: 200, data: { success: true, receipt: fines.length ? { receiptNumber, currency: 'AED', fines: fines.map(fine => ({ fineId: fine.fineId, amountMinor: toMinor(fine.payableAmount) })) } : null } };
   }
 
+  const fineOperation = /^\/fines\/payment-operations\/([^/]+)$/.exec(pathname);
+  if (normMethod === 'GET' && fineOperation) {
+    const operationId = decodeURIComponent(fineOperation[1]), operation = offlineFineOperations.get(operationId);
+    return { status: 200, data: { success: true, operation: operation ? { operationId, status: 'SETTLED', fines: structuredClone(operation.fines), receiptReference: operation.receiptReference } : null } };
+  }
+
   if (normMethod === 'POST' && (pathname === '/fines/pay' || pathname === '/fines/settle')) {
     if (body.expectedPayables !== undefined) return invalidInput('Reviewed payable revisions require integrated provider mode');
+    const signature = JSON.stringify({ fineIds: [...body.fineIds].sort(), expectedAmountMinor: body.expectedAmountMinor ?? null });
+    const previous = body.operationId ? offlineFineOperations.get(body.operationId) : undefined;
+    if (previous) {
+      if (previous.signature !== signature) return { status: 409, data: { success: false, code: 'IDEMPOTENCY_CONFLICT', error: 'This operation already has different terms.' } };
+      return { status: 200, data: structuredClone(previous.response) };
+    }
     const activeFines = policeFines.filter(f => body.fineIds.includes(f.fineId) && f.status === 'UNPAID');
     if (activeFines.length !== body.fineIds.length) return { status: 404, data: { error: 'Selected unpaid fine not found' } };
     const dueMinor = activeFines.reduce((acc, f) => acc + toMinor(f.payableAmount), 0);
@@ -177,7 +192,7 @@ function handleWalletRequest(
     }
 
     balance = fromMinor(toMinor(balance) - dueMinor);
-    const txId = `DP-PAY-${Date.now()}`;
+    const txId = `DP-PAY-${randomUUID()}`;
     const paidAt = new Date().toISOString();
 
     activeFines.forEach((f) => {
@@ -192,22 +207,19 @@ function handleWalletRequest(
       amount: totalDue,
       currency: 'AED',
       purpose: `Settlement of ${activeFines.length} Police Traffic Fines`,
+      ...(body.operationId ? { operationId: body.operationId } : {}),
       status: 'SETTLED',
       timestamp: Date.now(),
     });
 
-    return {
-      status: 200,
-      data: {
-        success: true,
-        receiptNumber: txId,
-        amountPaid: totalDue,
-        finesCleared: activeFines.length,
-        fineIds: activeFines.map(f => f.fineId),
-        remainingBalance: balance,
-        message: 'All traffic fines settled with Dubai Police. Zero black points added.',
-      },
+    const response = {
+      success: true, receiptNumber: txId, amountPaid: totalDue, finesCleared: activeFines.length,
+      fineIds: activeFines.map(f => f.fineId), remainingBalance: balance,
+      message: 'All traffic fines settled with Dubai Police. Zero black points added.',
+      ...(body.operationId ? { operationId: body.operationId } : {}),
     };
+    if (body.operationId) offlineFineOperations.set(body.operationId, { signature, fines: activeFines.map(fine => ({ fineId: fine.fineId, amountMinor: toMinor(fine.payableAmount) })), receiptReference: txId, response });
+    return { status: 200, data: structuredClone(response) };
   }
 
   // ---------------------------------------------------------------------------

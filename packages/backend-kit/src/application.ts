@@ -261,7 +261,10 @@ export async function integratedRequest(service: string, actor: Actor, method: s
       }
       if (method === 'POST' && path === '/wallet/topup') return successfulWithoutDuplicate(await call('payments', method, '/topups', { amountMinor: Math.round(body.amount * 100), source: 'demo_approved' }));
       if (method === 'POST' && path === '/wallet/pay') return successfulWithoutDuplicate(await charge('superapp', body.referenceId || actor.requestId, body.amount));
-      if (method === 'POST' && path === '/fines/pay') return successfulWithoutDuplicate(await settleFines(body.fineIds));
+      if (method === 'POST' && path === '/fines/pay') {
+        if (body.operationId !== undefined) throw new UpstreamError(400, 'VALIDATION_ERROR', 'Offline operation identities are not supported in integrated provider mode.');
+        return successfulWithoutDuplicate(await settleFines(body.fineIds));
+      }
       if (method === 'POST' && ['/pay/unified','/pay/multi-agency'].includes(path)) {
         if (body.operationId !== undefined) throw new UpstreamError(400, 'VALIDATION_ERROR', 'Offline operation identities are not supported in integrated provider mode.');
         if((body.targetReference===undefined)!==(body.expectedTargetVersion===undefined))throw new UpstreamError(400,'VALIDATION_ERROR','Select a recharge target and its reviewed version together.');
