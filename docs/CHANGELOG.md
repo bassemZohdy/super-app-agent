@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Retain compatibility quote bindings (P0-04, step)
+
+Compatibility payments atomically store a hash of the first observed order quote and its approval digest before advancing, then reject changed terms on later requests. A reopened application store test covers changed quotes, changed digests and original-order recovery. This local binding does not authenticate the initial provider quote or establish replicated durability. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Keep compatibility payment quotes stable (P0-04, step)
 
 Compatibility bill, fine and recharge transitions reject changes to the complete quote or approval digest during one attempt, including after approval. JSON key ordering does not affect comparison. The check does not authenticate provider quotes or persist a separate reference across requests. Guide: [integrations](integrations.md).

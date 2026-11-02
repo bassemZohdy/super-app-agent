@@ -14,13 +14,13 @@ test('recharge orders and receipts stay bound to the selected target', async t =
   t.after(() => { if (previous === undefined) delete process.env.APP_DATA_DIR; else process.env.APP_DATA_DIR = previous; removeTemp(dir); });
   let provider = 'rta', scenario = 'valid', approvals = 0, executions = 0;
   const payable = () => ({ id: `${provider}:recharge:one`, kind: 'RECHARGE', provider, obligationId: `${provider}:recharge:one`, reference: 'owned-target', revision: 'a'.repeat(64), amountMinor: 10000, currency: 'AED', recharge: { kind: provider === 'rta' ? 'TOLL' : 'PREPAID', targetVersion: 1, balanceBeforeMinor: 1400 } });
-  const order = (state: string) => ({ id: 'original', ownerSub: actor.sub, accountId: actor.accountId, state, version: 1, approvalDigest: 'a'.repeat(64), paymentId: 'payment', quote: { currency:'AED', source:{ id:'wallet', kind:'wallet', accountId:actor.accountId, version:1 }, totalMinor: 10000, payable: scenario === 'wrong-order' || scenario === 'wrong-authorized' && state === 'AUTHORIZED' ? { ...payable(), reference: 'other' } : payable() }, receipt: { receiptNumber: 'payment', obligationId: payable().obligationId, amountMinor: 10000, currency: 'AED', targetReference: scenario === 'wrong-receipt' ? 'other' : 'owned-target', providerBalanceMinor: scenario === 'wrong-balance' ? 11401 : 11400 } });
+  const order = (state: string) => ({ id: `${provider}_original`, ownerSub: actor.sub, accountId: actor.accountId, state, version: 1, approvalDigest: 'a'.repeat(64), paymentId: 'payment', quote: { currency:'AED', source:{ id:'wallet', kind:'wallet', accountId:actor.accountId, version:1 }, totalMinor: 10000, payable: scenario === 'wrong-order' || scenario === 'wrong-authorized' && state === 'AUTHORIZED' ? { ...payable(), reference: 'other' } : payable() }, receipt: { receiptNumber: 'payment', obligationId: payable().obligationId, amountMinor: 10000, currency: 'AED', targetReference: scenario === 'wrong-receipt' ? 'other' : 'owned-target', providerBalanceMinor: scenario === 'wrong-balance' ? 11401 : 11400 } });
   t.mock.method(ProviderClient.prototype, 'call', async (name, _actor, _method, route) => {
     if (name === 'rta' && route === '/salik') return { tagNumber: 'owned-target' };
     if (name === provider && route.startsWith('/recharge-intents/')) return { payable: scenario === 'wrong-quote' ? { ...payable(), provider: 'other' } : payable() };
     if (route === '/billing-accounts') return { billingAccounts: [{ status: 'ACTIVE', provider, reference: 'owned-target' }] };
-    if (route === '/payment-orders') return { order: { id: 'original' } };
-    if (route === '/payment-orders/original') return { order: order('AWAITING_APPROVAL') };
+    if (route === '/payment-orders') return { order: { id: `${provider}_original` } };
+    if (route === `/payment-orders/${provider}_original`) return { order: order('AWAITING_APPROVAL') };
     if (route.endsWith('/approve')) { approvals++; return { order: order('AUTHORIZED') }; }
     if (route.endsWith('/execute')) { executions++; return { order: order('SETTLED') }; }
     throw new Error('Unexpected provider operation');

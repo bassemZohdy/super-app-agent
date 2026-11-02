@@ -80,6 +80,13 @@ export async function integratedRequest(service: string, actor: Actor, method: s
     const verify = () => { if (!order||order.id!==originalId||order.ownerSub!==actor.sub||order.accountId!==actor.accountId||typeof order.approvalDigest!=='string'||!/^[a-f0-9]{64}$/.test(order.approvalDigest)||order.quote?.currency!=='AED'||order.quote?.source?.id!=='wallet'||order.quote?.source?.accountId!==actor.accountId||order.quote?.source?.kind!=='wallet'||order.quote?.source?.version!==1||verifyOrder&&!verifyOrder(order)||originalQuote!==undefined&&(order.approvalDigest!==originalDigest||canonicalJson(order.quote)!==originalQuote)) throw new UpstreamError(503,'PROVIDER_OUTCOME_UNKNOWN','The original payment order could not be confirmed. Inspect the original payment order.'); };
     verify();
     originalQuote=canonicalJson(order.quote); originalDigest=order.approvalDigest;
+    const quoteHash=createHash('sha256').update(originalQuote).digest('hex');
+    db.transaction(()=>{
+      const saved=db.get<{ownerSub:string;approvalDigest:string;quoteHash:string}>(actor.accountId,'payment-quote-binding',originalId);
+      if(saved){
+        if(saved.ownerSub!==actor.sub||saved.approvalDigest!==originalDigest||saved.quoteHash!==quoteHash)throw new UpstreamError(503,'PROVIDER_OUTCOME_UNKNOWN','The original payment order could not be confirmed. Inspect the original payment order.');
+      }else db.put(actor.accountId,'payment-quote-binding',{ownerSub:actor.sub,approvalDigest:originalDigest,quoteHash},originalId);
+    });
     if(order.state==='AWAITING_APPROVAL')order=(await call('payments','POST',`/payment-orders/${order.id}/approve`,{expectedVersion:order.version,approvalDigest:order.approvalDigest},stableKey(`${prefix}-authorize:${order.id}`))).order;
     verify();
     if(order.state==='AUTHORIZED')order=(await call('payments','POST',`/payment-orders/${order.id}/execute`,{expectedVersion:order.version,approvalDigest:order.approvalDigest},stableKey(`${prefix}-execute:${order.id}`))).order;

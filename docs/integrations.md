@@ -14,7 +14,7 @@ Integrated toll and prepaid recharges bind the saved quote and each payment orde
 
 For compatibility bill, fine and recharge orders, each payment transition also checks the original order ID, subject, workspace and the requested wallet's account, version and currency. An inconsistent order remains unknown before any further transition. Provider-signed quotes and production delegated consent remain separate requirements.
 
-Within one compatibility payment attempt, the client also compares the complete order quote and approval digest across responses before advancing. Equivalent JSON object key order is accepted. This comparison is local to that attempt and does not authenticate provider quotes or persist a separate reference across requests.
+The compatibility application stores the first observed complete quote's hash and approval digest per order, account and application service in its SQLite store before advancing. It compares later responses and requests against that binding; equivalent JSON object key order is accepted. The binding survives reopening the local store, but does not authenticate the initial provider quote, coordinate separate service stores or establish replicated production durability.
 
 MCP, A2A, SOAP and controlled browser execution are protocol values at the extension boundary, not implemented transports in this entry point. The existing integrated MCP server remains in its original path. Add a real protocol adapter only for a concrete service, with its own authority, schema, timeout and retry tests.
 
