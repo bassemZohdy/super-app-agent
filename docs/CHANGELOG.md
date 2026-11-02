@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bound focused conversation messages (P0-11, step)
+
+The focused agent admits at most 128 new messages per conversation after upgrade, storing admission atomically with the request record. Inspection, replay, approval and original-operation recovery remain available at the limit. Tests cover the boundary, concurrent requests, another resident and SQLite reopen. This does not bound other request records or historical storage. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Stop disconnected focused requests before dispatch (P0-11, step)
 
 The focused API checks for a disconnected client after initial authentication and after the post-upload authority check, before dispatching work. Loopback tests cover creation, cancellation, message and direct simulator payment; a separate test confirms a payment already committed completes and replays once after client disconnect. This does not cancel authentication or graph work already in progress. Guide: [agent flow](agent-flow.md).

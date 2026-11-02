@@ -61,6 +61,7 @@ test('legacy unresolved operation without a saved approval is not guessed onto a
     h.tools.pay.invoke = async () => { throw new Error('unknown outcome'); };
     assert.equal((await h.req(`${root}/resume`, { approvalId: review.data.approval.id, decision: 'approve' })).data.status, 'unknown');
     h.store.db.prepare('DELETE FROM sa_thread_operations WHERE thread_id=?').run(id);
+    h.store.db.prepare('DELETE FROM sa_message_requests WHERE thread_id=?').run(id);
     h.store.db.prepare('DELETE FROM sa_requests WHERE thread_id=?').run(id);
     h.store.db.prepare('UPDATE sa_threads SET expires_at=0 WHERE id=?').run(id);
     h.store.setup();

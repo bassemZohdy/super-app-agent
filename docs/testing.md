@@ -71,6 +71,8 @@ Execution results for the implementation milestone belong in the dated [evidence
 
 `services/agent-core/test/disconnect-before-dispatch.test.ts` closes loopback connections during controlled authentication and checks that creation, cancellation, message and direct simulator payment do not start. It also closes a connection after a simulated payment commits, then verifies completion, replay and a single effect. It does not cover proxy behavior or cancellation of already-running graph work.
 
+`services/agent-core/test/message-quotas.test.ts` seeds admitted message records to exercise the boundary, competing requests, resident isolation and SQLite reopen. It also verifies replay, approval and unknown-payment recovery at the limit. It does not establish a bound on non-message requests or historical storage.
+
 `services/agent-core/test/thread-expiry-recovery.test.ts` expires conversations after a simulated effect and lost response, reopens SQLite and verifies that only the owner’s linked unresolved conversation is extended. It also covers saved legacy approvals and refusal to guess when the evidence is absent.
 
 `services/agent-core/test/cross-thread-recovery.test.ts` covers pending and unknown writes across conversations, same and different quotes, renewal, read-only access, subject isolation, reopening SQLite, and unambiguous or ambiguous legacy ownership. This is local single-process evidence, not distributed failover proof.

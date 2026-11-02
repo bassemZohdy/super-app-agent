@@ -12,6 +12,7 @@ const MAX_ACTIVE_THREADS = 1024;
 const THREAD_CREATION_WINDOW_MS = 3600000;
 const MAX_THREAD_CREATIONS_PER_SUBJECT = 128;
 const MAX_THREAD_CREATIONS = 4096;
+const MAX_MESSAGES_PER_THREAD = 128;
 export class Store {
   private readonly active = new Set<string>();
   readonly db: Database;
@@ -32,6 +33,9 @@ export class Store {
       CREATE TABLE IF NOT EXISTS sa_requests (
         thread_id TEXT REFERENCES sa_threads(id), request_id TEXT NOT NULL,
         fingerprint TEXT NOT NULL, response TEXT, PRIMARY KEY(thread_id,request_id));
+      CREATE TABLE IF NOT EXISTS sa_message_requests (
+        thread_id TEXT NOT NULL, request_id TEXT NOT NULL, PRIMARY KEY(thread_id,request_id),
+        FOREIGN KEY(thread_id,request_id) REFERENCES sa_requests(thread_id,request_id));
       CREATE TABLE IF NOT EXISTS sa_consents (
         id TEXT PRIMARY KEY, subject TEXT NOT NULL, workload TEXT NOT NULL,
         operation_key TEXT NOT NULL, quote TEXT NOT NULL, expires_at INTEGER NOT NULL);
@@ -118,6 +122,14 @@ export class Store {
   request(id: string, requestId: string): { fingerprint: string; response: unknown } | undefined {
     const row = this.db.prepare('SELECT fingerprint,response FROM sa_requests WHERE thread_id=? AND request_id=?').get(id, requestId) as { fingerprint: string; response: string | null } | undefined;
     return row ? { fingerprint: row.fingerprint, response: row.response ? JSON.parse(row.response) : null } : undefined;
+  }
+  beginMessage(id: string, requestId: string, fingerprint: string) {
+    this.db.transaction(() => {
+      const count = this.db.prepare('SELECT count(*) AS n FROM sa_message_requests WHERE thread_id=?').get(id) as { n: number };
+      if (count.n >= MAX_MESSAGES_PER_THREAD) throw new AgentError('MESSAGE_LIMIT_REACHED', 429);
+      this.db.prepare('INSERT INTO sa_requests(thread_id,request_id,fingerprint) VALUES(?,?,?)').run(id, requestId, fingerprint);
+      this.db.prepare('INSERT INTO sa_message_requests(thread_id,request_id) VALUES(?,?)').run(id, requestId);
+    }).immediate();
   }
   saveRequest(id: string, requestId: string, fingerprint: string, response?: unknown) {
     this.db.prepare('INSERT INTO sa_requests VALUES(?,?,?,?) ON CONFLICT(thread_id,request_id) DO UPDATE SET response=excluded.response').run(id, requestId, fingerprint, response ? JSON.stringify(response) : null);
