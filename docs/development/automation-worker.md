@@ -18,6 +18,8 @@ States: `QUEUED → PREPARING → PREPARED → CREDENTIALING → EXECUTING`, the
 
 `claim` hands out the oldest runnable job under a lease and raises the job's fence on every claim. Every renewal, attempt record and state change must present the fence while the lease is live, so a worker whose lease lapsed, or that lost a race, is rejected and simply stops. Two workers on one database file never run the same job. The step in flight when a lease is taken over is idempotent at the provider (the permit is consumed once and an admitted execution only resumes).
 
+Claiming also checks the mandate and occurrence across all saved versions and targets in the same transaction. It skips other unclaimed duplicates with `DUPLICATE_OCCURRENCE`, even when they were inserted without the scheduler. If another version was already claimed, held or completed, a new unclaimed duplicate is skipped; already claimed work remains under its original identity. Skipping a duplicate does not prevent the surviving original from being claimed later.
+
 ## Persisted before dispatched
 
 The state and an append-only attempt row are written before the step they describe. Steps carry these rules:

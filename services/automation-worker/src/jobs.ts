@@ -218,11 +218,24 @@ export class JobStore {
     if (!token.test(workerId) || !Number.isSafeInteger(ttlMs) || ttlMs < 1000) throw new JobError('CLAIM_INVALID', 'Use a named worker and a lease of at least one second.');
     return this.atomic(() => {
       // A job parked on an owner's card challenge is polled again after its wait; nothing else held is ever claimed.
-      const found = this.db.prepare(`SELECT * FROM jobs WHERE (state IN ('QUEUED','PREPARING','PREPARED','CREDENTIALING','EXECUTING') OR (state='HELD' AND reason=?)) AND lease_expires_at<=? ORDER BY created_at,id LIMIT 1`).get(CHALLENGE_REASON, now);
-      if (!found) return undefined;
-      const fence = Number(found.fence) + 1;
-      this.db.prepare('UPDATE jobs SET lease_owner=?,lease_expires_at=?,fence=?,attempts=attempts+1,updated_at=? WHERE id=?').run(workerId, now + ttlMs, fence, now, String(found.id));
-      return { job: this.get(String(found.id))!, fence, workerId };
+      for (;;) {
+        const found = this.db.prepare(`SELECT * FROM jobs WHERE (state IN ('QUEUED','PREPARING','PREPARED','CREDENTIALING','EXECUTING') OR (state='HELD' AND reason=?)) AND lease_expires_at<=? ORDER BY created_at,id LIMIT 1`).get(CHALLENGE_REASON, now);
+        if (!found) return undefined;
+        const siblings = this.db.prepare('SELECT * FROM jobs WHERE mandate_id=? AND occurrence_key=? AND id<>?').all(String(found.mandate_id), String(found.occurrence_key), String(found.id)).map(row);
+        const unclaimed = (job: Job) => job.state === 'QUEUED' && job.fence === 0;
+        const skip = (id: string) => {
+          this.db.prepare("UPDATE jobs SET state='SKIPPED',reason='DUPLICATE_OCCURRENCE',updated_at=? WHERE id=? AND state='QUEUED' AND fence=0").run(now, id);
+          this.db.prepare('INSERT OR IGNORE INTO job_outbox(job_id,kind,body,at) VALUES(?,?,?,?)').run(id, 'SKIPPED', JSON.stringify({ reason: 'DUPLICATE_OCCURRENCE' }), now);
+        };
+        if (found.state === 'QUEUED' && Number(found.fence) === 0 && siblings.some(job => !unclaimed(job) && !(job.state === 'SKIPPED' && job.reason === 'DUPLICATE_OCCURRENCE'))) {
+          skip(String(found.id));
+          continue;
+        }
+        siblings.filter(unclaimed).forEach(job => skip(job.id));
+        const fence = Number(found.fence) + 1;
+        this.db.prepare('UPDATE jobs SET lease_owner=?,lease_expires_at=?,fence=?,attempts=attempts+1,updated_at=? WHERE id=?').run(workerId, now + ttlMs, fence, now, String(found.id));
+        return { job: this.get(String(found.id))!, fence, workerId };
+      }
     });
   }
 

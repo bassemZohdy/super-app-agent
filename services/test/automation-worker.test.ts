@@ -372,3 +372,40 @@ test('worker startup refuses a different run before scheduling or claiming queue
     try { assert.equal(again.store.list()[0].state, 'QUEUED'); } finally { again.store.close(); }
   } finally { cleanup(dir); }
 });
+
+test('claims suppress duplicate occurrences across versions without the scheduler', async () => {
+  const store = new JobStore(':memory:'), { g, calls } = gateway();
+  try {
+    const first = store.enqueue(rule, 1), duplicate = store.enqueue({ ...rule, policyVersion: 2 }, 2);
+    const done = await worker(store, g).runOnce();
+    assert.equal(done?.id, first.id); assert.equal(done?.state, 'SETTLED');
+    assert.equal(store.get(duplicate.id)?.state, 'SKIPPED');
+    assert.equal(store.get(duplicate.id)?.reason, 'DUPLICATE_OCCURRENCE');
+    assert.deepEqual(store.outbox(duplicate.id).map(event => event.kind), ['SKIPPED']);
+    assert.equal(await worker(store, g).runOnce(), undefined);
+    assert.deepEqual([calls.prepare, calls.credential, calls.execute], [1, 1, 1]);
+  } finally { store.close(); }
+  const held = new JobStore(':memory:'), other = gateway();
+  try {
+    const first = held.enqueue(rule, 1), claim = held.claim('old-worker', 1000, 2)!;
+    held.transition(claim, 'HELD', { reason: 'PREPARATION_UNKNOWN' }, undefined, 3);
+    const duplicate = held.enqueue({ ...rule, policyVersion: 2 }, 4);
+    const next = held.enqueue({ ...rule, occurrenceKey: 'occ_next' }, 5);
+    const done = await worker(held, other.g).runOnce();
+    assert.equal(done?.id, next.id);
+    assert.equal(held.get(first.id)?.state, 'HELD');
+    assert.equal(held.get(duplicate.id)?.state, 'SKIPPED');
+    assert.equal(other.calls.prepare, 1);
+  } finally { held.close(); }
+});
+
+test('competing stores cannot claim two versions of the same occurrence', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'worker-occurrence-')), path = join(dir, 'jobs.sqlite');
+  const a = new JobStore(path), b = new JobStore(path);
+  try {
+    a.enqueue(rule, 1); const duplicate = b.enqueue({ ...rule, policyVersion: 2 }, 2);
+    assert.ok(a.claim('worker-a', 30_000, 3));
+    assert.equal(b.claim('worker-b', 30_000, 3), undefined);
+    assert.equal(b.get(duplicate.id)?.reason, 'DUPLICATE_OCCURRENCE');
+  } finally { a.close(); b.close(); cleanup(dir); }
+});

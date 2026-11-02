@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Deduplicate automation claims (P1-10, step)
+
+Worker claims atomically suppress unclaimed duplicate occurrences across rule versions, including jobs enqueued outside the scheduler, while preserving original claimed or held work. Guide: [automation worker](development/automation-worker.md).
+
 ## 2 November 2026 — Deduplicate periodic jobs across versions (P1-10, step)
 
 Periodic catch-up retains at most one unclaimed job per occurrence and skips queued duplicates of an already completed occurrence. Guide: [automation worker](development/automation-worker.md).
