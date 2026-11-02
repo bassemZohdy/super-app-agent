@@ -4,16 +4,23 @@ import { boundedJsonResponse } from './bounded-json.ts';
 export class ClientCredentials {
   private cached?: { value: string; until: number };
   private pending?: Promise<string>;
+  private generation = 0;
   private clientId: string;
   private secret: string;
   private scope?: string;
   constructor(clientId: string, secret: string, scope?: string) { this.clientId = clientId; this.secret = secret; this.scope = scope; }
-  invalidate() { this.cached = undefined; }
+  invalidate() { this.generation++; this.cached = undefined; this.pending = undefined; }
   async token(): Promise<string> {
     if (this.cached && Date.now() < this.cached.until) return this.cached.value;
     if (this.pending) return this.pending;
-    this.pending = this.fetchToken();
-    try { return await this.pending; } finally { this.pending = undefined; }
+    const generation = this.generation;
+    const pending = this.fetchToken().then(result => {
+      if (generation !== this.generation) throw new Error('Service authentication invalidated');
+      this.cached = result;
+      return result.value;
+    });
+    this.pending = pending;
+    try { return await pending; } finally { if (this.pending === pending) this.pending = undefined; }
   }
   private async fetchToken() {
     if (!this.secret) throw new Error('Service client secret is not configured');
@@ -32,7 +39,6 @@ export class ClientCredentials {
     const { access_token: token, expires_in: lifetime } = data as Record<string, unknown>;
     if (typeof token !== 'string' || !/^[\x21-\x7e]{1,16384}$/.test(token) ||
         typeof lifetime !== 'number' || !Number.isSafeInteger(lifetime) || lifetime <= 0 || lifetime > 86400) throw new Error('Invalid service token response');
-    this.cached = { value: token, until: Date.now() + Math.max(0, lifetime - 30) * 1000 };
-    return token;
+    return { value: token, until: Date.now() + Math.max(0, lifetime - 30) * 1000 };
   }
 }

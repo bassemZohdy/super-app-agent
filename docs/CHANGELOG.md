@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Fence invalidated service-token refreshes (P0-13, step)
+
+Invalidating the local service-token cache now fences requests already in flight: their late results cannot be returned or cached, and later callers share a new refresh. Tests control both completion orders and verify an older request cannot clear the newer pending refresh. This does not revoke tokens already issued to callers or establish real-provider revocation. Guide: [security](security.md).
+
 ## 2 November 2026 — Bound service-token responses (P0-11, step)
 
 The shared service-credential client bounds token responses, rejects malformed token values and lifetimes, and never caches invalid responses. Oversized and rejected bodies are cancelled without waiting for an uncooperative stream; provider response bounds retain their existing limit. Tests cover recovery after invalid responses, bounded reads, cancellation and direct local issuer compatibility. The explicit `any` in the token response was removed and its baseline lowered. Guide: [security](security.md).
