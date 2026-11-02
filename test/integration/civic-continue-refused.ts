@@ -19,6 +19,7 @@ test('changed individual fine amounts refuse continuation without settlement', a
   const check = new RedisSessionStore(process.env.REDIS_URL), key = 'superapp:offline-civic-fence';
   await check.connect(); assert.equal(await check.client.exists(key), 0, 'test requires an isolated empty fence');
   let laterWrites = 0, recordedBeforeUtility = false, resolutionKey = '';
+  const fineOperationIds: string[] = [];
   const surfaceRevision = randomUUID(), sessionId = 'civic-partial';
   const digest = createHash('sha256').update(JSON.stringify(['local-demo-user', accountIdFor('local-demo-user')])).digest('hex');
   const retiredKey = `superapp:civic-retired:${createHash('sha256').update(JSON.stringify([digest, sessionId, surfaceRevision])).digest('hex')}`;
@@ -26,6 +27,7 @@ test('changed individual fine amounts refuse continuation without settlement', a
     const chunks: Buffer[] = []; for await (const chunk of req) chunks.push(Buffer.from(chunk));
     const path = new URL(req.url!, 'http://localhost').pathname, method = req.method!, body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : {};
     if (method === 'POST' && ['/fines/pay', '/mobility/salik/recharge'].includes(path)) laterWrites++;
+    if (method === 'POST' && path === '/fines/pay') fineOperationIds.push(body.operationId);
     if (method === 'POST' && path === '/utilities/pay') {
       const snapshot = await check.inspectCivicFence('local-demo-user', accountIdFor('local-demo-user'));
       recordedBeforeUtility = snapshot.civicSteps?.[1]?.state === 'STARTED' && snapshot.civicSteps[1].operationId === body.operationId && typeof body.operationId === 'string';
@@ -87,4 +89,21 @@ test('changed individual fine amounts refuse continuation without settlement', a
   assert.equal(current.data.civicSteps.at(-1).state, 'REJECTED'); assert.equal(await check.client.exists(key), 1);
   const again = await executeGatewayRequest('POST', '/api/civic/reconciliation/continue', {}, { revision: current.data.revision }, headers);
   assert.equal(again.status, 409); assert.equal(laterWrites, 1);
+  const raw = await check.client.get(key); assert.ok(raw); const oldRecord = JSON.parse(raw); delete oldRecord.steps.at(-1).serviceEpoch;
+  await check.client.set(key, JSON.stringify(oldRecord));
+  const oldStatus = await executeGatewayRequest('GET', '/api/civic/reconciliation', {}, {}, headers);
+  const oldRetry = await executeGatewayRequest('POST', '/api/civic/reconciliation/retry', {}, { revision: oldStatus.data.revision }, headers);
+  assert.equal(oldRetry.status, 409); assert.equal(laterWrites, 1); await check.client.set(key, raw);
+  const foreign = await executeGatewayRequest('POST', '/api/civic/reconciliation/retry', {}, { revision: current.data.revision, accountId: accountIdFor(actor.sub, 'household') }, headers);
+  assert.equal(foreign.status, 409); assert.equal(laterWrites, 1);
+  const attempts = await Promise.all(Array.from({ length: 2 }, () => executeGatewayRequest('POST', '/api/civic/reconciliation/retry', {}, { revision: current.data.revision }, headers)));
+  const success = attempts.filter(item => item.status === 200); assert.equal(success.length, 1); assert.equal(success[0].data.step, 'FINES'); assert.ok(attempts.every(item => item.status === 200 || item.status === 409));
+  assert.equal(fineOperationIds.length, 2); assert.equal(fineOperationIds[0], fineOperationIds[1]); assert.equal(transactions.length, ledger + 2);
+  const toll = await executeGatewayRequest('POST', '/api/civic/reconciliation/continue', {}, { revision: success[0].data.revision }, headers);
+  assert.equal(toll.status, 200); assert.equal(toll.data.step, 'TOLL'); assert.equal(salikBalance, tollBefore + 100);
+  const final = await executeGatewayRequest('GET', '/api/civic/reconciliation', { verify: '1' }, {}, headers);
+  assert.ok(final.data.civicEvidence.every((item: { assessment: string }) => item.assessment === 'MATCH'));
+  const resolved = await executeGatewayRequest('POST', '/api/civic/reconciliation/resolve', {}, { revision: final.data.revision }, headers);
+  assert.equal(resolved.status, 200); resolutionKey = `superapp:civic-resolution:${final.data.revision}`; assert.equal(await check.client.exists(key), 0);
+
 });

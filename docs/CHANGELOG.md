@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Retry a refused civic step (P1-13, step)
+
+The owner can retry a refused original or continued checkout step using its saved identity and fixture lifetime after prior evidence is rechecked. A failed retry becomes unknown. Redis/HTTP tests cover corrected fine terms, concurrent requests, an original utility refusal and a fixture restart. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Retry original civic checkout steps (P1-13, step)
 
 Separate-service offline checkout records each original step's fixture lifetime before dispatch. The owner can retry an uncertain original step with its saved identity only during that lifetime. Redis/HTTP tests cover the first wallet step, older journals, unavailable lifetime checks and a real wallet-service restart. Guide: [integrations](integrations.md).
