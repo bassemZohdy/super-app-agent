@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 3 November 2026 - Upgrade the Angular reference shell (P2-03, step)
+
+The shell and its build tools now use Angular 20, resolving the Angular production dependency findings. Guide: [shell journey parity](development/shell-parity.md).
+
 ## 3 November 2026 - Reconcile the Zod advisory with the lockfile (P2-03, step)
 
 The current production lockfile resolves Zod to a patched version; a regression check rejects affected production copies. The backlog now reflects the remaining Angular advisories. Guide: [testing](development/testing.md).

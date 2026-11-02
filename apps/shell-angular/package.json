@@ -8,19 +8,19 @@
     "build": "node --experimental-strip-types ../../scripts/angular-environment.ts && ng build"
   },
   "dependencies": {
-    "@angular/common": "^18.2.0",
-    "@angular/core": "^18.2.0",
-    "@angular/platform-browser": "^18.2.0",
+    "@angular/common": "20.3.34",
+    "@angular/core": "20.3.34",
+    "@angular/platform-browser": "20.3.34",
     "@superapp/protocol-core": "*",
     "@superapp/ui-tokens": "*",
     "rxjs": "^7.8.1",
-    "zone.js": "~0.14.10"
+    "zone.js": "~0.15.0"
   },
   "devDependencies": {
-    "@angular-devkit/build-angular": "^18.2.0",
-    "@angular/cli": "^18.2.0",
-    "@angular/compiler": "^18.2.0",
-    "@angular/compiler-cli": "^18.2.0",
-    "typescript": "^5.5.0"
+    "@angular-devkit/build-angular": "20.3.42",
+    "@angular/cli": "20.3.42",
+    "@angular/compiler": "20.3.34",
+    "@angular/compiler-cli": "20.3.34",
+    "typescript": "~5.9.3"
   }
 }

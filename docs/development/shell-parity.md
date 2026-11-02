@@ -4,6 +4,8 @@ Cityside keeps three web shells (React, Angular, Flutter web) and a native Flutt
 
 Browser specs run with `npm run test:browser` against the Compose stack (`npm run demo:up`) in a `desktop` and a `mobile` project; Flutter widget tests run with `flutter test` in `apps/shell-flutter` at phone and desktop sizes, at enlarged text and under a desktop platform (Flutter shrinks Material controls on desktop browsers, which the Android default hides). See [testing](testing.md) for how to run each.
 
+The Angular reference shell uses Angular 20 and its matching CLI and compiler toolchain. Build it with `npm run build --workspace apps/shell-angular` before running its browser specs. Production dependencies can be checked with `npm audit --omit=dev`; development-tool findings require separate review.
+
 ## The matrix
 
 | Journey | React | Angular | Flutter web | What the tests check |
