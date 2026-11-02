@@ -8,6 +8,8 @@ The `Tool<I,O>` interface declares identity, description, protocol, Zod input/ou
 
 For the compatibility fines action, the local wallet returns the IDs it actually settled. The integrated application checks the provider's frozen fine selection before dispatch, compares the order to that selection and total before approval, execution or recovery, and checks the settled receipt; its receipt returns those selected IDs. The agent requires that exact distinct set, the count and, when supplied, the reviewed amount in fils. An inconsistent original order or receipt remains unknown for reconciliation. This relies on the simulator's atomic fine-set settlement and is not independent proof from a real provider.
 
+Before it asks the provider to create a fine selection, the application requires each selected fine and payable ID to be distinct and every selected record to carry its payable revision. Incomplete or duplicate selected records are unavailable rather than turned into a provider write.
+
 Compatibility utility receipts must identify the requested bill, report an AED amount and match the reviewed amount when one was supplied. Both the local fixture's suffixed amount and the integrated application's separate currency field are accepted. A mismatched response after dispatch remains unknown for reconciliation.
 
 For an already-paid integrated utility or telecom bill, the application requires a nonblank, bounded original receipt reference and a valid amount in exact fils before returning a successful receipt. Missing or malformed evidence is unconfirmed and never starts a replacement payment. A supplied reviewed amount must still match.

@@ -17,11 +17,11 @@ test('compatibility fine receipts use the exact frozen and settled selection', a
   const actor = actorFor({ sub: 'fine-contract-user' }), plate = assetsFor(actor.accountId).plate;
   const items = [{ obligationId: 'fine-one' }, { obligationId: 'fine-two' }];
   const selection = { id: 'police:selection:one', provider: 'police', kind: 'FINE_SET', reference: plate, revision: 'a'.repeat(64), obligationId: 'FINESET-one', amountMinor: 115, items };
-  let scenario = 'valid', orders = 0, approvals = 0, executions = 0;
+  let scenario = 'valid', orders = 0, approvals = 0, executions = 0, selections = 0;
   const order = (state: string) => ({ id: 'original', ownerSub: actor.sub, accountId: actor.accountId, state, version: 1, approvalDigest: 'a'.repeat(64), quote: { currency:'AED', source:{ id:'wallet', kind:'wallet', accountId:actor.accountId, version:1 }, totalMinor: scenario === 'wrong-total' ? 116 : 115, payable: scenario === 'wrong-order' || scenario === 'wrong-authorized' && state === 'AUTHORIZED' ? { ...selection, items: [{ obligationId: 'other' }, items[1]] } : selection }, receipt: { receiptNumber: 'receipt', obligationId: scenario === 'wrong-receipt' ? 'other' : selection.obligationId, amountMinor: 115, currency: 'AED' } });
   t.mock.method(ProviderClient.prototype, 'call', async (provider, _actor, _method, route) => {
-    if (provider === 'police' && route === '/fines') return { fines: [ { fineId: 'fine-one', plateNumber: plate, payableId: 'one', payableRevision: 'a' }, { fineId: 'fine-two', plateNumber: plate, payableId: 'two', payableRevision: 'b' } ] };
-    if (provider === 'police' && route === '/fine-selections') return { payable: scenario === 'wrong-selection' ? { ...selection, items: [{ obligationId: 'fine-one' }, { obligationId: 'other' }] } : selection };
+    if (provider === 'police' && route === '/fines') return { fines: [ { fineId: 'fine-one', plateNumber: plate, payableId: 'one', payableRevision: 'a' }, { fineId: scenario === 'duplicate-fine' ? 'fine-one' : 'fine-two', plateNumber: plate, payableId: scenario === 'duplicate-payable' ? 'one' : 'two', payableRevision: scenario === 'missing-revision' ? '' : 'b' } ] };
+    if (provider === 'police' && route === '/fine-selections') { selections++; return { payable: scenario === 'wrong-selection' ? { ...selection, items: [{ obligationId: 'fine-one' }, { obligationId: 'other' }] } : selection }; }
     if (route === '/billing-accounts') return { billingAccounts: [{ status: 'ACTIVE', provider: 'police', reference: plate }] };
     if (route === '/payment-orders') { orders++; return { order: { id: 'original' } }; }
     if (route === '/payment-orders/original') return { order: order('AWAITING_APPROVAL') };
@@ -34,6 +34,11 @@ test('compatibility fine receipts use the exact frozen and settled selection', a
   const good = await run(); assert.equal(good.status, 200); assert.deepEqual(good.data.fineIds, ['fine-one', 'fine-two']);
   const operation = buildApplicationOpenApi().paths['/fines/pay'].post as { responses: { '200': { content: { 'application/json': { schema: object } } } } };
   assert.equal(new Ajv({ strict: false }).compile(operation.responses['200'].content['application/json'].schema)(good.data), true);
+  for (scenario of ['duplicate-fine', 'duplicate-payable', 'missing-revision']) {
+    const beforeSelections = selections, beforeOrders = orders;
+    const malformed = await run(); assert.equal(malformed.status, 503); assert.equal(malformed.data.code, 'PROVIDER_UNAVAILABLE');
+    assert.equal(selections, beforeSelections); assert.equal(orders, beforeOrders);
+  }
   scenario = 'wrong-selection'; const before = orders; const badSelection = await run(); assert.notEqual(badSelection.status, 200); assert.equal(orders, before);
   for (scenario of ['wrong-order', 'wrong-total']) { const beforeApproval = approvals, beforeExecution = executions; const bad = await run(); assert.equal(bad.status, 503); assert.equal(bad.data.code, 'PROVIDER_OUTCOME_UNKNOWN'); assert.equal(approvals, beforeApproval); assert.equal(executions, beforeExecution); }
   scenario = 'wrong-authorized'; const priorExecution = executions; const changed = await run(); assert.equal(changed.status, 503); assert.equal(changed.data.code, 'PROVIDER_OUTCOME_UNKNOWN'); assert.equal(executions, priorExecution);

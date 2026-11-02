@@ -148,7 +148,10 @@ export async function integratedRequest(service: string, actor: Actor, method: s
   const settleFines = async (fineIds?: string[]) => {
     const report = await call('police', 'GET', '/fines');
     if (!Array.isArray(report.fines)) throw new UpstreamError(503, 'PROVIDER_UNAVAILABLE', 'The selected fines could not be confirmed.');
-    const fines = fineIds ? report.fines.filter((f: Fine) => fineIds.includes(f.fineId)) : report.fines;
+    const fines = fineIds ? report.fines.filter((f: Fine) => f && fineIds.includes(f.fineId)) : report.fines;
+    if (fines.some((fine: Fine) => !fine || typeof fine.fineId !== 'string' || !fine.fineId.trim() || typeof fine.payableId !== 'string' || !fine.payableId.trim() || typeof fine.payableRevision !== 'string' || !fine.payableRevision.trim()) ||
+      new Set(fines.map((fine: Fine) => fine.fineId)).size !== fines.length || new Set(fines.map((fine: Fine) => fine.payableId)).size !== fines.length)
+      throw new UpstreamError(503, 'PROVIDER_UNAVAILABLE', 'The selected fines could not be uniquely confirmed.');
     if (fineIds && fineIds.length !== fines.length) throw new UpstreamError(404, 'NOT_FOUND', 'Unpaid fines not found.');
     if (fines.some((fine: Fine) => !fine || fine.plateNumber !== asset.plate)) throw new UpstreamError(404, 'NOT_FOUND', 'Unpaid fines not found for the account plate.');
     if (!fines.length) return { success: true, amountPaid: 0, finesCleared: 0, fineIds: [], receiptNumber: 'NO_FINES', remainingBalance: (await call('payments', 'GET', '/wallet')).balance };
