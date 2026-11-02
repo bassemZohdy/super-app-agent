@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Fence browser sign-in races (P0-01, step)
+
+The shared browser OIDC client fences late login and refresh responses after sign-out or session replacement, clears pending PKCE state on sign-out and coalesces same-session refreshes across instances of the loaded client. The generated Flutter bridge is updated. Unit and desktop/mobile browser tests cover late success, failure and concurrent refresh. Cross-tab, native and production server-side sessions remain separate. Guide: [security](security.md).
+
 ## 2 November 2026 — Refuse browser token-exchange redirects (P0-14, step)
 
 The shared browser OIDC client rejects token-endpoint redirects during authorization-code exchange and refresh, and the Flutter bridge is regenerated from it. Loopback and real browser tests check both clients, a vulnerable control and direct successful login. This does not remove browser token storage or qualify production identity. Guide: [security](security.md).

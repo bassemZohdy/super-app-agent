@@ -93,6 +93,8 @@ The same suite signs tokens with separate 1,024-bit and 2,048-bit RSA keys from 
 
 `packages/protocol-core/test/oidc-redirect.test.ts` checks the browser OIDC client against loopback token endpoints. `test/browser/security/oidc-redirect.spec.ts` exercises the shared client and generated Flutter bridge in a browser, including a vulnerable control that proves the redirect target is reachable, both login and refresh failures, and a successful direct exchange. These tests do not establish production identity-provider or server-side session behavior.
 
+`packages/protocol-core/test/oidc-session-races.test.ts` controls login and refresh completion after sign-out or session replacement and checks same-module refresh coalescing. `test/browser/security/oidc-session-races.spec.ts` repeats sign-out, replacement, failure and concurrent refresh cases for the shared client and generated Flutter bridge in desktop and mobile browser contexts. Cross-tab, native and real-provider behavior is not covered.
+
 `services/agent-core/test/thread-expiry-recovery.test.ts` expires conversations after a simulated effect and lost response, reopens SQLite and verifies that only the owner’s linked unresolved conversation is extended. It also covers saved legacy approvals and refusal to guess when the evidence is absent.
 
 `services/agent-core/test/cross-thread-recovery.test.ts` covers pending and unknown writes across conversations, same and different quotes, renewal, read-only access, subject isolation, reopening SQLite, and unambiguous or ambiguous legacy ownership. This is local single-process evidence, not distributed failover proof.
