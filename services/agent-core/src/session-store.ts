@@ -82,7 +82,7 @@ export class RedisSessionStore {
     const fence = JSON.stringify({ owner: civicOwnerDigest(owner, accountId), sessionId: sid, operationId });
     const result = await this.client.eval(`if redis.call('GET',KEYS[1])~=ARGV[1] or redis.call('GET',KEYS[2])~=ARGV[1] then return {'UNCONFIRMED','UNAVAILABLE'} end
       local dispatch=redis.call('GET',KEYS[3]); local step=redis.call('GET',KEYS[4]);
-      local result='UNCONFIRMED'; if dispatch=='PREPARED:'..ARGV[1] and (not step or step=='NONE:'..ARGV[1]) then result='NOT_STARTED' end
+      local result='UNCONFIRMED'; if dispatch=='PREPARED:'..ARGV[1] and (not step or step=='NONE:'..ARGV[1]) or dispatch=='DISPATCHING:'..ARGV[1] and step=='NONE:'..ARGV[1] then result='NOT_STARTED' end
       if step=='NONE:'..ARGV[1] and (dispatch=='PREPARED:'..ARGV[1] or dispatch=='DISPATCHING:'..ARGV[1]) then return {result,'NONE'} end
       if dispatch=='DISPATCHING:'..ARGV[1] then for _,name in ipairs({'WALLET','RIDE','FOOD'}) do if step==name..':'..ARGV[1] then return {result,name} end end end; return {result,'UNAVAILABLE'}`, {
       keys: [this.compositeMarkerKey(sid), this.compositeFenceKey(owner, accountId), this.compositeDispatchKey(sid), this.compositeStepKey(sid)], arguments: [fence],
@@ -423,8 +423,9 @@ export class RedisSessionStore {
         record.state = state; record.updatedAt = Date.now();
         const fence = JSON.stringify({ owner: civicOwnerDigest(record.owner, record.accountId), sessionId: sid, operationId });
         const saved = await this.client.eval(`if redis.call('GET',KEYS[2])~=ARGV[1] or redis.call('EXISTS',KEYS[1])==0 then return 0 end
-          if redis.call('GET',KEYS[3])~=ARGV[4] or redis.call('GET',KEYS[4])~=ARGV[4] or redis.call('GET',KEYS[7])~='PREPARED:'..ARGV[4] then return -1 end
-          local step=redis.call('GET',KEYS[8]); if step and step~='NONE:'..ARGV[4] then return -1 end
+          if redis.call('GET',KEYS[3])~=ARGV[4] or redis.call('GET',KEYS[4])~=ARGV[4] then return -1 end
+          local dispatch=redis.call('GET',KEYS[7]); local step=redis.call('GET',KEYS[8]);
+          if not (dispatch=='PREPARED:'..ARGV[4] and (not step or step=='NONE:'..ARGV[4]) or dispatch=='DISPATCHING:'..ARGV[4] and step=='NONE:'..ARGV[4]) then return -1 end
           redis.call('DEL',KEYS[3],KEYS[4],KEYS[7],KEYS[8]); redis.call('SET',KEYS[1],ARGV[2],'EX',ARGV[3]); redis.call('SADD',KEYS[6],KEYS[1]); redis.call('EXPIRE',KEYS[6],ARGV[3]); redis.call('SREM',KEYS[5],KEYS[1]); return 1`, {
           keys: [this.key(sid), key, this.compositeMarkerKey(sid), this.compositeFenceKey(record.owner, record.accountId), this.pendingCompositeUserKey(record.owner), this.userKey(record.owner), this.compositeDispatchKey(sid), this.compositeStepKey(sid)], arguments: [token, JSON.stringify(record), String(this.ttl), fence],
         });

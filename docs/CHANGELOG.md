@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Recover checkouts before the first step (P1-13, step)
+
+Owners can cancel an integrated checkout after an uncertain dispatch-marker response when its ordered step record proves that no service action started. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Record composite dispatch progress (P1-13, step)
 
 New integrated checkout attempts retain the last started service action for owner-scoped recovery inspection, without treating a started action as confirmed. Guide: [agent flow](agent-flow.md).
