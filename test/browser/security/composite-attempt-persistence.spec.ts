@@ -51,9 +51,10 @@ test('the reviewed composite identity is saved before dispatch and survives a lo
     const ridesBefore = stack.stores.get('rta')!.list(residentApi.accountId, 'ride').length;
     const evidence = await fetch(`${endpoint}/api/composite/reconciliation?${new URLSearchParams({ sessionId, accountId: residentApi.accountId })}`, { headers: { Authorization: `Bearer ${residentApi.token}` } });
     expect(evidence.status).toBe(200);
-    const report = await evidence.json() as { operationId: string; dispatch: string; evidence: Array<{ step: string; assessment: string }> };
+    const report = await evidence.json() as { operationId: string; dispatch: string; startedStep: string; evidence: Array<{ step: string; assessment: string }> };
     expect(report.operationId).toBe(expectedOperation);
     expect(report.dispatch).toBe('UNCONFIRMED');
+    expect(report.startedStep).toBe('WALLET');
     expect(report.evidence).toEqual([{ step: 'WALLET', assessment: 'MATCH' }, { step: 'RIDE', assessment: 'UNCONFIRMED' }, { step: 'FOOD', assessment: 'UNCONFIRMED' }]);
     const fenceResponse = await fetch(`${endpoint}/api/composite/fence?${new URLSearchParams({ accountId: residentApi.accountId })}`, { headers: { Authorization: `Bearer ${residentApi.token}` } });
     const fence = await fenceResponse.json() as { status: string; sessionId: string; operationId: string };
@@ -76,6 +77,13 @@ test('the reviewed composite identity is saved before dispatch and survives a lo
     await redisSessions()!.close();
     await redisSessions()!.connect();
     expect(await redisSessions()!.inspectCompositeFence(claims.sub, residentApi.accountId)).toMatchObject({ status: 'BLOCKED', sessionId, operationId: expectedOperation });
+    expect((await redisSessions()!.inspectCompositeProgress(claims.sub, residentApi.accountId, sessionId, expectedOperation)).startedStep).toBe('WALLET');
+    const progressKey = `${redisSessions()!.prefix}session:${sessionId}:composite-step`;
+    const progress = await redisSessions()!.client.get(progressKey);
+    expect(progress).not.toBeNull();
+    await redisSessions()!.client.del(progressKey);
+    try { expect((await redisSessions()!.inspectCompositeProgress(claims.sub, residentApi.accountId, sessionId, expectedOperation)).startedStep).toBe('UNAVAILABLE'); }
+    finally { await redisSessions()!.client.set(progressKey, progress!); }
     const sessionKey = `${redisSessions()!.prefix}session:${sessionId}`;
     const originalSession = await redisSessions()!.client.get(sessionKey);
     expect(originalSession).not.toBeNull();
@@ -186,7 +194,7 @@ test('a lost fence write response preserves the original attempt without dispatc
     expect(stack.stores.get('payments')!.list(residentApi.accountId, 'charge')).toHaveLength(0);
   } finally { RedisSessionStore.prototype.acquire = originalAcquire; }
   const inspection = await fetch(`${endpoint}/api/composite/reconciliation?${new URLSearchParams({ sessionId, accountId: residentApi.accountId })}`, { headers: { Authorization: `Bearer ${residentApi.token}` } });
-  expect((await inspection.json()).dispatch).toBe('NOT_STARTED');
+  expect(await inspection.json()).toMatchObject({ dispatch: 'NOT_STARTED', startedStep: 'NONE' });
   const wrong = await send('/api/composite/reconciliation/cancel-undispatched', { operationId: '11111111-1111-4111-8111-111111111111:confirm_composite_checkout' });
   expect(wrong.status).toBe(409);
   const otherToken = await login('bassem');
@@ -235,6 +243,33 @@ test('a lost dispatch marker response keeps the original checkout blocked', asyn
   expect(await redisSessions()!.inspectCompositeFence(claims.sub, residentApi.accountId)).toMatchObject({ status: 'BLOCKED', sessionId, operationId });
   expect((await redisSessions()!.read(sessionId, claims.sub)).state.compositeAttempt).toEqual({ operationId, terms: binding });
   expect(stack.stores.get('payments')!.list(residentApi.accountId, 'charge')).toHaveLength(0);
+});
+
+test('a lost step marker response holds the partial checkout before the next effect', async ({ residentApi, stack }) => {
+  const sessionId = `composite_${crypto.randomUUID()}`, endpoint = `http://localhost:${stack.corePort}`;
+  const send = async (path: string, body: Record<string, unknown>) => {
+    const response = await fetch(`${endpoint}${path}`, { method: 'POST', headers: { Authorization: `Bearer ${residentApi.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, sessionId, accountId: residentApi.accountId }) });
+    return { status: response.status, data: await response.json() };
+  };
+  const review = await send('/api/a2ui/intent', { text: 'Book a ride downtown and order pizza, pay with my wallet' });
+  const surface = review.data.surface as { revision: string; view: { children: Array<{ onEvents?: Array<{ payload: Record<string, unknown> }> }> } };
+  const binding = surface.view.children.flatMap(child => child.onEvents ?? []).find(event => event.payload.action === 'confirm_composite_checkout')!.payload;
+  const operationId = `${surface.revision}:confirm_composite_checkout`, originalAcquire = RedisSessionStore.prototype.acquire;
+  RedisSessionStore.prototype.acquire = async function (sid) {
+    const lock = await originalAcquire.call(this, sid), mark = lock.markCompositeStep;
+    lock.markCompositeStep = async (operation, step) => { await mark(operation, step); if (step === 'RIDE') throw new Error('Simulated lost step response'); };
+    return lock;
+  };
+  try {
+    const result = await send('/api/a2ui/action', { surfaceRevision: surface.revision, action: 'confirm_composite_checkout', payload: binding });
+    expect(result.status).toBe(409);
+    expect(result.data.outcome).toBe('PARTIALLY_COMPLETED');
+  } finally { RedisSessionStore.prototype.acquire = originalAcquire; }
+  const claims = JSON.parse(Buffer.from(residentApi.token.split('.')[1], 'base64url').toString()) as { sub: string };
+  expect((await redisSessions()!.inspectCompositeProgress(claims.sub, residentApi.accountId, sessionId, operationId)).startedStep).toBe('RIDE');
+  expect(await redisSessions()!.inspectCompositeFence(claims.sub, residentApi.accountId)).toMatchObject({ status: 'BLOCKED', sessionId, operationId });
+  expect(stack.stores.get('payments')!.list(residentApi.accountId, 'charge')).toHaveLength(1);
+  expect(stack.stores.get('rta')!.list(residentApi.accountId, 'ride')).toHaveLength(0);
 });
 
 test('a pre-dispatch composite refusal clears the saved attempt without moving funds', async ({ residentApi, stack }) => {
@@ -302,7 +337,8 @@ test('composite inspection matches all original effects after the food response 
   const rides = stack.stores.get('rta')!.list(residentApi.accountId, 'ride').length;
   const response = await fetch(`${endpoint}/api/composite/reconciliation?${new URLSearchParams({ sessionId, accountId: residentApi.accountId })}`, { headers: { Authorization: `Bearer ${residentApi.token}` } });
   expect(response.status).toBe(200);
-  const report = await response.json() as { evidence: Array<{ step: string; assessment: string }> };
+  const report = await response.json() as { startedStep: string; evidence: Array<{ step: string; assessment: string }> };
+  expect(report.startedStep).toBe('FOOD');
   expect(report.evidence).toEqual([{ step: 'WALLET', assessment: 'MATCH' }, { step: 'RIDE', assessment: 'MATCH' }, { step: 'FOOD', assessment: 'MATCH' }]);
   expect(stack.stores.get('payments')!.list(residentApi.accountId, 'charge')).toHaveLength(charges);
   expect(stack.stores.get('rta')!.list(residentApi.accountId, 'ride')).toHaveLength(rides);

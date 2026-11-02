@@ -871,15 +871,18 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
       if (!Number.isSafeInteger(totalMinor) || totalMinor <= 0 || totalMinor !== payload.amountMinor || rideMinor !== payload.rideAmountMinor || itemMinor !== payload.itemAmountMinor || feeMinor !== payload.deliveryFeeMinor || mealMinor !== payload.mealAmountMinor || payload.currency !== walletCurrency())
         throw new HttpError(409, 'The reviewed ride or meal changed. Start a new review.');
       onProgress?.(`💳 Deducting ${formatWalletAmount(totalMinor / 100)} from Wallet for the reviewed ride and meal...`);
+      await actorContext.getStore()?.markCompositeStep?.('WALLET');
       const payRes = await executeWalletRequest('POST', '/wallet/pay', {}, {
         amount: totalMinor / 100,
         purpose: 'Ride to Downtown + Woodfired Pizza',
       });
 
       onProgress?.('🚖 Dispatching the reviewed ride...');
+      await actorContext.getStore()?.markCompositeStep?.('RIDE');
       const bookedRide = await executeRideRequest('POST', '/rides/book', {}, { driverId: payload.driverId, dropoff, expectedFareMinor: rideMinor });
 
       onProgress?.('🍕 Dispatching the reviewed meal...');
+      await actorContext.getStore()?.markCompositeStep?.('FOOD');
       const orderedMeal = await executeFoodRequest('POST', '/orders/create', {}, { restaurantId: payload.restaurantId, items: [payload.itemId], deliveryAddress: dropoff, expectedAmountMinor: mealMinor, expectedItemPriceMinor: itemMinor, expectedDeliveryFeeMinor: feeMinor });
       const rideEta = bookedRide.data.booking.etaMinutes;
       const foodEta = orderedMeal.data.order.estimatedDeliveryTime;

@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Record composite dispatch progress (P1-13, step)
+
+New integrated checkout attempts retain the last started service action for owner-scoped recovery inspection, without treating a started action as confirmed. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Cancel proven undispatched checkouts (P1-13, step)
 
 Owners can inspect and cancel an integrated composite attempt that is durably marked as prepared but has not started dispatch; ambiguous attempts remain fenced. Guide: [agent flow](agent-flow.md).

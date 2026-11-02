@@ -76,13 +76,19 @@ export class RedisSessionStore {
   private compositeFenceKey(owner: string, accountId: string) { return `${this.prefix}integrated-composite:${civicOwnerDigest(owner, accountId)}`; }
   private compositeMarkerKey(sid: string) { return `${this.key(sid)}:composite-pending`; }
   private compositeDispatchKey(sid: string) { return `${this.key(sid)}:composite-dispatch`; }
-  async inspectCompositeDispatch(owner: string, accountId: string, sid: string, operationId: string): Promise<'NOT_STARTED' | 'UNCONFIRMED'> {
+  private compositeStepKey(sid: string) { return `${this.key(sid)}:composite-step`; }
+  async inspectCompositeProgress(owner: string, accountId: string, sid: string, operationId: string): Promise<{ dispatch: 'NOT_STARTED' | 'UNCONFIRMED'; startedStep: 'NONE' | 'WALLET' | 'RIDE' | 'FOOD' | 'UNAVAILABLE' }> {
     await this.connect();
     const fence = JSON.stringify({ owner: civicOwnerDigest(owner, accountId), sessionId: sid, operationId });
-    const prepared = await this.client.eval(`if redis.call('GET',KEYS[1])==ARGV[1] and redis.call('GET',KEYS[2])==ARGV[1] and redis.call('GET',KEYS[3])=='PREPARED:'..ARGV[1] then return 1 end; return 0`, {
-      keys: [this.compositeMarkerKey(sid), this.compositeFenceKey(owner, accountId), this.compositeDispatchKey(sid)], arguments: [fence],
-    });
-    return prepared === 1 ? 'NOT_STARTED' : 'UNCONFIRMED';
+    const result = await this.client.eval(`if redis.call('GET',KEYS[1])~=ARGV[1] or redis.call('GET',KEYS[2])~=ARGV[1] then return {'UNCONFIRMED','UNAVAILABLE'} end
+      local dispatch=redis.call('GET',KEYS[3]); local step=redis.call('GET',KEYS[4]);
+      local result='UNCONFIRMED'; if dispatch=='PREPARED:'..ARGV[1] and (not step or step=='NONE:'..ARGV[1]) then result='NOT_STARTED' end
+      if step=='NONE:'..ARGV[1] and (dispatch=='PREPARED:'..ARGV[1] or dispatch=='DISPATCHING:'..ARGV[1]) then return {result,'NONE'} end
+      if dispatch=='DISPATCHING:'..ARGV[1] then for _,name in ipairs({'WALLET','RIDE','FOOD'}) do if step==name..':'..ARGV[1] then return {result,name} end end end; return {result,'UNAVAILABLE'}`, {
+      keys: [this.compositeMarkerKey(sid), this.compositeFenceKey(owner, accountId), this.compositeDispatchKey(sid), this.compositeStepKey(sid)], arguments: [fence],
+    }) as string[];
+    const startedStep = result[1];
+    return { dispatch: result[0] === 'NOT_STARTED' ? 'NOT_STARTED' : 'UNCONFIRMED', startedStep: startedStep === 'NONE' || startedStep === 'WALLET' || startedStep === 'RIDE' || startedStep === 'FOOD' ? startedStep : 'UNAVAILABLE' };
   }
   async inspectCompositeFence(owner: string, accountId: string): Promise<{ status: 'CLEAR' | 'BLOCKED'; sessionId?: string; operationId?: string }> {
     await this.connect();
@@ -361,9 +367,9 @@ export class RedisSessionStore {
         record.state = state; record.updatedAt = Date.now();
         const fence = JSON.stringify({ owner: civicOwnerDigest(record.owner, record.accountId), sessionId: sid, operationId: attempt.operationId });
         const saved = await this.client.eval(`if redis.call('GET',KEYS[2])~=ARGV[1] or redis.call('EXISTS',KEYS[1])==0 then return 0 end
-          if redis.call('EXISTS',KEYS[3])==1 or redis.call('EXISTS',KEYS[4])==1 or redis.call('EXISTS',KEYS[6])==1 then return -1 end
-          redis.call('SET',KEYS[1],ARGV[2]); redis.call('SET',KEYS[3],ARGV[3]); redis.call('SET',KEYS[4],ARGV[3]); redis.call('SADD',KEYS[5],KEYS[1]); redis.call('SET',KEYS[6],'PREPARED:'..ARGV[3]); return 1`, {
-          keys: [this.key(sid), key, this.compositeMarkerKey(sid), this.compositeFenceKey(record.owner, record.accountId), this.pendingCompositeUserKey(record.owner), this.compositeDispatchKey(sid)], arguments: [token, JSON.stringify(record), fence],
+          if redis.call('EXISTS',KEYS[3])==1 or redis.call('EXISTS',KEYS[4])==1 or redis.call('EXISTS',KEYS[6])==1 or redis.call('EXISTS',KEYS[7])==1 then return -1 end
+          redis.call('SET',KEYS[1],ARGV[2]); redis.call('SET',KEYS[3],ARGV[3]); redis.call('SET',KEYS[4],ARGV[3]); redis.call('SADD',KEYS[5],KEYS[1]); redis.call('SET',KEYS[6],'PREPARED:'..ARGV[3]); redis.call('SET',KEYS[7],'NONE:'..ARGV[3]); return 1`, {
+          keys: [this.key(sid), key, this.compositeMarkerKey(sid), this.compositeFenceKey(record.owner, record.accountId), this.pendingCompositeUserKey(record.owner), this.compositeDispatchKey(sid), this.compositeStepKey(sid)], arguments: [token, JSON.stringify(record), fence],
         });
         if (saved === -1) throw new SessionError(409, 'COMPOSITE_RECONCILIATION_REQUIRED', 'An earlier composite checkout is in progress or needs reconciliation.');
         if (saved !== 1) throw new SessionError(503, 'SESSION_LOCK_LOST', 'The original checkout could not be saved.');
@@ -381,6 +387,19 @@ export class RedisSessionStore {
         if (marked === -1) throw new SessionError(409, 'COMPOSITE_FENCE_CHANGED', 'The original checkout fence changed.');
         if (marked !== 1) throw new SessionError(503, 'SESSION_LOCK_LOST', 'The original checkout could not be saved.');
       },
+      markCompositeStep: async (operationId: string, step: 'WALLET' | 'RIDE' | 'FOOD') => {
+        const raw = await this.client.get(this.key(sid));
+        if (!raw) throw new SessionError(503, 'SESSION_EXPIRED', 'The original checkout cannot be saved.');
+        const record = decodeRecord(raw), previous = step === 'WALLET' ? 'NONE' : step === 'RIDE' ? 'WALLET' : 'RIDE';
+        const fence = JSON.stringify({ owner: civicOwnerDigest(record.owner, record.accountId), sessionId: sid, operationId });
+        const marked = await this.client.eval(`if redis.call('GET',KEYS[2])~=ARGV[1] or redis.call('EXISTS',KEYS[1])==0 then return 0 end
+          if redis.call('GET',KEYS[3])~=ARGV[2] or redis.call('GET',KEYS[4])~=ARGV[2] or redis.call('GET',KEYS[5])~='DISPATCHING:'..ARGV[2] or redis.call('GET',KEYS[6])~=ARGV[3]..':'..ARGV[2] then return -1 end
+          redis.call('SET',KEYS[6],ARGV[4]..':'..ARGV[2]); return 1`, {
+          keys: [this.key(sid), key, this.compositeMarkerKey(sid), this.compositeFenceKey(record.owner, record.accountId), this.compositeDispatchKey(sid), this.compositeStepKey(sid)], arguments: [token, fence, previous, step],
+        });
+        if (marked === -1) throw new SessionError(409, 'COMPOSITE_FENCE_CHANGED', 'The original checkout progress changed.');
+        if (marked !== 1) throw new SessionError(503, 'SESSION_LOCK_LOST', 'The original checkout could not be saved.');
+      },
       finishComposite: async (state: SuperAppAgentState, operationId: string) => {
         const raw = await this.client.get(this.key(sid));
         if (!raw) throw new SessionError(503, 'SESSION_EXPIRED', 'The original checkout cannot be saved.');
@@ -390,8 +409,9 @@ export class RedisSessionStore {
         const saved = await this.client.eval(`if redis.call('GET',KEYS[2])~=ARGV[1] or redis.call('EXISTS',KEYS[1])==0 then return 0 end
           local marker=redis.call('GET',KEYS[3]); local active=redis.call('GET',KEYS[4]); if marker and (marker~=ARGV[4] or active~=ARGV[4]) then return -1 end; if not marker and active==ARGV[4] then return -1 end
           local stage=redis.call('GET',KEYS[7]); if stage and stage~='DISPATCHING:'..ARGV[4] then return -1 end
-          if marker then redis.call('DEL',KEYS[3],KEYS[4],KEYS[7]) end; redis.call('SET',KEYS[1],ARGV[2],'EX',ARGV[3]); redis.call('SADD',KEYS[6],KEYS[1]); redis.call('EXPIRE',KEYS[6],ARGV[3]); redis.call('SREM',KEYS[5],KEYS[1]); return 1`, {
-          keys: [this.key(sid), key, this.compositeMarkerKey(sid), this.compositeFenceKey(record.owner, record.accountId), this.pendingCompositeUserKey(record.owner), this.userKey(record.owner), this.compositeDispatchKey(sid)], arguments: [token, JSON.stringify(record), String(this.ttl), fence],
+          local step=redis.call('GET',KEYS[8]); if step and step~='NONE:'..ARGV[4] and step~='WALLET:'..ARGV[4] and step~='RIDE:'..ARGV[4] and step~='FOOD:'..ARGV[4] then return -1 end
+          if marker then redis.call('DEL',KEYS[3],KEYS[4],KEYS[7],KEYS[8]) end; redis.call('SET',KEYS[1],ARGV[2],'EX',ARGV[3]); redis.call('SADD',KEYS[6],KEYS[1]); redis.call('EXPIRE',KEYS[6],ARGV[3]); redis.call('SREM',KEYS[5],KEYS[1]); return 1`, {
+          keys: [this.key(sid), key, this.compositeMarkerKey(sid), this.compositeFenceKey(record.owner, record.accountId), this.pendingCompositeUserKey(record.owner), this.userKey(record.owner), this.compositeDispatchKey(sid), this.compositeStepKey(sid)], arguments: [token, JSON.stringify(record), String(this.ttl), fence],
         });
         if (saved === -1) throw new SessionError(409, 'COMPOSITE_FENCE_CHANGED', 'The original checkout fence changed.');
         if (saved !== 1) throw new SessionError(503, 'SESSION_LOCK_LOST', 'The original checkout could not be saved.');
@@ -404,8 +424,9 @@ export class RedisSessionStore {
         const fence = JSON.stringify({ owner: civicOwnerDigest(record.owner, record.accountId), sessionId: sid, operationId });
         const saved = await this.client.eval(`if redis.call('GET',KEYS[2])~=ARGV[1] or redis.call('EXISTS',KEYS[1])==0 then return 0 end
           if redis.call('GET',KEYS[3])~=ARGV[4] or redis.call('GET',KEYS[4])~=ARGV[4] or redis.call('GET',KEYS[7])~='PREPARED:'..ARGV[4] then return -1 end
-          redis.call('DEL',KEYS[3],KEYS[4],KEYS[7]); redis.call('SET',KEYS[1],ARGV[2],'EX',ARGV[3]); redis.call('SADD',KEYS[6],KEYS[1]); redis.call('EXPIRE',KEYS[6],ARGV[3]); redis.call('SREM',KEYS[5],KEYS[1]); return 1`, {
-          keys: [this.key(sid), key, this.compositeMarkerKey(sid), this.compositeFenceKey(record.owner, record.accountId), this.pendingCompositeUserKey(record.owner), this.userKey(record.owner), this.compositeDispatchKey(sid)], arguments: [token, JSON.stringify(record), String(this.ttl), fence],
+          local step=redis.call('GET',KEYS[8]); if step and step~='NONE:'..ARGV[4] then return -1 end
+          redis.call('DEL',KEYS[3],KEYS[4],KEYS[7],KEYS[8]); redis.call('SET',KEYS[1],ARGV[2],'EX',ARGV[3]); redis.call('SADD',KEYS[6],KEYS[1]); redis.call('EXPIRE',KEYS[6],ARGV[3]); redis.call('SREM',KEYS[5],KEYS[1]); return 1`, {
+          keys: [this.key(sid), key, this.compositeMarkerKey(sid), this.compositeFenceKey(record.owner, record.accountId), this.pendingCompositeUserKey(record.owner), this.userKey(record.owner), this.compositeDispatchKey(sid), this.compositeStepKey(sid)], arguments: [token, JSON.stringify(record), String(this.ttl), fence],
         });
         if (saved === -1) throw new SessionError(409, 'COMPOSITE_DISPATCH_UNCONFIRMED', 'The original checkout may have started and cannot be cancelled this way.');
         if (saved !== 1) throw new SessionError(503, 'SESSION_LOCK_LOST', 'The original checkout could not be saved.');

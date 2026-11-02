@@ -62,7 +62,7 @@ function admitSession(sessionId: string, sub: string): boolean {
 }
 const sessionLimitReply = { success: false, code: 'SESSION_LIMIT_REACHED', error: 'Too many conversations are running. Wait for one to finish.' };
 const eligibilityReader=new EligibilityClient(),accountReader=new ProviderClient('service-wallet',process.env.SERVICE_WALLET_CLIENT_SECRET||'demo-wallet-secret');
-type RequestContext = { session?: SuperAppAgentState; release?: () => void | Promise<void>; save?: () => Promise<void>; assertLease?: () => Promise<void>; beginComposite?: () => Promise<void>; markCompositeDispatch?: (operationId: string) => Promise<void>; finishComposite?: (operationId: string) => Promise<void>; compositeOperation?: string; preserveComposite?: boolean };
+type RequestContext = { session?: SuperAppAgentState; release?: () => void | Promise<void>; save?: () => Promise<void>; assertLease?: () => Promise<void>; beginComposite?: () => Promise<void>; markCompositeDispatch?: (operationId: string) => Promise<void>; markCompositeStep?: (operationId: string, step: 'WALLET' | 'RIDE' | 'FOOD') => Promise<void>; finishComposite?: (operationId: string) => Promise<void>; compositeOperation?: string; preserveComposite?: boolean };
 
 const compositeEvidence = (attempt: NonNullable<SuperAppAgentState['compositeAttempt']>, actor: Actor) => compareCompositeEvidence(attempt, actor.accountId, source => actorContext.run(actor, async () => {
   const path = source === 'wallet' ? '/wallet/operations/' : source === 'ride' ? '/rides/operations/' : '/orders/operations/';
@@ -179,8 +179,8 @@ async function handleGatewayRequest(
       const attempt = record.state.compositeAttempt;
       if (!record.state.reconciliation || !attempt) return { status: 404, data: { success: false, code: 'COMPOSITE_ATTEMPT_NOT_FOUND', error: 'No unresolved composite attempt was found.' } };
       const evidence = await compositeEvidence(attempt, actor);
-      const dispatch = await store.inspectCompositeDispatch(actor.sub, actor.accountId, query.sessionId, attempt.operationId);
-      return { status: 200, data: { success: true, operationId: attempt.operationId, dispatch, evidence } };
+      const progress = await store.inspectCompositeProgress(actor.sub, actor.accountId, query.sessionId, attempt.operationId);
+      return { status: 200, data: { success: true, operationId: attempt.operationId, ...progress, evidence } };
     } catch (error) {
       if (error instanceof SessionError) return { status: error.status, data: { success: false, code: error.code, error: error.message } };
       return { status: 503, data: { success: false, code: 'COMPOSITE_STATUS_UNAVAILABLE', error: 'Composite inspection is unavailable.' } };
@@ -489,6 +489,7 @@ async function handleGatewayRequest(
       requestContext.assertLease = lock.assert;
       requestContext.beginComposite = () => lock.beginComposite(session);
       requestContext.markCompositeDispatch = operationId => lock.markCompositeDispatch(operationId);
+      requestContext.markCompositeStep = (operationId, step) => lock.markCompositeStep(operationId, step);
       requestContext.finishComposite = operationId => lock.finishComposite(session, operationId);
     } else {
       if ((pathname.endsWith('/action') || pathname.endsWith('/cancel')) && !sessions.has(body.sessionId)) return { status: 404, data: { error: 'Session not found' } };
@@ -607,7 +608,7 @@ async function handleGatewayRequest(
 
     recordApproval(session, 'confirmed', body.action);
     if (process.env.PROVIDER_INTEGRATION === 'true' && body.action === 'confirm_composite_checkout') {
-      if (!requestContext.beginComposite || !requestContext.markCompositeDispatch || !requestContext.finishComposite) throw new SessionError(503, 'SESSION_STORE_UNAVAILABLE', 'Persistent session storage is required before composite checkout.');
+      if (!requestContext.beginComposite || !requestContext.markCompositeDispatch || !requestContext.markCompositeStep || !requestContext.finishComposite) throw new SessionError(503, 'SESSION_STORE_UNAVAILABLE', 'Persistent session storage is required before composite checkout.');
       session.compositeAttempt = { operationId: actor.requestId, terms: structuredClone(body.payload || {}) };
       session.reconciliation = { outcome: 'UNKNOWN', steps: [] };
       try { await requestContext.beginComposite(); }
@@ -618,6 +619,11 @@ async function handleGatewayRequest(
       requestContext.preserveComposite = true;
       await requestContext.markCompositeDispatch(actor.requestId);
       requestContext.preserveComposite = false;
+      actor.markCompositeStep = async step => {
+        requestContext.preserveComposite = true;
+        await requestContext.markCompositeStep!(actor.requestId, step);
+        requestContext.preserveComposite = false;
+      };
     }
     const updatedState = await actorContext.run(actor, () => executeRuntimeAction(
       session,
