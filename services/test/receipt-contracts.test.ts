@@ -34,6 +34,8 @@ test('integrated receipt mappings preserve utility premise, owned fine plate/dis
   });
   const actor = actorFor({ sub: 'receipt-contract-user' });
   const legacy = () => ({ status: 404, data: {} });
+  const currentBill = await integratedRequest('service-food', actor, 'GET', '/utilities/bill', {}, {}, legacy);
+  assert.equal(currentBill.data.bill.payableId, payable.id); assert.equal(currentBill.data.bill.payableRevision, payable.revision);
   const pay = () => integratedRequest('service-food', actor, 'POST', '/utilities/pay', {}, { billId: bill.billId }, legacy);
   const paid = await pay(); assert.equal(paid.status, 200); assert.equal(paid.data.receipt.premiseId, bill.premiseId);
   status = 'PAID'; const replay = await pay(); assert.equal(replay.data.receipt.premiseId, bill.premiseId); assert.equal(captures, 1);

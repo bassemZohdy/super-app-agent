@@ -3570,10 +3570,44 @@
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 1000000
+                  },
+                  "expectedPayables": {
+                    "type": "array",
+                    "minItems": 0,
+                    "maxItems": 30,
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "provider": {
+                          "enum": [
+                            "dewa",
+                            "police"
+                          ]
+                        },
+                        "payableId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                        },
+                        "expectedRevision": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        }
+                      },
+                      "required": [
+                        "provider",
+                        "payableId",
+                        "expectedRevision"
+                      ],
+                      "additionalProperties": false
+                    }
                   }
                 },
                 "required": [
-                  "items"
+                  "items",
+                  "expectedPayables"
                 ],
                 "additionalProperties": false,
                 "dependentRequired": {
@@ -3820,10 +3854,44 @@
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 1000000
+                  },
+                  "expectedPayables": {
+                    "type": "array",
+                    "minItems": 0,
+                    "maxItems": 30,
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "provider": {
+                          "enum": [
+                            "dewa",
+                            "police"
+                          ]
+                        },
+                        "payableId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                        },
+                        "expectedRevision": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        }
+                      },
+                      "required": [
+                        "provider",
+                        "payableId",
+                        "expectedRevision"
+                      ],
+                      "additionalProperties": false
+                    }
                   }
                 },
                 "required": [
-                  "items"
+                  "items",
+                  "expectedPayables"
                 ],
                 "additionalProperties": false,
                 "dependentRequired": {

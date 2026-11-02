@@ -28,7 +28,7 @@ test('unified checkout requires an unambiguous or explicitly selected recharge t
     throw new Error('Unexpected operation');
   });
   const items=[{agency:'RTA',purpose:'Review',amount:100}], legacy=()=>({status:404,data:{}});
-  const run=(subject:string,extra:Record<string,unknown>={})=>integratedRequest('service-wallet',actorFor({sub:subject}),'POST','/pay/unified',{}, {items,...extra},legacy);
+  const run=(subject:string,extra:Record<string,unknown>={})=>integratedRequest('service-wallet',actorFor({sub:subject}),'POST','/pay/unified',{}, {items,expectedPayables:[],...extra},legacy);
   assert.equal(validateRequest('service-wallet','POST','/pay/unified',{}, {items,targetReference:'tag-two',expectedTargetVersion:2}),undefined);
   assert.ok(validateRequest('service-wallet','POST','/pay/unified',{}, {items,targetReference:'tag-two'}));
   const ambiguous=await run('ambiguous');assert.equal(ambiguous.status,409);assert.equal(ambiguous.data.code,'RECHARGE_TARGET_REQUIRED');assert.equal(quoteCalls,0);

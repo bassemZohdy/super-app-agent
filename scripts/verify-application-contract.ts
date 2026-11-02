@@ -135,8 +135,9 @@ if (WRITES) {
   const currentBill = await call('service-food', 'GET', '/utilities/bill');
   const expectedTotal = fromMinor(10000 + toMinor(remainingFines.data.totalPayable || 0) + toMinor(currentBill.data.bill?.status === 'UNPAID' ? currentBill.data.bill.totalAmount : 0));
   const items = [{ agency: 'City services', purpose: 'Contract check', amount: expectedTotal }];
-  check('/pay/unified', await call('service-wallet', 'POST', '/pay/unified', { items }));
-  check('/pay/multi-agency', await call('service-wallet', 'POST', '/pay/multi-agency', { items: [{ agency: 'RTA', purpose: 'Contract check', amount: 100 }] }));
+  const expectedPayables = [...(currentBill.data.bill?.status === 'UNPAID' ? [{ provider:'dewa', payableId:currentBill.data.bill.payableId, expectedRevision:currentBill.data.bill.payableRevision }] : []), ...(remainingFines.data.fines || []).map((entry:{payableId:string;payableRevision:string})=>({provider:'police',payableId:entry.payableId,expectedRevision:entry.payableRevision}))];
+  check('/pay/unified', await call('service-wallet', 'POST', '/pay/unified', { items, expectedPayables }));
+  check('/pay/multi-agency', await call('service-wallet', 'POST', '/pay/multi-agency', { items: [{ agency: 'RTA', purpose: 'Contract check', amount: 100 }], expectedPayables:[] }));
   const line = (await call('service-telecom', 'GET', '/telecom/etisalat/prepaid')).data.lines?.[0];
   check('/telecom/{provider}/prepaid/recharges', await call('service-telecom', 'POST', '/telecom/etisalat/prepaid/recharges', { lineId: line?.lineId, amountMinor: line?.denominationsMinor?.[0], expectedTargetVersion: 1 }));
   const telecomBill = (await call('service-telecom', 'GET', '/telecom/etisalat/bills')).data.bills?.find((item: { status: string }) => item.status === 'UNPAID');

@@ -33,13 +33,13 @@ test('unified checkout binds the original group, child order, owner and funding 
     if (route === '/wallet') return { balance: 10 };
     throw new UpstreamError(503, 'UNEXPECTED', 'Unexpected provider call');
   });
-  const run = (amount=100) => integratedRequest('service-wallet', actor, 'POST', '/pay/unified', {}, { items:[{ agency:'demo', purpose:'test', amount }] }, () => ({ status:404, data:{} }));
+  const run = (amount=100) => integratedRequest('service-wallet', actor, 'POST', '/pay/unified', {}, { items:[{ agency:'demo', purpose:'test', amount }], expectedPayables:[] }, () => ({ status:404, data:{} }));
   const changedAmount=await run(99);assert.equal(changedAmount.status,409);assert.equal(changedAmount.data.code,'PAYABLE_CHANGED');assert.equal(approvals,0);assert.equal(runs,0);
   for (scenario of ['wrong-id', 'wrong-account', 'wrong-owner', 'wrong-source', 'wrong-item', 'group-total-drift']) {
     const beforeApprovals=approvals, beforeRuns=runs, result=await run(); assert.equal(result.status,503); assert.equal(result.data.code,'PROVIDER_OUTCOME_UNKNOWN'); assert.equal(approvals,beforeApprovals); assert.equal(runs,beforeRuns);
   }
   scenario='changed-terms'; const beforeRuns=runs, changed=await run(); assert.equal(changed.status,503); assert.equal(changed.data.code,'PROVIDER_OUTCOME_UNKNOWN'); assert.equal(runs,beforeRuns);
-  const reopened=await import('../../packages/backend-kit/src/application.ts?group-binding-reopened'); scenario='changed-after-reopen'; const beforeReopen=approvals; const altered=await reopened.integratedRequest('service-wallet',actor,'POST','/pay/unified',{}, {items:[{agency:'demo',purpose:'test',amount:100}]},()=>({status:404,data:{}})); assert.equal(altered.status,503);assert.equal(altered.data.code,'PROVIDER_OUTCOME_UNKNOWN');assert.equal(approvals,beforeReopen);
+  const reopened=await import('../../packages/backend-kit/src/application.ts?group-binding-reopened'); scenario='changed-after-reopen'; const beforeReopen=approvals; const altered=await reopened.integratedRequest('service-wallet',actor,'POST','/pay/unified',{}, {items:[{agency:'demo',purpose:'test',amount:100}],expectedPayables:[]},()=>({status:404,data:{}})); assert.equal(altered.status,503);assert.equal(altered.data.code,'PROVIDER_OUTCOME_UNKNOWN');assert.equal(approvals,beforeReopen);
   scenario='wrong-receipt'; const badReceipt=await run();assert.equal(badReceipt.status,503);assert.equal(badReceipt.data.code,'PROVIDER_OUTCOME_UNKNOWN');
   scenario='valid'; const beforeValid=runs; const result=await run(); assert.equal(result.status,200); assert.equal(result.data.govTransactionHash,'group-original'); assert.equal(runs,beforeValid+1);
 });

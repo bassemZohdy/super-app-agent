@@ -34,6 +34,7 @@ export type ApplicationOperation = {
   contract?: string;
   // Body schema for routes the validator does not cover (telecom passthroughs, /accounts).
   manualSchema?: JsonSchema;
+  integratedRequired?: string[];
   bodyRequired?: boolean;
   errors?: ErrorStatuses;
 };
@@ -84,9 +85,9 @@ export const APPLICATION_OPERATIONS: ApplicationOperation[] = [
   { service: 'service-wallet', method: 'POST', path: '/wallet/pay', operationId: 'authorizeWalletPayment', summary: 'Pay from the wallet', bodyRequired: true, response: ok(RAW) },
   { service: 'service-wallet', method: 'POST', path: '/fines/pay', operationId: 'payFines', summary: 'Pay selected traffic fines', bodyRequired: true,
     response: ENVELOPE('Fines receipt.', ['receiptNumber', 'finesCleared', 'fineIds', 'amountPaid', 'remainingBalance']), errors: { '404': 'Unpaid fines not found.', ...PAYMENT_ERRORS } },
-  { service: 'service-wallet', method: 'POST', path: '/pay/unified', operationId: 'payUnified', summary: 'Pay multiple agency items in one checkout', bodyRequired: true,
+  { service: 'service-wallet', method: 'POST', path: '/pay/unified', operationId: 'payUnified', summary: 'Pay multiple agency items in one checkout', bodyRequired: true, integratedRequired:['expectedPayables'],
     response: ENVELOPE('Completed checkout group.', ['group', 'govTransactionHash', 'settlementPlatform', 'grandTotal', 'breakdown', 'remainingBalance', 'steps']), errors: PAYMENT_ERRORS },
-  { service: 'service-wallet', method: 'POST', path: '/pay/multi-agency', operationId: 'payMultiAgency', summary: 'Alias of unified checkout', bodyRequired: true,
+  { service: 'service-wallet', method: 'POST', path: '/pay/multi-agency', operationId: 'payMultiAgency', summary: 'Alias of unified checkout', bodyRequired: true, integratedRequired:['expectedPayables'],
     response: ENVELOPE('Completed checkout group.', ['group', 'govTransactionHash', 'settlementPlatform', 'grandTotal', 'breakdown', 'remainingBalance', 'steps']), errors: PAYMENT_ERRORS },
 
   // service-catalog (DLD housing, mini-app and capability catalog)
@@ -133,7 +134,8 @@ function requestParts(operation: ApplicationOperation) {
   if (operation.manualSchema) {
     return { schema: operation.manualSchema, names: templateNames };
   }
-  const schema = validatedSchema(operation.service, operation.method, operation.contract ?? operation.path);
+  let schema = validatedSchema(operation.service, operation.method, operation.contract ?? operation.path);
+  if(operation.integratedRequired)schema={...schema,required:[...new Set([...((schema.required ?? []) as string[]),...operation.integratedRequired])]};
   return { schema, names: templateNames };
 }
 

@@ -13,9 +13,10 @@ import type { CheckoutGroupView } from '../../protocol-core/src/payments.ts';
 import { currentProfile, currentPreferences, generatePromptContext } from '../../../services/service-profile/src/index.ts';
 import { restaurants } from '../../../services/service-food/src/index.ts';
 type PayableRevision = { payableId: string; expectedRevision: string };
+type ReviewedGroupPayable = PayableRevision & { provider: 'dewa' | 'police' };
 type Payable = { id: string; kind: string; provider: string; status: string; reference: string; revision: string; obligationId: string; amountMinor: number; currency: string };
 type Bill = { billId: string; status: string; totalAmount: number; receiptNumber: string; expiresAt?: string; premiseId?: string };
-type Fine = { fineId: string; payableId: string; payableRevision: number };
+type Fine = { fineId: string; payableId: string; payableRevision: string };
 type BillingAccount = { status: string; provider: string; reference: string };
 type RechargeTarget = { reference: string; version: number };
 type Zone = { id: string; tariffPerHour: number };
@@ -206,7 +207,7 @@ export async function integratedRequest(service: string, actor: Actor, method: s
     }
     if (service === 'service-food') {
       if (method === 'GET' && path === '/utilities/consumption') return successfulWithoutDuplicate(await call('dewa', method, '/consumption'));
-      if (method === 'GET' && path === '/utilities/bill') {const bill=(await call('dewa',method,'/bills')).bills[0],payable=(await call('dewa',method,'/payables')).payables.find((p:Payable)=>p.obligationId===bill.billId);return successful({bill:{...bill,payableRevision:payable?.revision}});}
+      if (method === 'GET' && path === '/utilities/bill') {const bill=(await call('dewa',method,'/bills')).bills[0],payable=(await call('dewa',method,'/payables')).payables.find((p:Payable)=>p.obligationId===bill.billId);return successful({bill:{...bill,payableId:payable?.id,payableRevision:payable?.revision}});}
       if (method === 'POST' && path === '/utilities/pay') return successfulWithoutDuplicate(await settleBill('dewa', body.billId));
       if (method === 'GET' && ['/restaurants/search','/utilities/eco-advice'].includes(path)) return legacy(method, path, query, body);
       if (method === 'POST' && path === '/orders/create') {
@@ -227,6 +228,10 @@ export async function integratedRequest(service: string, actor: Actor, method: s
       if (method === 'POST' && path === '/fines/pay') return successfulWithoutDuplicate(await settleFines(body.fineIds));
       if (method === 'POST' && ['/pay/unified','/pay/multi-agency'].includes(path)) {
         if((body.targetReference===undefined)!==(body.expectedTargetVersion===undefined))throw new UpstreamError(400,'VALIDATION_ERROR','Select a recharge target and its reviewed version together.');
+        const selected=body.expectedPayables as ReviewedGroupPayable[] | undefined;
+        if(!Array.isArray(selected)||selected.length>30)throw new UpstreamError(400,'VALIDATION_ERROR','Select the reviewed bills and fines.');
+        const selectedKeys=new Set<string>();
+        for(const item of selected){if(!item||!['dewa','police'].includes(item.provider)||typeof item.payableId!=='string'||!item.payableId||typeof item.expectedRevision!=='string'||!/^[a-f0-9]{64}$/.test(item.expectedRevision))throw new UpstreamError(400,'VALIDATION_ERROR','Select the reviewed bills and fines.');const key=JSON.stringify([item.provider,item.payableId]);if(selectedKeys.has(key))throw new UpstreamError(400,'VALIDATION_ERROR','A reviewed item cannot be selected twice.');selectedKeys.add(key);}
         const reviewItems=body.items as unknown;
         if(!Array.isArray(reviewItems)||!reviewItems.length)throw new UpstreamError(400,'VALIDATION_ERROR','Review the checkout amounts.');
         let reviewedTotal=0;
@@ -238,9 +243,11 @@ export async function integratedRequest(service: string, actor: Actor, method: s
         if(intent&&intent.terms!==terms)throw new UpstreamError(409,'CHECKOUT_INTENT_CONFLICT','This request already has different checkout terms.');
         if(!intent){
           const items:PlannedItem[]=[];
-          for(const p of (await call('dewa','GET','/payables')).payables)if(p.kind==='BILL'&&p.status==='UNPAID')items.push({provider:p.provider,payableId:p.id,expectedPayableRevision:p.revision});
-          const fines=(await call('police','GET','/payables')).payables.filter((p:Payable)=>p.kind==='FINE'&&p.status==='UNPAID');
-          if(fines.length){const p=(await call('police','POST','/fine-selections',{items:fines.map((p:Payable)=>({payableId:p.id,expectedRevision:p.revision}))},stableKey(`unified-fines:${intentId}`))).payable;items.push({provider:p.provider,payableId:p.id,expectedPayableRevision:p.revision});}
+          const bills=(await call('dewa','GET','/payables')).payables, availableFines=(await call('police','GET','/payables')).payables;
+          if(!Array.isArray(bills)||!Array.isArray(availableFines))throw new UpstreamError(503,'PROVIDER_UNAVAILABLE','The reviewed payables could not be read.');
+          const fines:Payable[]=[];
+          for(const item of selected){const candidates=(item.provider==='dewa'?bills:availableFines).filter((p:Payable)=>p.id===item.payableId&&p.provider===item.provider);const p=candidates[0];if(candidates.length!==1||!p||p.kind!==(item.provider==='dewa'?'BILL':'FINE')||p.status!=='UNPAID'||p.revision!==item.expectedRevision)throw new UpstreamError(409,'PAYABLE_CHANGED','A selected payable changed. Review current terms again.');if(item.provider==='dewa')items.push({provider:p.provider,payableId:p.id,expectedPayableRevision:p.revision});else fines.push(p);}
+          if(fines.length){const p=(await call('police','POST','/fine-selections',{items:fines.map((p:Payable)=>({payableId:p.id,expectedRevision:p.revision}))},stableKey(`unified-fines:${intentId}`))).payable;const ids=fines.map(f=>f.obligationId);if(!ids.every(id=>typeof id==='string'&&!!id)||!sameFineSelection(p,ids)||!Number.isSafeInteger(p.amountMinor)||p.amountMinor!==fines.reduce((sum,f)=>sum+f.amountMinor,0))throw new UpstreamError(503,'PROVIDER_UNAVAILABLE','The selected fines could not be confirmed.');items.push({provider:p.provider,payableId:p.id,expectedPayableRevision:p.revision});}
           let rechargeQuote;
           try{rechargeQuote=(await call('rta','GET',`/recharge-intents/${intentId}`)).payable;}catch(e){if(!(e instanceof UpstreamError)||e.status!==404)throw e;}
           if(!rechargeQuote){

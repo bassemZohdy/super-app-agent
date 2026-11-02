@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Select reviewed grouped-checkout payables (P1-13, step)
+
+Integrated manual grouped checkout now requires reviewed bill and fine IDs and revisions and plans only those payables; an empty selection means recharge only. It rejects stale, duplicate or unknown selections and checks the selected fine set. The utility bill read exposes its payable ID, the integrated OpenAPI and verification scripts are updated, and the offline fixture refuses selected-resource requests. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Check grouped checkout's reviewed total (P0-04, step)
 
 Integrated manual grouped checkout compares the caller's reviewed amount with current provider payables before group creation and with the returned group before approval or execution. Changed payables or totals cannot silently advance. Verification scripts now supply the expected amount; individual descriptions remain outside this check. Guide: [integrations](integrations.md).

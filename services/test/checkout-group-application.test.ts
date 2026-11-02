@@ -23,7 +23,7 @@ test('legacy unified checkout persists one group plan and resumes original child
     if(path.endsWith('/execute')){runs++;group={...group,state:'COMPLETED',orders:[{...group.orders[0],state:'SETTLED',paymentId:'payment-original',receipt:{receiptNumber:'payment-original',obligationId:p.obligationId,amountMinor:10000,currency:'AED',targetReference:p.reference,providerBalanceMinor:10000}}]};if(runs===1)throw new UpstreamError(503,'PROVIDER_OUTCOME_UNKNOWN','Lost after group commit');return{group};}
     if(path==='/wallet')return{balance:1500};throw new Error(`Unexpected ${provider} ${method} ${path}`);
   });
-  const body={items:[{agency:'demo',purpose:'reviewed',amount:100}],methodId:source.id,expectedMethodVersion:1};
+  const body={items:[{agency:'demo',purpose:'reviewed',amount:100}],expectedPayables:[],methodId:source.id,expectedMethodVersion:1};
   const run=(input=body)=>integratedRequest('service-wallet',actor,'POST','/pay/unified',{},input,()=>({status:404,data:{}}));
   assert.equal((await run()).status,503);const resumed=await run();assert.equal(resumed.status,200);assert.equal(resumed.data.govTransactionHash,'group-original');assert.equal(resumed.data.steps[0].receipt.receiptNumber,'payment-original');assert.equal(resumed.data.grandTotal,100);assert.equal(groupCreated,1);assert.equal(runs,1);
   assert.equal((await run({...body,methodId:'another-card'})).status,409);assert.equal(groupCreated,1);

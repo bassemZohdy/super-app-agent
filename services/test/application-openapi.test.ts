@@ -44,3 +44,11 @@ test('application OpenAPI document documents bearer auth and no duplicate operat
     seen.add(key);
   }
 });
+
+test('integrated grouped-checkout contracts require the reviewed payable selection', () => {
+  const document = buildApplicationOpenApi();
+  for(const path of ['/pay/unified','/pay/multi-agency']) {
+    const operation = document.paths[path].post as { requestBody: { content: { 'application/json': { schema: { required: string[] } } } } };
+    assert.ok(operation.requestBody.content['application/json'].schema.required.includes('expectedPayables'));
+  }
+});
