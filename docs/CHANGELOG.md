@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Hold the civic fence until session save (P1-13, step)
+
+Confirmed separate-service civic payments keep their shared fence until the gateway saves the completed session. A live Redis and local HTTP test exercises both a successful save and a failed save after payment; the latter retains the fence. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Coordinate separate-service civic payments (P1-13, step)
 
 HTTP-connected offline civic actions now acquire a non-expiring shared Redis fence before dispatch and retain it on uncertain or partial effects. A live Redis and local HTTP test confirms a lost wallet reply leaves the fence in place for a fresh agent process; definite pre-debit refusal releases it. Direct service calls and durable reconciliation remain outside this fence. Guide: [integrations](integrations.md).

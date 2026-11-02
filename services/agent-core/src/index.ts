@@ -15,6 +15,7 @@ import { actorContext, actorFor, accountIdFor } from '../../../packages/backend-
 import { redisSessions, SessionError } from './session-store.ts';
 import { randomUUID } from 'node:crypto';
 import { trackDomainOperations, executionOutcome, DomainOperationError, callDomainAsync, type Step } from './domain-operations.ts';
+import { withCivicFinalizers } from './civic-finalization.ts';
 import { validateRequest } from '../../../packages/protocol-core/src/request-validation.ts';
 import http from 'node:http';
 import { EventJournal, StreamWriter, eventFrame } from './event-stream.ts';
@@ -350,8 +351,11 @@ export async function executeGatewayRequest(method: string, pathname: string,
   query: Record<string, string> = {}, body: any = {}, headers: Record<string, string | undefined> = {}): Promise<{ status: number; data: any }> {
   const steps: Step[] = [];
   const requestContext: RequestContext = {};
+  const civicFinalizers: Array<() => Promise<void>> = [];
+  let completed = false;
   try {
-    const result = await trackDomainOperations(steps, () => handleGatewayRequest(method, pathname, query, body, headers, requestContext));
+    const result = await trackDomainOperations(steps, () => withCivicFinalizers(civicFinalizers, () => handleGatewayRequest(method, pathname, query, body, headers, requestContext)));
+    completed = result.data.success === true;
     return result.data.success === true ? { ...result, data: { ...result.data, outcome: 'SUCCEEDED', steps } } : result;
   }
   catch (error) {
@@ -392,7 +396,10 @@ export async function executeGatewayRequest(method: string, pathname: string,
     return { status, data: { success: false, error: message, code, outcome, steps, retry, surface } };
   } finally {
     if (requestContext.session && requestContext.session.messages.length > 100) requestContext.session.messages = requestContext.session.messages.slice(-100);
-    try { await requestContext.save?.(); } finally { await requestContext.release?.(); }
+    try {
+      await requestContext.save?.();
+      if (completed && requestContext.save) for (const finalize of civicFinalizers) await finalize();
+    } finally { await requestContext.release?.(); }
   }
 }
 

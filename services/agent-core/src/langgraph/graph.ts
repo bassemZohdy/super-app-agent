@@ -12,6 +12,7 @@ import { toMinor, fromMinor } from '../../../../packages/protocol-core/src/reque
 import { handlePaymentSurfaceAction } from '../payment-surfaces.ts';
 import { actorContext } from '../../../../packages/backend-kit/src/context.ts';
 import { redisSessions, SessionError } from '../session-store.ts';
+import { deferCivicRelease } from '../civic-finalization.ts';
 import { manualService } from '../manual-services.ts';
 import { handleConversation, contextualPrompt } from '../conversation.ts';
 import { minimiseHistory, minimiseSurface, minimiseText, modelConsentFor } from '../model-input.ts';
@@ -926,7 +927,10 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
       throw error;
     } finally {
       try {
-        if (sharedFence && !retainSharedFence) await sharedFence.release();
+        if (sharedFence && !retainSharedFence) {
+          if (externalWriteConfirmed) deferCivicRelease(sharedFence.release);
+          else await sharedFence.release();
+        }
       } finally { if (guardedOfflineCivicAction) offlineCivicPaymentRunning = false; }
     }
   }
