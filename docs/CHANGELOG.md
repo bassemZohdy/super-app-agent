@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 - Verify actual container replay evidence (P2-05, step)
+
+Container qualification requires a successful same-key replay containing the original receipt and a 409 refusal for a new approval key. Guide: [local development](development/local-development.md).
+
 ## 2 November 2026 - Clean up failed container qualification (P2-06, step)
 
 The focused-container verification cleans its dedicated project and volume after failed checks as well as successful runs, while retaining both errors if cleanup fails. Guide: [local development](development/local-development.md).

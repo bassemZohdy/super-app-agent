@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { withQualificationCleanup } from './qualification-cleanup.ts';
+import { assertApprovalReplay } from './qualification-evidence.ts';
 
 // Its own compose project, so the data volume it starts from empty and removes at the end is never a developer's own agent data.
 const PROJECT = 'super-app-agent-qualify';
@@ -59,8 +60,7 @@ const receipt = paid.data.receipt;
 assert.ok(receipt, 'a receipt exists after approval');
 const same = await call(`${root}/resume`, { approvalId: approval.id, decision: 'approve' }, key);
 const fresh = await call(`${root}/resume`, { approvalId: approval.id, decision: 'approve' }, randomUUID());
-assert.deepEqual(same.data?.receipt ?? receipt, receipt, 'the same key returns the same receipt');
-assert.ok(fresh.status >= 400 || JSON.stringify(fresh.data?.receipt ?? receipt) === JSON.stringify(receipt), 'a second approval is refused or returns the same receipt, never a second payment');
+assertApprovalReplay(receipt, same, fresh);
 must(compose('restart', 'agent'), 'second restart');
 await ready();
 const after = await call(root);
