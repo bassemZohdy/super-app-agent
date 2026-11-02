@@ -9,6 +9,7 @@ import { CHALLENGE_REASON, JobStore, StaleWorkerError, jobIdentity, type Claim, 
 export type GatewayFailure = Error & { status?: number; code?: string };
 export type PrepareResult = { skipped: true; reason: string } | { id: string; runId: string; orderId: string };
 export type ExecutedOrder = { id: string; state: string; fundsCaptured: boolean; failureCode?: string };
+export const AUTOMATION_ORDER_STATES: ReadonlySet<string> = new Set(['AWAITING_APPROVAL', 'AUTHORIZATION_PENDING', 'REQUIRES_ACTION', 'AUTHORIZED', 'CAPTURING', 'CAPTURED', 'RECONCILIATION_REQUIRED', 'SETTLED', 'FAILED', 'CANCELLED']);
 /** The owner's answer to a held card challenge, asked for once per poll; APPROVED carries the one new credential. */
 export type ChallengeAnswer = { state: 'PENDING' } | { state: 'REJECTED' } | { state: 'APPROVED'; accessToken: string; expiresAt: number };
 /** The worker's whole view of the world; HTTP in production, a fake in tests. */
@@ -191,6 +192,12 @@ export class AutomationWorker {
       store.begin(claim, 'execute', this.now());
       try {
         const order = await this.gateway.execute(runId, executionId, credential.accessToken);
+        const expectedOrderId = store.get(claim.job.id)?.orderId;
+        if (!order || !expectedOrderId || order.id !== expectedOrderId || !AUTOMATION_ORDER_STATES.has(order.state) || typeof order.fundsCaptured !== 'boolean' || (order.state === 'SETTLED' && (!order.fundsCaptured || order.failureCode !== undefined)) || (order.state === 'REQUIRES_ACTION' && order.fundsCaptured)) {
+          store.outcome(claim, 'unverified_order');
+          store.transition(claim, 'HELD', { reason: 'OUTCOME_UNKNOWN' }, { kind: 'HELD', body: { reason: 'OUTCOME_UNKNOWN', executionId } }, this.now());
+          return;
+        }
         store.outcome(claim, `order:${order.state}`);
         if (order.state === 'SETTLED') { store.transition(claim, 'SETTLED', {}, { kind: 'SETTLED', body: { orderId: order.id } }, this.now()); return; }
         if (['FAILED', 'CANCELLED'].includes(order.state) && !order.fundsCaptured) {

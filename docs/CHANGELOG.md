@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bind automation execution results to the prepared order (P1-02, step)
+
+The automation worker checks the returned order identity, state and capture flag before accepting an outcome. Mismatches and contradictory settlement or challenge responses remain held. Guide: [automation worker](development/automation-worker.md).
+
 ## 2 November 2026 — Bound and sanitize automation HTTP outcomes (P1-02, step)
 
 The worker bounds automation responses, keeps documented refusal codes without provider error text, and treats malformed, contradictory or unrecognized replies as uncertain. Credential and execution uncertainty stays held under the original identity. Guide: [automation worker](development/automation-worker.md).

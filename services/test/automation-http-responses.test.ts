@@ -42,16 +42,25 @@ test('automation HTTP errors remain sanitized and uncertain credential results a
       assert.doesNotMatch(JSON.stringify([store.get(job.id), store.outbox(job.id), store.attempts(job.id)]), /private.token.marker/i);
     } finally { store.close(); }
   }
-  phase = 'execute'; status = 403; payload = { success: false, code: 'PRIVATE_TOKEN_MARKER', error: 'private-token-marker' };
-  const store = new JobStore(':memory:');
-  try {
-    const job = store.enqueue(rule);
-    const worker = new AutomationWorker(store, gateway, { workerId: 'worker-a', stepRetries: 1, sleep: async () => {} });
-    const result = await worker.runOnce();
-    assert.equal(result?.state, 'HELD'); assert.equal(result?.reason, 'OUTCOME_UNKNOWN');
-    assert.equal(executeCalls, 1);
-    assert.doesNotMatch(JSON.stringify([store.get(job.id), store.outbox(job.id), store.attempts(job.id)]), /private.token.marker|fixture-execution-token/i);
-  } finally { store.close(); }
+  phase = 'execute';
+  for (const example of [
+    { status: 403, body: { success: false, code: 'PRIVATE_TOKEN_MARKER', error: 'private-token-marker' } },
+    { status: 200, body: { success: true, order: { id: 'order_other', state: 'SETTLED', fundsCaptured: true } } },
+    { status: 200, body: { success: true, order: { id: 'order_1', state: 'SETTLED' } } },
+    { status: 200, body: { success: true, order: { id: 'order_1', state: 'SETTLED', fundsCaptured: false } } },
+    { status: 200, body: { success: true, order: { id: 'order_1', state: 'REQUIRES_ACTION', fundsCaptured: true } } },
+  ]) {
+    status = example.status; payload = example.body; executeCalls = 0;
+    const store = new JobStore(':memory:');
+    try {
+      const job = store.enqueue(rule);
+      const worker = new AutomationWorker(store, gateway, { workerId: 'worker-a', stepRetries: 1, sleep: async () => {} });
+      const result = await worker.runOnce();
+      assert.equal(result?.state, 'HELD'); assert.equal(result?.reason, 'OUTCOME_UNKNOWN');
+      assert.equal(executeCalls, 1);
+      assert.doesNotMatch(JSON.stringify([store.get(job.id), store.outbox(job.id), store.attempts(job.id)]), /private.token.marker|fixture-execution-token/i);
+    } finally { store.close(); }
+  }
   phase = 'credential';
   status = 409; payload = { success: false, code: 'PERMIT_ALREADY_ISSUED', error: 'private-token-marker' };
   await assert.rejects(gateway.credential(runId, 'autoexec_1'), (error: unknown) => {
@@ -62,4 +71,25 @@ test('automation HTTP errors remain sanitized and uncertain credential results a
   });
   payload = { success: false, code: 'CHALLENGE_PENDING', error: 'private-token-marker' };
   assert.deepEqual(await gateway.resume(runId, 'autoexec_1'), { state: 'PENDING' });
+});
+
+test('automation execution HTTP responses require a readable order identity and capture flag', async t => {
+  let order: unknown;
+  t.mock.method(globalThis, 'fetch', async () => Response.json({ success: true, order }));
+  const runId = 'autorn_00000000-0000-4000-8000-000000000000';
+  const gateway = new HttpExecutionGateway({ runId, paymentsUrl: 'http://127.0.0.1/', brokerUrl: 'http://127.0.0.1/', clientSecret: 'fixture-secret' });
+  for (const bad of [
+    { state: 'SETTLED', fundsCaptured: true },
+    { id: '', state: 'SETTLED', fundsCaptured: true },
+    { id: 'order_1', state: 'SETTLED' },
+    { id: 'order_1', state: 'FAILED', fundsCaptured: 'false' },
+    { id: 'order_1', state: '', fundsCaptured: false },
+    { id: 'order_1', state: 'UNRECOGNIZED', fundsCaptured: false },
+    null, [],
+  ]) {
+    order = bad;
+    await assert.rejects(gateway.execute(runId, 'autoexec_1', 'fixture-execution-token'), /incomplete/i);
+  }
+  order = { id: 'order_1', state: 'SETTLED', fundsCaptured: true };
+  assert.deepEqual(await gateway.execute(runId, 'autoexec_1', 'fixture-execution-token'), { id: 'order_1', state: 'SETTLED', fundsCaptured: true, failureCode: undefined });
 });

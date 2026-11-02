@@ -51,6 +51,28 @@ test('AUTO-05: a job settles once through prepare, credential and execute, with 
   assert.equal(calls.execute, 1);
 });
 
+test('AUTO-05: mismatched or contradictory order results remain held under the original execution', async () => {
+  const invalid: ExecutedOrder[] = [
+    { id: 'order_other', state: 'SETTLED', fundsCaptured: true },
+    { id: 'order_1', state: 'SETTLED', fundsCaptured: false },
+    { id: 'order_1', state: 'SETTLED', fundsCaptured: true, failureCode: 'CARD_DECLINED' },
+    { id: 'order_1', state: 'REQUIRES_ACTION', fundsCaptured: true },
+    { id: 'order_1', state: 'FAILED', fundsCaptured: undefined as unknown as boolean },
+    { id: 'order_1', state: 'UNKNOWN_PROVIDER_STATE', fundsCaptured: false },
+  ];
+  for (const order of invalid) {
+    const store = new JobStore(':memory:'), { g, calls } = gateway({ execute: async () => { calls.execute++; return order; } });
+    try {
+      const job = store.enqueue(rule);
+      const done = await new AutomationWorker(store, g, { workerId: 'worker-a', stepRetries: 1, sleep: async () => {} }).runOnce();
+      assert.equal(done?.state, 'HELD'); assert.equal(done?.reason, 'OUTCOME_UNKNOWN');
+      assert.equal(calls.execute, 1);
+      assert.ok(!store.outbox(job.id).some(event => ['SETTLED', 'FAILED', 'REQUIRES_ACTION'].includes(event.kind)));
+      assert.equal((await worker(store, g).runOnce()), undefined);
+    } finally { store.close(); }
+  }
+});
+
 test('AUTO-05: two workers never hold one job; a stale worker is fenced out after its lease expires', () => {
   const store = new JobStore(':memory:');
   store.enqueue(rule);
@@ -153,9 +175,9 @@ test('AUTO-05: refusals, rejections and captured-but-unsettled orders land in th
     ['credential already issued', { credential: async () => { throw fail(403, 'PERMIT_ALREADY_ISSUED'); } }, 'HELD', 'CREDENTIAL_ALREADY_ISSUED'],
     ['credential outage', { credential: async () => { throw fail(503, 'DOWN'); } }, 'HELD', 'CREDENTIAL_UNKNOWN'],
     ['admission rejected', { execute: async () => { throw fail(409, 'AUTOMATION_ADMISSION_REJECTED'); } }, 'FAILED', 'AUTOMATION_ADMISSION_REJECTED'],
-    ['order failed before funds', { execute: async () => ({ id: 'o', state: 'FAILED', fundsCaptured: false, failureCode: 'CARD_DECLINED' }) }, 'FAILED', 'CARD_DECLINED'],
-    ['funds captured, outcome unknown', { execute: async () => ({ id: 'o', state: 'RECONCILIATION_REQUIRED', fundsCaptured: true }) }, 'HELD', 'OUTCOME_UNKNOWN'],
-    ['card challenge', { execute: async () => ({ id: 'o', state: 'REQUIRES_ACTION', fundsCaptured: false }) }, 'HELD', 'REQUIRES_ACTION'],
+    ['order failed before funds', { execute: async () => ({ id: 'order_1', state: 'FAILED', fundsCaptured: false, failureCode: 'CARD_DECLINED' }) }, 'FAILED', 'CARD_DECLINED'],
+    ['funds captured, outcome unknown', { execute: async () => ({ id: 'order_1', state: 'RECONCILIATION_REQUIRED', fundsCaptured: true }) }, 'HELD', 'OUTCOME_UNKNOWN'],
+    ['card challenge', { execute: async () => ({ id: 'order_1', state: 'REQUIRES_ACTION', fundsCaptured: false }) }, 'HELD', 'REQUIRES_ACTION'],
     ['preparation rejected', { prepare: async () => { throw fail(409, 'AUTOMATION_UNSUPPORTED'); } }, 'FAILED', 'AUTOMATION_UNSUPPORTED'],
   ];
   for (const [name, patch, state, reason] of outcomes) {
@@ -200,7 +222,7 @@ test('AUTO-05: no credential reaches the database, the outbox or the attempt log
 
 test('AUTO-08: failures only the owner can fix are recorded as requiring action and never retried with another source', async () => {
   for (const code of ['CARD_DECLINED', 'CARD_LIMIT_EXCEEDED', 'INSUFFICIENT_AVAILABLE_FUNDS']) {
-    const store = new JobStore(':memory:'), { g, calls } = gateway({ execute: async () => ({ id: 'o', state: 'FAILED', fundsCaptured: false, failureCode: code }) });
+    const store = new JobStore(':memory:'), { g, calls } = gateway({ execute: async () => ({ id: 'order_1', state: 'FAILED', fundsCaptured: false, failureCode: code }) });
     const job = store.enqueue(rule);
     const done = await worker(store, g).runOnce();
     assert.equal(done!.state, 'FAILED', code);
@@ -210,7 +232,7 @@ test('AUTO-08: failures only the owner can fix are recorded as requiring action 
     assert.deepEqual([calls.prepare, calls.credential], [1, 1]);
   }
   // A failure that needs no owner action stays an ordinary failure.
-  const store = new JobStore(':memory:'), { g } = gateway({ execute: async () => ({ id: 'o', state: 'FAILED', fundsCaptured: false, failureCode: 'APPROVAL_EXPIRED' }) });
+  const store = new JobStore(':memory:'), { g } = gateway({ execute: async () => ({ id: 'order_1', state: 'FAILED', fundsCaptured: false, failureCode: 'APPROVAL_EXPIRED' }) });
   const job = store.enqueue(rule);
   await worker(store, g).runOnce();
   assert.deepEqual(store.outbox(job.id).map(e => e.kind), ['PREPARED', 'FAILED']);

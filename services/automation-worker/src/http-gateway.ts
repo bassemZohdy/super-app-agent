@@ -4,7 +4,7 @@
 import { tracedFetch as fetch } from '../../../packages/backend-kit/src/observability.ts';
 import { ClientCredentials } from '../../../packages/backend-kit/src/oauth.ts';
 import { boundedJsonResponse } from '../../../packages/backend-kit/src/bounded-json.ts';
-import type { ChallengeAnswer, ExecutedOrder, ExecutionGateway, GatewayFailure, PrepareResult } from './worker.ts';
+import { AUTOMATION_ORDER_STATES, type ChallengeAnswer, type ExecutedOrder, type ExecutionGateway, type GatewayFailure, type PrepareResult } from './worker.ts';
 
 export type HttpGatewayConfig = { runId: string; paymentsUrl: string; brokerUrl: string; clientSecret: string; clientId?: string };
 
@@ -98,8 +98,9 @@ export class HttpExecutionGateway implements ExecutionGateway {
   async execute(runId: string, executionId: string, accessToken: string): Promise<ExecutedOrder> {
     if (runId !== this.config.runId) throw failure(400, 'RUN_MISMATCH', 'The job belongs to another run.');
     const data = await this.call(this.config.paymentsUrl, this.run(`/execution/${encodeURIComponent(executionId)}/execute`), accessToken, {}, 60000);
-    const order = data.order as ExecutedOrder | undefined;
-    if (!order || typeof order.state !== 'string') throw failure(502, 'ORDER_INVALID', 'The execution response was incomplete.');
-    return { id: String(order.id), state: order.state, fundsCaptured: order.fundsCaptured === true, failureCode: order.failureCode };
+    if (!data.order || typeof data.order !== 'object' || Array.isArray(data.order)) throw failure(502, 'ORDER_INVALID', 'The execution response was incomplete.');
+    const order = data.order as Record<string, unknown>;
+    if (typeof order.id !== 'string' || !order.id || order.id.length > 200 || typeof order.state !== 'string' || !AUTOMATION_ORDER_STATES.has(order.state) || typeof order.fundsCaptured !== 'boolean' || (order.failureCode !== undefined && typeof order.failureCode !== 'string')) throw failure(502, 'ORDER_INVALID', 'The execution response was incomplete.');
+    return { id: order.id, state: order.state, fundsCaptured: order.fundsCaptured, failureCode: order.failureCode as string | undefined };
   }
 }
