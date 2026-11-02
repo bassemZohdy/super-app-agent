@@ -90,7 +90,7 @@ function confirmedReceipt(service: string, path: string, data: any, body: unknow
         if (process.env.PROVIDER_INTEGRATION === 'true' && path === '/wallet/pay') {
           const actor = actorContext.getStore(), capture = data.charge;
           const reference = request.referenceId === undefined ? actor?.requestId : request.referenceId;
-          if (!actor || !record(capture) || !named(reference) || capture.id !== tx.id || capture.accountId !== actor.accountId || capture.amountMinor !== amount || capture.currency !== 'AED' || capture.status !== 'CAPTURED' || capture.refunded !== false || capture.merchant !== 'superapp' || capture.reference !== reference || capture.source !== 'wallet') return false;
+          if (!actor || !record(capture) || !named(reference) || capture.id !== tx.id || capture.accountId !== actor.accountId || capture.amountMinor !== amount || capture.currency !== 'AED' || capture.status !== 'CAPTURED' || capture.refunded !== false || capture.merchant !== 'superapp' || capture.reference !== reference || (request.referenceId !== undefined && (capture.operationId !== actor.requestId || tx.operationId !== actor.requestId)) || capture.source !== 'wallet') return false;
         }
         return true;
       } catch { return false; }

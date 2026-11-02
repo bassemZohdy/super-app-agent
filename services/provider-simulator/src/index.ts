@@ -230,7 +230,7 @@ export function createProviderServer(provider: ProviderId, path: string, options
       const fingerprint = createHash('sha256').update(JSON.stringify([req.method, operationPath, canonical(body),...(claimant?[claimant]:[])])).digest('hex');
       const replay = (saved: { fingerprint: string; status: number; body: string }) => {
         if (provider === 'payments' && operationPath === '/charges' && saved.status === 200 && body.merchant === 'superapp' && body.source === 'wallet' && typeof body.reference === 'string') {
-          try { engine.verifyWalletReplay(accountId, body.reference, saved, body.amountMinor); }
+          try { engine.verifyWalletReplay(accountId, body.operationId || body.reference, saved, body.amountMinor, body.reference, body.operationId !== undefined); }
           catch { throw new ApiError(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original wallet payment could not be confirmed.'); }
         }
         if (provider === 'rta' && operationPath === '/rides/bookings' && saved.status === 200) {

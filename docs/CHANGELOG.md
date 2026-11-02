@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bind external wallet references (P1-02, step)
+
+New integrated wallet payments retain external booking references while binding their retry and inspection to the original operation identity. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Hold unbound ride bookings (P1-13, step)
 
 Integrated ride inspections and new bookings remain unconfirmed when an existing account-owned booking has lost its verifiable retry record. Guide: [agent flow](agent-flow.md).

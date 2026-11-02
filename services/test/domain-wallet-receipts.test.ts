@@ -60,7 +60,11 @@ test('integrated wallet payments require a matching captured charge for this acc
       assert.equal(steps[0].state, 'UNKNOWN');
     } finally { fetchMock.mock.restore(); }
   }
-  const fetchMock = t.mock.method(globalThis, 'fetch', async () => Response.json({ success: true, transaction, charge: { ...charge, reference: 'reviewed-reference' }, remainingBalance: 50 }));
+  const invalidReference = t.mock.method(globalThis, 'fetch', async () => Response.json({ success: true, transaction, charge: { ...charge, reference: 'reviewed-reference', operationId: 'wrong-operation' }, remainingBalance: 50 }));
+  try {
+    await assert.rejects(trackDomainOperations([], () => actorContext.run(actor, () => callDomainAsync('wallet', 'POST', '/wallet/pay', {}, { amount: 1, referenceId: 'reviewed-reference' }))), (error: unknown) => error instanceof DomainOperationError && error.code === 'DOMAIN_OUTCOME_UNKNOWN');
+  } finally { invalidReference.mock.restore(); }
+  const fetchMock = t.mock.method(globalThis, 'fetch', async () => Response.json({ success: true, transaction: { ...transaction, operationId: actor.requestId }, charge: { ...charge, reference: 'reviewed-reference', operationId: actor.requestId }, remainingBalance: 50 }));
   try {
     const steps: Step[] = [];
     await trackDomainOperations(steps, () => actorContext.run(actor, () => callDomainAsync('wallet', 'POST', '/wallet/pay', {}, { amount: 1, referenceId: 'reviewed-reference' })));

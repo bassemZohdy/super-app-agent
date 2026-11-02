@@ -49,23 +49,23 @@ export class ProviderEngine {
     const charge = this.store.db.prepare(`SELECT 1 FROM resources WHERE account_id=? AND kind='charge' AND CASE
       WHEN json_valid(body)=0 THEN 1
       WHEN json_type(body)<>'object' OR coalesce(json_type(body,'$.merchant'),'')<>'text' OR coalesce(json_type(body,'$.reference'),'')<>'text' THEN 1
-      WHEN json_extract(body,'$.merchant')='superapp' AND json_extract(body,'$.reference')=? THEN 1 ELSE 0 END LIMIT 1`).get(accountId, reference);
+      WHEN json_extract(body,'$.merchant')='superapp' AND (json_extract(body,'$.reference')=? OR json_extract(body,'$.operationId')=?) THEN 1 ELSE 0 END LIMIT 1`).get(accountId, reference, reference);
     if (charge) return true;
     const transaction = this.store.db.prepare(`SELECT 1 FROM resources WHERE account_id=? AND kind='transaction' AND CASE
       WHEN json_valid(body)=0 THEN 1 WHEN json_type(body)<>'object' THEN 1
-      WHEN json_extract(body,'$.referenceId')=? OR json_extract(body,'$.purpose')=? THEN 1 ELSE 0 END LIMIT 1`).get(accountId, reference, reference);
+      WHEN json_extract(body,'$.referenceId')=? OR json_extract(body,'$.purpose')=? OR json_extract(body,'$.operationId')=? THEN 1 ELSE 0 END LIMIT 1`).get(accountId, reference, reference, reference);
     if (transaction) return true;
     return this.store.db.prepare(`SELECT 1 FROM payment_journal_entries j WHERE j.account_id=? AND j.kind='PAYMENT' AND j.reference LIKE 'charge:%'
       AND NOT EXISTS (SELECT 1 FROM resources r WHERE r.account_id=j.account_id AND r.kind='charge' AND r.id=substr(j.reference,8)) LIMIT 1`).get(accountId) !== undefined;
   }
-  verifyWalletReplay(a: string, operationId: string, record: { fingerprint: unknown; status: unknown; body: unknown }, expectedAmountMinor?: number) {
+  verifyWalletReplay(a: string, operationId: string, record: { fingerprint: unknown; status: unknown; body: unknown }, expectedAmountMinor?: number, expectedReference?: string, requireOperationId = false) {
     const db = this.store;
     let saved: unknown;
     try { saved = typeof record.body === 'string' ? JSON.parse(record.body) : undefined; } catch { /* Hold unreadable evidence. */ }
     const response = saved && typeof saved === 'object' && !Array.isArray(saved) ? saved as { success?: unknown; charge?: unknown; transaction?: unknown } : undefined;
-    const charge = response?.charge && typeof response.charge === 'object' && !Array.isArray(response.charge) ? response.charge as { id?: unknown; accountId?: unknown; amountMinor?: unknown; currency?: unknown; merchant?: unknown; reference?: unknown; source?: unknown; status?: unknown; refunded?: unknown } : undefined;
-    const tx = response?.transaction && typeof response.transaction === 'object' && !Array.isArray(response.transaction) ? response.transaction as { id?: unknown; type?: unknown; amount?: unknown; currency?: unknown; status?: unknown; referenceId?: unknown; purpose?: unknown } : undefined;
-    if (typeof record.fingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(record.fingerprint) || record.status !== 200 || response?.success !== true || Object.hasOwn(response, 'error') || typeof charge?.id !== 'string' || !charge.id || charge.accountId !== a || charge.currency !== 'AED' || charge.merchant !== 'superapp' || charge.reference !== operationId || charge.source !== 'wallet' || charge.status !== 'CAPTURED' || charge.refunded !== false || typeof charge.amountMinor !== 'number' || !Number.isSafeInteger(charge.amountMinor) || charge.amountMinor <= 0 || (expectedAmountMinor !== undefined && charge.amountMinor !== expectedAmountMinor) || tx?.id !== charge.id || tx.type !== 'PAYMENT' || tx.currency !== 'AED' || tx.status !== 'SETTLED' || tx.referenceId !== operationId || tx.purpose !== operationId || tx.amount !== charge.amountMinor / 100 || !isDeepStrictEqual(db.get(a, 'charge', charge.id), charge) || !isDeepStrictEqual(db.get(a, 'transaction', charge.id), tx)) return fail(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original wallet payment could not be confirmed.');
+    const charge = response?.charge && typeof response.charge === 'object' && !Array.isArray(response.charge) ? response.charge as { id?: unknown; accountId?: unknown; amountMinor?: unknown; currency?: unknown; merchant?: unknown; reference?: unknown; operationId?: unknown; source?: unknown; status?: unknown; refunded?: unknown } : undefined;
+    const tx = response?.transaction && typeof response.transaction === 'object' && !Array.isArray(response.transaction) ? response.transaction as { id?: unknown; type?: unknown; amount?: unknown; currency?: unknown; status?: unknown; referenceId?: unknown; purpose?: unknown; operationId?: unknown } : undefined;
+    if (typeof record.fingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(record.fingerprint) || record.status !== 200 || response?.success !== true || Object.hasOwn(response, 'error') || typeof charge?.id !== 'string' || !charge.id || charge.accountId !== a || charge.currency !== 'AED' || charge.merchant !== 'superapp' || typeof charge.reference !== 'string' || !charge.reference || (charge.operationId === undefined ? charge.reference !== operationId : charge.operationId !== operationId) || (requireOperationId && charge.operationId !== operationId) || (expectedReference !== undefined && charge.reference !== expectedReference) || charge.source !== 'wallet' || charge.status !== 'CAPTURED' || charge.refunded !== false || typeof charge.amountMinor !== 'number' || !Number.isSafeInteger(charge.amountMinor) || charge.amountMinor <= 0 || (expectedAmountMinor !== undefined && charge.amountMinor !== expectedAmountMinor) || tx?.id !== charge.id || tx.type !== 'PAYMENT' || tx.currency !== 'AED' || tx.status !== 'SETTLED' || tx.referenceId !== charge.reference || tx.purpose !== charge.reference || (charge.operationId !== undefined && tx.operationId !== charge.operationId) || tx.amount !== charge.amountMinor / 100 || !isDeepStrictEqual(db.get(a, 'charge', charge.id), charge) || !isDeepStrictEqual(db.get(a, 'transaction', charge.id), tx)) return fail(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original wallet payment could not be confirmed.');
     const journal = db.db.prepare('SELECT id,kind,wallet_delta,currency,finalized FROM payment_journal_entries WHERE account_id=? AND reference=?').get(a, `charge:${charge.id}`) as { id: string; kind: string; wallet_delta: number; currency: string; finalized: number } | undefined;
     const postings = journal && db.db.prepare('SELECT ledger_account,amount_minor FROM payment_journal_postings WHERE entry_id=? ORDER BY line').all(journal.id) as Array<{ ledger_account: string; amount_minor: number }> | undefined;
     if (!journal || journal.kind !== 'PAYMENT' || journal.wallet_delta !== -charge.amountMinor || journal.currency !== 'AED' || journal.finalized !== 1 || !postings || postings.length !== 2 || postings[0].ledger_account !== 'wallet' || postings[0].amount_minor !== -charge.amountMinor || postings[1].ledger_account !== 'merchant-clearing' || postings[1].amount_minor !== charge.amountMinor) return fail(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original wallet payment could not be confirmed.');
@@ -257,17 +257,18 @@ export class ProviderEngine {
       if (method === 'GET' && path.startsWith('/charges/')) { const charge = db.get(a, 'charge', path.split('/')[2]); if (!charge) fail(404, 'NOT_FOUND', 'Payment not found.'); return ok({ charge:{...charge,...(this.claims!.get(a,charge.id)?{settlement:this.claims!.get(a,charge.id)}:{})} }); }
       if (method === 'POST' && path === '/charges') {
         this.store.eligibility!.require(actor);
-        if (body.merchant === 'superapp' && body.source === 'wallet' && this.hasPriorWalletEvidence(a, body.reference)) fail(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original wallet payment could not be confirmed.');
+        if (body.operationId !== undefined && (body.merchant !== 'superapp' || body.source !== 'wallet')) fail(400, 'VALIDATION_ERROR', 'Operation identity is only supported for superapp wallet payments.');
+        if (body.merchant === 'superapp' && body.source === 'wallet' && (this.hasPriorWalletEvidence(a, body.reference) || body.operationId !== undefined && this.hasPriorWalletEvidence(a, body.operationId))) fail(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original wallet payment could not be confirmed.');
         const id = randomUUID();
         const declined = body.source === 'demo_declined' || (body.source === 'wallet' && wallet.availableMinor < body.amountMinor);
-        const charge = { id, accountId: a, amountMinor: body.amountMinor, merchant: body.merchant, reference: body.reference, source: body.source, status: declined ? 'DECLINED' : 'CAPTURED', currency: 'AED', createdAt: now(), refunded: false };
+        const charge = { id, accountId: a, amountMinor: body.amountMinor, merchant: body.merchant, reference: body.reference, ...(body.operationId ? { operationId: body.operationId } : {}), source: body.source, status: declined ? 'DECLINED' : 'CAPTURED', currency: 'AED', createdAt: now(), refunded: false };
         db.put(a, 'charge', charge, id);
         if(declined)this.store.events!.emitLegacyCapture(charge);
         if (declined) return { status: 402, data: { success: false, code: 'PAYMENT_DECLINED', error: 'The simulated payment was declined. Check the wallet balance or demo funding source.' } };
         const next = wallet.balanceMinor + (body.source === 'wallet' ? -body.amountMinor : 0);
         if (!Number.isSafeInteger(next) || next > 100_000_000) fail(400, 'BALANCE_LIMIT', 'Demo wallet balance limit exceeded.');
         this.ledger!.record(a, 'PAYMENT', `charge:${id}`, body.amountMinor, body.source === 'wallet' ? 'wallet' : 'external');
-        const transaction = { id, type: 'PAYMENT', amount: major(body.amountMinor), currency: 'AED', purpose: body.reference, status: 'SETTLED', timestamp: Date.now(), referenceId: body.reference };
+        const transaction = { id, type: 'PAYMENT', amount: major(body.amountMinor), currency: 'AED', purpose: body.reference, status: 'SETTLED', timestamp: Date.now(), referenceId: body.reference, ...(body.operationId ? { operationId: body.operationId } : {}) };
         db.put(a, 'transaction', transaction, id);
         this.store.events!.emitLegacyCapture(charge);
         return ok({ charge, transaction, remainingBalance: major(next) });

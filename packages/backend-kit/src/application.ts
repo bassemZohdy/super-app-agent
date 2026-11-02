@@ -66,7 +66,7 @@ export async function integratedRequest(service: string, actor: Actor, method: s
   const call = (provider: string, verb: string, route: string, data?: unknown, key?: string) => client.call(provider, actor, verb, route, data, key);
   const ownedUtility = (value: unknown): boolean => !!value && typeof value === 'object' && !Array.isArray(value) && (value as Bill).accountNumber === asset.utilityAccount && ((value as Bill).premiseId === undefined || (value as Bill).premiseId === asset.premiseId);
   const stableKey = (value: string) => createHash('sha256').update(`${actor.accountId}:${value}`).digest('hex');
-  const charge = async (provider: string, reference: string, amount: number) => call('payments', 'POST', '/charges', { amountMinor: Math.round(amount * 100), merchant: provider, reference, source: 'wallet' }, walletChargeKey(actor.accountId, provider, reference));
+  const charge = async (provider: string, reference: string, amount: number, operationId?: string) => call('payments', 'POST', '/charges', { amountMinor: Math.round(amount * 100), merchant: provider, reference, source: 'wallet', ...(operationId ? { operationId } : {}) }, walletChargeKey(actor.accountId, provider, operationId || reference));
   const parkingCapture = (payment: unknown, reference: string, amountMinor: number): string => {
     if (!payment || typeof payment !== 'object' || Array.isArray(payment)) throw new Error('Invalid parking capture');
     const capture = (payment as { charge?: { id?: unknown; accountId?: unknown; currency?: unknown; status?: unknown; refunded?: unknown; merchant?: unknown; reference?: unknown; amountMinor?: unknown; source?: unknown } }).charge;
@@ -389,7 +389,7 @@ export async function integratedRequest(service: string, actor: Actor, method: s
         return successful({ ...report, fines, count: fines.length, totalOriginal: original / 100, totalPayable: payable / 100, totalDiscount: discount / 100, plateNumber: asset.plate, earlyDiscountAED: discount / 100, discountLabel: 'Provider-reported discount' });
       }
       if (method === 'POST' && path === '/wallet/topup') return successfulWithoutDuplicate(await call('payments', method, '/topups', { amountMinor: Math.round(body.amount * 100), source: 'demo_approved' }));
-      if (method === 'POST' && path === '/wallet/pay') return successfulWithoutDuplicate(await charge('superapp', body.referenceId || actor.requestId, body.amount));
+      if (method === 'POST' && path === '/wallet/pay') return successfulWithoutDuplicate(await charge('superapp', body.referenceId || actor.requestId, body.amount, body.referenceId ? actor.requestId : undefined));
       const walletOperation = /^\/wallet\/operations\/([^/]+)$/.exec(path);
       if (method === 'GET' && walletOperation) {
         let operationId: string;

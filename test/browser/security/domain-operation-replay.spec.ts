@@ -97,6 +97,47 @@ test('wallet operation identity survives different trace IDs and rejects changed
   expect(charges()).toHaveLength(previousCharges + 1);
 });
 
+test('wallet operation identity is independent of an external payment reference', async ({ residentApi, stack }) => {
+  const operation = 'external-reference-operation', account = residentApi.accountId;
+  const store = stack.stores.get('payments')!, before = store.list(account, 'charge').length;
+  const request = async (referenceId: string, identity = operation) => {
+    const response = await fetch(`http://localhost:${stack.corePort + 3}/wallet/pay`, {
+      method: 'POST', headers: { Authorization: `Bearer ${residentApi.token}`, 'Content-Type': 'application/json', 'X-Account-Id': account, 'X-Operation-Id': identity },
+      body: JSON.stringify({ amount: 1, purpose: 'External booking', referenceId }),
+    });
+    return { status: response.status, data: await response.json() as { charge?: { id: string; reference: string; operationId?: string }; code?: string } };
+  };
+  const first = await request('booking-reference-a');
+  expect(first.status).toBe(200);
+  expect(first.data.charge?.reference).toBe('booking-reference-a');
+  expect((await request('booking-reference-a')).data.charge?.id).toBe(first.data.charge?.id);
+  expect((await request('booking-reference-b')).status).toBe(503);
+  expect(first.data.charge?.operationId).toBe(operation);
+  expect((await request('booking-reference-a', 'other-operation')).status).toBe(503);
+  expect(store.list(account, 'charge')).toHaveLength(before + 1);
+  const key = walletChargeKey(account, 'superapp', operation);
+  const record = store.db.prepare('SELECT fingerprint,status,body FROM idempotency WHERE account_id=? AND key=?').get(account, key) as { fingerprint: string; status: number; body: string };
+  const savedCharge = store.get<Record<string, unknown>>(account, 'charge', first.data.charge!.id)!;
+  store.db.prepare('DELETE FROM idempotency WHERE account_id=? AND key=?').run(account, key);
+  try {
+    expect((await request('booking-reference-b')).status).toBe(503);
+    expect((await request('booking-reference-a')).status).toBe(503);
+    const { operationId: _operationId, ...chargeWithoutOperation } = savedCharge;
+    store.put(account, 'charge', chargeWithoutOperation, first.data.charge!.id);
+    expect((await request('booking-reference-b')).status).toBe(503);
+    expect(store.list(account, 'charge')).toHaveLength(before + 1);
+  } finally {
+    store.put(account, 'charge', savedCharge, first.data.charge!.id);
+    store.db.prepare('INSERT INTO idempotency(account_id,key,fingerprint,status,body) VALUES(?,?,?,?,?)').run(account, key, record.fingerprint, record.status, record.body);
+  }
+  const response = await fetch(`http://localhost:${stack.corePort + 3}/wallet/operations/${operation}`, { headers: { Authorization: `Bearer ${residentApi.token}`, 'X-Account-Id': account } });
+  expect(response.status).toBe(200);
+  const inspected = await response.json() as { operationId: string; charge: { id: string; reference: string } };
+  expect(inspected.operationId).toBe(operation);
+  expect(inspected.charge.id).toBe(first.data.charge?.id);
+  expect(inspected.charge.reference).toBe('booking-reference-a');
+});
+
 test('direct wallet replay verifies evidence for any idempotency key', async ({ residentApi, stack }) => {
   const account = residentApi.accountId, store = stack.stores.get('payments')!;
   const reference = 'direct-replay-test', key = 'direct-replay-key';
