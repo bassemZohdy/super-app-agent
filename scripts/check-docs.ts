@@ -1,5 +1,8 @@
 import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs';
 import { join, dirname, resolve, extname } from 'node:path';
+import { PAYMENT_CONTRACT_VERSION } from '../packages/protocol-core/src/payments.ts';
+import { openApi } from '../services/provider-simulator/src/contracts.ts';
+import { checkPaymentContractVersions } from './payment-contract-docs.ts';
 
 const walk = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap(entry =>
   entry.isDirectory() ? walk(join(dir, entry.name)) : entry.name.endsWith('.md') ? [join(dir, entry.name)] : []);
@@ -7,6 +10,7 @@ const files = ['README.md', 'TODO.md', 'AGENTS.md', 'SECURITY.md', 'services/voi
 const scripts = JSON.parse(readFileSync('package.json', 'utf8')).scripts as Record<string, string>;
 const errors: string[] = [];
 const contents = new Map(files.map(file => [resolve(file), readFileSync(file, 'utf8')]));
+const paymentVersions = { payment: PAYMENT_CONTRACT_VERSION, provider: openApi('payments').info.version };
 
 /** Code examples can contain illustrative links/headings; those do not create Markdown anchors. */
 function withoutFences(source: string): string {
@@ -35,6 +39,7 @@ function markdownAnchors(file: string): Set<string> {
 
 for (const file of files) {
   const source = contents.get(resolve(file))!;
+  errors.push(...checkPaymentContractVersions(file, source, paymentVersions));
   for (const match of withoutFences(source).matchAll(/\[[^\]]*\]\(([^)]+)\)/g)) {
     const href = match[1].trim();
     if (/^(?:[a-z][a-z\d+.-]*:|\/\/)/i.test(href)) continue;

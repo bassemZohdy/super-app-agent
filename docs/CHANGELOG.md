@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 - Check payment documentation versions (P2-04, step)
+
+The documentation check compares explicit payment contract versions in tracked current guides with the source contracts, while leaving historical reports untouched. Guide: [application API](development/application-api.md).
+
 ## 2 November 2026 - Hold contradictory success codes (P1-02, step)
 
 Domain, provider and settlement writes retain an unknown outcome when a success response also carries a top-level code. This keeps the original checkout or claim fenced for inspection. Guide: [agent flow](agent-flow.md).

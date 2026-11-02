@@ -89,7 +89,7 @@ The contract is `packages/backend-kit/openapi/application-apis.openapi.json` (Op
 3. there are no duplicate `method path` pairs;
 4. the `bearerAuth` scheme is HTTP bearer with format `JWT`.
 
-If test 1 fails, run `npm run openapi:generate:apps` and commit the regenerated file.
+If test 1 fails, run `npm run openapi:generate:apps` and commit the regenerated file. `npm run check:docs` also checks explicit payment and payment-provider versions in its tracked current guides against the runtime contracts. Update the tracked guide list when adding another versioned guide; dated reports retain their original versions.
 
 ## Limits
 
