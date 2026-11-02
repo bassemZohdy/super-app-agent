@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 - Describe wallet receipt contracts (P2-04, step)
+
+Integrated wallet payment and top-up OpenAPI responses now describe the returned transaction and capture fields. Contract tests check actual application responses and reject malformed examples; semantic matching remains a runtime responsibility. Guide: [application API](development/application-api.md).
+
 ## 2 November 2026 - Preserve uncertainty across fixture restarts (P1-02, step)
 
 A changed fixture lifetime is an unknown write outcome rather than a definitive refusal. Civic checkout preserves the original fence when its earlier effect cannot be established. Guide: [agent flow](agent-flow.md).

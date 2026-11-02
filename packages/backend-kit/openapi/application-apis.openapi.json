@@ -3693,12 +3693,59 @@
         },
         "responses": {
           "200": {
-            "description": "Provider data passed through unchanged. Shape is defined by the provider simulator contract.",
+            "description": "Settled wallet top-up.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": {},
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "transaction": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "type",
+                        "amount",
+                        "currency",
+                        "status"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "type": {
+                          "const": "TOPUP"
+                        },
+                        "amount": {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        },
+                        "currency": {
+                          "const": "AED"
+                        },
+                        "status": {
+                          "const": "SETTLED"
+                        },
+                        "operationId": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "additionalProperties": true
+                    },
+                    "newBalance": {
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "transaction",
+                    "newBalance"
+                  ],
                   "additionalProperties": true
                 }
               }
@@ -3850,12 +3897,112 @@
         },
         "responses": {
           "200": {
-            "description": "Provider data passed through unchanged. Shape is defined by the provider simulator contract.",
+            "description": "Captured wallet payment.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": {},
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "charge": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "accountId",
+                        "amountMinor",
+                        "merchant",
+                        "reference",
+                        "source",
+                        "currency",
+                        "status",
+                        "refunded"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "accountId": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "amountMinor": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "merchant": {
+                          "const": "superapp"
+                        },
+                        "reference": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "source": {
+                          "const": "wallet"
+                        },
+                        "currency": {
+                          "const": "AED"
+                        },
+                        "status": {
+                          "const": "CAPTURED"
+                        },
+                        "refunded": {
+                          "const": false
+                        },
+                        "operationId": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "additionalProperties": true
+                    },
+                    "transaction": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "type",
+                        "amount",
+                        "currency",
+                        "status"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "type": {
+                          "const": "PAYMENT"
+                        },
+                        "amount": {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        },
+                        "currency": {
+                          "const": "AED"
+                        },
+                        "status": {
+                          "const": "SETTLED"
+                        },
+                        "operationId": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "additionalProperties": true
+                    },
+                    "remainingBalance": {
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "charge",
+                    "transaction",
+                    "remainingBalance"
+                  ],
                   "additionalProperties": true
                 }
               }

@@ -1,6 +1,8 @@
 import { removeTemp } from '../../test/support/temp-cleanup.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { Ajv } from 'ajv';
+import { buildApplicationOpenApi } from '../../packages/backend-kit/src/application-openapi.ts';
 import { mkdtemp } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -54,12 +56,18 @@ test('integrated wallet payment and top-up receipts pass with AED and the reques
     const result = await integratedRequest('service-wallet', actor, 'POST', new URL(String(input)).pathname, {}, JSON.parse(String(init?.body)), () => ({ status: 404, data: {} }));
     return Response.json(result.data, { status: result.status });
   });
-  const steps: Step[] = [];
+  const steps: Step[] = [], document = buildApplicationOpenApi(), ajv = new Ajv({ strict: false });
+  const schema = (path: string) => {
+    const operation = document.paths[path].post as { responses: { '200': { content: { 'application/json': { schema: object } } } } };
+    return ajv.compile(operation.responses['200'].content['application/json'].schema);
+  };
   await trackDomainOperations(steps, () => actorContext.run(actor, async () => {
     const payment = await callDomainAsync('wallet', 'POST', '/wallet/pay', {}, { amount: 10, purpose: 'Demo' });
     assert.equal(payment.data.transaction.currency, 'AED');
+    assert.equal(schema('/wallet/pay')(payment.data), true);
     const topup = await callDomainAsync('wallet', 'POST', '/wallet/topup', {}, { amount: 5 });
     assert.equal(topup.data.transaction.currency, 'AED');
+    assert.equal(schema('/wallet/topup')(topup.data), true);
   }));
   assert.deepEqual(steps.map(step => step.state), ['SUCCEEDED', 'SUCCEEDED']);
 });

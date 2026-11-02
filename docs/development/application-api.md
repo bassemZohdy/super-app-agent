@@ -78,7 +78,7 @@ The contract is `packages/backend-kit/openapi/application-apis.openapi.json` (Op
 
 - Validated routes take their request schema from `requestSchema` in [request-validation.ts](../../packages/protocol-core/src/request-validation.ts), so the request contract cannot drift from the validator.
 - Every operation declares `bearerAuth` and lists `X-Account-Id` and `X-Request-Id` headers. Each operation's `servers` entry points at its service port on `localhost`.
-- Integrated fine-payment, utility and telecom bill-payment, and toll and prepaid recharge receipts specify field types. Bill receipts require a nonblank reference; the schema alone does not assert that a payment was verified.
+- Integrated wallet payment and top-up, fine-payment, utility and telecom bill-payment, and toll and prepaid recharge receipts specify field types. Bill receipts require a nonblank reference; the schema alone does not establish that a payment was verified or that transaction and charge values match the request.
 
 ### What the contract test enforces
 

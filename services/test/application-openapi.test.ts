@@ -74,3 +74,20 @@ test('integrated payment receipt contracts describe types and reject malformed s
     assert.equal(recharge({ ...receipt, amountRecharged: '10' }), false);
   }
 });
+
+
+test('wallet payment and top-up success schemas require typed transaction evidence', () => {
+  const document = buildApplicationOpenApi(), ajv = new Ajv({ strict: false });
+  const check = (path: string) => {
+    const operation = document.paths[path].post as { responses: { '200': { content: { 'application/json': { schema: object } } } } };
+    return ajv.compile(operation.responses['200'].content['application/json'].schema);
+  };
+  const transaction = { id: 'tx-1', type: 'PAYMENT', amount: 10, currency: 'AED', status: 'SETTLED' };
+  const charge = { id: 'tx-1', accountId: 'account-1', amountMinor: 1000, merchant: 'superapp', reference: 'ref-1', source: 'wallet', currency: 'AED', status: 'CAPTURED', refunded: false };
+  const payment = { success: true, transaction, charge, remainingBalance: 90 };
+  const pay = check('/wallet/pay'); assert.equal(pay(payment), true);
+  for (const invalid of [{ ...payment, charge: undefined }, { ...payment, charge: { ...charge, amountMinor: '1000' } }, { ...payment, transaction: { ...transaction, currency: 'USD' } }, { ...payment, transaction: { ...transaction, status: 'PENDING' } }, { ...payment, remainingBalance: '90' }, { ...payment, success: false }]) assert.equal(pay(invalid), false);
+  const topup = { success: true, transaction: { ...transaction, type: 'TOPUP' }, newBalance: 110 };
+  const fund = check('/wallet/topup'); assert.equal(fund(topup), true);
+  for (const invalid of [{ ...topup, transaction: undefined }, { ...topup, transaction: { ...topup.transaction, type: 'PAYMENT' } }, { ...topup, newBalance: -1 }, { ...topup, success: false }]) assert.equal(fund(invalid), false);
+});
