@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Reset focused resource snapshots on a new request (P1-12, step)
+
+Focused requests no longer carry prior fine or vehicle data into clarification, unsupported-service or planning-error responses. Conversation history remains available for selected-fine follow-ups. Guide: [shell parity](development/shell-parity.md).
+
 ## 2 November 2026 — Remove confirmed payments from the fine snapshot (P1-13, step)
 
 After a verified simulated payment, the focused response and restored surface exclude the paid fines while retaining other entries from the earlier list. Guide: [shell parity](development/shell-parity.md).

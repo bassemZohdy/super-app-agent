@@ -38,6 +38,23 @@ test('renewal never accepts a vehicle invented by a planner', async () => {
   } finally { await h.close(); }
 });
 
+test('a new request does not retain vehicles from an earlier renewal review', async () => {
+  const { h, say, decide, payFinesDirectly } = await journey({ planner: { async plan(messages) {
+    if (messages.at(-1)?.content === 'planner fails') throw new Error('unavailable');
+    return { intent: 'renew_registration', fineIds: [] };
+  } } });
+  try {
+    payFinesDirectly();
+    const review = await say('renew registration for veh-1');
+    assert.equal(review.data.vehicles.length, 1);
+    await decide(review.data.renewalApproval.id, 'reject');
+    const failed = await say('planner fails');
+    assert.equal(failed.data.status, 'model_unavailable');
+    assert.deepEqual(failed.data.vehicles, []);
+    assert.equal(failed.data.renewalApproval, null);
+  } finally { await h.close(); }
+});
+
 test('renewal binds a single named vehicle and clarifies multiple named vehicles', async () => {
   const { h, say, payFinesDirectly } = await journey({ planner: { async plan() { return { intent: 'renew_registration', fineIds: [] }; } } });
   try {

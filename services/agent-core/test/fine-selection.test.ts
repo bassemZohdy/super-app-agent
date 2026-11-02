@@ -65,6 +65,29 @@ test('named fine reads return only the selected fines and reject unavailable sel
   } finally { await h.close(); }
 });
 
+test('a new request never presents a previous fine snapshot when planning stops early', async () => {
+  const h = await harness({ planner: { async plan(messages) {
+    const message = messages.at(-1)?.content;
+    if (message === 'planner fails') throw new Error('unavailable');
+    if (message === 'hello') return { intent: 'clarify', fineIds: [] };
+    if (message === 'other service') return { intent: 'out_of_scope', fineIds: [] };
+    if (message === 'renew veh-1 and veh-2') return { intent: 'renew_registration', fineIds: [] };
+    return { intent: 'list_fines', fineIds: [] };
+  } } });
+  try {
+    const root = `/api/agent/threads/${await h.thread()}`;
+    for (const [message, status] of [['hello', 'complete'], ['other service', 'complete'], ['planner fails', 'model_unavailable'], ['renew veh-1 and veh-2', 'clarify']]) {
+      const listed = await h.req(`${root}/messages`, { message: 'show fine-1' });
+      assert.equal(listed.data.fines.length, 1);
+      const result = await h.req(`${root}/messages`, { message });
+      assert.equal(result.data.status, status);
+      assert.deepEqual(result.data.fines, []);
+      assert.deepEqual(result.data.surface.view.children.find((child: { id: string }) => child.id === 'fines').properties.rows, []);
+      assert.deepEqual((await h.req(root)).data.fines, []);
+    }
+  } finally { await h.close(); }
+});
+
 for (const intermediate of [false, true]) test(`follow-up selection uses only the immediately preceding user turn (intermediate=${intermediate})`, async () => {
   const h = await harness({ planner: { async plan(messages) { return { intent: messages.at(-1)?.content === 'pay them' ? 'pay_fines' : 'list_fines', fineIds: [] }; } } });
   try {

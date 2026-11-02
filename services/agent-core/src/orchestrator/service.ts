@@ -45,7 +45,7 @@ export class AgentService {
         if (state.next.length || values.status === 'unknown') throw new AgentError('PENDING_INTERACTION', 409);
         if (prior) throw new AgentError('RECOVERY_REQUIRED', 409);
         this.store.beginMessage(id, requestId, fingerprint);
-        await this.graph.invoke({ messages: [{ role: 'user', content: message }], reply: '', status: 'new', receipt: null, pending: null, decision: null, renewalPending: null, renewalDecision: null, renewal: null }, this.options(id));
+        await this.graph.invoke({ messages: [{ role: 'user', content: message }], fines: [], vehicles: [], reply: '', status: 'new', receipt: null, pending: null, decision: null, renewalPending: null, renewalDecision: null, renewal: null }, this.options(id));
       } else if (action === 'resume') {
         const decision = Decision.parse(body);
         // Two approvals can exist in one journey; only the one the graph is waiting on can be answered.
