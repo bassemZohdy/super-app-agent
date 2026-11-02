@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Stabilize focused model deadline tests (P2-05, step)
+
+The focused planner's loopback timeout tests warm the connection and allow scheduling headroom before asserting a bounded deadline, one provider request and socket closure for stalls before headers and during the response body. A watchdog fails the test if the timeout stops working. This improves the test gate without changing runtime model deadlines. Guide: [testing](testing.md).
+
 ## 2 November 2026 — Recheck token expiry after verification (P0-13, step)
 
 The shared JWT verifier now checks expiry again after signing-key retrieval, signature validation and any online introspection. Tests advance the clock while each identity-provider request is pending and verify that an expired token is rejected while a valid control still succeeds. This does not establish real-provider rotation or revocation behavior. Guide: [security](security.md).

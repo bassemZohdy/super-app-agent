@@ -59,16 +59,27 @@ test('compatible planner rejects malformed, invented and oversized outputs witho
 for (const afterHeaders of [false, true]) {
   test(`compatible planner deadline covers ${afterHeaders ? 'a stalled body after headers' : 'a provider that never sends headers'}`, async () => {
     let calls = 0;
+    let disconnected!: () => void;
+    const closed = new Promise<void>(resolve => { disconnected = resolve; });
     const server = http.createServer((request, response) => {
-      calls++; request.resume();
+      request.resume();
+      if (request.url === '/warmup') { response.end('ready'); return; }
+      calls++; response.once('close', disconnected);
       if (afterHeaders) { response.writeHead(200, { 'Content-Type': 'application/json' }); response.write('{"choices":'); }
     });
     await new Promise<void>(done => server.listen(0, '127.0.0.1', done));
     try {
       const port = (server.address() as { port: number }).port;
+      await (await fetch(`http://127.0.0.1:${port}/warmup`)).text();
       const started = performance.now();
-      await assert.rejects(new CompatiblePlanner(new URL(`http://127.0.0.1:${port}/v1/`), 'synthetic', undefined, 100).plan(turns, []), unavailable);
-      assert.ok(performance.now() - started < 1500, 'The model deadline must cover response consumption');
+      let watchdog: ReturnType<typeof setTimeout> | undefined;
+      try {
+        const expired = new Promise<never>((_, reject) => { watchdog = setTimeout(() => reject(new Error('Model deadline did not fire')), 6000); });
+        await assert.rejects(Promise.race([new CompatiblePlanner(new URL(`http://127.0.0.1:${port}/v1/`), 'synthetic', undefined, 1000).plan(turns, []), expired]), unavailable);
+        const elapsed = performance.now() - started;
+        assert.ok(elapsed >= 800 && elapsed < 5000, `The stalled response must be bounded by the configured deadline (${elapsed} ms)`);
+        await Promise.race([closed, expired]);
+      } finally { clearTimeout(watchdog); }
       assert.equal(calls, 1);
     } finally {
       server.closeAllConnections();
