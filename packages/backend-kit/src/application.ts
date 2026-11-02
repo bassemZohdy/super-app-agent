@@ -277,6 +277,25 @@ export async function integratedRequest(service: string, actor: Actor, method: s
       if (method === 'GET' && path.startsWith('/rides/track/')) return successfulWithoutDuplicate(await call('rta', method, `/rides/bookings/${encodeURIComponent(path.split('/').pop()!)}`));
     }
     if (service === 'service-food') {
+      const readFoodOperation = (operationId: string) => {
+        const saved = db.get<unknown>(actor.accountId, 'food-order-operation', stableKey(`food-order:${operationId}`));
+        if (saved === undefined) return undefined;
+        if (!saved || typeof saved !== 'object' || Array.isArray(saved)) throw new UpstreamError(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original food order could not be confirmed.');
+        const record = saved as { fingerprint?: unknown; orderId?: unknown; receiptDigest?: unknown };
+        if (typeof record.fingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(record.fingerprint) || typeof record.orderId !== 'string' || !/^[a-f0-9-]{36}$/.test(record.orderId) || typeof record.receiptDigest !== 'string' || !/^[a-f0-9]{64}$/.test(record.receiptDigest)) throw new UpstreamError(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original food order could not be confirmed.');
+        const order = db.get<{ orderId: string }>(actor.accountId, 'order', record.orderId);
+        if (!order || order.orderId !== record.orderId || createHash('sha256').update(canonicalJson(order)).digest('hex') !== record.receiptDigest) throw new UpstreamError(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original food order could not be confirmed.');
+        return { fingerprint: record.fingerprint, order };
+      };
+      const operationPath = /^\/orders\/operations\/([^/]+)$/.exec(path);
+      if (method === 'GET' && operationPath) {
+        let operationId: string;
+        try { operationId = decodeURIComponent(operationPath[1]); } catch { throw new UpstreamError(400, 'VALIDATION_ERROR', 'Invalid operation identity.'); }
+        if (!/^[A-Za-z0-9_.:-]{1,200}$/.test(operationId)) throw new UpstreamError(400, 'VALIDATION_ERROR', 'Invalid operation identity.');
+        const saved = readFoodOperation(operationId);
+        if (!saved) throw new UpstreamError(404, 'NOT_FOUND', 'The original food operation was not found.');
+        return successful({ operationId, order: saved.order });
+      }
       if (method === 'GET' && path === '/utilities/consumption') {
         const result = await call('dewa', method, '/consumption');
         if (!ownedUtility(result.account)) throw new UpstreamError(404, 'NOT_FOUND', 'Utility account not found.');
@@ -300,15 +319,10 @@ export async function integratedRequest(service: string, actor: Actor, method: s
       if (method === 'POST' && path === '/orders/create') {
         const operation = stableKey(`food-order:${actor.requestId}`), fingerprint = createHash('sha256').update(canonicalJson(body)).digest('hex');
         return db.transaction(() => {
-          const saved = db.get<unknown>(actor.accountId, 'food-order-operation', operation);
-          if (saved !== undefined) {
-            if (!saved || typeof saved !== 'object' || Array.isArray(saved)) throw new UpstreamError(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original food order could not be confirmed.');
-            const record = saved as { fingerprint?: unknown; orderId?: unknown; receiptDigest?: unknown };
-            if (typeof record.fingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(record.fingerprint) || typeof record.orderId !== 'string' || !/^[a-f0-9-]{36}$/.test(record.orderId) || typeof record.receiptDigest !== 'string' || !/^[a-f0-9]{64}$/.test(record.receiptDigest)) throw new UpstreamError(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original food order could not be confirmed.');
-            if (record.fingerprint !== fingerprint) throw new UpstreamError(409, 'IDEMPOTENCY_CONFLICT', 'The original food order has different terms.');
-            const original = db.get<{ orderId: string }>(actor.accountId, 'order', record.orderId);
-            if (!original || original.orderId !== record.orderId || createHash('sha256').update(canonicalJson(original)).digest('hex') !== record.receiptDigest) throw new UpstreamError(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original food order could not be confirmed.');
-            return successful({ order: original });
+          const saved = readFoodOperation(actor.requestId);
+          if (saved) {
+            if (saved.fingerprint !== fingerprint) throw new UpstreamError(409, 'IDEMPOTENCY_CONFLICT', 'The original food order has different terms.');
+            return successful({ order: saved.order });
           }
           const restaurant = restaurants.find(r => r.id === body.restaurantId);
           const items = body.items.map((id: string) => restaurant?.items.find(item => item.id === id));

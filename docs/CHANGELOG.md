@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Inspect original food operations (P1-13, step)
+
+The integrated food service exposes account-scoped, read-only inspection of verified original order evidence. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Verify saved food order evidence (P1-13, step)
 
 Integrated food-order retries verify a digest of the original receipt and hold changed, malformed or older unbound records without creating a replacement. Guide: [agent flow](agent-flow.md).

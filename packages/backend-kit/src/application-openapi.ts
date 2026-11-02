@@ -21,7 +21,7 @@ export type ApplicationService = keyof typeof APPLICATION_SERVICES;
 
 type JsonSchema = Record<string, unknown>;
 type ResponseSpec = { description: string; keys: string[]; properties?: Record<string, JsonSchema> };
-type ErrorStatuses = Partial<Record<'404' | '409' | '502', string>>;
+type ErrorStatuses = Partial<Record<'404' | '409' | '502' | '503', string>>;
 
 export type ApplicationOperation = {
   service: ApplicationService;
@@ -78,6 +78,7 @@ export const APPLICATION_OPERATIONS: ApplicationOperation[] = [
   { service: 'service-food', method: 'GET', path: '/utilities/eco-advice', operationId: 'getEcoAdvice', summary: 'Get utility eco advice', response: ENVELOPE('Advice for the account premise.', ['premiseId', 'advice']) },
   { service: 'service-food', method: 'POST', path: '/orders/create', operationId: 'createFoodOrder', summary: 'Create a food order', bodyRequired: true,
     response: ENVELOPE('Confirmed order.', ['order']), errors: { '404': 'Restaurant or menu item not found.' } },
+  { service: 'service-food', method: 'GET', path: '/orders/operations/{operationId}', operationId: 'inspectFoodOperation', summary: 'Inspect the original food operation', response: ENVELOPE('Original confirmed order.', ['operationId', 'order']), errors: { '404': 'Operation not found for this account; absence does not establish non-application.', '503': 'Original order evidence is unconfirmed, or a provider or eligibility service is unavailable.' } },
   { service: 'service-food', method: 'GET', path: '/orders/track/{orderId}', operationId: 'trackFoodOrder', summary: 'Track a food order', response: ENVELOPE('Order status.', ['order']), errors: { '404': 'Order not found for this account.' } },
 
   // service-wallet (payments gateway, fines, checkout)

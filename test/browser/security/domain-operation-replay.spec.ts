@@ -41,6 +41,11 @@ test('food operation replay returns the original order across trace IDs and refu
   expect(first.data.order?.orderId).toEqual(expect.any(String));
   expect(replay.status).toBe(200);
   expect(replay.data.order?.orderId).toBe(first.data.order?.orderId);
+  const inspect = async (identity: string) => fetch(`http://localhost:${stack.corePort + 2}/orders/operations/${encodeURIComponent(identity)}`, { headers: { Authorization: `Bearer ${residentApi.token}`, 'X-Account-Id': residentApi.accountId } });
+  const found = await inspect(operation);
+  expect(found.status).toBe(200);
+  expect(((await found.json()) as { order: { orderId: string } }).order.orderId).toBe(first.data.order?.orderId);
+  expect((await inspect('missing-operation')).status).toBe(404);
   const changed = await request('trace-third', ['item_margherita']);
   expect(changed.status).toBe(409);
   expect(changed.data.code).toBe('IDEMPOTENCY_CONFLICT');

@@ -22,6 +22,11 @@ test('integrated food order retries retain the original order across application
   const reordered = { expectedDeliveryFeeMinor: 299, expectedItemPriceMinor: 1800, expectedAmountMinor: 2099, items: ['item_diavola'], restaurantId: 'rest_1' };
   const [first, replay] = await Promise.all([run(), run(actor, reordered)]);
   assert.equal(first.status, 200); assert.deepEqual(replay.data, first.data);
+  const inspect = (who = actor, operationId = actor.requestId) => integratedRequest('service-food', who, 'GET', `/orders/operations/${encodeURIComponent(operationId)}`, {}, {}, legacy);
+  const inspected = await inspect(); assert.equal(inspected.status, 200); assert.deepEqual(inspected.data.order, first.data.order);
+  assert.equal((await inspect(other)).status, 404, 'another account cannot inspect the original operation');
+  assert.equal((await inspect(actor, 'missing-operation')).status, 404);
+  assert.equal((await inspect(actor, '../invalid')).status, 400);
   const inspector = new AccountDatabase(join(dir, 'service-food.sqlite')); t.after(() => inspector.close());
   assert.equal(inspector.list(actor.accountId, 'order').length, 1);
   const conflict = await run(actor, { ...body, expectedAmountMinor: 2100 });
@@ -40,6 +45,7 @@ test('integrated food order retries retain the original order across application
   const original = inspector.get<Record<string, unknown>>(actor.accountId, 'order', first.data.order.orderId)!;
   inspector.put(actor.accountId, 'order', { ...original, totalAmount: 999 }, first.data.order.orderId);
   const altered = await run(); assert.equal(altered.status, 503); assert.equal(altered.data.code, 'PROVIDER_OUTCOME_UNKNOWN');
+  assert.equal((await inspect()).status, 503, 'inspection must not present altered evidence as confirmed');
   assert.equal(inspector.list(actor.accountId, 'order').length, 1, 'changed evidence never creates a replacement order');
   inspector.put(actor.accountId, 'order', original, first.data.order.orderId);
   const row = inspector.db.prepare("SELECT id, body FROM resources WHERE account_id=? AND kind='food-order-operation'").get(actor.accountId) as { id: string; body: string };

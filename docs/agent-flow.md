@@ -48,6 +48,8 @@ The integrated food application atomically stores each order with an account-sco
 
 New food-operation records bind the original receipt digest. An altered receipt, malformed operation record or older record without that binding remains unconfirmed and requires inspection; the application does not create a replacement order from it. The digest detects inconsistent local records; it is not a tamper-evident audit archive.
 
+An authenticated account can inspect `GET /orders/operations/{operationId}` for a verified original food order. This lookup never places an order. A missing operation does not establish that no order was placed, and missing or inconsistent receipt evidence remains unconfirmed.
+
 Local application database initialization retries a busy journal-mode transition for up to five seconds. A cross-process check exercises simultaneous first opens and the same food operation against one database; it is not distributed deployment or cross-service recovery evidence.
 
 The local and integrated simulators use different successful ride and food statuses and item shapes; the adapter accepts their documented forms while applying the same selected-resource checks. The integrated food receipt includes the requested delivery address.
