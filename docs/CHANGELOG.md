@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Correct offline composite checkout amounts (P1-13, step)
+
+Bind offline composite confirmation to the reviewed bill, fine IDs and amounts, and toll tag. Recheck current terms and funds before dispatch; charge selected fines once and omit settled obligations. Tests cover stale reviews, replay, wallet totals and a later recharge-only review. The separate fixture operations do not establish atomic settlement. Guide: [grouped checkout](development/checkout-groups.md).
+
 ## 2 November 2026 — Check offline fine review before debit (P1-13, step)
 
 The offline fine-payment aliases reject a changed reviewed amount before settling and refuse provider revisions they cannot validate. Tests cover unchanged state on rejection and an exact-amount payment. Guide: [integrations](integrations.md).

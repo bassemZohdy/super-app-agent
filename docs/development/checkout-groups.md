@@ -2,7 +2,7 @@
 
 PAY-16 adds an owned, durable group of one to ten child payment orders using one explicitly selected wallet or saved card. Each provider settles separately. A later failure preserves earlier receipts; unknown work blocks later lines until the original payment is inspected. No split tender, source fallback or cross-provider atomic settlement is implied.
 
-The separate offline legacy unified-payment fixture uses its simulated wallet only. If its balance cannot cover the requested total, it refuses without changing the wallet or inventing card funding. A composite action stops when that refusal reaches the domain adapter. The legacy composite action still uses hardcoded amounts and can debit fines a second time; it is not equivalent to the integrated group flow and should not be used to verify settlement totals.
+The separate offline legacy composite review binds the displayed bill, current fine IDs and amounts, and toll tag. It refuses a changed review or insufficient simulated wallet funds before dispatch, excludes already-paid obligations, and charges fines only through their own settlement. The utility, fines and recharge remain separate fixture operations: partial execution and cross-service races require reconciliation, and this flow is not equivalent to the durable integrated group.
 
 ## Use the React demo
 

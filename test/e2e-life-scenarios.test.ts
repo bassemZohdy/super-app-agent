@@ -605,7 +605,7 @@ test('E2E Life Scenario 15: Unified Municipal Settlement across DEWA, Police & S
   const checkoutRes = await executeCoreRequest('POST', '/api/a2ui/action', {}, {
     sessionId, surfaceRevision: getOrCreateSession(sessionId).currentSurface?.revision,
     action: 'confirm_smartcity_checkout',
-    payload: {},
+    payload: surface.view.children.find((c: { id: string }) => c.id === 'btn_confirm_smartcity_checkout').onEvents[0].payload,
   });
   assert.strictEqual(checkoutRes.status, 200);
   const successSurface = checkoutRes.data.surface;

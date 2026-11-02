@@ -18,6 +18,8 @@ test('offline unified checkout refuses insufficient wallet funds without inventi
 
 test('a refused offline composite payment does not settle other fixtures', async () => {
   const before = snapshot();
-  await assert.rejects(SuperAppAgentGraph.resumeWithAction({ sessionId: 'funding-test', messages: [], activeDomain: 'composite' }, 'confirm_smartcity_checkout', {}));
+  const offlineReview = { billId: activeUtilityBill.billId, billAmountMinor: Math.round(activeUtilityBill.totalAmount * 100),
+    fines: policeFines.filter(fine => fine.status === 'UNPAID').map(fine => ({ fineId: fine.fineId, amountMinor: Math.round(fine.payableAmount * 100) })).sort((a, b) => a.fineId.localeCompare(b.fineId)), tagNumber: 'SLK-8492019' };
+  await assert.rejects(SuperAppAgentGraph.resumeWithAction({ sessionId: 'funding-test', messages: [], activeDomain: 'composite' }, 'confirm_smartcity_checkout', { offlineReview }), { status: 400 });
   assert.equal(snapshot(), before);
 });

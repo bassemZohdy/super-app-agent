@@ -7,6 +7,7 @@ const explicitSelection = (value: unknown, kind: string): string => {
 };
 import { formatStatementAED } from '../../../../packages/protocol-core/src/payment-history.ts';
 import { formatAED } from '../../../../packages/protocol-core/src/payments.ts';
+import { toMinor, fromMinor } from '../../../../packages/protocol-core/src/request-validation.ts';
 import { handlePaymentSurfaceAction } from '../payment-surfaces.ts';
 import { actorContext } from '../../../../packages/backend-kit/src/context.ts';
 import { manualService } from '../manual-services.ts';
@@ -50,6 +51,11 @@ interface FinesData {
 }
 interface SalikAccount { balance: number; tagNumber: string; status: string; version?: number }
 interface WalletBalance { balance: number }
+function offlineCheckoutReview(bill: UtilityBill, fines: FinesData, salik: SalikAccount) {
+  return { billId: bill.billId, billAmountMinor: bill.status === 'PAID' ? 0 : toMinor(bill.totalAmount),
+    fines: fines.fines.map(fine => ({ fineId: fine.fineId, amountMinor: toMinor(fine.payableAmount) })).sort((a, b) => a.fineId.localeCompare(b.fineId)),
+    tagNumber: salik.tagNumber };
+}
 interface WalletTransaction {
   type: string; purpose: string; amount: number; status: string; sourceLabel?: string; sourceLast4?: string;
   settlementState?: string; walletDeltaMinor?: number;
@@ -537,17 +543,23 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
       });
     } else if (action === 'confirm_smartcity_checkout') {
       onProgress?.('🏛️ Executing Unified Civic Living Settlement across DEWA, Police, and Salik...');
+      if (process.env.PROVIDER_INTEGRATION === 'true') throw new HttpError(409, 'Reopen the integrated checkout review.');
+      const bill = (await executeFoodRequest('GET', '/utilities/bill')).data.bill as UtilityBill;
+      const fines = (await executeWalletRequest('GET', '/fines/check')).data as FinesData;
+      const salik = (await executeRideRequest('GET', '/mobility/salik/balance')).data as SalikAccount;
+      const review = offlineCheckoutReview(bill, fines, salik);
+      if (JSON.stringify(payload.offlineReview) !== JSON.stringify(review)) throw new HttpError(409, 'The checkout changed. Review it again.');
+      const fineMinor = review.fines.reduce((sum, fine) => sum + fine.amountMinor, 0);
+      const totalMinor = review.billAmountMinor + fineMinor + 10000;
+      const wallet = (await executeWalletRequest('GET', '/wallet/balance')).data as WalletBalance;
+      if (toMinor(wallet.balance) < totalMinor) throw new HttpError(400, 'Insufficient wallet balance for this checkout.');
       const res = await executeWalletRequest('POST', '/pay/unified', {}, { items: [
-        { agency: 'DEWA', purpose: 'Demo utility settlement', amount: 420.4 },
-        { agency: 'Dubai Police', purpose: 'Demo fine settlement', amount: 420 },
+        ...(review.billAmountMinor ? [{ agency: 'DEWA', purpose: 'Demo utility settlement', amount: fromMinor(review.billAmountMinor) }] : []),
         { agency: 'RTA Salik', purpose: 'Demo toll recharge', amount: 100 },
       ] });
-      if (process.env.PROVIDER_INTEGRATION !== 'true') {
-      await executeFoodRequest('POST', '/utilities/pay', {}, { billId: (await executeFoodRequest('GET', '/utilities/bill')).data.bill.billId });
-      const remainingFineIds = (await executeWalletRequest('GET', '/fines/check')).data.fines.map((fine: Fine) => fine.fineId);
-      if (remainingFineIds.length) await executeWalletRequest('POST', '/fines/pay', {}, { fineIds: remainingFineIds });
+      if (review.billAmountMinor) await executeFoodRequest('POST', '/utilities/pay', {}, { billId: review.billId });
+      if (review.fines.length) await executeWalletRequest('POST', '/fines/pay', {}, { fineIds: review.fines.map(fine => fine.fineId), expectedAmountMinor: fineMinor });
       await executeRideRequest('POST', '/mobility/salik/recharge', {}, { amount: 100 });
-      }
 
       state.currentSurface = {
         version: '1.0.0',
@@ -572,18 +584,18 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
               type: 'Text',
               id: 'gov_checkout_desc',
               properties: {
-                text: `Total payment of ${res.data.grandTotal} AED processed via ${res.data.settlementPlatform}. All agency accounts reconciled.`,
+                text: `Total payment of ${fromMinor(totalMinor)} AED processed via ${res.data.settlementPlatform}. All agency accounts reconciled.`,
               },
             },
             {
               type: 'MetricWidget',
               id: 'metric_dewa_status',
-              properties: { label: 'DEWA Utilities', value: res.data.breakdown?.utilities === 0 ? 'Already paid' : `Paid (${(res.data.breakdown?.utilities ?? 420.4).toFixed(2)} AED)`, trend: 'up' },
+              properties: { label: 'DEWA Utilities', value: review.billAmountMinor === 0 ? 'Already paid' : `Paid (${fromMinor(review.billAmountMinor).toFixed(2)} AED)`, trend: 'up' },
             },
             {
               type: 'MetricWidget',
               id: 'metric_police_status',
-              properties: { label: 'Dubai Police Fines', value: res.data.breakdown?.fines === 0 ? 'Already settled' : `Cleared (${(res.data.breakdown?.fines ?? 420).toFixed(2)} AED)`, trend: 'up' },
+              properties: { label: 'Dubai Police Fines', value: fineMinor === 0 ? 'Already settled' : `Cleared (${fromMinor(fineMinor).toFixed(2)} AED)`, trend: 'up' },
             },
             {
               type: 'MetricWidget',
@@ -1572,7 +1584,7 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
               {
                 event: 'onPress',
                 actionType: 'AGENT_ACTION_DISPATCH',
-                payload: { action: 'confirm_smartcity_checkout',...(process.env.PROVIDER_INTEGRATION==='true'?{expectedPayables:[...(bill.status==='UNPAID'?[{provider:'dewa',payableId:bill.payableId,expectedRevision:bill.payableRevision}]:[]),...finesData.fines.map((f: Fine)=>({provider:'police',payableId:f.payableId,expectedRevision:f.payableRevision}))],expectedAmountMinor:Math.round(grandTotal*100),targetReference:salikData.tagNumber,expectedTargetVersion:salikData.version||1}:{}) },
+                payload: { action: 'confirm_smartcity_checkout',...(process.env.PROVIDER_INTEGRATION==='true'?{expectedPayables:[...(bill.status==='UNPAID'?[{provider:'dewa',payableId:bill.payableId,expectedRevision:bill.payableRevision}]:[]),...finesData.fines.map((f: Fine)=>({provider:'police',payableId:f.payableId,expectedRevision:f.payableRevision}))],expectedAmountMinor:Math.round(grandTotal*100),targetReference:salikData.tagNumber,expectedTargetVersion:salikData.version||1}:{offlineReview:offlineCheckoutReview(bill, finesData, salikData)}) },
               },
             ],
           },
