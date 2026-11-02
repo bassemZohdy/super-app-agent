@@ -55,7 +55,7 @@ test('integrated receipt mappings preserve utility premise, owned fine plate/dis
   const fines = await integratedRequest('service-wallet', actor, 'GET', '/fines/check', {}, {}, legacy);
   assert.equal(fines.data.plateNumber, assetsFor(actor.accountId).plate); assert.equal(fines.data.earlyDiscountAED, 30);
   const restaurant = restaurants[0];
-  const order = await integratedRequest('service-food', actor, 'POST', '/orders/create', {}, { restaurantId: restaurant.id, items: [restaurant.items[0].id] }, legacy);
+  const order = await integratedRequest('service-food', actor, 'POST', '/orders/create', {}, { restaurantId: restaurant.id, items: [restaurant.items[0].id], deliveryAddress: 'Test delivery address' }, legacy);
   assert.equal(order.status, 200); assert.equal(order.data.order.estimatedDeliveryTime, '25 min');
 });
 

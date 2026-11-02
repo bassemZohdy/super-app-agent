@@ -22,9 +22,9 @@ test('integrated ride and food responses pass the compatibility adapter with the
   t.after(() => { store.close(); if (previousDir === undefined) delete process.env.APP_DATA_DIR; else process.env.APP_DATA_DIR = previousDir; if (previousTransport === undefined) delete process.env.DOMAIN_TRANSPORT; else process.env.DOMAIN_TRANSPORT = previousTransport; removeTemp(dir); });
   t.mock.method(ProviderClient.prototype, 'call', async (_provider, _actor, method, path, body) => store.transaction(() => engine.execute(actor, method, path, body)).data);
   assert.throws(() => store.transaction(() => engine.execute(actor, 'POST', '/rides/bookings', { driverId: 'drv_1', expectedFareMinor: 1 })));
-  const wrongFood = await integratedRequest('service-food', actor, 'POST', '/orders/create', {}, { restaurantId: 'rest_1', items: ['item_diavola'], expectedAmountMinor: 1 }, () => ({ status: 404, data: {} }));
+  const wrongFood = await integratedRequest('service-food', actor, 'POST', '/orders/create', {}, { restaurantId: 'rest_1', items: ['item_diavola'], deliveryAddress: 'Address', expectedAmountMinor: 1 }, () => ({ status: 404, data: {} }));
   assert.equal(wrongFood.status, 409);
-  const changedComponents = await integratedRequest('service-food', actor, 'POST', '/orders/create', {}, { restaurantId: 'rest_1', items: ['item_diavola'], expectedAmountMinor: 2099, expectedItemPriceMinor: 1801, expectedDeliveryFeeMinor: 298 }, () => ({ status: 404, data: {} }));
+  const changedComponents = await integratedRequest('service-food', actor, 'POST', '/orders/create', {}, { restaurantId: 'rest_1', items: ['item_diavola'], deliveryAddress: 'Address', expectedAmountMinor: 2099, expectedItemPriceMinor: 1801, expectedDeliveryFeeMinor: 298 }, () => ({ status: 404, data: {} }));
   assert.equal(changedComponents.status, 409);
   t.mock.method(globalThis, 'fetch', async (input, init) => {
     const path = new URL(String(input)).pathname;

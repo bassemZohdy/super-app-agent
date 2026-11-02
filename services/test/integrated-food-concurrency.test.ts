@@ -17,7 +17,7 @@ test('competing application processes persist one integrated food order for the 
     const actor = actorFor({ sub: 'food-process-owner' }); actor.requestId = 'same-review:food';
     process.stdout.write('READY\\n');
     await new Promise(resolve => process.stdin.once('data', resolve));
-    const body = { restaurantId: 'rest_1', items: ['item_diavola'], expectedAmountMinor: 2099, expectedItemPriceMinor: 1800, expectedDeliveryFeeMinor: 299 };
+    const body = { restaurantId: 'rest_1', items: ['item_diavola'], deliveryAddress: 'Test delivery address', expectedAmountMinor: 2099, expectedItemPriceMinor: 1800, expectedDeliveryFeeMinor: 299 };
     const result = await integratedRequest('service-food', actor, 'POST', '/orders/create', {}, body, () => ({ status: 404, data: {} }));
     process.stdout.write(JSON.stringify({ status: result.status, orderId: result.data.order?.orderId, code: result.data.code }));
   `;

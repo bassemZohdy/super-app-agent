@@ -2709,7 +2709,8 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 500,
-                    "pattern": "\\S"
+                    "pattern": "\\S",
+                    "description": "Required for a new integrated order; an exact retry of an older order may omit it."
                   },
                   "expectedAmountMinor": {
                     "type": "integer",

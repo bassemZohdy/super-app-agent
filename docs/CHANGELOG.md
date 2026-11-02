@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 3 November 2026 - Require a delivery address for new integrated orders (P1-13, step)
+
+New integrated food orders require an explicit destination; exact retries of earlier addressless orders retain their original receipt. Guide: [agent flow](agent-flow.md).
+
 ## 3 November 2026 - Persist food inspection request bindings (P1-13, step)
 
 New food-operation records retain validated request terms for receipt inspection; a verified original retry upgrades an older binding without another order. Guide: [agent flow](agent-flow.md).

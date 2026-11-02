@@ -280,10 +280,15 @@ test('food operation replay returns the original order across trace IDs and refu
   const request = async (trace: string, items: string[]) => {
     const response = await fetch(`http://localhost:${stack.corePort + 2}/orders/create`, {
       method: 'POST', headers: { Authorization: `Bearer ${residentApi.token}`, 'Content-Type': 'application/json', 'X-Account-Id': residentApi.accountId, 'X-Request-Id': trace, 'X-Operation-Id': operation },
-      body: JSON.stringify({ restaurantId: 'rest_1', items }),
+      body: JSON.stringify({ restaurantId: 'rest_1', items, deliveryAddress: 'Test delivery address' }),
     });
     return { status: response.status, data: await response.json() as { order?: { orderId: string }; code?: string } };
   };
+  const missingAddress = await fetch(`http://localhost:${stack.corePort + 2}/orders/create`, {
+    method: 'POST', headers: { Authorization: `Bearer ${residentApi.token}`, 'Content-Type': 'application/json', 'X-Account-Id': residentApi.accountId, 'X-Operation-Id': operation },
+    body: JSON.stringify({ restaurantId: 'rest_1', items: ['item_diavola'] }),
+  });
+  expect(missingAddress.status).toBe(400);
   const first = await request('trace-first', ['item_diavola']), replay = await request('trace-second', ['item_diavola']);
   expect(first.status).toBe(200);
   expect(first.data.order?.orderId).toEqual(expect.any(String));

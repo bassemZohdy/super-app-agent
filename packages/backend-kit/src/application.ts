@@ -410,13 +410,14 @@ export async function integratedRequest(service: string, actor: Actor, method: s
             if (saved.record.version === undefined) db.put(actor.accountId, 'food-order-operation', { ...saved.record, version: 2, request: body }, operation);
             return successful({ order: saved.order });
           }
+          if (typeof body.deliveryAddress !== 'string' || !body.deliveryAddress.trim()) throw new UpstreamError(400, 'VALIDATION_ERROR', 'A delivery address is required for a new food order.');
           const restaurant = restaurants.find(r => r.id === body.restaurantId);
           const items = body.items.map((id: string) => restaurant?.items.find(item => item.id === id));
           if (!restaurant || items.some((item) => !item)) throw new UpstreamError(404, 'NOT_FOUND', 'Menu item not found.');
           const totalMinor = items.reduce((sum: number, item) => sum + toMinor(item!.price), 0) + toMinor(restaurant.deliveryFee);
           if (body.expectedItemPriceMinor !== undefined && (items.length !== 1 || body.expectedItemPriceMinor !== toMinor(items[0]!.price)) || body.expectedDeliveryFeeMinor !== undefined && body.expectedDeliveryFeeMinor !== toMinor(restaurant.deliveryFee)) throw new UpstreamError(409, 'PRICE_CHANGED', 'Order price changed.');
           if (body.expectedAmountMinor !== undefined && body.expectedAmountMinor !== totalMinor) throw new UpstreamError(409, 'PRICE_CHANGED', 'Order price changed.');
-          const order = { orderId: randomUUID(), restaurantId: restaurant.id, restaurantName: restaurant.name, items: structuredClone(items), deliveryAddress: body.deliveryAddress || defaultFoodAddress, totalAmount: totalMinor / 100, status: 'CONFIRMED', estimatedDeliveryTime: '25 min', timestamp: Date.now() };
+          const order = { orderId: randomUUID(), restaurantId: restaurant.id, restaurantName: restaurant.name, items: structuredClone(items), deliveryAddress: body.deliveryAddress, totalAmount: totalMinor / 100, status: 'CONFIRMED', estimatedDeliveryTime: '25 min', timestamp: Date.now() };
           db.put(actor.accountId, 'order', order, order.orderId);
           const receiptDigest = createHash('sha256').update(canonicalJson(order)).digest('hex');
           db.put(actor.accountId, 'food-order-operation', { fingerprint, orderId: order.orderId, receiptDigest, version: 2, request: body }, operation);
