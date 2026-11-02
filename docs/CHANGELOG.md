@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 3 November 2026 - Reject contradictory provider reads (P1-02, step)
+
+Provider reads and composite recovery no longer accept success responses that also carry a failure code. Guide: [integrations](integrations.md).
+
 ## 3 November 2026 - Verify repeated isolated runs (P2-06, step)
 
 The isolated environment lifecycle test starts the stack again in the same process and checks fresh Redis and provider state. Guide: [testing](development/testing.md).

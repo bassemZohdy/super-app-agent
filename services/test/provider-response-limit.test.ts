@@ -174,3 +174,17 @@ test('a service-token 401 on a read may refresh and retry', async t => {
   assert.deepEqual((await client.call('dewa', actor, 'GET', '/bills')).bills, []);
   assert.equal(tokens, 2); assert.equal(reads, 2);
 });
+
+
+test('provider reads reject success envelopes containing a failure code', async t => {
+  const actor = actorFor({ sub: 'test-user' }, 'test-account', 'Bearer test');
+  const client = new ProviderClient('test-client', '');
+  for (const code of ['PROVIDER_OUTCOME_UNKNOWN', 'ACCOUNT_RESTRICTED', 'UNRECOGNIZED_FAILURE', null]) {
+    const mock = t.mock.method(globalThis, 'fetch', async () => Response.json({ success: true, code, bills: [] }));
+    try { await assert.rejects(client.call('dewa', actor, 'GET', '/bills'), (error: unknown) => error instanceof UpstreamError && error.status === 503 && error.code === 'PROVIDER_UNAVAILABLE'); }
+    finally { mock.mock.restore(); }
+  }
+  const mock = t.mock.method(globalThis, 'fetch', async () => Response.json({ success: true, bills: [] }));
+  try { assert.deepEqual((await client.call('dewa', actor, 'GET', '/bills')).bills, []); }
+  finally { mock.mock.restore(); }
+});

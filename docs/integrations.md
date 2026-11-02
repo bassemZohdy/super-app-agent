@@ -26,6 +26,8 @@ Integrated utility and telecom payments additionally compare each returned order
 
 Integrated toll and prepaid recharges bind the saved quote and each payment order to the requested provider, target, version, balance and amount. The settled receipt must confirm that target and expected credited balance. Recovery uses the original quote and order; a mismatch is left unknown for inspection.
 
+The integrated provider client rejects a read envelope that reports success while also carrying a top-level error or code; it treats that result as unavailable. Composite recovery independently requires clean success envelopes for its wallet, ride and food evidence, so contradictory results cannot justify continuation or resolution.
+
 When comparing integrated composite recovery evidence, any operation identity present in the wallet charge or transaction must match the original checkout. A mismatch leaves the wallet step unconfirmed, so recovery cannot continue or resolve on that evidence. Verified legacy records that omit those nested fields remain eligible for the other evidence checks.
 
 The integrated application OpenAPI describes the successful `GET /wallet/operations/{operationId}` response, including the captured charge and settled transaction. A verified older record may omit the nested operation ID when its original reference supplies the lookup identity. The schema documents field shapes; the provider separately checks that identities, amounts, stored records and journal entries agree before returning a confirmed result.

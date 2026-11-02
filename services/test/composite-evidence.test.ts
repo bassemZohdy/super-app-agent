@@ -52,3 +52,13 @@ test('wallet evidence cannot match when a nested operation identity contradicts 
   assert.deepEqual(await compareCompositeEvidence({ operationId, terms }, accountId, async source => source === 'wallet' ? bound : values[source]), expected);
   assert.deepEqual(await compareCompositeEvidence({ operationId, terms }, accountId, async source => values[source]), expected, 'verified legacy records without nested operation IDs remain usable');
 });
+
+
+test('composite recovery refuses success evidence carrying a failure code', async () => {
+  const values = { wallet, ride, food };
+  for (const source of ['wallet', 'ride', 'food'] as const) {
+    const altered = { ...values[source], code: 'PROVIDER_OUTCOME_UNKNOWN' };
+    const result = await compareCompositeEvidence({ operationId, terms }, accountId, async name => name === source ? altered : values[name]);
+    assert.equal(result.find(item => item.step === source.toUpperCase())?.assessment, 'UNCONFIRMED');
+  }
+});
