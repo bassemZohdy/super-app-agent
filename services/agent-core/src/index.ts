@@ -27,7 +27,7 @@ import {
   type A2UIMessageEnvelope,
 } from '../../../packages/protocol-core/src/index.ts';
 import type { SuperAppAgentState } from './langgraph/state.ts';
-import { executeRuntimeIntent, executeRuntimeAction, discardRuntime } from './langgraph/runtime.ts';
+import { executeRuntimeIntent, executeRuntimeAction, discardRuntime, verifyRuntimeReview } from './langgraph/runtime.ts';
 import { sessionLimitsFromEnv } from './session-limits.ts';
 import { verifyKeycloakToken, isDemoAuthEnabled } from './auth.ts';
 import { conversationModelStatus } from './conversation-model.ts';
@@ -668,6 +668,7 @@ async function handleGatewayRequest(
         phase: 'TOOL_EXECUTION', text,
       })).catch(() => {});
 
+    await verifyRuntimeReview(session);
     recordApproval(session, 'confirmed', body.action);
     if (process.env.PROVIDER_INTEGRATION === 'true' && body.action === 'confirm_composite_checkout') {
       if (!requestContext.beginComposite || !requestContext.markCompositeDispatch || !requestContext.markCompositeStep || !requestContext.finishComposite) throw new SessionError(503, 'SESSION_STORE_UNAVAILABLE', 'Persistent session storage is required before composite checkout.');

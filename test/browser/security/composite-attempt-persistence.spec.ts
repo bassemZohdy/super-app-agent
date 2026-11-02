@@ -3,9 +3,41 @@ import { ProviderClient, UpstreamError } from '../../../packages/backend-kit/src
 import { accountIdFor } from '../../../packages/backend-kit/src/context.ts';
 import { EligibilityClient, EligibilityReadError } from '../../../packages/backend-kit/src/eligibility-client.ts';
 import { RedisSessionStore, redisSessions } from '../../../services/agent-core/src/session-store.ts';
+import { RedisGraphSaver } from '../../../services/agent-core/src/langgraph/checkpointer.ts';
 import { createHash } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
+
+test('a missing saved review is refused before reserving a composite checkout', async ({ residentApi, stack }) => {
+  const sessionId = `missing_review_${crypto.randomUUID()}`;
+  const endpoint = `http://localhost:${stack.corePort}`;
+  const send = async (path: string, body: Record<string, unknown>) => {
+    const response = await fetch(`${endpoint}${path}`, { method: 'POST', headers: { Authorization: `Bearer ${residentApi.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, sessionId, accountId: residentApi.accountId }) });
+    return { status: response.status, data: await response.json() };
+  };
+  const review = await send('/api/a2ui/intent', { text: 'Book a ride downtown and order pizza, pay with my wallet' });
+  expect(review.status).toBe(200);
+  const surface = review.data.surface as { revision: string; view: { children: Array<{ onEvents?: Array<{ payload: Record<string, unknown> }> }> } };
+  const binding = surface.view.children.flatMap(child => child.onEvents ?? []).find(event => event.payload.action === 'confirm_composite_checkout')!.payload;
+  const claims = JSON.parse(Buffer.from(residentApi.token.split('.')[1], 'base64url').toString()) as { sub: string };
+  const saved = await redisSessions()!.read(sessionId, claims.sub);
+  await new RedisGraphSaver().deleteThread(saved.state.metadata!.runtime.threadId);
+  const acquire = RedisSessionStore.prototype.acquire;
+  let reserved = false;
+  RedisSessionStore.prototype.acquire = async function (sid) {
+    const lock = await acquire.call(this, sid), begin = lock.beginComposite;
+    lock.beginComposite = async state => { reserved = true; await begin(state); };
+    return lock;
+  };
+  const before = stack.stores.get('payments')!.list(residentApi.accountId, 'charge').length;
+  try {
+    const result = await send('/api/a2ui/action', { surfaceRevision: surface.revision, action: 'confirm_composite_checkout', payload: binding });
+    expect(result.status).toBe(409);
+    expect(reserved).toBe(false);
+    expect(stack.stores.get('payments')!.list(residentApi.accountId, 'charge')).toHaveLength(before);
+    expect(await redisSessions()!.inspectCompositeFence(claims.sub, residentApi.accountId)).toMatchObject({ status: 'CLEAR' });
+  } finally { RedisSessionStore.prototype.acquire = acquire; }
+});
 
 test('the reviewed composite identity is saved before dispatch and survives a lost wallet response', async ({ residentApi, stack }) => {
   const sessionId = `composite_${crypto.randomUUID()}`;

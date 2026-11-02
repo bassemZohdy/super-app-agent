@@ -42,6 +42,20 @@ export async function executeRuntimeIntent(state: SuperAppAgentState, text: stri
   } finally { progress.delete(state.sessionId); }
 }
 
+async function verifySavedReview(state: SuperAppAgentState, id: string) {
+  const snapshot = await graph().getState(options(id));
+  if (!snapshot.next.includes('review') || !state.currentSurface?.view ||
+      !isDeepStrictEqual(snapshot.values.session?.currentSurface?.view, state.currentSurface.view)) {
+    throw new HttpError(409, 'The saved review no longer matches the approved surface. Start a new review.');
+  }
+}
+
+/** Check an existing checkpoint before reserving any composite dispatch. */
+export async function verifyRuntimeReview(state: SuperAppAgentState) {
+  const id = state.metadata?.runtime?.threadId;
+  if (typeof id === 'string' && state.metadata?.runtime?.status === 'awaiting-approval') await verifySavedReview(state, id);
+}
+
 export async function executeRuntimeAction(state: SuperAppAgentState, action: string, payload: Record<string, unknown>, onProgress?: (text: string) => void) {
   let id = state.metadata?.runtime?.threadId as string | undefined;
   if (onProgress) progress.set(state.sessionId, onProgress);
@@ -50,11 +64,7 @@ export async function executeRuntimeAction(state: SuperAppAgentState, action: st
       id = thread(state);
       await graph().invoke({ session: structuredClone(state), intent: undefined }, options(id));
     }
-    const snapshot = await graph().getState(options(id));
-    if (!snapshot.next.includes('review') || !state.currentSurface?.view ||
-        !isDeepStrictEqual(snapshot.values.session?.currentSurface?.view, state.currentSurface.view)) {
-      throw new HttpError(409, 'The saved review no longer matches the approved surface. Start a new review.');
-    }
+    await verifySavedReview(state, id);
     const result = await graph().invoke(new Command({ resume: { action, payload } }), options(id));
     const history = state.approvalHistory;
     Object.assign(state, result.session);

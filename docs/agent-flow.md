@@ -44,7 +44,7 @@ Integrated domain writes also carry the checked eligibility version to the appli
 
 The compatibility ride-and-meal review displays and binds the selected driver, restaurant, item, separate meal price and delivery fee, total and wallet currency. It rechecks the current options before charging, and each service checks its reviewed terms before booking. The three effects remain separate: a later refusal can leave an earlier payment or booking completed and requires reconciliation.
 
-Before a compatibility action resumes a saved graph, the graph must still be waiting at review and its saved view must match the approved surface. A missing or divergent review is refused before dispatch; the resident must start a new review.
+Before a compatibility action reserves an integrated composite checkout, an existing saved graph must still be waiting at review and its saved view must match the approved surface. The same check runs immediately before any compatibility action resumes the graph. A missing or divergent review is refused before dispatch; the resident must start a new review.
 
 Standalone ride reviews display the fixed synthetic pickup and destination and bind them and the selected fare to dispatch. Changed fares or incomplete older reviews require a new review; route selection is not yet supported in this journey.
 

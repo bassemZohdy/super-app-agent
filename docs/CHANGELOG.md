@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 3 November 2026 - Check saved reviews before checkout reservation (P1-13, step)
+
+An integrated composite checkout checks an existing saved review before reserving dispatch and rechecks it before execution. Guide: [agent flow](agent-flow.md).
+
 ## 3 November 2026 - Verify displayed food prices (P1-13, step)
 
 Standalone food dispatch refuses reviews whose displayed total or delivery fee conflicts with the saved price components. Guide: [agent flow](agent-flow.md).
