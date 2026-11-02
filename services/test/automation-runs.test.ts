@@ -208,6 +208,7 @@ test('AUTO-03 checkpoint 2: the exact worker reads the immutable preparation wit
   const f=fixture(t),m=f.mandate();f.bill('auto-bill-1',150,1);
   const first=prepared(f.prepare(m.id,'occ_read'));
   const view=f.db.automationRuns!.readExecution('auto-worker',first.id);
+  assert.equal(view.eligibilityEpoch,'1:1');
   assert.equal(view.executionId,first.id);
   assert.equal(view.ownerSub,'auto-owner','the broker needs the workspace owner to name the delegated subject');
   assert.equal(view.mandate.state,'APPROVED');

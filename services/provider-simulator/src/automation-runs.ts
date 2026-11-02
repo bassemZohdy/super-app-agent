@@ -359,7 +359,7 @@ export class AutomationRuns{
     const order=orderRow?JSON.parse(String(orderRow!.body)) as {state?:string;authorization?:{challengeId?:string}}:undefined;
     const challenged=!!order?.authorization?.challengeId;
     const challenge:'APPROVED'|'PENDING'|'REJECTED'|'NONE'=!challenged?'NONE':order!.state==='AUTHORIZED'?'APPROVED':order!.state==='REQUIRES_ACTION'?'PENDING':order!.state==='FAILED'||order!.state==='CANCELLED'?'REJECTED':'NONE';
-    return {executionId:preparation.id,runId:this.context.runId,accountId:preparation.accountId,ownerSub:String(owner!.owner),
+    return {executionId:preparation.id,runId:this.context.runId,accountId:preparation.accountId,ownerSub:String(owner!.owner),eligibilityEpoch:mandate.eligibilityEpoch||'1:1',
       mandate:{id:mandate.id,state:mandate.state,policyVersion:mandate.policyVersion,skipNext:mandate.skipNext===true},
       source:{id:preparation.sourceId,version:preparation.sourceVersion,current:current?.status==='ACTIVE'&&current?.version===source.expectedVersion},
       biller:mandate.policy.target.kind==='BILLER'?{id:mandate.policy.target.billingAccountId,current:biller?.status==='ACTIVE'&&biller?.version===mandate.policy.target.expectedVersion}:undefined,

@@ -14,7 +14,7 @@ const FIRST = 'a'.repeat(64), RESUMED = 'b'.repeat(64);
 
 function view(over: Partial<ExecutionView> = {}): ExecutionView {
   return {
-    executionId: 'autoexec_1', runId: 'autorn_1', accountId: 'acct_1', ownerSub: owner,
+    executionId: 'autoexec_1', runId: 'autorn_1', accountId: 'acct_1', ownerSub: owner, eligibilityEpoch: '1:1',
     mandate: { id: 'mandate_1', state: 'APPROVED', policyVersion: 1, skipNext: false },
     source: { id: 'pm_1', version: 1, current: true }, payable: { id: 'bill_1', revision: 'r1', amountMinor: 15000, current: true },
     boundDigest: 'c'.repeat(64), preparedAt: new Date(now).toISOString(), admissionExpiresAt: new Date(now + 3_600_000).toISOString(), expired: false,
@@ -65,6 +65,7 @@ test('AUTO-14: a resume re-checks current authority and never changes the operat
   const paused = new PermitStore(new DatabaseSync(':memory:'));
   consumedFirst(paused);
   assert.equal(code(() => paused.issueResume(worker, view({ challenge: 'APPROVED', mandate: { id: 'mandate_1', state: 'PAUSED', policyVersion: 1, skipNext: false } }), now)), 'PERMIT_MANDATE_INACTIVE');
+  assert.equal(code(() => paused.issueResume(worker, view({ challenge: 'APPROVED', eligibilityEpoch: '1:3' }), now)), 'PERMIT_OPERATION_MISMATCH');
 
   const changed = new PermitStore(new DatabaseSync(':memory:'));
   consumedFirst(changed);

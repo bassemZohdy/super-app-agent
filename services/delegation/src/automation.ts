@@ -42,6 +42,8 @@ export async function issueExecutionCredential(deps: AutomationDeps, worker: Wor
     throw e instanceof DelegationError ? e : new DelegationError(503, 'AUTOMATION_EXCHANGE_FAILED', 'The execution credential could not be issued; retry only the same execution.');
   }
   let bound = deps.permits.bind(permit.id, minted.fingerprint, { sub: minted.sub, azp: minted.azp, exp: minted.exp });
+  // Once a token exists its fingerprint must stay bound even if eligibility changed during minting.
+  await deps.eligible(view);
   if (mode === 'RESUME') bound = deps.permits.markResumed(bound.id);
   return { accessToken: minted.accessToken, permitId: bound.id, expiresAt: minted.exp * 1000, attempt: bound.attempt, operation: permitOperation(view) };
 }

@@ -13,6 +13,7 @@ const owner = 'linked-owner';
 const NOW = Date.parse('2026-10-25T10:00:00.000Z');
 const view = (change: Partial<ExecutionView> = {}): ExecutionView => ({
   executionId: 'autoexec_0001', runId: 'autorn_run-1', accountId: 'acct_personal', ownerSub: owner,
+  eligibilityEpoch: '1:1',
   mandate: { id: 'mandate_1', state: 'APPROVED', policyVersion: 1, skipNext: false },
   source: { id: 'wallet', version: 1, current: true },
   biller: { id: 'billing_1', current: true },
@@ -29,6 +30,7 @@ test('AUTO-03 2b: a permit is issued only from a fresh execution view, with a bo
   const permit = store.issue(worker, view(), NOW);
   assert.equal(permit.state, 'ISSUED');
   assert.equal(permit.owner, owner);
+  assert.equal(permit.eligibilityEpoch, '1:1');
   assert.equal(permit.expiresAt, NOW + PERMIT_TTL_MS, 'the token window never outlives the permit window');
   const short = store.issue(worker, view({ executionId: 'autoexec_0002', admissionExpiresAt: new Date(NOW + 30_000).toISOString() }), NOW);
   assert.equal(short.expiresAt, NOW + 30_000, 'the admission window caps the permit');
@@ -47,6 +49,7 @@ test('AUTO-03 2b: every stale authority fact and malformed view refuses the cred
     ['PERMIT_EXPIRED', { admissionExpiresAt: new Date(NOW - 1).toISOString() }],
     ['PERMIT_VIEW_INVALID', { boundDigest: 'not-a-digest' }],
     ['PERMIT_VIEW_INVALID', { ownerSub: '' }],
+    ['PERMIT_VIEW_INVALID', { eligibilityEpoch: '' }],
     ['PERMIT_VIEW_INVALID', { executionId: 'bad id with spaces' }],
     ['PERMIT_VIEW_INVALID', { payable: { id: 'bill_1', revision: 'rev_1', amountMinor: 0, current: true } }],
     ['PERMIT_VIEW_INVALID', { payable: { id: 'bill_1', revision: 'rev_1', amountMinor: 1.5, current: true } }],
@@ -71,6 +74,7 @@ test('AUTO-03 2b: replay returns the same unbound permit; a different execution 
   assert.throws(() => store.issue({ ...worker, sub: 'another-service-account' }, view(), NOW + 1000), code('PERMIT_OPERATION_MISMATCH'));
   assert.throws(() => store.issue(worker, view({ payable: { id: 'bill_1', revision: 'rev_1', amountMinor: 20000, current: true } }), NOW + 1000), code('PERMIT_OPERATION_MISMATCH'));
   assert.throws(() => store.issue(worker, view({ boundDigest: 'b'.repeat(64) }), NOW + 1000), code('PERMIT_OPERATION_MISMATCH'));
+  assert.throws(() => store.issue(worker, view({ eligibilityEpoch: '2:1' }), NOW + 1000), code('PERMIT_OPERATION_MISMATCH'));
   assert.equal(store.get(first.id).state, 'ISSUED', 'a mismatched request does not disturb the live permit');
 });
 

@@ -4,16 +4,31 @@ import { DatabaseSync } from 'node:sqlite';
 import { PermitStore, type ExecutionView } from '../delegation/src/permits.ts';
 import { issueExecutionCredential, MintRefused, type AutomationDeps, type Worker } from '../delegation/src/automation.ts';
 import { automationWorkerClient, brokerClient, tokenHash, DelegationError } from '../delegation/src/policy.ts';
-import { readExecutionView } from '../delegation/src/service.ts';
+import { readExecutionView, requireAutomationEligibility } from '../delegation/src/service.ts';
+import { EligibilityClient } from '../../packages/backend-kit/src/eligibility-client.ts';
+import type { AccountEligibility } from '../../packages/protocol-core/src/account-eligibility.ts';
 
 const owner = 'linked-owner';
 const runId = 'autorn_' + '1'.repeat(8) + '-' + '1'.repeat(4) + '-' + '1'.repeat(4) + '-' + '1'.repeat(4) + '-' + '1'.repeat(12);
 const claims: Worker = { sub: 'svc-worker', azp: automationWorkerClient, scope: 'automation.execute', preferred_username: 'service-account-automation-worker' };
 const view = (change: Partial<ExecutionView> = {}): ExecutionView => ({
   executionId: 'autoexec_0001', runId, accountId: 'acct_personal', ownerSub: owner,
+  eligibilityEpoch: '1:1',
   mandate: { id: 'm1', state: 'APPROVED', policyVersion: 1, skipNext: false }, source: { id: 'wallet', version: 1, current: true },
   payable: { id: 'bill_1', revision: 'r1', amountMinor: 15000, current: true },
   boundDigest: 'b'.repeat(64), preparedAt: new Date(Date.now() - 1000).toISOString(), admissionExpiresAt: new Date(Date.now() + 600_000).toISOString(), expired: false, ...change,
+});
+
+test('automation eligibility is checked again after minting and a revoked exchange cannot be repeated', async () => {
+  let checks = 0;
+  const { d, calls } = deps({ eligible: async () => { if (++checks === 2) throw new DelegationError(409, 'ELIGIBILITY_DENIED', 'Access changed.'); } });
+  try {
+    await assert.rejects(ask(d), code('ELIGIBILITY_DENIED'));
+    assert.equal(calls.mint, 1);
+    assert.equal(d.permits.forExecution('autoexec_0001')?.state, 'BOUND');
+    await assert.rejects(ask(d), code('PERMIT_ALREADY_ISSUED'));
+    assert.equal(calls.mint, 1);
+  } finally { d.permits.db.close(); }
 });
 function deps(overrides: Partial<AutomationDeps> = {}) {
   const calls = { read: 0, mint: 0, eligible: 0 };
@@ -28,6 +43,21 @@ function deps(overrides: Partial<AutomationDeps> = {}) {
 }
 const code = (expected: string) => (error: unknown) => error instanceof DelegationError && error.code === expected;
 const ask = (d: AutomationDeps, who: Worker = claims, input: Record<string, unknown> = { runId, executionId: 'autoexec_0001' }) => issueExecutionCredential(d, who, 'Bearer worker', input);
+
+test('automation authority cannot be revived by restoring a changed membership', async t => {
+  const previous = process.env.ELIGIBILITY_ENFORCEMENT;
+  process.env.ELIGIBILITY_ENFORCEMENT = 'true';
+  t.after(() => { if (previous === undefined) delete process.env.ELIGIBILITY_ENFORCEMENT; else process.env.ELIGIBILITY_ENFORCEMENT = previous; });
+  let current = { ownerSub: owner, active: true, epoch: '1:1' } as AccountEligibility;
+  t.mock.method(EligibilityClient.prototype, 'read', async () => current);
+  await requireAutomationEligibility(owner, 'acct_personal', '1:1');
+  current = { ...current, active: false, epoch: '1:2' };
+  await assert.rejects(requireAutomationEligibility(owner, 'acct_personal', '1:1'), code('ELIGIBILITY_DENIED'));
+  current = { ...current, active: true, epoch: '1:3' };
+  await assert.rejects(requireAutomationEligibility(owner, 'acct_personal', '1:1'), code('ELIGIBILITY_DENIED'));
+  await assert.rejects(requireAutomationEligibility(owner, 'acct_personal', undefined as never), code('ELIGIBILITY_DENIED'));
+  await requireAutomationEligibility(owner, 'acct_personal', '1:3');
+});
 
 test('provider execution view must be bounded and unambiguously successful before a permit or credential exists', async t => {
   const previous = process.env.PROVIDER_PAYMENTS_URL;

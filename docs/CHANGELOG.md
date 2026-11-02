@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bind automation permits to eligibility versions (P1-10, step)
+
+Automation permits retain the mandate's eligibility version and recheck it before and after token issuance and during provider use. A revoked and restored membership cannot revive an old permit. Guide: [automation worker](development/automation-worker.md).
+
 ## 2 November 2026 — Validate automation authority views (P1-10, step)
 
 The broker bounds execution-view responses, rejects contradictory envelopes and requires explicit well-typed authority flags before issuing a permit. Guide: [automation worker](development/automation-worker.md).

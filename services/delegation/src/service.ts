@@ -19,6 +19,10 @@ async function currentEligibility(owner:string,accountId:string,epoch?:string,au
   try{return (await eligibilityReader.require(actorFor({sub:owner},accountId,authorization),epoch)).epoch;}
   catch(e){throw new DelegationError(e instanceof EligibilityReadError&&[403,409].includes(e.status)?e.status:503,'ELIGIBILITY_DENIED','Current owner/workspace permission does not authorize this grant. Create new consent after access is restored.');}
 }
+export async function requireAutomationEligibility(owner: string, accountId: string, epoch: string) {
+  if (typeof epoch !== 'string' || !/^[1-9][0-9]{0,6}:[1-9][0-9]{0,6}$/.test(epoch)) throw new DelegationError(409, 'ELIGIBILITY_DENIED', 'The original eligibility version is unavailable; inspect the execution.');
+  await currentEligibility(owner, accountId, epoch);
+}
 
 export const delegationEnabled = () => process.env.DELEGATION_ENABLED === 'true';
 let singleton: GrantStore | undefined;
@@ -160,7 +164,7 @@ async function mintExecutionToken(permit: Permit) {
 }
 const automationDeps = (): AutomationDeps => ({
   permits: permitStore(), readView: readExecutionView, mint: mintExecutionToken,
-  eligible: async view => { await currentEligibility(view.ownerSub, view.accountId); },
+  eligible: async view => { await requireAutomationEligibility(view.ownerSub, view.accountId, view.eligibilityEpoch); },
 });
 /** Provider-side check that consumes the bound permit once for the exact operation. */
 export async function authorizeExecutionPermit(authorization: string | undefined, operation: Parameters<PermitStore['authorize']>[3]) {
@@ -168,7 +172,7 @@ export async function authorizeExecutionPermit(authorization: string | undefined
   if (c.azp !== brokerClient || c.act !== undefined || !String(c.scope || '').split(' ').includes('delegation.write')) deny('INVALID_DELEGATED_PRINCIPAL');
   const fingerprint = tokenHash(authorization!.slice(7)), permit = permitStore().byFingerprint(fingerprint);
   if (!permit) deny('TOKEN_NOT_BOUND', 'No execution permit is bound to this token.');
-  await currentEligibility(permit!.owner, permit!.accountId);
+  await requireAutomationEligibility(permit!.owner, permit!.accountId, permit!.eligibilityEpoch);
   const consumed = permitStore().authorize(fingerprint, c.sub, c.azp, operation);
   return { permitId: consumed.id, executionId: consumed.executionId };
 }
@@ -177,7 +181,7 @@ export async function automationSession(authorization: string | undefined) {
   const c = await verifyJwt(authorization, 'provider-api');
   if (c.azp !== brokerClient || c.act !== undefined || !String(c.scope || '').split(' ').includes('delegation.write')) deny('INVALID_DELEGATED_PRINCIPAL');
   const permit = permitStore().session(tokenHash(authorization!.slice(7)), c.sub, c.azp);
-  await currentEligibility(permit.owner, permit.accountId);
+  await requireAutomationEligibility(permit.owner, permit.accountId, permit.eligibilityEpoch);
   return { permitId: permit.id, executionId: permit.executionId, operation: permit.operation };
 }
 let killSwitchSingleton: DesiredKillSwitchStore | undefined;
