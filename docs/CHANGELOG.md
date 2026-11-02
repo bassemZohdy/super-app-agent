@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Restrict exposed provider rejection codes (P0-14, step)
+
+The application provider client now exposes and records only codes from a fixed simulator rejection-code catalog; unrecognized values become `PROVIDER_REJECTED`. Known codes needed by callers remain intact, and free-form provider error text remains suppressed. A regression checks both exception and connection-record output. New simulator codes require deliberate catalog review; this does not cover other outbound clients or successful payloads. Guide: [testing](testing.md).
+
 ## 2 November 2026 — Do not expose provider rejection text (P0-14, step)
 
 The application provider client now uses a fixed rejection message instead of copying free-form upstream error text into application errors. The response status and provider code are retained for existing callers; provider codes remain a separate data-minimization concern. A regression checks that an injected private detail does not appear in the error. Guide: [testing](testing.md).

@@ -1,3 +1,4 @@
+import { PROVIDER_REJECTION_CODES } from './provider-rejection-codes.ts';
 import { boundedJsonResponse } from './bounded-json.ts';
 import { tracedFetch as fetch } from './observability.ts';
 import { PROVIDER_PORTS } from './local-endpoints.ts';
@@ -61,7 +62,7 @@ export class ProviderClient {
       record(503, code);
       throw new UpstreamError(503, code, `The ${provider} simulator response could not be confirmed.`);
     }
-    const code = upstreamCode || 'PROVIDER_REJECTED';
+    const code = PROVIDER_REJECTION_CODES.has(upstreamCode) ? upstreamCode : 'PROVIDER_REJECTED';
     record(response.status, code);
     throw new UpstreamError(response.status, code, 'The provider rejected the request. Review its status.');
   }

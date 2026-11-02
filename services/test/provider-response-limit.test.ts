@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ProviderClient, UpstreamError } from '../../packages/backend-kit/src/provider-client.ts';
 import { actorFor } from '../../packages/backend-kit/src/context.ts';
+import { callsFor, clearCalls } from '../../packages/backend-kit/src/connections.ts';
 
 test('provider responses are bounded and unreadable writes remain unknown', async t => {
   const actor = actorFor({ sub: 'test-user' }, 'test-account', 'Bearer test');
@@ -71,4 +72,31 @@ test('provider rejection text is not exposed in application errors', async t => 
     assert.equal(error.message.includes(privateDetail), false);
     return true;
   });
+});
+
+
+test('unrecognized provider error codes do not escape into errors or connection records', async t => {
+  const actor = actorFor({ sub: 'private-code-test' }, 'test-account', 'Bearer test');
+  const client = new ProviderClient('test-client', '');
+  const privateCode = 'PRIVATE_CREDENTIAL_MARKER_741852';
+  clearCalls(); t.after(clearCalls);
+  t.mock.method(globalThis, 'fetch', async () => Response.json({ success: false, code: privateCode, error: 'Rejected' }, { status: 409 }));
+  await assert.rejects(client.call('dewa', actor, 'POST', '/payments', {}), (error: unknown) => {
+    if (!(error instanceof UpstreamError)) return false;
+    assert.equal(error.status, 409);
+    assert.equal(error.code, 'PROVIDER_REJECTED');
+    assert.equal(error.message.includes(privateCode), false);
+    return true;
+  });
+  assert.equal(callsFor(actor.sub)[0].code, 'PROVIDER_REJECTED');
+});
+
+test('known provider rejection codes remain available to callers', async t => {
+  const actor = actorFor({ sub: 'known-code-test' }, 'test-account', 'Bearer test');
+  const client = new ProviderClient('test-client', '');
+  for (const code of ['BILLER_ALREADY_LINKED', 'PAYABLE_CHANGED']) {
+    const mock = t.mock.method(globalThis, 'fetch', async () => Response.json({ success: false, code, error: 'Rejected' }, { status: 409 }));
+    try { await assert.rejects(client.call('dewa', actor, 'POST', '/payments', {}), (error: unknown) => error instanceof UpstreamError && error.code === code); }
+    finally { mock.mock.restore(); }
+  }
 });

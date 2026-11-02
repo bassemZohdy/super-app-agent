@@ -41,7 +41,7 @@ Execution results for the implementation milestone belong in the dated [evidence
 
 `services/test/receipt-contracts.test.ts` also checks that already-paid utility and telecom bills reject mismatched reviewed amounts without issuing another payment, and retain the receipt for matching amounts. Provider calls in that test are mocked.
 
-`services/test/provider-response-limit.test.ts` checks that provider-supplied rejection text is not copied into application errors while the rejection status and code remain available. Provider codes still pass through.
+`services/test/provider-response-limit.test.ts` checks that provider-supplied rejection text is not copied into application errors while the rejection status and code remain available. Only codes in the fixed simulator rejection catalog pass through; unknown codes become `PROVIDER_REJECTED` in both errors and connection records.
 
 `services/test/provider-response-limit.test.ts` also checks contradictory, timed-out and unclassified application provider replies remain unknown for writes, while an explicit client rejection retains its status and code.
 
