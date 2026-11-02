@@ -122,6 +122,7 @@ test('automation preparation is bound to the queued rule, occurrence, version an
       const worker = new AutomationWorker(store, gateway, { workerId: 'worker-a', maxAttempts: 1, sleep: async () => {} });
       const result = await worker.runOnce();
       assert.equal(result?.state, 'HELD'); assert.equal(result?.reason, 'PREPARATION_UNKNOWN');
+      assert.equal(store.get(job.id)?.runId, runId);
       assert.equal(credentialCalls, 0);
       assert.ok(!store.outbox(job.id).some(event => event.kind === 'PREPARED'));
       assert.deepEqual(posted, { mandateId: 'mandate_1', occurrenceKey: 'occ_1', requestKey: job.id.replace(/^job_/, 'req_') });
@@ -154,6 +155,14 @@ test('automation preparation is bound to the queued rule, occurrence, version an
     assert.equal(credentialCalls, 0);
     assert.doesNotMatch(JSON.stringify([unknownStore.get(job.id), unknownStore.outbox(job.id), unknownStore.attempts(job.id)]), /private-token-marker/i);
   } finally { unknownStore.close(); }
+});
+
+test('credential requests for a different run are rejected before authentication or network access', async t => {
+  let calls = 0; t.mock.method(globalThis, 'fetch', async () => { calls++; throw new Error('unexpected network call'); });
+  const runId = 'autorn_00000000-0000-4000-8000-000000000000';
+  const gateway = new HttpExecutionGateway({ runId, paymentsUrl: 'http://127.0.0.1/', brokerUrl: 'http://127.0.0.1/', clientSecret: 'fixture-secret' });
+  await assert.rejects(gateway.credential('autorn_11111111-1111-4111-8111-111111111111', 'autoexec_1'), /another run/i);
+  assert.equal(calls, 0);
 });
 
 test('automation execution HTTP responses require a readable order identity and capture flag', async t => {

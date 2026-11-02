@@ -51,6 +51,34 @@ test('AUTO-05: a job settles once through prepare, credential and execute, with 
   assert.equal(calls.execute, 1);
 });
 
+test('the worker records its run before dispatching a preparation and holds the original run on loss', async () => {
+  const runId = 'autorn_00000000-0000-4000-8000-000000000000', store = new JobStore(':memory:'), job = store.enqueue(rule);
+  const { g, calls } = gateway({ runId, prepare: async () => { assert.equal(store.get(job.id)?.runId, runId); throw fail(503, 'LOST'); } });
+  try {
+    const done = await new AutomationWorker(store, g, { workerId: 'worker', maxAttempts: 1, sleep: async () => {} }).runOnce();
+    assert.equal(done?.state, 'HELD'); assert.equal(done?.runId, runId); assert.equal(done?.reason, 'PREPARATION_UNKNOWN');
+    assert.equal(calls.credential + calls.execute, 0);
+  } finally { store.close(); }
+});
+
+test('a different run or an unbound legacy in-flight preparation cannot be retried or credentialed', async () => {
+  const original = 'autorn_00000000-0000-4000-8000-000000000000', other = 'autorn_11111111-1111-4111-8111-111111111111', t0 = 1_000_000;
+  for (const mode of ['preparing', 'prepared', 'legacy'] as const) {
+    const store = new JobStore(':memory:'); store.enqueue(rule);
+    const claim = store.claim('old-worker', 1000, t0)!;
+    store.transition(claim, 'PREPARING', mode === 'legacy' ? {} : { runId: original }, undefined, t0);
+    if (mode === 'legacy') store.begin(claim, 'prepare', t0);
+    if (mode === 'prepared') store.transition(claim, 'PREPARED', { runId: original, executionId: 'autoexec_1', orderId: 'order_1', amountMinor: 10000 }, undefined, t0);
+    const { g, calls } = gateway({ runId: other });
+    try {
+      const done = await worker(store, g, 'new-worker', () => t0 + 2000).runOnce();
+      assert.equal(done?.state, 'HELD'); assert.equal(done?.reason, 'PREPARATION_UNKNOWN');
+      assert.equal(done?.runId, mode === 'legacy' ? undefined : original);
+      assert.deepEqual([calls.prepare, calls.credential, calls.execute], [0, 0, 0]);
+    } finally { store.close(); }
+  }
+});
+
 test('AUTO-05: mismatched or contradictory order results remain held under the original execution', async () => {
   const invalid: ExecutedOrder[] = [
     { id: 'order_other', state: 'SETTLED', fundsCaptured: true },

@@ -27,6 +27,7 @@ const REFUSALS = new Set([
 
 export class HttpExecutionGateway implements ExecutionGateway {
   private readonly credentials: ClientCredentials; private readonly config: HttpGatewayConfig;
+  get runId() { return this.config.runId; }
   constructor(config: HttpGatewayConfig) {
     if (!/^autorn_[a-f0-9-]{36}$/.test(config.runId)) throw new Error('Name the isolated automation run.');
     endpoint(config.paymentsUrl); endpoint(config.brokerUrl);
@@ -87,6 +88,7 @@ export class HttpExecutionGateway implements ExecutionGateway {
     return this.preparation(data.preparation as Record<string, unknown>, input);
   }
   async credential(runId: string, executionId: string) {
+    if (runId !== this.config.runId) throw failure(400, 'RUN_MISMATCH', 'The job belongs to another run.');
     const data = await this.call(this.config.brokerUrl, `/api/delegation/automation/executions/${encodeURIComponent(executionId)}/credential`, await this.credentials.token(), { runId });
     if (!usableCredential(data)) throw failure(502, 'CREDENTIAL_INVALID', 'The credential response was incomplete.');
     return { accessToken: data.accessToken, expiresAt: data.expiresAt };

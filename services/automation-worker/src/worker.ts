@@ -14,6 +14,8 @@ export const AUTOMATION_ORDER_STATES: ReadonlySet<string> = new Set(['AWAITING_A
 export type ChallengeAnswer = { state: 'PENDING' } | { state: 'REJECTED' } | { state: 'APPROVED'; accessToken: string; expiresAt: number };
 /** The worker's whole view of the world; HTTP in production, a fake in tests. */
 export interface ExecutionGateway {
+  /** The isolated run this gateway is configured to access. */
+  readonly runId?: string;
   prepare(input: { mandateId: string; policyVersion: number; occurrenceKey: string; requestKey: string }): Promise<PrepareResult>;
   credential(runId: string, executionId: string): Promise<{ accessToken: string; expiresAt: number }>;
   execute(runId: string, executionId: string, accessToken: string): Promise<ExecutedOrder>;
@@ -73,6 +75,10 @@ export class AutomationWorker {
       store.transition(claim, 'HELD', { reason: 'CREDENTIAL_LOST_AFTER_RESTART' }, { kind: 'HELD', body: { reason: 'CREDENTIAL_LOST_AFTER_RESTART', executionId: claim.job.executionId } }, this.now());
       return;
     }
+    if (this.gateway.runId && ((claim.job.runId && claim.job.runId !== this.gateway.runId) || (state === 'PREPARING' && !claim.job.runId && store.hasUnconfirmedPreparation(claim.job.id)))) {
+      store.transition(claim, 'HELD', { reason: 'PREPARATION_UNKNOWN' }, { kind: 'HELD', body: { reason: 'PREPARATION_UNKNOWN', executionId: claim.job.executionId } }, this.now());
+      return;
+    }
     if ((state === 'PREPARED' || state === 'HELD') && (!Number.isSafeInteger(claim.job.amountMinor) || claim.job.amountMinor! <= 0 || claim.job.amountMinor! > 100000000)) {
       store.transition(claim, 'HELD', { reason: 'PREPARATION_UNKNOWN' }, { kind: 'HELD', body: { reason: 'PREPARATION_UNKNOWN', executionId: claim.job.executionId } }, this.now());
       return;
@@ -96,7 +102,7 @@ export class AutomationWorker {
 
   private async prepare(claim: Claim): Promise<Job | undefined> {
     const { store } = this, job = claim.job, identity = jobIdentity(job);
-    if (job.state === 'QUEUED') store.transition(claim, 'PREPARING', {}, undefined, this.now());
+    if (job.state === 'QUEUED' || (job.state === 'PREPARING' && !job.runId && this.gateway.runId)) store.transition(claim, 'PREPARING', { runId: this.gateway.runId }, undefined, this.now());
     const hadUnconfirmedPreparation = store.hasUnconfirmedPreparation(job.id);
     store.begin(claim, 'prepare', this.now());
     try {
@@ -111,7 +117,7 @@ export class AutomationWorker {
         store.transition(claim, 'SKIPPED', { reason: result.reason }, { kind: REVIEW_SKIP_REASONS.has(result.reason) ? 'REQUIRES_ACTION' : 'SKIPPED', body: { reason: result.reason } }, this.now());
         return undefined;
       }
-      if (!Number.isSafeInteger(result.amountMinor) || result.amountMinor <= 0 || result.amountMinor > 100000000) {
+      if ((this.gateway.runId && result.runId !== this.gateway.runId) || !Number.isSafeInteger(result.amountMinor) || result.amountMinor <= 0 || result.amountMinor > 100000000) {
         store.outcome(claim, 'unverified_preparation');
         store.transition(claim, 'HELD', { reason: 'PREPARATION_UNKNOWN' }, { kind: 'HELD', body: { reason: 'PREPARATION_UNKNOWN' } }, this.now());
         return undefined;

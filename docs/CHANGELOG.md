@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bind automation jobs to their run before preparation (P1-02, step)
+
+The worker records its configured run before dispatch and refuses to retry or obtain credentials through a different run. Unbound older in-flight preparations remain held. Guide: [automation worker](development/automation-worker.md).
+
 ## 2 November 2026 — Inspect held automation jobs locally (P1-02, step)
 
 A read-only command derives the original preparation request from a held job, verifies returned evidence and leaves the worker and job history untouched. Guide: [automation worker](development/automation-worker.md).
