@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Verify confirmed wallet payment terms (P1-13, step)
+
+Composite checkout recovery checks the original wallet operation and each reviewed payment item as well as the ledger before accepting a confirmed debit. Missing, unavailable or changed operation evidence blocks continuation and resolution. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Recover a refused step after fixture restart (P1-13, step)
 
 A first attempt recorded as refused can be explicitly retried with the same reviewed operation after its fixture restarts. Unknown or previously retried attempts remain bound to their original fixture lifetime. Redis/HTTP tests cover concurrent retries, changed evidence and a second restart during dispatch. Guide: [integrations](integrations.md).

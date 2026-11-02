@@ -67,11 +67,17 @@ test('a lost wallet response can be observed only by its saved operation and exa
 });
 
 
-test('a confirmed wallet receipt with an operation ID still requires that exact ledger identity', async () => {
+test('a confirmed wallet receipt requires its original operation and exact reviewed items', async () => {
   const confirmed = [{ name: 'WALLET', state: 'CONFIRMED', receiptReference: 'W1', operationId: 'CIVIC-123' }] as const;
   assert.deepEqual(await compareCivicEvidence(review, confirmed, async () => wallet), [{ name: 'WALLET', assessment: 'UNVERIFIABLE' }]);
   const ledger = { transactions: [{ ...wallet.transactions[0], operationId: 'CIVIC-123' }] };
-  assert.deepEqual(await compareCivicEvidence(review, confirmed, async () => ledger), [{ name: 'WALLET', assessment: 'MATCH' }]);
+  const operation = { operation: { operationId: 'CIVIC-123', status: 'SETTLED', receiptReference: 'W1', items: [{ agency: 'DEWA', purpose: 'Demo utility settlement', amount: 2 }, { agency: 'RTA Salik', purpose: 'Demo toll recharge', amount: 100 }] } };
+  const read = (value: unknown) => async (source: string) => source === 'wallet-operation' ? value : ledger;
+  assert.deepEqual(await compareCivicEvidence(review, confirmed, read(operation)), [{ name: 'WALLET', assessment: 'MATCH' }]);
+  const changed = { operation: { ...operation.operation, items: [{ ...operation.operation.items[0], amount: 3 }, { ...operation.operation.items[1], amount: 99 }] } };
+  for (const value of [changed, { operation: null }, { operation: { ...operation.operation, receiptReference: 'other' } }, { operation: { ...operation.operation, operationId: 'other' } }])
+    assert.deepEqual(await compareCivicEvidence(review, confirmed, read(value)), [{ name: 'WALLET', assessment: 'UNVERIFIABLE' }]);
+  assert.deepEqual(await compareCivicEvidence(review, confirmed, async source => { if (source === 'wallet-operation') throw new Error('offline'); return ledger; }), [{ name: 'WALLET', assessment: 'UNAVAILABLE' }]);
 });
 
 

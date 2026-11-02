@@ -1,5 +1,7 @@
 # Integrations and client contract
 
+For HTTP-connected offline composite checkout recovery, a confirmed wallet debit with an operation identity must match both its ledger entry and the original operation's receipt, agency, purpose and amount for every reviewed item. Missing or changed operation evidence remains unverified; an unavailable operation lookup is reported as unavailable. Older journal entries without an operation identity retain their existing ledger-only verification.
+
 The focused agent has one functioning adapter: `FinesAdapter`, calling fixture-backed REST endpoints in the same Node process. `services/agent-core/fixtures/fines.json` supplies account-isolated seed data. SQLite retains changes and receipts; fully paid accounts are never reseeded on subsequent reads.
 
 The `Tool<I,O>` interface declares identity, description, protocol, Zod input/output schemas, required permission, consequential flag, timeout and invocation. Execution context supplies verified subject/workload, correlation ID, fresh-authority callback and ephemeral authorization header. Consequential calls require an original idempotency key. The payment input also carries an exact persisted consent ID. No generic enterprise bus, dynamic external URL or remotely managed registry is introduced. A service with an existing REST API does not need MCP.
