@@ -131,6 +131,7 @@ class CitizenEventStream {
         final token = await _untilClosed(Future<String>.sync(authorization));
         if (_closed || token == null) return;
         final request = http.Request('GET', url)
+          ..followRedirects = false
           ..headers.addAll({
             'Authorization': token,
             'Accept': 'text/event-stream',
@@ -150,6 +151,9 @@ class CitizenEventStream {
           }
           return;
         }
+        if (response.statusCode != 200) {
+          unawaited(response.stream.listen(null).cancel().catchError((_) {}));
+        }
         if (response.statusCode == 401 || response.statusCode == 403) {
           onAuthRequired();
           close();
@@ -159,6 +163,15 @@ class CitizenEventStream {
           _cursor = null;
         } else {
           if (response.statusCode != 200) {
+            throw const FormatException('Live updates unavailable');
+          }
+          final contentType = response.headers['content-type']
+              ?.split(';')
+              .first
+              .trim()
+              .toLowerCase();
+          if (contentType != 'text/event-stream') {
+            unawaited(response.stream.listen(null).cancel().catchError((_) {}));
             throw const FormatException('Live updates unavailable');
           }
           onStatus('Live updates connected');

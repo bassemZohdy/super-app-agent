@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -249,7 +250,7 @@ void main() {
       await started.future;
       stream.close();
       await running.timeout(const Duration(seconds: 2));
-      response.complete(http.StreamedResponse(body.stream, 200));
+      response.complete(http.StreamedResponse(body.stream, 200, headers: {'content-type': 'text/event-stream'}));
       await Future<void>.delayed(const Duration(milliseconds: 50));
       expect(cancelled, isTrue);
       await body.close();
@@ -259,7 +260,7 @@ void main() {
   test('closing in connected status cancels the body without listening for events', () async {
     var cancelled = false;
     final body = StreamController<List<int>>(onCancel: () { cancelled = true; });
-    final client = MockClient.streaming((_, __) async => http.StreamedResponse(body.stream, 200));
+    final client = MockClient.streaming((_, __) async => http.StreamedResponse(body.stream, 200, headers: {'content-type': 'text/event-stream'}));
     late CitizenEventStream stream;
     stream = CitizenEventStream(
       url: Uri.parse('http://localhost/stream'), sessionId: 'session1',
@@ -275,7 +276,7 @@ void main() {
     final connected = Completer<void>();
     var cancelled = false;
     final source = StreamController<List<int>>(onCancel: () { cancelled = true; return Completer<void>().future; });
-    final client = MockClient.streaming((_, __) async => http.StreamedResponse(source.stream, 200));
+    final client = MockClient.streaming((_, __) async => http.StreamedResponse(source.stream, 200, headers: {'content-type': 'text/event-stream'}));
     final stream = CitizenEventStream(
       url: Uri.parse('http://localhost/stream'), sessionId: 'session1',
       authorization: () async => 'Bearer token', onStatus: (status) { if (status == 'Live updates connected') connected.complete(); },
@@ -300,6 +301,74 @@ void main() {
       onAuthRequired: () => fail('Unexpected auth rejection'), onEnvelope: (_) => fail('Unexpected event'),
     );
     await http.runWithClient(() => stream.run().timeout(const Duration(milliseconds: 200)), () => client);
+  });
+
+  test('stream requests disable redirects and discard redirect bodies', () async {
+    bool? follows;
+    var cancelled = false;
+    final body = StreamController<List<int>>(onCancel: () { cancelled = true; });
+    final client = MockClient.streaming((request, _) async {
+      follows = request.followRedirects;
+      return http.StreamedResponse(body.stream, 302, headers: {'location': 'http://other.example/stream'});
+    });
+    late CitizenEventStream stream;
+    stream = CitizenEventStream(
+      url: Uri.parse('http://localhost/stream'), sessionId: 'session1',
+      authorization: () async => 'Bearer token',
+      onStatus: (status) { if (status.startsWith('Reconnecting')) stream.close(); },
+      onAuthRequired: () => fail('Unexpected auth rejection'), onEnvelope: (_) => fail('Unexpected event'),
+    );
+    await http.runWithClient(() => stream.run().timeout(const Duration(seconds: 2)), () => client);
+    expect(follows, isFalse);
+    expect(cancelled, isTrue);
+    await body.close();
+  });
+
+  test('a real redirect never reaches the redirected server', () async {
+    final target = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    final origin = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    var redirectedRequests = 0, originRequests = 0;
+    target.listen((request) { redirectedRequests++; request.response.close(); });
+    origin.listen((request) {
+      originRequests++;
+      expect(request.headers.value('authorization'), 'Bearer token');
+      request.response.statusCode = 302;
+      request.response.headers.set('location', 'http://127.0.0.1:${target.port}/stream');
+      request.response.close();
+    });
+    late CitizenEventStream stream;
+    stream = CitizenEventStream(
+      url: Uri.parse('http://127.0.0.1:${origin.port}/stream'), sessionId: 'session1',
+      authorization: () async => 'Bearer token',
+      onStatus: (status) { if (status.startsWith('Reconnecting')) stream.close(); },
+      onAuthRequired: () => fail('Unexpected auth rejection'), onEnvelope: (_) => fail('Unexpected event'),
+    );
+    try {
+      await stream.run().timeout(const Duration(seconds: 5));
+      expect(originRequests, 1);
+      expect(redirectedRequests, 0);
+    } finally {
+      await origin.close(force: true);
+      await target.close(force: true);
+    }
+  });
+
+  test('a non-event-stream success is discarded without delivering its content', () async {
+    var cancelled = false;
+    final body = StreamController<List<int>>(onListen: () {}, onCancel: () { cancelled = true; });
+    final delivered = <Map<String, dynamic>>[];
+    final client = MockClient.streaming((_, __) async => http.StreamedResponse(body.stream, 200, headers: {'content-type': 'application/json'}));
+    late CitizenEventStream stream;
+    stream = CitizenEventStream(
+      url: Uri.parse('http://localhost/stream'), sessionId: 'session1',
+      authorization: () async => 'Bearer token',
+      onStatus: (status) { if (status == 'Live updates connected') body.add(utf8.encode('data: {"sessionId":"session1"}\n\n')); if (status.startsWith('Reconnecting')) stream.close(); },
+      onAuthRequired: () => fail('Unexpected auth rejection'), onEnvelope: delivered.add,
+    );
+    await http.runWithClient(() => stream.run().timeout(const Duration(seconds: 2)), () => client);
+    expect(delivered, isEmpty);
+    expect(cancelled, isTrue);
+    await body.close();
   });
 
   test('unsafe cursors request a fresh snapshot after readable and unreadable events', () async {
@@ -328,7 +397,7 @@ void main() {
               headers: {'content-type': 'text/event-stream; charset=utf-8'},
             );
           }
-          return http.Response('data: {"sessionId":"session1","n":3}\n\n', 200);
+          return http.Response('data: {"sessionId":"session1","n":3}\n\n', 200, headers: {'content-type': 'text/event-stream'});
         });
         stream = CitizenEventStream(
           url: Uri.parse('http://localhost/stream'),
@@ -364,9 +433,10 @@ void main() {
         return http.Response(
           'id: good-1\ndata: {"sessionId":"session1","n":1}\n\nid: bad\tid\ndata: {"sessionId":"session1","n":2}\n\n',
           200,
+          headers: {'content-type': 'text/event-stream'},
         );
       }
-      return http.Response('data: {"sessionId":"session1","n":3}\n\n', 200);
+      return http.Response('data: {"sessionId":"session1","n":3}\n\n', 200, headers: {'content-type': 'text/event-stream'});
     });
     stream = CitizenEventStream(
       url: Uri.parse('http://localhost/stream'),
