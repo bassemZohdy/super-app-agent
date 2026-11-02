@@ -62,7 +62,7 @@ function admitSession(sessionId: string, sub: string): boolean {
 }
 const sessionLimitReply = { success: false, code: 'SESSION_LIMIT_REACHED', error: 'Too many conversations are running. Wait for one to finish.' };
 const eligibilityReader=new EligibilityClient(),accountReader=new ProviderClient('service-wallet',process.env.SERVICE_WALLET_CLIENT_SECRET||'demo-wallet-secret');
-type RequestContext = { session?: SuperAppAgentState; release?: () => void | Promise<void>; save?: () => Promise<void>; assertLease?: () => Promise<void>; compositeStarted?: boolean };
+type RequestContext = { session?: SuperAppAgentState; release?: () => void | Promise<void>; save?: () => Promise<void>; assertLease?: () => Promise<void>; beginComposite?: () => Promise<void>; finishComposite?: (operationId: string) => Promise<void>; compositeOperation?: string };
 
 const compositeEvidence = (attempt: NonNullable<SuperAppAgentState['compositeAttempt']>, actor: Actor) => compareCompositeEvidence(attempt, actor.accountId, source => actorContext.run(actor, async () => {
   const path = source === 'wallet' ? '/wallet/operations/' : source === 'ride' ? '/rides/operations/' : '/orders/operations/';
@@ -158,6 +158,17 @@ async function handleGatewayRequest(
     try{actor.eligibilityEpoch=(await eligibilityReader.require(actor)).epoch;}
     catch(e){return {status:e instanceof EligibilityReadError&&[403,409].includes(e.status)?e.status:503,data:{success:false,code:e instanceof EligibilityReadError&&e.status===403?'ACCOUNT_RESTRICTED':'ELIGIBILITY_UNAVAILABLE',error:'Current owner or workspace membership prevents access. History is retained.'}};}
   }
+  if (normMethod === 'GET' && pathname === '/api/composite/fence') {
+    if (process.env.PROVIDER_INTEGRATION !== 'true' || process.env.DOMAIN_TRANSPORT !== 'http') return { status: 503, data: { success: false, code: 'COMPOSITE_STATUS_UNAVAILABLE', error: 'Integrated composite inspection is unavailable in this mode.' } };
+    try {
+      const store = redisSessions();
+      if (!store) throw new SessionError(503, 'SESSION_STORE_UNAVAILABLE', 'Persistent session storage is required.');
+      return { status: 200, data: { success: true, ...await store.inspectCompositeFence(actor.sub, actor.accountId) } };
+    } catch (error) {
+      if (error instanceof SessionError) return { status: error.status, data: { success: false, code: error.code, error: error.message } };
+      return { status: 503, data: { success: false, code: 'COMPOSITE_STATUS_UNAVAILABLE', error: 'Composite inspection is unavailable.' } };
+    }
+  }
   if (normMethod === 'GET' && pathname === '/api/composite/reconciliation') {
     if (process.env.PROVIDER_INTEGRATION !== 'true' || process.env.DOMAIN_TRANSPORT !== 'http') return { status: 503, data: { success: false, code: 'COMPOSITE_STATUS_UNAVAILABLE', error: 'Integrated composite inspection is unavailable in this mode.' } };
     try {
@@ -200,7 +211,7 @@ async function handleGatewayRequest(
         ] } };
         state.messages.push({ id: randomUUID(), role: 'assistant', content: 'The original payment, ride and meal match the reviewed checkout.', timestamp: Date.now() });
         commitSurface(state);
-        await lock.save(state);
+        await lock.finishComposite(state, attempt.operationId);
         await broadcast(state.sessionId, createA2UIMessage('A2UI_RENDER_SURFACE', state.sessionId, { mode: 'REPLACE', surface: state.currentSurface }));
         return { status: 200, data: { success: true, resolution: 'RESOLVED', operationId: attempt.operationId, surface: state.currentSurface } };
       } finally { await lock.release(); }
@@ -444,6 +455,8 @@ async function handleGatewayRequest(
       session = await persistent.claim(body.sessionId, actor.sub, accountId, false);
       requestContext.save = () => lock.save(session);
       requestContext.assertLease = lock.assert;
+      requestContext.beginComposite = () => lock.beginComposite(session);
+      requestContext.finishComposite = operationId => lock.finishComposite(session, operationId);
     } else {
       if ((pathname.endsWith('/action') || pathname.endsWith('/cancel')) && !sessions.has(body.sessionId)) return { status: 404, data: { error: 'Session not found' } };
       if (!admitSession(body.sessionId, actor.sub)) return { status: 429, data: sessionLimitReply };
@@ -561,11 +574,14 @@ async function handleGatewayRequest(
 
     recordApproval(session, 'confirmed', body.action);
     if (process.env.PROVIDER_INTEGRATION === 'true' && body.action === 'confirm_composite_checkout') {
-      if (!requestContext.save) throw new SessionError(503, 'SESSION_STORE_UNAVAILABLE', 'Persistent session storage is required before composite checkout.');
+      if (!requestContext.beginComposite || !requestContext.finishComposite) throw new SessionError(503, 'SESSION_STORE_UNAVAILABLE', 'Persistent session storage is required before composite checkout.');
       session.compositeAttempt = { operationId: actor.requestId, terms: structuredClone(body.payload || {}) };
       session.reconciliation = { outcome: 'UNKNOWN', steps: [] };
-      requestContext.compositeStarted = true;
-      await requestContext.save();
+      try { await requestContext.beginComposite(); }
+      // A failed Redis response can still mean the atomic fence was written. Do not
+      // overwrite the retained attempt when the result of that write is unknown.
+      catch (error) { requestContext.save = undefined; throw error; }
+      requestContext.compositeOperation = actor.requestId;
     }
     const updatedState = await actorContext.run(actor, () => executeRuntimeAction(
       session,
@@ -653,13 +669,15 @@ export async function executeGatewayRequest(method: string, pathname: string,
     }
     return { status, data: { success: false, error: message, code, outcome, steps, retry, surface } };
   } finally {
-    if (requestContext.compositeStarted && requestContext.session && (completed || executionOutcome(steps) === 'FAILED')) {
+    const finishComposite = !!requestContext.compositeOperation && (completed || executionOutcome(steps) === 'FAILED');
+    if (finishComposite && requestContext.session) {
       delete requestContext.session.compositeAttempt;
       delete requestContext.session.reconciliation;
     }
     if (requestContext.session && requestContext.session.messages.length > 100) requestContext.session.messages = requestContext.session.messages.slice(-100);
     try {
-      await requestContext.save?.();
+      if (finishComposite) await requestContext.finishComposite!(requestContext.compositeOperation!);
+      else await requestContext.save?.();
       if (completed && requestContext.save) for (const finalize of civicFinalizers) await finalize();
     } finally { await requestContext.release?.(); }
   }

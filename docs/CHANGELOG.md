@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Fence integrated composite attempts (P1-13, step)
+
+New integrated composite attempts retain their original session and prevent another composite approval for the same owner and account until completion or verified resolution. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Resolve verified composite checkout (P1-13, step)
 
 An owner can resolve a retained integrated checkout after its payment, ride and meal independently match the original review; no effect is repeated. Guide: [agent flow](agent-flow.md).

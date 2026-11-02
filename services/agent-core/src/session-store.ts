@@ -21,8 +21,8 @@ function decodeRecord(raw: string): Record {
 const claimScript = `local existing=redis.call('GET',KEYS[1]); if existing then
  local r=cjson.decode(existing); if r.owner~=ARGV[1] then return {'FORBIDDEN'} end
  if r.accountId~=ARGV[2] then return {'ACCOUNT_MISMATCH'} end
- redis.call('EXPIRE',KEYS[1],ARGV[4]); redis.call('SADD',KEYS[2],KEYS[1]); redis.call('EXPIRE',KEYS[2],ARGV[4]); return {'OK',existing} end
- if ARGV[5]~='1' then return {'NOT_FOUND'} end
+ if redis.call('EXISTS',KEYS[3])==1 then redis.call('PERSIST',KEYS[1]) else redis.call('EXPIRE',KEYS[1],ARGV[4]) end; redis.call('SADD',KEYS[2],KEYS[1]); redis.call('EXPIRE',KEYS[2],ARGV[4]); return {'OK',existing} end
+ if ARGV[5]~='1' or redis.call('EXISTS',KEYS[3])==1 then return {'NOT_FOUND'} end
  redis.call('SET',KEYS[1],ARGV[3],'EX',ARGV[4]); redis.call('SADD',KEYS[2],KEYS[1]); redis.call('EXPIRE',KEYS[2],ARGV[4]); return {'OK',ARGV[3]}`;
 type CivicAction = 'confirm_smartcity_checkout' | 'pay_utilities_bill' | 'pay_dewa_bill' | 'pay_police_fines';
 type CivicOwner = { subject: string; accountId: string; sessionId: string; action: CivicAction; surfaceRevision?: string };
@@ -72,11 +72,23 @@ export class RedisSessionStore {
   }
   private key(sid: string) { return `${this.prefix}session:${sid}`; }
   private userKey(owner: string) { return `${this.prefix}user:${createHash('sha256').update(owner).digest('hex')}`; }
+  private compositeFenceKey(owner: string, accountId: string) { return `${this.prefix}integrated-composite:${civicOwnerDigest(owner, accountId)}`; }
+  private compositeMarkerKey(sid: string) { return `${this.key(sid)}:composite-pending`; }
+  async inspectCompositeFence(owner: string, accountId: string): Promise<{ status: 'CLEAR' | 'BLOCKED'; sessionId?: string; operationId?: string }> {
+    await this.connect();
+    const raw = await this.client.get(this.compositeFenceKey(owner, accountId));
+    if (!raw) return { status: 'CLEAR' };
+    try {
+      const value = JSON.parse(raw) as { owner?: unknown; sessionId?: unknown; operationId?: unknown };
+      if (value.owner === civicOwnerDigest(owner, accountId) && typeof value.sessionId === 'string' && /^[A-Za-z0-9_-]{8,128}$/.test(value.sessionId) && typeof value.operationId === 'string' && /^[A-Za-z0-9_.:-]{1,200}$/.test(value.operationId)) return { status: 'BLOCKED', sessionId: value.sessionId, operationId: value.operationId };
+    } catch { /* A malformed fence remains blocked. */ }
+    throw new SessionError(503, 'COMPOSITE_STATUS_UNAVAILABLE', 'The original composite checkout cannot be inspected.');
+  }
   async claim(sid: string, owner: string, accountId: string, create = true): Promise<SuperAppAgentState> {
     await this.connect();
     const state: SuperAppAgentState = { sessionId: sid, messages: [], activeDomain: 'concierge', metadata: { accountId } };
     const record: Record = { owner, accountId, state, updatedAt: Date.now() };
-    const result = await this.client.eval(claimScript, { keys: [this.key(sid), this.userKey(owner)], arguments: [owner, accountId, JSON.stringify(record), String(this.ttl), create ? '1' : '0'] }) as string[];
+    const result = await this.client.eval(claimScript, { keys: [this.key(sid), this.userKey(owner), this.compositeMarkerKey(sid)], arguments: [owner, accountId, JSON.stringify(record), String(this.ttl), create ? '1' : '0'] }) as string[];
     if (result[0] === 'FORBIDDEN') throw new SessionError(403, 'SESSION_FORBIDDEN', 'Session belongs to a different user.');
     if (result[0] === 'ACCOUNT_MISMATCH') throw new SessionError(409, 'SESSION_ACCOUNT_MISMATCH', 'Start a new conversation when switching accounts.');
     if (result[0] === 'NOT_FOUND') throw new SessionError(404, 'SESSION_NOT_FOUND', 'Session not found or expired.');
@@ -314,10 +326,10 @@ export class RedisSessionStore {
     await this.connect();
     const key = `${this.key(sid)}:lock`, token = randomUUID();
     if (await this.client.set(key, token, { NX: true, PX: 120000 }) !== 'OK') throw new SessionError(409, 'SESSION_BUSY', 'A request is already running. Wait for its result.');
-    await this.client.expire(this.key(sid), Math.max(this.ttl, 180));
+    await this.client.eval(`if redis.call('EXISTS',KEYS[2])==1 then return redis.call('PERSIST',KEYS[1]) else return redis.call('EXPIRE',KEYS[1],ARGV[1]) end`, { keys: [this.key(sid), this.compositeMarkerKey(sid)], arguments: [String(Math.max(this.ttl, 180))] });
     let lost = false;
     const assert = async () => { if (lost || await this.client.get(key) !== token) throw new SessionError(503, 'SESSION_LOCK_LOST', 'Request coordination was lost. Check operation status before retrying.'); };
-    const timer = setInterval(() => { void this.client.eval(`if redis.call('GET',KEYS[1])==ARGV[1] then redis.call('EXPIRE',KEYS[2],ARGV[2]); return redis.call('PEXPIRE',KEYS[1],120000) else return 0 end`, { keys: [key, this.key(sid)], arguments: [token, String(Math.max(this.ttl, 180))] }).then(value => { if (value !== 1) lost = true; }).catch(() => { lost = true; }); }, 30000);
+    const timer = setInterval(() => { void this.client.eval(`if redis.call('GET',KEYS[1])==ARGV[1] then if redis.call('EXISTS',KEYS[3])==1 then redis.call('PERSIST',KEYS[2]) else redis.call('EXPIRE',KEYS[2],ARGV[2]) end; return redis.call('PEXPIRE',KEYS[1],120000) else return 0 end`, { keys: [key, this.key(sid), this.compositeMarkerKey(sid)], arguments: [token, String(Math.max(this.ttl, 180))] }).then(value => { if (value !== 1) lost = true; }).catch(() => { lost = true; }); }, 30000);
     timer.unref();
     return { assert,
       save: async (state: SuperAppAgentState) => {
@@ -327,16 +339,46 @@ export class RedisSessionStore {
         record.state = state; record.updatedAt = Date.now();
         // Serialize in JavaScript: Redis Lua cjson converts empty arrays into objects.
         const saved = await this.client.eval(`if redis.call('GET',KEYS[2])~=ARGV[1] or redis.call('EXISTS',KEYS[1])==0 then return 0 end
-          redis.call('SET',KEYS[1],ARGV[2],'EX',ARGV[3]); return 1`, {
-          keys: [this.key(sid), key], arguments: [token, JSON.stringify(record), String(this.ttl)],
+          if redis.call('EXISTS',KEYS[3])==1 then redis.call('SET',KEYS[1],ARGV[2]) else redis.call('SET',KEYS[1],ARGV[2],'EX',ARGV[3]) end; return 1`, {
+          keys: [this.key(sid), key, this.compositeMarkerKey(sid)], arguments: [token, JSON.stringify(record), String(this.ttl)],
         });
         if (saved !== 1) throw new SessionError(503, 'SESSION_LOCK_LOST', 'Session could not be saved. Check operation status before retrying.');
       },
+      beginComposite: async (state: SuperAppAgentState) => {
+        const raw = await this.client.get(this.key(sid));
+        if (!raw || !state.compositeAttempt) throw new SessionError(503, 'SESSION_EXPIRED', 'The original checkout cannot be saved.');
+        const record = decodeRecord(raw), attempt = state.compositeAttempt;
+        record.state = state; record.updatedAt = Date.now();
+        const fence = JSON.stringify({ owner: civicOwnerDigest(record.owner, record.accountId), sessionId: sid, operationId: attempt.operationId });
+        const saved = await this.client.eval(`if redis.call('GET',KEYS[2])~=ARGV[1] or redis.call('EXISTS',KEYS[1])==0 then return 0 end
+          if redis.call('EXISTS',KEYS[3])==1 or redis.call('EXISTS',KEYS[4])==1 then return -1 end
+          redis.call('SET',KEYS[1],ARGV[2]); redis.call('SET',KEYS[3],ARGV[3]); redis.call('SET',KEYS[4],ARGV[3]); return 1`, {
+          keys: [this.key(sid), key, this.compositeMarkerKey(sid), this.compositeFenceKey(record.owner, record.accountId)], arguments: [token, JSON.stringify(record), fence],
+        });
+        if (saved === -1) throw new SessionError(409, 'COMPOSITE_RECONCILIATION_REQUIRED', 'An earlier composite checkout is in progress or needs reconciliation.');
+        if (saved !== 1) throw new SessionError(503, 'SESSION_LOCK_LOST', 'The original checkout could not be saved.');
+      },
+      finishComposite: async (state: SuperAppAgentState, operationId: string) => {
+        const raw = await this.client.get(this.key(sid));
+        if (!raw) throw new SessionError(503, 'SESSION_EXPIRED', 'The original checkout cannot be saved.');
+        const record = decodeRecord(raw);
+        record.state = state; record.updatedAt = Date.now();
+        const fence = JSON.stringify({ owner: civicOwnerDigest(record.owner, record.accountId), sessionId: sid, operationId });
+        const saved = await this.client.eval(`if redis.call('GET',KEYS[2])~=ARGV[1] or redis.call('EXISTS',KEYS[1])==0 then return 0 end
+          local marker=redis.call('GET',KEYS[3]); local active=redis.call('GET',KEYS[4]); if marker and (marker~=ARGV[4] or active~=ARGV[4]) then return -1 end; if not marker and active==ARGV[4] then return -1 end
+          if marker then redis.call('DEL',KEYS[3],KEYS[4]) end; redis.call('SET',KEYS[1],ARGV[2],'EX',ARGV[3]); return 1`, {
+          keys: [this.key(sid), key, this.compositeMarkerKey(sid), this.compositeFenceKey(record.owner, record.accountId)], arguments: [token, JSON.stringify(record), String(this.ttl), fence],
+        });
+        if (saved === -1) throw new SessionError(409, 'COMPOSITE_FENCE_CHANGED', 'The original checkout fence changed.');
+        if (saved !== 1) throw new SessionError(503, 'SESSION_LOCK_LOST', 'The original checkout could not be saved.');
+      },
       remove: async (owner: string) => {
         const removed = await this.client.eval(`if redis.call('GET',KEYS[2])~=ARGV[1] then return 0 end
+          if redis.call('EXISTS',KEYS[5])==1 then return -1 end
           redis.call('DEL',KEYS[1],KEYS[3]); redis.call('SREM',KEYS[4],KEYS[1]); return 1`, {
-          keys: [this.key(sid), key, `${this.key(sid)}:events`, this.userKey(owner)], arguments: [token],
+          keys: [this.key(sid), key, `${this.key(sid)}:events`, this.userKey(owner), this.compositeMarkerKey(sid)], arguments: [token],
         });
+        if (removed === -1) throw new SessionError(409, 'COMPOSITE_RECONCILIATION_REQUIRED', 'The original checkout needs reconciliation before the session can be removed.');
         if (removed !== 1) throw new SessionError(503, 'SESSION_LOCK_LOST', 'Session could not be removed. Check operation status before retrying.');
       },
       release: async () => { clearInterval(timer); await this.client.eval(`if redis.call('GET',KEYS[1])==ARGV[1] then return redis.call('DEL',KEYS[1]) else return 0 end`, { keys: [key], arguments: [token] }); },
@@ -388,5 +430,11 @@ export function redisSessions() {
   if (!process.env.REDIS_URL) throw new SessionError(503, 'SESSION_STORE_UNAVAILABLE', 'REDIS_URL is required for Redis sessions.');
   const ttl = Number(process.env.SESSION_TTL_SECONDS || 3600);
   if (!Number.isInteger(ttl) || ttl < 60 || ttl > 86400) throw new Error('SESSION_TTL_SECONDS must be between 60 and 86400');
-  return store ||= new RedisSessionStore(process.env.REDIS_URL, ttl);
+  const prefix = process.env.SESSION_KEY_PREFIX || 'superapp:';
+  if (!/^[A-Za-z0-9:_-]{1,100}:$/.test(prefix)) throw new Error('SESSION_KEY_PREFIX must be a bounded Redis key prefix.');
+  if (store && store.prefix !== prefix) {
+    if (store.client.isOpen) throw new Error('Cannot switch an open session store namespace.');
+    store = undefined;
+  }
+  return store ||= new RedisSessionStore(process.env.REDIS_URL, ttl, prefix);
 }

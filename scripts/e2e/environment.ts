@@ -23,6 +23,7 @@ export async function startEnvironment(options:{authorizationClock?:()=>number;i
   const providerStores = new Map<string, import('../../services/provider-simulator/src/database.ts').AccountDatabase>();
   const appUrl = `http://localhost:${appPort}`;
   const coreUrl = `http://localhost:${corePort}`;
+  const sessionPrefix = `cityside-e2e:${crypto.randomUUID()}:`;
   const realm = JSON.parse(await readFile('services/keycloak/realm-export.json', 'utf8'));
   const secret = (id: string) => fixtureClientSecret(id, realm, process.env, demoPortOffset);
   for(const provider of ['rta','dewa','etisalat','du','police'])process.env[`PROVIDER_${provider.toUpperCase()}_CLAIM_SECRET`]=secret(`provider-${provider}-settlement`);
@@ -31,7 +32,7 @@ export async function startEnvironment(options:{authorizationClock?:()=>number;i
     PROVIDER_INTEGRATION: 'true', DOMAIN_TRANSPORT: 'http', SESSION_STORE: 'redis',
     // Exercise the strict interactive provider lane; never proxy isolated tests to live grants.
     DELEGATION_ENABLED: 'true', DELEGATION_AUTHORITY_URL: 'http://127.0.0.1:1',
-    REDIS_URL: redisUrl, SESSION_TTL_SECONDS: '600', DEMO_AUTH: 'false',
+    REDIS_URL: redisUrl, SESSION_TTL_SECONDS: '600', SESSION_KEY_PREFIX: sessionPrefix, DEMO_AUTH: 'false',
     OBSERVABILITY_LOGS:process.env.OBSERVABILITY_LOGS||'false',
     NODE_ENV: 'development', ENABLE_LOCAL_LLM: 'false',
     KEYCLOAK_ISSUER: issuer, KEYCLOAK_PUBLIC_ISSUER: issuer, KEYCLOAK_AUDIENCE: 'agent-core',
@@ -60,7 +61,15 @@ export async function startEnvironment(options:{authorizationClock?:()=>number;i
       server.closeAllConnections(); server.close(() => done());
     })));
     const { redisSessions } = await import('../../services/agent-core/src/session-store.ts');
-    await redisSessions()?.close();
+    const sessionStore = redisSessions();
+    if (sessionStore?.client.isReady) {
+      const isolatedKeys: string[] = [];
+      for await (const batch of sessionStore.client.scanIterator({ MATCH: `${sessionPrefix}*`, COUNT: 100 })) {
+        isolatedKeys.push(...(Array.isArray(batch) ? batch : [batch]).filter(key => key.startsWith(sessionPrefix)));
+      }
+      for (let offset = 0; offset < isolatedKeys.length; offset += 100) await sessionStore.client.del(isolatedKeys.slice(offset, offset + 100));
+    }
+    await sessionStore?.close();
     for (const database of databases) database.close();
     await rm(dir, { recursive: true, force: true });
   };
