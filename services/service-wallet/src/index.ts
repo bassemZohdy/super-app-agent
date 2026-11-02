@@ -232,6 +232,8 @@ function handleWalletRequest(
   // ---------------------------------------------------------------------------
   // Unified Multi-Agency Government Settlement (DubaiPay / TAMM Pay)
   // ---------------------------------------------------------------------------
+  if (normMethod === 'GET' && pathname === '/wallet/unified-epoch') return { status: 200, data: { success: true, serviceEpoch: offlineFineEpoch } };
+
   const unifiedOperation = /^\/wallet\/unified-operations\/([^/]+)$/.exec(pathname);
   if (normMethod === 'GET' && unifiedOperation) {
     const operationId = decodeURIComponent(unifiedOperation[1]), operation = offlineUnifiedOperations.get(operationId);
@@ -239,6 +241,7 @@ function handleWalletRequest(
   }
 
   if (normMethod === 'POST' && (pathname === '/pay/unified' || pathname === '/pay/multi-agency')) {
+    if (body.expectedServiceEpoch !== undefined && body.expectedServiceEpoch !== offlineFineEpoch) return { status: 409, data: { success: false, code: 'FIXTURE_EPOCH_CHANGED', error: 'The fixture service lifetime changed.' } };
     if (body.targetReference !== undefined || body.expectedTargetVersion !== undefined || body.expectedPayables !== undefined) return invalidInput('Selected-resource checkout requires integrated provider mode');
     const items: Array<{ agency: string; purpose: string; amount: number }> = body.items;
     const totalMinor = items.reduce((acc, item) => acc + toMinor(item.amount), 0);

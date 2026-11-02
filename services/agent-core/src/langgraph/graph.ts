@@ -381,11 +381,17 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
     if (guardedOfflineCivicAction) offlineCivicPaymentRunning = true;
     let sharedFence: Awaited<ReturnType<RedisSessionStore['acquireCivicFence']>> | undefined;
     let externalWriteStarted = false, externalWriteConfirmed = false, retainSharedFence = false;
-    const civicStep = async <T>(name: CivicStepName, dispatch: (operationId?: string) => Promise<T>): Promise<T> => {
-      const operationId = sharedFence ? await sharedFence.startStep(name) : undefined;
+    const civicStep = async <T>(name: CivicStepName, dispatch: (operationId?: string, serviceEpoch?: string) => Promise<T>): Promise<T> => {
+      let serviceEpoch: string | undefined;
+      if (sharedFence && action === 'confirm_smartcity_checkout') {
+        const result = name === 'WALLET' ? await executeWalletRequest('GET', '/wallet/unified-epoch') : name === 'UTILITY' ? await executeFoodRequest('GET', '/utilities/payment-epoch') : name === 'FINES' ? await executeWalletRequest('GET', '/fines/payment-epoch') : await executeRideRequest('GET', '/mobility/salik/recharge-epoch');
+        if (typeof result.data.serviceEpoch !== 'string' || !/^[0-9a-f-]{36}$/.test(result.data.serviceEpoch)) throw new DomainOperationError(503, 'DOMAIN_UNAVAILABLE', 'fixture');
+        serviceEpoch = result.data.serviceEpoch;
+      }
+      const operationId = sharedFence ? await sharedFence.startStep(name, serviceEpoch) : undefined;
       externalWriteStarted = true;
       let result: T;
-      try { result = await dispatch(operationId); }
+      try { result = await dispatch(operationId, serviceEpoch); }
       catch (error) {
         if (sharedFence) await sharedFence.finishStep(name, error instanceof DomainOperationError && error.code === 'DOMAIN_REJECTED' ? 'REJECTED' : 'UNKNOWN');
         throw error;
@@ -609,14 +615,14 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
       if (sharedFence) await sharedFence.bindReview({ ...review, tollAmountMinor: 10000 });
       let walletConfirmed = false;
       try {
-      const res = await civicStep('WALLET', operationId => executeWalletRequest('POST', '/pay/unified', {}, { ...(operationId ? { operationId } : {}), items: [
+      const res = await civicStep('WALLET', (operationId, serviceEpoch) => executeWalletRequest('POST', '/pay/unified', {}, { ...(operationId ? { operationId } : {}), ...(serviceEpoch ? { expectedServiceEpoch: serviceEpoch } : {}), items: [
         ...(review.billAmountMinor ? [{ agency: 'DEWA', purpose: 'Demo utility settlement', amount: fromMinor(review.billAmountMinor) }] : []),
         { agency: 'RTA Salik', purpose: 'Demo toll recharge', amount: 100 },
       ] }));
       walletConfirmed = true;
-      if (review.billAmountMinor) await civicStep('UTILITY', operationId => executeFoodRequest('POST', '/utilities/pay', {}, { billId: review.billId, expectedAmountMinor: review.billAmountMinor, ...(operationId ? { operationId } : {}) }));
-      if (review.fines.length) await civicStep('FINES', operationId => executeWalletRequest('POST', '/fines/pay', {}, { fineIds: review.fines.map(fine => fine.fineId), expectedAmountMinor: fineMinor, expectedFineAmounts: review.fines, ...(operationId ? { operationId } : {}) }));
-      await civicStep('TOLL', operationId => executeRideRequest('POST', '/mobility/salik/recharge', {}, { amount: 100, expectedTag: review.tagNumber, ...(operationId ? { operationId } : {}) }));
+      if (review.billAmountMinor) await civicStep('UTILITY', (operationId, serviceEpoch) => executeFoodRequest('POST', '/utilities/pay', {}, { billId: review.billId, expectedAmountMinor: review.billAmountMinor, ...(operationId ? { operationId } : {}), ...(serviceEpoch ? { expectedServiceEpoch: serviceEpoch } : {}) }));
+      if (review.fines.length) await civicStep('FINES', (operationId, serviceEpoch) => executeWalletRequest('POST', '/fines/pay', {}, { fineIds: review.fines.map(fine => fine.fineId), expectedAmountMinor: fineMinor, expectedFineAmounts: review.fines, ...(operationId ? { operationId } : {}), ...(serviceEpoch ? { expectedServiceEpoch: serviceEpoch } : {}) }));
+      await civicStep('TOLL', (operationId, serviceEpoch) => executeRideRequest('POST', '/mobility/salik/recharge', {}, { amount: 100, expectedTag: review.tagNumber, ...(operationId ? { operationId } : {}), ...(serviceEpoch ? { expectedServiceEpoch: serviceEpoch } : {}) }));
 
       state.currentSurface = {
         version: '1.0.0',

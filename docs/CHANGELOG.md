@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Retry original civic checkout steps (P1-13, step)
+
+Separate-service offline checkout records each original step's fixture lifetime before dispatch. The owner can retry an uncertain original step with its saved identity only during that lifetime. Redis/HTTP tests cover the first wallet step, older journals, unavailable lifetime checks and a real wallet-service restart. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Retry an uncertain civic continuation (P1-13, step)
 
 The owner can retry a journaled continuation with its original operation ID while the same synthetic fixture process is available. Fixtures refuse a changed lifetime before mutation; failed retries remain unknown and fenced. Redis/HTTP tests cover pre-dispatch failure, concurrent and in-flight retries, each step type, and a real fixture-service restart. Guide: [integrations](integrations.md).

@@ -1,0 +1,54 @@
+import test from 'node:test';
+import { randomUUID } from 'node:crypto';
+import assert from 'node:assert/strict';
+import http from 'node:http';
+import { executeGatewayRequest } from '../../services/agent-core/src/index.ts';
+import { SuperAppAgentGraph } from '../../services/agent-core/src/langgraph/graph.ts';
+import { domainHandlers } from '../../services/agent-core/src/domain-operations.ts';
+import { RedisSessionStore, redisSessions, SessionError } from '../../services/agent-core/src/session-store.ts';
+import { actorContext, actorFor } from '../../packages/backend-kit/src/context.ts';
+import { executeWalletRequest, balance, transactions } from '../../services/service-wallet/src/index.ts';
+import { executeFoodRequest } from '../../services/service-food/src/index.ts';
+import { executeRideRequest } from '../../services/service-ride/src/index.ts';
+import { toMinor } from '../../packages/protocol-core/src/request-validation.ts';
+
+test('retrying an in-flight original wallet debit cannot duplicate it or advance the original worker', async t => {
+  process.env.DOMAIN_TRANSPORT = 'http'; process.env.SESSION_STORE = 'redis';
+  process.env.REDIS_URL = process.env.TEST_REDIS_URL || 'redis://127.0.0.1:6379';
+  const check = new RedisSessionStore(process.env.REDIS_URL), key = 'superapp:offline-civic-fence';
+  await check.connect(); assert.equal(await check.client.exists(key), 0);
+  let reached!: () => void, resume!: () => void, laterWrites = 0;
+  const walletOperations: string[] = [];
+  const dispatched = new Promise<void>(resolve => { reached = resolve; });
+  const hold = new Promise<void>(resolve => { resume = resolve; });
+  const server = http.createServer(async (req, res) => {
+    const chunks: Buffer[] = []; for await (const chunk of req) chunks.push(Buffer.from(chunk));
+    const path = new URL(req.url!, 'http://localhost').pathname, method = req.method!, body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : {};
+    if (method === 'POST' && path !== '/pay/unified') laterWrites++;
+    const handler = path.startsWith('/utilities/') ? domainHandlers.food : path.startsWith('/mobility/') ? domainHandlers.ride : domainHandlers.wallet;
+    const result = handler(method, path, {}, body);
+    if (method === 'POST' && path === '/pay/unified') { walletOperations.push(body.operationId); if (walletOperations.length === 1) { reached(); await hold; } }
+    res.writeHead(result.status, { 'content-type': 'application/json' }); res.end(JSON.stringify(result.data));
+  });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address(); assert.ok(address && typeof address !== 'string');
+  const base = `http://127.0.0.1:${address.port}`;
+  Object.assign(process.env, { SERVICE_WALLET_URL: base, SERVICE_FOOD_URL: base, SERVICE_RIDE_URL: base });
+  t.after(async () => { resume(); await new Promise<void>(resolve => server.close(() => resolve())); await check.client.del(key); await check.close(); await redisSessions()?.close(); });
+  assert.equal(executeWalletRequest('POST', '/wallet/topup', {}, { amount: 5000 }).status, 200);
+  const bill = executeFoodRequest('GET', '/utilities/bill').data.bill, fines = executeWalletRequest('GET', '/fines/check').data, salik = executeRideRequest('GET', '/mobility/salik/balance').data;
+  const review = { billId: bill.billId, billAmountMinor: toMinor(bill.totalAmount), fines: fines.fines.map((fine: { fineId: string; payableAmount: number }) => ({ fineId: fine.fineId, amountMinor: toMinor(fine.payableAmount) })).sort((a: { fineId: string }, b: { fineId: string }) => a.fineId.localeCompare(b.fineId)), tagNumber: salik.tagNumber };
+  const actor = actorFor({ sub: 'local-demo-user' }, undefined, 'Bearer test'), before = balance, ledger = transactions.length;
+  actor.requestId = `${randomUUID()}:confirm_smartcity_checkout`;
+  const running = actorContext.run(actor, () => SuperAppAgentGraph.resumeWithAction({ sessionId: 'civic-race', messages: [], activeDomain: 'composite' }, 'confirm_smartcity_checkout', { offlineReview: review })).then(() => undefined, error => error);
+  await dispatched;
+  const status = await executeGatewayRequest('GET', '/api/civic/reconciliation', { verify: '1' }, {}, { authorization: 'Bearer demo-local' });
+  assert.equal(status.data.civicSteps[0].state, 'STARTED'); assert.equal(status.data.civicEvidence[0].assessment, 'OBSERVED');
+  const observed = await executeGatewayRequest('POST', '/api/civic/reconciliation/retry', {}, { revision: status.data.revision }, { authorization: 'Bearer demo-local' });
+  assert.equal(observed.status, 200); assert.equal(observed.data.step, 'WALLET');
+  resume(); const error = await running;
+  assert.ok(error instanceof SessionError); assert.equal(error.code, 'CIVIC_FENCE_LOST');
+  assert.ok(balance < before); assert.equal(transactions.length, ledger + 1); assert.equal(laterWrites, 0); assert.equal(walletOperations.length, 2); assert.equal(walletOperations[0], walletOperations[1]);
+  const after = await check.inspectCivicFence(actor.sub, actor.accountId);
+  assert.equal(after.civicSteps?.[0].state, 'CONFIRMED'); assert.equal(after.civicSteps?.[0].receiptReference, transactions.at(-1)?.id);
+});
