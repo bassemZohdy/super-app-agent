@@ -10,6 +10,7 @@ import { AccountDatabase } from '../provider-simulator/src/database.ts';
 import { restaurants } from '../service-food/src/index.ts';
 import { buildApplicationOpenApi } from '../../packages/backend-kit/src/application-openapi.ts';
 import { Ajv } from 'ajv';
+import { createHash } from 'node:crypto';
 
 test('integrated food order retries retain the original order across application restart', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'food-idempotency-')), previous = process.env.APP_DATA_DIR;
@@ -70,6 +71,22 @@ test('integrated food order retries retain the original order across application
   inspector.put(actor.accountId, 'order', original, first.data.order.orderId);
   const row = inspector.db.prepare("SELECT id, body FROM resources WHERE account_id=? AND kind='food-order-operation'").get(actor.accountId) as { id: string; body: string };
   const saved = JSON.parse(row.body) as { fingerprint: string; orderId: string; receiptDigest?: string };
+  const digest = (value: unknown) => createHash('sha256').update(JSON.stringify(value, (_key, item: unknown) => item && typeof item === 'object' && !Array.isArray(item) ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) : item)).digest('hex');
+  for (const invalid of [
+    { ...original, status: 'PENDING' }, { ...original, deliveryAddress: '' }, { ...original, restaurantId: '' },
+    { ...original, items: [] }, { ...original, totalAmount: 0.01 }, { ...original, totalAmount: 20.999 },
+    { ...original, items: [{ ...first.data.order.items[0], price: 18.001 }] },
+    { ...original, items: [first.data.order.items[0], first.data.order.items[0]] },
+  ]) {
+    inspector.put(actor.accountId, 'order', invalid, first.data.order.orderId);
+    inspector.put(actor.accountId, 'food-order-operation', { ...saved, receiptDigest: digest(invalid) }, row.id);
+    assert.equal((await inspect()).status, 503, 'matching but malformed order evidence is not confirmed');
+    assert.equal((await run()).status, 503, 'malformed original cannot be replayed as success');
+    assert.equal((await run({ ...actor, requestId: 'new-food-operation' })).status, 503, 'malformed evidence holds new orders');
+    assert.deepEqual((await run(other)).data, secondAccount.data, 'another account can replay its own order');
+  }
+  inspector.put(actor.accountId, 'order', original, first.data.order.orderId);
+  inspector.put(actor.accountId, 'food-order-operation', saved, row.id);
   const { receiptDigest: _receiptDigest, ...legacyRecord } = saved;
   inspector.put(actor.accountId, 'food-order-operation', legacyRecord, row.id);
   const unbound = await run(); assert.equal(unbound.status, 503); assert.equal(unbound.data.code, 'PROVIDER_OUTCOME_UNKNOWN');

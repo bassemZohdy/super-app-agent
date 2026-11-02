@@ -1,5 +1,8 @@
 import { expect, isolatedTest as test } from '../stack.ts';
 import { providerOperationKey, walletChargeKey } from '../../../packages/backend-kit/src/provider-client.ts';
+import { AccountDatabase } from '../../../services/provider-simulator/src/database.ts';
+import { createHash } from 'node:crypto';
+import { join } from 'node:path';
 
 test('wallet operation identity survives different trace IDs and rejects changed terms', async ({ residentApi, stack }) => {
   const wallet = () => residentApi.call('overview').then(result => result.data.wallet.balanceMinor as number);
@@ -294,6 +297,22 @@ test('food operation replay returns the original order across trace IDs and refu
   const changed = await request('trace-third', ['item_margherita']);
   expect(changed.status).toBe(409);
   expect(changed.data.code).toBe('IDEMPOTENCY_CONFLICT');
+  const database = new AccountDatabase(join(process.env.APP_DATA_DIR!, 'service-food.sqlite'));
+  const orderId = first.data.order!.orderId;
+  const original = database.get<Record<string, unknown>>(residentApi.accountId, 'order', orderId)!;
+  const row = database.db.prepare("SELECT id,body FROM resources WHERE account_id=? AND kind='food-order-operation'").get(residentApi.accountId) as { id: string; body: string };
+  const binding = JSON.parse(row.body) as Record<string, unknown>, damaged = { ...original, status: 'PENDING' };
+  const digest = createHash('sha256').update(JSON.stringify(damaged, (_key, item: unknown) => item && typeof item === 'object' && !Array.isArray(item) ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) : item)).digest('hex');
+  try {
+    database.put(residentApi.accountId, 'order', damaged, orderId);
+    database.put(residentApi.accountId, 'food-order-operation', { ...binding, receiptDigest: digest }, row.id);
+    expect((await inspect(operation)).status).toBe(503);
+    expect((await request('trace-damaged', ['item_diavola'])).status).toBe(503);
+  } finally {
+    database.put(residentApi.accountId, 'order', original, orderId);
+    database.put(residentApi.accountId, 'food-order-operation', binding, row.id);
+    database.close();
+  }
 });
 
 test('ride operation replay returns one booking across trace IDs and refuses a changed destination', async ({ residentApi, stack }) => {

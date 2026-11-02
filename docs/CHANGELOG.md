@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 3 November 2026 - Hold malformed original food evidence (P1-13, step)
+
+Food order inspection and replay require a confirmed, coherent receipt even when its stored digest matches. Guide: [agent flow](agent-flow.md).
+
 ## 3 November 2026 - Enforce stream expiry during setup (P0-02, step)
 
 The compatibility gateway closes or refuses a stream when authentication expires during subscription, replay or delayed delivery. Guide: [security](security.md).

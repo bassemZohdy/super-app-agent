@@ -34,6 +34,25 @@ function canonicalJson(value: unknown): string {
   return JSON.stringify(value, (_key, item: unknown) => item && typeof item === 'object' && !Array.isArray(item)
     ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) : item);
 }
+function validFoodReceipt(value: unknown, orderId: string): boolean {
+  if (!isPlainJsonObject(value)) return false;
+  const receipt = value as Record<string, unknown>;
+  if (receipt.orderId !== orderId || receipt.status !== 'CONFIRMED' ||
+      ![receipt.restaurantId, receipt.restaurantName, receipt.deliveryAddress, receipt.estimatedDeliveryTime].every(field => typeof field === 'string' && field.trim().length > 0) ||
+      typeof receipt.timestamp !== 'number' || !Number.isSafeInteger(receipt.timestamp) || receipt.timestamp < 0 ||
+      !Array.isArray(receipt.items) || !receipt.items.length || receipt.items.length > 100 || typeof receipt.totalAmount !== 'number') return false;
+  try {
+    const ids = new Set<string>(); let itemTotal = 0;
+    for (const item of receipt.items) {
+      if (!isPlainJsonObject(item)) return false;
+      const product = item as Record<string, unknown>;
+      if (typeof product.id !== 'string' || !product.id.trim() || ids.has(product.id) || typeof product.name !== 'string' || !product.name.trim() || typeof product.price !== 'number') return false;
+      ids.add(product.id); itemTotal += toMinor(product.price);
+    }
+    const total = toMinor(receipt.totalAmount);
+    return Number.isSafeInteger(itemTotal) && total > 0 && total >= itemTotal;
+  } catch { return false; }
+}
 function sameFineSelection(value: unknown, ids: string[]): boolean {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const selection = value as { kind?: unknown; provider?: unknown; id?: unknown; reference?: unknown; revision?: unknown; obligationId?: unknown; items?: unknown };
@@ -305,7 +324,7 @@ export async function integratedRequest(service: string, actor: Actor, method: s
             for (const order of orders) {
               try {
                 const receipt: unknown = JSON.parse(order.body);
-                if (!receipt || typeof receipt !== 'object' || Array.isArray(receipt) || (receipt as { orderId?: unknown }).orderId !== order.id || !verified.get(order.id)?.has(createHash('sha256').update(canonicalJson(receipt)).digest('hex'))) throw new Error('Unverified order');
+                if (!validFoodReceipt(receipt, order.id) || !verified.get(order.id)?.has(createHash('sha256').update(canonicalJson(receipt)).digest('hex'))) throw new Error('Unverified order');
               } catch { throw new UpstreamError(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original food order could not be confirmed.'); }
             }
           }
@@ -315,7 +334,7 @@ export async function integratedRequest(service: string, actor: Actor, method: s
         const record = saved as { fingerprint?: unknown; orderId?: unknown; receiptDigest?: unknown };
         if (typeof record.fingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(record.fingerprint) || typeof record.orderId !== 'string' || !/^[a-f0-9-]{36}$/.test(record.orderId) || typeof record.receiptDigest !== 'string' || !/^[a-f0-9]{64}$/.test(record.receiptDigest)) throw new UpstreamError(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original food order could not be confirmed.');
         const order = db.get<{ orderId: string }>(actor.accountId, 'order', record.orderId);
-        if (!order || order.orderId !== record.orderId || createHash('sha256').update(canonicalJson(order)).digest('hex') !== record.receiptDigest) throw new UpstreamError(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original food order could not be confirmed.');
+        if (!validFoodReceipt(order, record.orderId) || createHash('sha256').update(canonicalJson(order)).digest('hex') !== record.receiptDigest) throw new UpstreamError(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original food order could not be confirmed.');
         return { fingerprint: record.fingerprint, order };
       };
       const operationPath = /^\/orders\/operations\/([^/]+)$/.exec(path);
