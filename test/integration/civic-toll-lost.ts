@@ -3,6 +3,7 @@ import { randomUUID, createHash } from 'node:crypto';
 import { executeGatewayRequest } from '../../services/agent-core/src/index.ts';
 import assert from 'node:assert/strict';
 import http from 'node:http';
+import { withCivicFinalizers } from '../../services/agent-core/src/civic-finalization.ts';
 import { SuperAppAgentGraph } from '../../services/agent-core/src/langgraph/graph.ts';
 import { domainHandlers } from '../../services/agent-core/src/domain-operations.ts';
 import { RedisSessionStore, redisSessions } from '../../services/agent-core/src/session-store.ts';
@@ -17,7 +18,7 @@ test('a lost toll response is identified by its saved operation and exact receip
   process.env.REDIS_URL = process.env.TEST_REDIS_URL || 'redis://127.0.0.1:6379';
   const check = new RedisSessionStore(process.env.REDIS_URL), key = 'superapp:offline-civic-fence';
   await check.connect(); assert.equal(await check.client.exists(key), 0, 'test requires an isolated empty fence');
-  let laterWrites = 0, savedBeforeToll = false, resolutionKey = '';
+  let laterWrites = 0, savedBeforeToll = false, resolutionKey = '', dropToll = true;
   const surfaceRevision = randomUUID(), sessionId = 'civic-partial';
   const ownerDigest = createHash('sha256').update(JSON.stringify(['local-demo-user', accountIdFor('local-demo-user')])).digest('hex');
   const retiredKey = `superapp:civic-retired:${createHash('sha256').update(JSON.stringify([ownerDigest, sessionId, surfaceRevision])).digest('hex')}`;
@@ -28,7 +29,7 @@ test('a lost toll response is identified by its saved operation and exact receip
     if (method === 'POST' && path === '/mobility/salik/recharge') { const status = await check.inspectCivicFence('local-demo-user', accountIdFor('local-demo-user')); savedBeforeToll = status.civicSteps?.at(-1)?.state === 'STARTED' && status.civicSteps.at(-1)?.operationId === body.operationId && typeof body.operationId === 'string'; }
     const handler = path.startsWith('/utilities/') ? domainHandlers.food : path.startsWith('/mobility/') ? domainHandlers.ride : domainHandlers.wallet;
     const result = handler(method, path, {}, body);
-    if (method === 'POST' && path === '/mobility/salik/recharge') { req.socket.destroy(); return; }
+    if (method === 'POST' && path === '/mobility/salik/recharge' && dropToll) { req.socket.destroy(); return; }
     res.writeHead(result.status, { 'content-type': 'application/json' }); res.end(JSON.stringify(result.data));
   });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -45,6 +46,8 @@ test('a lost toll response is identified by its saved operation and exact receip
   assert.equal(savedBeforeToll, true); assert.ok(balance < before); assert.equal(transactions.length, ledger + 2); assert.equal(activeUtilityBill.status, 'PAID'); assert.equal(salikBalance, tollBefore + 100); assert.equal(laterWrites, 2);
   const saved = await check.inspectCivicFence(actor.sub, actor.accountId);
   assert.equal(saved.civicSteps?.at(-1)?.state, 'UNKNOWN'); assert.match(saved.civicSteps?.at(-1)?.operationId || '', /^CIVIC-/);
+  await assert.rejects(actorContext.run(actor, () => SuperAppAgentGraph.resumeWithAction({ sessionId: 'civic-blocked', messages: [], activeDomain: 'composite' }, 'confirm_smartcity_checkout', { offlineReview: review })), (error: { code?: string }) => error.code === 'CIVIC_RECONCILIATION_REQUIRED');
+  assert.equal(await check.client.exists(key), 1); assert.equal(transactions.length, ledger + 2);
   const status = await executeGatewayRequest('GET', '/api/civic/reconciliation', { verify: '1' }, {}, { authorization: 'Bearer demo-local' });
   assert.deepEqual(status.data.civicEvidence.map((item: { assessment: string }) => item.assessment), ['MATCH', 'MATCH', 'MATCH', 'OBSERVED']);
   const headers = { authorization: 'Bearer demo-local' };
@@ -68,6 +71,15 @@ test('a lost toll response is identified by its saved operation and exact receip
   assert.equal(await check.client.exists(key), 0); assert.equal(await check.civicApprovalResolved(actor.sub, actor.accountId, sessionId, surfaceRevision), true);
   const resolvedAgain = await executeGatewayRequest('POST', '/api/civic/reconciliation/resolve', {}, { revision: after.data.revision }, headers);
   assert.equal(resolvedAgain.data.resolution, 'ALREADY_RESOLVED');
+  await assert.rejects(actorContext.run(actor, () => SuperAppAgentGraph.resumeWithAction({ sessionId: 'civic-followup', messages: [], activeDomain: 'composite' }, 'confirm_smartcity_checkout', { offlineReview: review })), /checkout changed/i, 'a new checkout is admitted to its fresh review after explicit resolution');
+  assert.equal(await check.client.exists(key), 0); assert.equal(transactions.length, ledger + 2); assert.equal(salikBalance, tollBefore + 100);
   const replay = executeRideRequest('POST', '/mobility/salik/recharge', {}, { amount: 100, expectedTag: review.tagNumber, operationId: saved.civicSteps?.at(-1)?.operationId });
   assert.equal(replay.status, 200); assert.equal(replay.data.transactionId, status.data.civicEvidence.at(-1).observedReceiptReference); assert.equal(salikBalance, tollBefore + 100);
+  dropToll = false; actor.requestId = `${randomUUID()}:confirm_smartcity_checkout`;
+  const finalizers: Array<() => Promise<void>> = [];
+  const newReview = { billId: review.billId, billAmountMinor: 0, fines: [], tagNumber: review.tagNumber };
+  await withCivicFinalizers(finalizers, () => actorContext.run(actor, () => SuperAppAgentGraph.resumeWithAction({ sessionId: 'civic-fresh', messages: [], activeDomain: 'composite' }, 'confirm_smartcity_checkout', { offlineReview: newReview })));
+  assert.equal(transactions.length, ledger + 3); assert.equal(salikBalance, tollBefore + 200); assert.equal(finalizers.length, 1);
+  await finalizers[0](); assert.equal(await check.client.exists(key), 0);
+
 });

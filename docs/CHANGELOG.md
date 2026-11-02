@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Admit fresh civic checkout after resolution (P1-13, step)
+
+For separate-service offline fixtures, the shared civic fence now governs subsequent actions after explicit resolution. Redis/HTTP tests verify that an unresolved checkout still blocks a new action and a fresh review can complete in the same agent process after resolution. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Record an observed toll outcome (P1-13, step)
 
 The owner can record a verified lost toll response in the original journal without another recharge, then resolve the complete checkout after a fresh evidence check. Redis/HTTP tests cover prior recoveries, account isolation, concurrency and an in-flight response. Guide: [integrations](integrations.md).

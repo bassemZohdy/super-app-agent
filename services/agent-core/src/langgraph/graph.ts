@@ -376,7 +376,7 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
 
     const guardedOfflineCivicAction = process.env.PROVIDER_INTEGRATION !== 'true' &&
       ['confirm_smartcity_checkout', 'pay_utilities_bill', 'pay_dewa_bill', 'pay_police_fines'].includes(action);
-    if (guardedOfflineCivicAction && offlineCivicReconciliationRequired) throw new HttpError(409, 'An earlier offline civic payment needs reconciliation before another can start.');
+    if (guardedOfflineCivicAction && process.env.DOMAIN_TRANSPORT !== 'http' && offlineCivicReconciliationRequired) throw new HttpError(409, 'An earlier offline civic payment needs reconciliation before another can start.');
     if (guardedOfflineCivicAction && offlineCivicPaymentRunning) throw new HttpError(409, 'Another offline civic payment is in progress. Review it again afterwards.');
     if (guardedOfflineCivicAction) offlineCivicPaymentRunning = true;
     let sharedFence: Awaited<ReturnType<RedisSessionStore['acquireCivicFence']>> | undefined;
