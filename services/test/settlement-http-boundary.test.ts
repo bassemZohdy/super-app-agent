@@ -20,6 +20,7 @@ test('settlement HTTP client holds unconfirmed outcomes and never follows redire
     { status: 409, payload: { success: false, code: 'CLAIM_CONFLICT', error: 'private-marker' } },
     { status: 200, payload: { success: true, error: 'private-marker', claim, charge } },
     { status: 200, payload: { success: true, claim: { ...claim, amountMinor: 9999 }, charge } },
+    { status: 200, payload: { success: true, claim: { ...claim, claimId: '../other' }, charge } },
     { status: 200, payload: { success: true, claim, charge: { ...charge, accountId: 'other' } } },
     { status: 200, payload: { success: true, claim, charge, padding: 'x'.repeat(70000) } },
   ]) {
@@ -76,6 +77,24 @@ test('settlement HTTP client refuses incomplete attempt terms before credentials
     ['release', { attemptId: body.attemptId, claimId: claim.claimId, reason: 'UNKNOWN' }],
   ] as const) {
     await assert.rejects(client.call('account_1', 'payment_1', action, input),
+      (error: unknown) => error instanceof SettlementError && error.code === 'SETTLEMENT_INPUT_INVALID');
+  }
+  assert.equal(tokens, 0); assert.equal(requests, 0);
+});
+
+test('settlement transport rejects path-changing identifiers before obtaining credentials', async t => {
+  const client = new SettlementClient('dewa');
+  let tokens = 0, requests = 0;
+  t.mock.method(client.credentials, 'token', async () => { tokens++; return 'fixture-token'; });
+  t.mock.method(globalThis, 'fetch', async () => { requests++; return Response.json({ success: true }); });
+  for (const bad of ['..', '.', '../other', '%2e%2e', 'account/other', 'account?other', 'account#other']) {
+    await assert.rejects(client.call(bad, 'payment_1', 'claim', body),
+      (error: unknown) => error instanceof SettlementError && error.code === 'SETTLEMENT_INPUT_INVALID');
+    await assert.rejects(client.call('account_1', bad, 'claim', body),
+      (error: unknown) => error instanceof SettlementError && error.code === 'SETTLEMENT_INPUT_INVALID');
+    await assert.rejects(client.call('account_1', 'payment_1', 'claim', { ...body, attemptId: bad }),
+      (error: unknown) => error instanceof SettlementError && error.code === 'SETTLEMENT_INPUT_INVALID');
+    await assert.rejects(client.call('account_1', 'payment_1', 'ack', { attemptId: body.attemptId, claimId: bad, receiptDigest: 'receipt_1' }),
       (error: unknown) => error instanceof SettlementError && error.code === 'SETTLEMENT_INPUT_INVALID');
   }
   assert.equal(tokens, 0); assert.equal(requests, 0);

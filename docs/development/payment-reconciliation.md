@@ -2,6 +2,8 @@
 
 The source provider's settlement claim transport sends each claim, acknowledgement or release under its original attempt identity. It refuses redirects and does not automatically retry a 401. Responses are limited to 64 KiB and must confirm the provider, payment, attempt, claim and action state; claims also match the captured charge's account, reference, amount and currency. An unavailable, contradictory or unverified reply remains `SETTLEMENT_OUTCOME_UNKNOWN`, without exposing gateway error text; the original attempt stays available for reconciliation.
 
+Account, payment, attempt and claim identifiers must use the bounded identifier form before credentials are obtained. Dot segments, encoded path separators and other path-changing values are refused; the transport also checks the returned claim identifier before using it for acknowledgement or release.
+
 PAY-19 adds **Payment accounts → Payment recovery** for stored payments, saved-card wallet funding, refunds and retained raw captures. It uses owned records, the balanced journal and fixed source-provider status reads to distinguish a capture that never committed from a provider effect whose response was lost. All money remains simulated.
 
 ## Use the workbench

@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Constrain settlement identities (P1-02, step)
+
+The settlement transport rejects path-changing account, payment and attempt identifiers before obtaining credentials or dispatching, and validates returned claim identities. Guide: [payment reconciliation](development/payment-reconciliation.md).
+
 ## 2 November 2026 — Harden settlement claim transport (P1-02, step)
 
 The settlement client refuses redirects and automatic 401 retries, bounds and sanitizes replies, and verifies claim, charge and acknowledgement bindings before allowing settlement to proceed. Guide: [payment reconciliation](development/payment-reconciliation.md).
