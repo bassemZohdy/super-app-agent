@@ -34,7 +34,7 @@ export class DesiredKillSwitchStore {
     return r ? { engaged: Number(r.engaged) === 1, reason: String(r.reason), setBy: String(r.set_by), at: Number(r.at) } : undefined;
   }
   set(engaged: boolean, reason: string, setBy: string, now = Date.now()): DesiredKillSwitch {
-    this.db.prepare("INSERT INTO desired_kill_switch(id,engaged,reason,set_by,at) VALUES('global',?,?,?,?) ON CONFLICT(id) DO UPDATE SET engaged=excluded.engaged,reason=excluded.reason,set_by=excluded.set_by,at=excluded.at")
+    this.db.prepare("INSERT INTO desired_kill_switch(id,engaged,reason,set_by,at) VALUES('global',?,?,?,?) ON CONFLICT(id) DO UPDATE SET engaged=excluded.engaged,reason=excluded.reason,set_by=excluded.set_by,at=MAX(excluded.at,desired_kill_switch.at+1)")
       .run(engaged ? 1 : 0, reason.slice(0, 120), setBy.slice(0, 200), now);
     return this.get()!;
   }

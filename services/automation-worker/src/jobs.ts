@@ -77,8 +77,15 @@ export class JobStore {
     return r ? { engaged: Number(r.engaged) === 1, reason: r.reason == null ? undefined : String(r.reason), at: Number(r.at) } : { engaged: false };
   }
   setKillSwitch(engaged: boolean, reason = '', now = Date.now()) {
-    this.db.prepare("INSERT INTO kill_switch(id,engaged,reason,at) VALUES('global',?,?,?) ON CONFLICT(id) DO UPDATE SET engaged=excluded.engaged,reason=excluded.reason,at=excluded.at")
+    this.db.prepare("INSERT INTO kill_switch(id,engaged,reason,at) VALUES('global',?,?,?) ON CONFLICT(id) DO UPDATE SET engaged=excluded.engaged,reason=excluded.reason,at=MAX(excluded.at,kill_switch.at+1)")
       .run(engaged ? 1 : 0, reason.slice(0, 120), now);
+  }
+
+  /** Apply a newer authority state without racing a concurrent local override. */
+  applyDesiredKillSwitch(engaged: boolean, reason: string, at: number) {
+    if (!Number.isSafeInteger(at) || at <= 0) return;
+    this.db.prepare("INSERT INTO kill_switch(id,engaged,reason,at) VALUES('global',?,?,?) ON CONFLICT(id) DO UPDATE SET engaged=excluded.engaged,reason=excluded.reason,at=excluded.at WHERE excluded.at>kill_switch.at")
+      .run(engaged ? 1 : 0, reason.slice(0, 120), at);
   }
 
   /** Idempotent: the same rule version, occurrence and target is the same job, whoever asks and however often. */

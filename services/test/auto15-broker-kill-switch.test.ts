@@ -21,6 +21,16 @@ test('AUTO-15 3b-ii: the desired state is stored once, replaced by the admin, an
   assert.equal(new DesiredKillSwitchStore(db).get()!.at, 2000, 'reopening keeps the same single state');
 });
 
+test('AUTO-15: broker switch revisions increase even if its clock repeats or moves backwards', () => {
+  const db = new DatabaseSync(':memory:');
+  try {
+    const store = new DesiredKillSwitchStore(db);
+    assert.equal(store.set(true, 'stop', admin.sub, 1000).at, 1000);
+    assert.equal(store.set(false, '', admin.sub, 1000).at, 1001);
+    assert.equal(new DesiredKillSwitchStore(db).set(true, 'stop again', admin.sub, 900).at, 1002);
+  } finally { db.close(); }
+});
+
 test('AUTO-15 3b-ii: only the admin client with its admin scope may write the desired state', () => {
   assert.doesNotThrow(() => authorizeKillSwitchWrite(admin));
   assert.equal(code(() => authorizeKillSwitchWrite(worker)), 'KILL_SWITCH_ADMIN_REQUIRED', 'the worker cannot change its own switch');

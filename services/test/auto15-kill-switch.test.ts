@@ -6,6 +6,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { JobStore } from '../automation-worker/src/jobs.ts';
 import { AutomationWorker, type ExecutionGateway, type ExecutedOrder } from '../automation-worker/src/worker.ts';
+import { DatabaseSync } from 'node:sqlite';
+import { DesiredKillSwitchStore } from '../delegation/src/kill-switch.ts';
 
 // AUTO-15: the operator's kill switch admits no new step. It stops claims, stops a job between steps and holds (never
 // replays) a job whose credential was issued while it engaged. It survives a restart and is released explicitly.
@@ -124,4 +126,95 @@ test('AUTO-15 step 3b-i: an older authority engage never undoes a newer local re
   assert.equal((await w.runOnce())!.state, 'SETTLED', 'the local release holds against the older authority state');
   assert.equal(store.killSwitch().engaged, false);
   store.close();
+});
+
+test('AUTO-15: delayed authority changes retain source order and local overrides remain newer', async () => {
+  const store = new JobStore(':memory:');
+  try {
+    let desired = { engaged: true, reason: 'authority stop', at: 1000 };
+    const g: ExecutionGateway = {
+      prepare: async () => { throw new Error('no job expected'); },
+      credential: async () => { throw new Error('no job expected'); },
+      execute: async () => { throw new Error('no job expected'); },
+      resume: async () => { throw new Error('no job expected'); },
+      killSwitch: async () => desired,
+    };
+    const w = new AutomationWorker(store, g, { workerId: 'worker-a', clock: () => 5000 });
+    await w.runOnce();
+    assert.deepEqual(store.killSwitch(), { engaged: true, reason: 'authority stop', at: 1000 });
+    desired = { engaged: false, reason: '', at: 1001 };
+    await w.runOnce();
+    assert.equal(store.killSwitch().engaged, false, 'a newer authority release is not hidden by delayed polling');
+    store.setKillSwitch(true, 'local stop', 900);
+    assert.equal(store.killSwitch().at, 1002, 'a local change is newer even if its clock regresses');
+    await w.runOnce();
+    assert.equal(store.killSwitch().engaged, true, 'the earlier authority release cannot undo the local stop');
+  } finally { store.close(); }
+});
+
+test('AUTO-15: an already-engaged authority state is recorded before a later local release', async () => {
+  const store = new JobStore(':memory:');
+  try {
+    store.setKillSwitch(true, 'local stop', 500);
+    const g: ExecutionGateway = {
+      prepare: async () => { throw new Error('no job expected'); },
+      credential: async () => { throw new Error('no job expected'); },
+      execute: async () => { throw new Error('no job expected'); },
+      resume: async () => { throw new Error('no job expected'); },
+      killSwitch: async () => ({ engaged: true, reason: 'authority stop', at: 1000 }),
+    };
+    const w = new AutomationWorker(store, g, { workerId: 'worker-a', clock: () => 900 });
+    await w.runOnce();
+    assert.equal(store.killSwitch().at, 1000);
+    store.setKillSwitch(false, 'local release', 900);
+    await w.runOnce();
+    assert.equal(store.killSwitch().engaged, false, 'the observed older authority state is not replayed');
+  } finally { store.close(); }
+});
+
+test('AUTO-15: authority writes atomically reject stale or invalid revisions', () => {
+  const store = new JobStore(':memory:');
+  try {
+    store.setKillSwitch(true, 'local stop', 1001);
+    for (const at of [1000, 1001, 0, -1, 1001.5, Number.MAX_SAFE_INTEGER + 1]) {
+      store.applyDesiredKillSwitch(false, 'old release', at);
+      assert.deepEqual(store.killSwitch(), { engaged: true, reason: 'local stop', at: 1001 });
+    }
+    store.applyDesiredKillSwitch(false, 'new release', 1002);
+    assert.deepEqual(store.killSwitch(), { engaged: false, reason: 'new release', at: 1002 });
+  } finally { store.close(); }
+});
+
+test('AUTO-15: a second database connection cannot overwrite a newer local stop', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'cityside-kill-order-')), path = join(dir, 'jobs.sqlite');
+  const first = new JobStore(path), second = new JobStore(path);
+  try {
+    first.setKillSwitch(false, 'initial', 1000);
+    first.setKillSwitch(true, 'local stop', 1001);
+    second.applyDesiredKillSwitch(false, 'stale authority release', 1000);
+    assert.deepEqual(first.killSwitch(), { engaged: true, reason: 'local stop', at: 1001 });
+    second.applyDesiredKillSwitch(false, 'new authority release', 1002);
+    assert.equal(first.killSwitch().engaged, false);
+  } finally { second.close(); first.close(); cleanup(dir); }
+});
+
+test('AUTO-15: broker changes reach a delayed worker in order despite a repeated or backward clock', async () => {
+  const db = new DatabaseSync(':memory:'), broker = new DesiredKillSwitchStore(db), store = new JobStore(':memory:');
+  try {
+    const g: ExecutionGateway = {
+      prepare: async () => { throw new Error('no job expected'); },
+      credential: async () => { throw new Error('no job expected'); },
+      execute: async () => { throw new Error('no job expected'); },
+      resume: async () => { throw new Error('no job expected'); },
+      killSwitch: async () => broker.get(),
+    };
+    const w = new AutomationWorker(store, g, { workerId: 'worker-a', clock: () => 5000 });
+    broker.set(true, 'first stop', 'admin', 1000);
+    await w.runOnce(); assert.equal(store.killSwitch().engaged, true);
+    broker.set(false, '', 'admin', 1000);
+    await w.runOnce(); assert.equal(store.killSwitch().engaged, false);
+    broker.set(true, 'second stop', 'admin', 900);
+    await w.runOnce(); assert.equal(store.killSwitch().engaged, true);
+    assert.equal(store.killSwitch().at, 1002);
+  } finally { store.close(); db.close(); }
 });

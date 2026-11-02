@@ -57,10 +57,7 @@ export class AutomationWorker {
     let desired: { engaged: boolean; reason: string; at: number } | undefined;
     try { desired = await this.gateway.killSwitch(); } catch { return; }
     if (!desired) return;
-    const current = this.store.killSwitch();
-    if (desired.at <= (current.at ?? 0)) return;
-    if (current.engaged === desired.engaged) return;
-    this.store.setKillSwitch(desired.engaged, desired.reason, this.now());
+    this.store.applyDesiredKillSwitch(desired.engaged, desired.reason, desired.at);
   }
   async drain(limit = 100) { let n = 0; while (n < limit && await this.runOnce()) n++; return n; }
 

@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Preserve automation kill-switch ordering (P1-10, step)
+
+Broker and local switch changes now advance their stored timestamps monotonically. Workers retain authority timestamps and atomically reject stale desired states, including after delayed polls or concurrent local changes. Guide: [automation worker](development/automation-worker.md).
+
 ## 2 November 2026 — Sanitize kill-switch verification responses (P2-05, step)
 
 The stack verification bounds identity and broker responses and avoids including response bodies in failed assertions. Its identity-token reader rejects invalid responses without exposing their contents. Guide: [testing](testing.md).
