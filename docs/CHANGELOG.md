@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Validate automation scheduler readings (P1-02, step)
+
+Scheduler HTTP reads are bounded and require an unambiguous success envelope; balance and usage counts must be nonnegative safe integers before threshold state changes. Guide: [automation worker](development/automation-worker.md).
+
 ## 2 November 2026 — Bind automation stores to one run (P1-02, step)
 
 Worker startup binds an empty job store to its isolated run and refuses a different run or an older store with unbound scheduling history. Guide: [automation worker](development/automation-worker.md).
