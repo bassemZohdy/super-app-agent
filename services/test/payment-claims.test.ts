@@ -168,6 +168,7 @@ test('returned uncertain or contradictory settlement responses roll back and kee
   for (const response of [
     { status: 409, data: { success: false, code: 'SETTLEMENT_STATUS_UNKNOWN', error: 'private-marker' } },
     { status: 409, data: { success: false, code: 'ALREADY_PAID', error: 'private-marker' } },
+    ...['charge', 'transaction', 'receipt', 'payment', 'refund', 'settlement', 'transactionId', 'receiptNumber'].map(field => ({ status: 409, data: { success: false, code: 'PAYABLE_CHANGED', error: 'private-marker', [field]: 'effect-evidence' } })),
     { status: 409, data: { success: false, code: 'PRIVATE_MARKER', error: 'private-marker' } },
     { status: 403, data: { success: false, code: 'PAYABLE_CHANGED', error: 'private-marker' } },
     { status: 409, data: { success: false, code: 'ELIGIBILITY_CHANGED', error: 'private-marker' } },

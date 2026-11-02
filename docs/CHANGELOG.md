@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 - Preserve contradictory provider effects (P1-02, step)
+
+Provider and settlement write refusals carrying recognized effect evidence stay unconfirmed. The settlement coordinator preserves the original claim, while plain reviewed refusals retain their existing behavior. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 - Describe wallet receipt contracts (P2-04, step)
 
 Integrated wallet payment and top-up OpenAPI responses now describe the returned transaction and capture fields. Contract tests check actual application responses and reject malformed examples; semantic matching remains a runtime responsibility. Guide: [application API](development/application-api.md).

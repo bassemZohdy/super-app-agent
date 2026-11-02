@@ -42,6 +42,7 @@ test('contradictory or ambiguous provider write replies remain unknown', async t
     { status: 409, data: { success: true, error: 'contradictory' } },
     { status: 409, data: { code: 'UNCLASSIFIED' } },
     { status: 409, data: { success: false, code: 'UNCLASSIFIED', error: 'unclassified' } },
+    ...['charge', 'transaction', 'receipt', 'payment', 'refund', 'settlement', 'transactionId', 'receiptNumber'].map(field => ({ status: 409, data: { success: false, code: 'PAYABLE_CHANGED', error: 'changed', [field]: 'effect-evidence' } })),
     { status: 403, data: { success: false, error: 'unclassified' } },
     { status: 403, data: { success: false, code: 'ACCOUNT_RESTRICTED', error: 'restricted' } },
     { status: 403, data: { success: false, code: 'PAYABLE_CHANGED', error: 'forbidden' } },

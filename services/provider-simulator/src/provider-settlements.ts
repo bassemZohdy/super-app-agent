@@ -1,5 +1,5 @@
 import { legacyCaptureDigest } from '../../../packages/backend-kit/src/legacy-payment-binding.ts';
-import { isAuthorityDenial, isPriorEffectCode, isUncertainOutcomeCode } from '../../../packages/backend-kit/src/outcome.ts';
+import { hasEffectEvidence, isAuthorityDenial, isPriorEffectCode, isUncertainOutcomeCode } from '../../../packages/backend-kit/src/outcome.ts';
 import { PROVIDER_REJECTION_CODES } from '../../../packages/backend-kit/src/provider-rejection-codes.ts';
 /** Source-side durable fence. A RELEASED attempt can never apply, even after a lost gateway response or restart. */
 import { createHash,randomUUID } from 'node:crypto';
@@ -67,7 +67,7 @@ export class ProviderSettlements{
         const response=effect(reply.charge);
         if(!response||response.status!==200||!response.data||typeof response.data!=='object'||Array.isArray(response.data)||response.data.success!==true||Object.hasOwn(response.data,'error')){
           const data=response?.data;
-          if(response&&[400,402,403,404,409].includes(response.status)&&data&&typeof data==='object'&&!Array.isArray(data)&&data.success===false&&typeof data.code==='string'&&PROVIDER_REJECTION_CODES.has(data.code)&&!isAuthorityDenial(response.status,data.code)&&!isUncertainOutcomeCode(data.code)&&!isPriorEffectCode(data.code))
+          if(response&&[400,402,403,404,409].includes(response.status)&&data&&typeof data==='object'&&!Array.isArray(data)&&data.success===false&&!hasEffectEvidence(data)&&typeof data.code==='string'&&PROVIDER_REJECTION_CODES.has(data.code)&&!isAuthorityDenial(response.status,data.code)&&!isUncertainOutcomeCode(data.code)&&!isPriorEffectCode(data.code))
             throw new SettlementError(response.status,data.code,'Provider settlement was rejected.');
           throw new SettlementError(503,'SETTLEMENT_OUTCOME_UNKNOWN','Settlement outcome is unknown; preserve the original attempt.');
         }

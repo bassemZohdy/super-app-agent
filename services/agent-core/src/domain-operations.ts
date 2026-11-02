@@ -1,4 +1,4 @@
-import { isAuthorityDenial, isPriorEffectCode, isUncertainOutcomeCode } from '../../../packages/backend-kit/src/outcome.ts';
+import { hasEffectEvidence, isAuthorityDenial, isPriorEffectCode, isUncertainOutcomeCode } from '../../../packages/backend-kit/src/outcome.ts';
 import { boundedJsonResponse } from '../../../packages/backend-kit/src/bounded-json.ts';
 import { tracedFetch as fetch,inSpan,routeName } from '../../../packages/backend-kit/src/observability.ts';
 import { SERVICE_PORTS } from '../../../packages/backend-kit/src/local-endpoints.ts';
@@ -58,7 +58,7 @@ function definiteRejection(status: number, data: unknown, mutation: boolean): bo
   if (!mutation) return true;
   if (status === 401 || status === 408 || status === 429 || !data || typeof data !== 'object' || Array.isArray(data)) return false;
   const payload = data as Record<string, unknown>;
-  if (payload.success === true || ['receipt', 'transaction', 'booking', 'order', 'meter', 'govTransactionHash', 'transactionId', 'dewaConnected', 'residentialParking'].some(key => Object.hasOwn(payload, key))) return false;
+  if (payload.success === true || hasEffectEvidence(payload)) return false;
   if (isAuthorityDenial(status, payload.code) || isUncertainOutcomeCode(payload.code) || isPriorEffectCode(payload.code)) return false;
   return payload.success === false || named(payload.error);
 }

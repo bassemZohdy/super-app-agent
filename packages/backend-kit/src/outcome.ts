@@ -20,3 +20,8 @@ export function isAuthorityDenial(status: number, code: unknown): boolean {
     'UNAUTHENTICATED', 'USER_TOKEN_REQUIRED',
   ].includes(code);
 }
+
+/** A refusal carrying effect evidence cannot prove that the original write did not happen. */
+export function hasEffectEvidence(data: Record<string, unknown>): boolean {
+  return ['charge', 'capture', 'transaction', 'receipt', 'payment', 'refund', 'settlement', 'booking', 'order', 'meter', 'govTransactionHash', 'transactionId', 'receiptNumber', 'dewaConnected', 'residentialParking'].some(key => Object.hasOwn(data, key));
+}
