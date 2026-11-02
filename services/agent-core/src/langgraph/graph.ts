@@ -53,7 +53,7 @@ interface FinesData {
 interface SalikAccount { balance: number; tagNumber: string; status: string; version?: number }
 interface WalletBalance { balance: number }
 // The offline fixtures are shared within this process, including across residents and sessions.
-let offlineCheckoutRunning = false;
+let offlineCivicPaymentRunning = false;
 function requireConsistentFineSummary(data: FinesData): void {
   try {
     if (!Array.isArray(data.fines) || data.fines.length > 20 || data.count !== data.fines.length ||
@@ -363,6 +363,11 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
     const actor=actorContext.getStore();
     if(actor&&await handlePaymentSurfaceAction(state,actor,action,payload))return state;
 
+    const guardedOfflineCivicAction = process.env.PROVIDER_INTEGRATION !== 'true' &&
+      ['confirm_smartcity_checkout', 'pay_utilities_bill', 'pay_dewa_bill', 'pay_police_fines'].includes(action);
+    if (guardedOfflineCivicAction && offlineCivicPaymentRunning) throw new HttpError(409, 'Another offline civic payment is in progress. Review it again afterwards.');
+    if (guardedOfflineCivicAction) offlineCivicPaymentRunning = true;
+    try {
     if (action === 'pay_telecom_bill') {
       const result = await executeTelecomRequest('POST', `/telecom/${payload.provider}/bills/${encodeURIComponent(String(payload.billId))}/payments`, { ...(payload.expectedPayableRevision?{expectedPayableRevision:payload.expectedPayableRevision,expectedAmountMinor:payload.expectedAmountMinor}:{}) });
       state.currentSurface = { version: '1.0.0', sessionId: state.sessionId, timestamp: Date.now(), view: { type: 'SurfaceCard', id: 'telecom_receipt', children: [
@@ -556,9 +561,6 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
     } else if (action === 'confirm_smartcity_checkout') {
       onProgress?.('🏛️ Executing Unified Civic Living Settlement across DEWA, Police, and Salik...');
       if (process.env.PROVIDER_INTEGRATION === 'true') throw new HttpError(409, 'Reopen the integrated checkout review.');
-      if (offlineCheckoutRunning) throw new HttpError(409, 'Another offline checkout is in progress. Review it again afterwards.');
-      offlineCheckoutRunning = true;
-      try {
       const bill = (await executeFoodRequest('GET', '/utilities/bill')).data.bill as UtilityBill;
       const fines = (await executeWalletRequest('GET', '/fines/check')).data as FinesData;
       requireConsistentFineSummary(fines);
@@ -627,7 +629,6 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
         content: `Unified municipal settlement completed via DubaiPay. DEWA, Dubai Police, and Salik balances are now up to date.`,
         timestamp: Date.now(),
       });
-      } finally { offlineCheckoutRunning = false; }
     } else if (action === 'confirm_movein') {
       onProgress?.('🏠 Finalizing Move-In Golden Path with Dubai Land Department...');
       const res = await executeCatalogRequest('POST', '/housing/move-in', {}, { contractNumber: (await executeCatalogRequest('GET', '/housing/ejari')).data.contract.contractNumber });
@@ -896,6 +897,7 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
     }
 
     return state;
+    } finally { if (guardedOfflineCivicAction) offlineCivicPaymentRunning = false; }
   }
 
   // --------------------------------------------------------------------------

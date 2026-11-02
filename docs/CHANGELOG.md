@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Coordinate offline civic actions (P1-13, step)
+
+The agent's offline composite checkout and standalone fine and utility actions now share one process-local guard. A regression interleaves these actions and checks that the reviewed checkout settles once. Direct service calls and cross-process coordination remain open. Guide: [grouped checkout](development/checkout-groups.md).
+
 ## 2 November 2026 — Validate composite fine summaries (P1-13, step)
 
 Reject composite reviews whose fine count, distinct IDs or summed amounts disagree, and recheck the offline action before dispatch. Tests cover inconsistent reads before review and payment, with no fixture changes. Guide: [grouped checkout](development/checkout-groups.md).

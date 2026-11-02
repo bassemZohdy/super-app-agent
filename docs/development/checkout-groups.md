@@ -8,7 +8,7 @@ The confirmation compares review objects by their values, so clients can seriali
 
 The compatibility composite summary must agree with its distinct fine IDs, count and exact individual amounts before the review is shown. The offline action checks the summary again before payment, so a contradictory read cannot produce a misleading total or a debit.
 
-Within one agent process, only one offline composite checkout may run at a time; another session must wait and review again. The guard is released on success or failure. It does not coordinate separate processes or other manual payment routes, and it is not a durable distributed lock.
+Within one agent process, offline composite checkout and the agent's standalone fine and utility actions share a guard; an overlapping action must wait and review again. The guard is released on success or failure. It does not coordinate separate processes or direct service calls, and it is not a durable distributed lock.
 
 ## Use the React demo
 
