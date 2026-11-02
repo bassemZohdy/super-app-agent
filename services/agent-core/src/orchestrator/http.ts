@@ -47,6 +47,13 @@ export function createServer(service: AgentService, auth: Authenticator, workloa
       if (req.method === 'GET' && path === '/ready') { service.store.ready(); return send(200, { ready: true, dependencies: ['sqlite'], plannerConfigured: true }); }
       const principal = await auth.authenticate(req.headers.authorization);
       const ctx: ExecutionContext = { principal, authorization: req.headers.authorization || '', correlationId, revalidate: () => auth.authenticate(req.headers.authorization) };
+      const refreshAuthority = async (permission: string) => {
+        const current = await ctx.revalidate();
+        if (current.subject !== principal.subject || current.workload !== principal.workload) throw new AgentError('AUTHORITY_CHANGED', 403);
+        authorize(current, permission);
+        ctx.principal = current;
+        return current;
+      };
       await execution.run(ctx, async () => {
         if (path.startsWith('/simulator/')) {
           if (!equalSecret(String(req.headers['x-agent-key'] || ''), workloadKey)) throw new AgentError('WORKLOAD_REQUIRED', 403);
@@ -55,21 +62,21 @@ export function createServer(service: AgentService, auth: Authenticator, workloa
             authorize(principal, 'fines:pay');
             const body = z.object({ quote: Quote, consentId: z.string().uuid() }).strict().parse(await readBody(req, bodyTimeoutMs));
             const key = z.string().regex(/^[a-f0-9]{64}$/).parse(req.headers['idempotency-key']);
-            return send(200, await service.store.simulatePayment(principal, key, body.quote, body.consentId));
+            return send(200, await service.store.simulatePayment(await refreshAuthority('fines:pay'), key, body.quote, body.consentId));
           }
           if (req.method === 'GET' && path === '/simulator/v1/vehicles') { authorize(principal, 'vehicles:read'); return send(200, service.store.vehicles(principal.subject)); }
           if (req.method === 'POST' && path === '/simulator/v1/renewals') {
             authorize(principal, 'vehicles:renew');
             const body = z.object({ quote: RenewalQuote, consentId: z.string().uuid() }).strict().parse(await readBody(req, bodyTimeoutMs));
             const key = z.string().regex(/^[a-f0-9]{64}$/).parse(req.headers['idempotency-key']);
-            return send(200, service.store.simulateRenewal(principal, key, body.quote, body.consentId));
+            return send(200, service.store.simulateRenewal(await refreshAuthority('vehicles:renew'), key, body.quote, body.consentId));
           }
           throw new AgentError('NOT_FOUND', 404);
         }
         authorize(principal, 'fines:read');
         if (req.method === 'POST' && path === '/api/agent/threads') {
           await readBody(req, bodyTimeoutMs, true);
-          return send(201, { threadId: await service.store.createThread(principal) });
+          return send(201, { threadId: await service.store.createThread(await refreshAuthority('fines:read')) });
         }
         const match = /^\/api\/agent\/threads\/([a-f0-9-]{36})(?:\/(messages|resume|cancel|recover))?$/.exec(path);
         if (!match) throw new AgentError('NOT_FOUND', 404);
@@ -82,6 +89,7 @@ export function createServer(service: AgentService, auth: Authenticator, workloa
         if (action === 'message') body = z.object({ message: Message }).strict().parse(await readBody(req, bodyTimeoutMs)).message;
         if (action === 'resume') body = Decision.parse(await readBody(req, bodyTimeoutMs));
         if (action === 'cancel' || action === 'recover') await readBody(req, bodyTimeoutMs, true);
+        await refreshAuthority('fines:read');
         const streaming = req.headers.accept === 'text/event-stream';
         if (streaming) {
           res.writeHead(200, { 'Content-Type': 'text/event-stream', 'X-Accel-Buffering': 'no' });

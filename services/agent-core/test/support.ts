@@ -7,7 +7,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { SqliteSaver } from '@langchain/langgraph-checkpoint-sqlite';
-import { TestAuthenticator, type TestIdentity } from '../src/orchestrator/auth.ts';
+import { TestAuthenticator, type Authenticator, type TestIdentity } from '../src/orchestrator/auth.ts';
 import { FixturePlanner, type Planner } from '../src/orchestrator/planner.ts';
 import { FinesAdapter } from '../src/orchestrator/fines-adapter.ts';
 import { VehiclesAdapter } from '../src/orchestrator/vehicles-adapter.ts';
@@ -16,7 +16,7 @@ import { createGraph } from '../src/orchestrator/graph.ts';
 import { AgentService } from '../src/orchestrator/service.ts';
 import { createServer } from '../src/orchestrator/http.ts';
 
-export async function harness(options: { planner?: Planner; approvalTtlMs?: number; timeoutMs?: number; file?: string; identities?: TestIdentity[]; bodyTimeoutMs?: number } = {}) {
+export async function harness(options: { planner?: Planner; approvalTtlMs?: number; timeoutMs?: number; file?: string; identities?: TestIdentity[]; bodyTimeoutMs?: number; authenticator?: Authenticator } = {}) {
   const dir = options.file ? undefined : mkdtempSync(join(tmpdir(), 'simple-agent-'));
   const file = options.file || join(dir!, 'agent.sqlite');
   const saver = SqliteSaver.fromConnString(file), store = new Store(saver.db); store.setup();
@@ -30,7 +30,7 @@ export async function harness(options: { planner?: Planner; approvalTtlMs?: numb
   const vehicles = new VehiclesAdapter(base, workloadKey, options.timeoutMs);
   const graph = createGraph(options.planner || new FixturePlanner(), tools, vehicles, store, saver, options.approvalTtlMs);
   const service = new AgentService(graph, store);
-  const server = createServer(service, new TestAuthenticator(identities, 'super-app-agent'), workloadKey, { bodyTimeoutMs: options.bodyTimeoutMs });
+  const server = createServer(service, options.authenticator || new TestAuthenticator(identities, 'super-app-agent'), workloadKey, { bodyTimeoutMs: options.bodyTimeoutMs });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   base.port = String((server.address() as { port: number }).port);
   async function req(path: string, body?: unknown, options: { token?: string; key?: string; headers?: Record<string, string> } = {}) {

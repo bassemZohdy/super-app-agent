@@ -63,6 +63,8 @@ Execution results for the implementation milestone belong in the dated [evidence
 
 `services/agent-core/test/slow-upload.test.ts` uses loopback HTTP and a shortened test deadline to check that continuously trickled request bodies time out, oversized bodies receive a 413, and neither starts creation, cancellation, recovery or a message transition. It also checks empty bodies and a later valid original-operation recovery. This is not a connection-flood or proxy test.
 
+`services/agent-core/test/upload-authority.test.ts` changes a test identity's expiry, subject or permission between the start and end of an upload. It checks that conversation creation, cancellation, message processing and both simulator writes are denied before their actions. It does not establish real identity-provider revocation behavior.
+
 `services/agent-core/test/thread-expiry-recovery.test.ts` expires conversations after a simulated effect and lost response, reopens SQLite and verifies that only the owner’s linked unresolved conversation is extended. It also covers saved legacy approvals and refusal to guess when the evidence is absent.
 
 `services/agent-core/test/cross-thread-recovery.test.ts` covers pending and unknown writes across conversations, same and different quotes, renewal, read-only access, subject isolation, reopening SQLite, and unambiguous or ambiguous legacy ownership. This is local single-process evidence, not distributed failover proof.
