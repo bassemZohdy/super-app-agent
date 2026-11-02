@@ -20,6 +20,8 @@ Integrated bill settlement requires a unique provider bill for the selected ID a
 
 After a new integrated utility or telecom payment, the refreshed provider bill must uniquely match the selected bill, its paid state, exact amount and the original order receipt; utility ownership is checked again. Missing, inconsistent or unavailable evidence leaves the original payment outcome unknown for reconciliation.
 
+After an integrated bill or fine payment settles, the application also reads the remaining wallet balance for its response. An unavailable or malformed balance is reported as an unknown outcome for the original payment, even if the balance read itself returned a refusal; it is not proof that the payment failed.
+
 Integrated utility and telecom payments additionally compare each returned order's frozen payable and total with the selected bill before approval and execution, and verify the settled receipt's bill, amount and currency. An inconsistent original order or receipt remains unknown for inspection rather than reporting payment success.
 
 Integrated toll and prepaid recharges bind the saved quote and each payment order to the requested provider, target, version, balance and amount. The settled receipt must confirm that target and expected credited balance. Recovery uses the original quote and order; a mismatch is left unknown for inspection.

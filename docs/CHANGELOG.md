@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Preserve settled-payment uncertainty (P1-13, step)
+
+After integrated bill and fine settlement, an unavailable or malformed wallet balance produces an unknown outcome rather than a refusal that could invite a replacement payment. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Validate fine selections before provider writes (P1-13, step)
 
 Integrated fine settlement rejects duplicate fine or payable identities and missing revisions before creating a provider selection. Guide: [integrations](integrations.md).

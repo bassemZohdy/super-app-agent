@@ -97,6 +97,15 @@ export async function integratedRequest(service: string, actor: Actor, method: s
     if(order.state!=='SETTLED')throw new UpstreamError(order.fundsCaptured?502:409,order.failureCode||'PAYMENT_REQUIRES_REVIEW',order.fundsCaptured?'Payment was captured but settlement needs reconciliation. Inspect the original payment order.':'Payment stopped without capture. Review the original order.');
     return order;
   };
+  const balanceAfterPayment = async (): Promise<number> => {
+    try {
+      const wallet = await call('payments', 'GET', '/wallet');
+      toMinor(wallet?.balance);
+      return wallet.balance;
+    } catch {
+      throw new UpstreamError(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The payment completed but its wallet balance could not be confirmed. Inspect the original payment.');
+    }
+  };
   const settleBill = async (provider: string, billId?: string) => {
     const { bills } = await call(provider, 'GET', '/bills');
     if (!Array.isArray(bills)) throw new UpstreamError(503, 'PROVIDER_UNAVAILABLE', 'The bills could not be read.');
@@ -142,8 +151,8 @@ export async function integratedRequest(service: string, actor: Actor, method: s
     try { refreshedAmount=toMinor(paid.totalAmount); }
     catch { throw new UpstreamError(503,'PROVIDER_OUTCOME_UNKNOWN','The settled bill could not be confirmed. Inspect the original payment order.'); }
     if(paid.status!=='PAID'||paid.receiptNumber!==order.receipt.receiptNumber||refreshedAmount!==payable.amountMinor||provider==='dewa'&&!ownedUtility(paid))throw new UpstreamError(503,'PROVIDER_OUTCOME_UNKNOWN','The settled bill could not be confirmed. Inspect the original payment order.');
-    const wallet=await call('payments','GET','/wallet');
-    return {success:true,bill:paid,receipt:{billId:bill.billId,receiptNumber:order.receipt.receiptNumber,amountPaid:(order.receipt.amountMinor/100).toFixed(2),currency:'AED',...(bill.premiseId?{premiseId:bill.premiseId}:{})},chargedAmount:order.quote.totalMinor/100,remainingBalance:wallet.balance};
+    const remainingBalance=await balanceAfterPayment();
+    return {success:true,bill:paid,receipt:{billId:bill.billId,receiptNumber:order.receipt.receiptNumber,amountPaid:(order.receipt.amountMinor/100).toFixed(2),currency:'AED',...(bill.premiseId?{premiseId:bill.premiseId}:{})},chargedAmount:order.quote.totalMinor/100,remainingBalance};
   };
   const settleFines = async (fineIds?: string[]) => {
     const report = await call('police', 'GET', '/fines');
@@ -171,7 +180,7 @@ export async function integratedRequest(service: string, actor: Actor, method: s
     if(!sameFineSelection(settled,ids)||settled.id!==payable.id||settled.revision!==payable.revision||settled.obligationId!==payable.obligationId||settled.amountMinor!==payable.amountMinor||
       !receipt||typeof receipt.receiptNumber!=='string'||!receipt.receiptNumber||receipt.obligationId!==settled.obligationId||receipt.amountMinor!==payable.amountMinor||receipt.currency!=='AED')
       throw new UpstreamError(503,'PROVIDER_OUTCOME_UNKNOWN','The fine settlement could not be confirmed. Inspect the original payment order.');
-    return {success:true,receiptNumber:receipt.receiptNumber,finesCleared:ids.length,fineIds:ids,amountPaid:receipt.amountMinor/100,remainingBalance:(await call('payments','GET','/wallet')).balance};
+    return {success:true,receiptNumber:receipt.receiptNumber,finesCleared:ids.length,fineIds:ids,amountPaid:receipt.amountMinor/100,remainingBalance:await balanceAfterPayment()};
   };
   const rechargeTarget = async (provider:string,reference:string,amountMinor:number,expectedTargetVersion?:number) => {
     const intentId=stableKey(`recharge-intent:${provider}:${actor.requestId}`);let payable, requiredVersion=expectedTargetVersion;

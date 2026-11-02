@@ -5,7 +5,7 @@ import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { integratedRequest } from '../../packages/backend-kit/src/application.ts';
-import { ProviderClient } from '../../packages/backend-kit/src/provider-client.ts';
+import { ProviderClient, UpstreamError } from '../../packages/backend-kit/src/provider-client.ts';
 import { actorFor, assetsFor } from '../../packages/backend-kit/src/context.ts';
 import { buildApplicationOpenApi } from '../../packages/backend-kit/src/application-openapi.ts';
 import { Ajv } from 'ajv';
@@ -27,7 +27,11 @@ test('compatibility fine receipts use the exact frozen and settled selection', a
     if (route === '/payment-orders/original') return { order: order('AWAITING_APPROVAL') };
     if (route.endsWith('/approve')) { approvals++; return { order: order('AUTHORIZED') }; }
     if (route.endsWith('/execute')) { executions++; return { order: order('SETTLED') }; }
-    if (route === '/wallet') return { balance: 10 };
+    if (route === '/wallet') {
+      if (scenario === 'wallet-404') throw new UpstreamError(404, 'NOT_FOUND', 'not found');
+      if (scenario === 'wallet-403') throw new UpstreamError(403, 'ACCOUNT_FORBIDDEN', 'forbidden');
+      return { balance: scenario === 'wallet-bad' ? 1.001 : 10 };
+    }
     throw new Error('Unexpected provider operation');
   });
   const run = () => integratedRequest('service-wallet', actor, 'POST', '/fines/pay', {}, { fineIds: ['fine-one', 'fine-two'], expectedAmountMinor: 115 }, () => ({ status: 404, data: {} }));
@@ -43,4 +47,7 @@ test('compatibility fine receipts use the exact frozen and settled selection', a
   for (scenario of ['wrong-order', 'wrong-total']) { const beforeApproval = approvals, beforeExecution = executions; const bad = await run(); assert.equal(bad.status, 503); assert.equal(bad.data.code, 'PROVIDER_OUTCOME_UNKNOWN'); assert.equal(approvals, beforeApproval); assert.equal(executions, beforeExecution); }
   scenario = 'wrong-authorized'; const priorExecution = executions; const changed = await run(); assert.equal(changed.status, 503); assert.equal(changed.data.code, 'PROVIDER_OUTCOME_UNKNOWN'); assert.equal(executions, priorExecution);
   scenario = 'wrong-receipt'; const bad = await run(); assert.equal(bad.status, 503); assert.equal(bad.data.code, 'PROVIDER_OUTCOME_UNKNOWN');
+  for (scenario of ['wallet-404', 'wallet-403', 'wallet-bad']) {
+    const prior = executions, result = await run(); assert.equal(result.status, 503); assert.equal(result.data.code, 'PROVIDER_OUTCOME_UNKNOWN'); assert.equal(executions, prior + 1);
+  }
 });

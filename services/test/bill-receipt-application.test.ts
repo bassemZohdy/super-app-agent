@@ -5,7 +5,7 @@ import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { integratedRequest } from '../../packages/backend-kit/src/application.ts';
-import { ProviderClient } from '../../packages/backend-kit/src/provider-client.ts';
+import { ProviderClient, UpstreamError } from '../../packages/backend-kit/src/provider-client.ts';
 import { actorFor, assetsFor } from '../../packages/backend-kit/src/context.ts';
 
 test('integrated bill settlement refuses a different frozen quote or provider receipt', async t => {
@@ -29,7 +29,11 @@ test('integrated bill settlement refuses a different frozen quote or provider re
     if (route === `/payment-orders/${provider}_original`) return { order: order('AWAITING_APPROVAL') };
     if (route.endsWith('/approve')) { approvals++; const approved = order('AUTHORIZED'); if (scenario === 'reordered-quote') approved.quote = Object.fromEntries(Object.entries(approved.quote).reverse()) as typeof approved.quote; return { order: approved }; }
     if (route.endsWith('/execute')) { executions++; executed = true; return { order: order('SETTLED') }; }
-    if (route === '/wallet') return { balance: 10 };
+    if (route === '/wallet') {
+      if (scenario === 'wallet-404') throw new UpstreamError(404, 'NOT_FOUND', 'not found');
+      if (scenario === 'wallet-403') throw new UpstreamError(403, 'ACCOUNT_FORBIDDEN', 'forbidden');
+      return { balance: scenario === 'wallet-bad' ? 1.001 : 10 };
+    }
     throw new Error('Unexpected provider operation');
   });
   const actor = actorFor({ sub: 'bill-contract-user' }), legacy = () => ({ status: 404, data: {} });
@@ -53,7 +57,7 @@ test('integrated bill settlement refuses a different frozen quote or provider re
     scenario = 'wrong-authorized'; const priorExecutions = executions; const authorized = await run(); assert.equal(authorized.status, 503); assert.equal(authorized.data.code, 'PROVIDER_OUTCOME_UNKNOWN'); assert.equal(executions, priorExecutions);
     for (scenario of ['changed-id', 'changed-digest', 'changed-terms']) { const beforeChanged = executions; const changed = await run(); assert.equal(changed.status, 503); assert.equal(changed.data.code, 'PROVIDER_OUTCOME_UNKNOWN'); assert.equal(executions, beforeChanged); }
     for (scenario of ['wrong-settled', 'wrong-receipt', 'wrong-amount', 'blank-reference', 'long-reference']) { const bad = await run(); assert.equal(bad.status, 503); assert.equal(bad.data.code, 'PROVIDER_OUTCOME_UNKNOWN'); }
-    for (scenario of ['post-unavailable', 'post-malformed', 'post-missing', 'post-duplicate', 'post-unpaid', 'post-reference', 'post-no-reference', 'post-amount', 'post-fraction', ...(provider === 'dewa' ? ['post-owner'] : [])]) {
+    for (scenario of ['wallet-404', 'wallet-403', 'wallet-bad', 'post-unavailable', 'post-malformed', 'post-missing', 'post-duplicate', 'post-unpaid', 'post-reference', 'post-no-reference', 'post-amount', 'post-fraction', ...(provider === 'dewa' ? ['post-owner'] : [])]) {
       const prior = executions, bad = await run(); assert.equal(bad.status, 503); assert.equal(bad.data.code, 'PROVIDER_OUTCOME_UNKNOWN'); assert.equal(executions, prior + 1);
     }
   }
