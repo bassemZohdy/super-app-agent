@@ -233,6 +233,10 @@ export function createProviderServer(provider: ProviderId, path: string, options
           try { engine.verifyWalletReplay(accountId, body.reference, saved, body.amountMinor); }
           catch { throw new ApiError(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original wallet payment could not be confirmed.'); }
         }
+        if (provider === 'rta' && operationPath === '/rides/bookings' && saved.status === 200) {
+          try { engine.verifyRideReplay(accountId, saved, body); }
+          catch { throw new ApiError(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original ride could not be confirmed.'); }
+        }
         return { status: saved.status, data: JSON.parse(saved.body) };
       };
       if (req.method === 'POST') {
@@ -240,9 +244,9 @@ export function createProviderServer(provider: ProviderId, path: string, options
         engine.refunds?.reserveRequest(accountId,key as string,fingerprint);
         const existing = store.db.prepare('SELECT fingerprint,status,body FROM idempotency WHERE account_id=? AND key=?').get(accountId, key as string) as any;
         if (existing) { if (existing.fingerprint !== fingerprint) throw new ApiError(409, 'IDEMPOTENCY_CONFLICT', 'This key was used with a different request.');if(!claimant){if(body.paymentId&&settlements)await settlements.retryConfirmation(accountId,body.paymentId);
-          if(provider==='payments'&&operationPath==='/charges'&&existing.status===200&&body.merchant==='superapp'&&body.source==='wallet') return send(store.transaction(()=>{
+          if(existing.status===200&&((provider==='payments'&&operationPath==='/charges'&&body.merchant==='superapp'&&body.source==='wallet')||(provider==='rta'&&operationPath==='/rides/bookings'))) return send(store.transaction(()=>{
             const current=store.db.prepare('SELECT fingerprint,status,body FROM idempotency WHERE account_id=? AND key=?').get(accountId,key as string) as {fingerprint:string;status:number;body:string}|undefined;
-            if(!current||current.fingerprint!==fingerprint||current.status!==200)throw new ApiError(503,'PROVIDER_OUTCOME_UNKNOWN','The original wallet payment could not be confirmed.');
+            if(!current||current.fingerprint!==fingerprint||current.status!==200)throw new ApiError(503,'PROVIDER_OUTCOME_UNKNOWN','The original operation could not be confirmed.');
             return replay(current);
           }));
           return send(replay(existing));} }

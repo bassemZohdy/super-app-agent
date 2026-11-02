@@ -71,6 +71,20 @@ export class ProviderEngine {
     if (!journal || journal.kind !== 'PAYMENT' || journal.wallet_delta !== -charge.amountMinor || journal.currency !== 'AED' || journal.finalized !== 1 || !postings || postings.length !== 2 || postings[0].ledger_account !== 'wallet' || postings[0].amount_minor !== -charge.amountMinor || postings[1].ledger_account !== 'merchant-clearing' || postings[1].amount_minor !== charge.amountMinor) return fail(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original wallet payment could not be confirmed.');
     return { charge, transaction: tx };
   }
+  verifyRideReplay(a: string, record: { fingerprint: unknown; status: unknown; body: unknown }, expected?: { driverId?: unknown; pickup?: unknown; dropoff?: unknown; expectedFareMinor?: unknown }) {
+    const db = this.store;
+    let saved: unknown;
+    try { saved = typeof record.body === 'string' ? JSON.parse(record.body) : undefined; } catch { /* Hold unreadable evidence. */ }
+    const response = saved && typeof saved === 'object' && !Array.isArray(saved) ? saved as { success?: unknown; booking?: unknown } : undefined;
+    const booking = response?.booking && typeof response.booking === 'object' && !Array.isArray(response.booking) ? response.booking as { bookingId?: unknown } : undefined;
+    if (typeof record.fingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(record.fingerprint) || record.status !== 200 || response?.success !== true || Object.hasOwn(response, 'error') || typeof booking?.bookingId !== 'string' || !booking.bookingId || !isDeepStrictEqual(db.get(a, 'ride', booking.bookingId), booking)) return fail(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original ride could not be confirmed.');
+    if (expected) {
+      const driver = booking && typeof booking === 'object' ? (booking as { driver?: unknown }).driver : undefined;
+      const details = booking as { pickup?: unknown; dropoff?: unknown; status?: unknown; fare?: unknown };
+      if (!driver || typeof driver !== 'object' || Array.isArray(driver) || (driver as { id?: unknown }).id !== expected.driverId || details.pickup !== (expected.pickup || 'Current location') || details.dropoff !== (expected.dropoff || 'Downtown') || details.status !== 'CONFIRMED' || typeof details.fare !== 'number' || !Number.isFinite(details.fare) || (expected.expectedFareMinor !== undefined && minor(details.fare) !== expected.expectedFareMinor)) return fail(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original ride could not be confirmed.');
+    }
+    return booking;
+  }
   /** Owner-scoped, read-only forecast of a stored rule. `payables` are the source provider's current obligations, read by the caller. */
   mandatePreview(actor:Actor,mandateId:string,payables:Payable[],now=Date.now()){
     const m=this.mandates!.get(actor,mandateId),policy=m.policy,wanted=policy.sources[0],target=policy.target;
@@ -307,12 +321,7 @@ export class ProviderEngine {
         const key = providerOperationKey(operationId, 'rta', '/rides/bookings');
         const record = db.db.prepare('SELECT fingerprint,status,body FROM idempotency WHERE account_id=? AND key=?').get(a, key) as { fingerprint: unknown; status: unknown; body: unknown } | undefined;
         if (!record) return fail(404, 'NOT_FOUND', 'The original ride operation was not found.');
-        let saved: unknown;
-        try { saved = typeof record.body === 'string' ? JSON.parse(record.body) : undefined; } catch { /* Hold unreadable evidence. */ }
-        const response = saved && typeof saved === 'object' && !Array.isArray(saved) ? saved as { success?: unknown; booking?: unknown } : undefined;
-        const booking = response?.booking && typeof response.booking === 'object' && !Array.isArray(response.booking) ? response.booking as { bookingId?: unknown } : undefined;
-        if (typeof record.fingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(record.fingerprint) || record.status !== 200 || response?.success !== true || Object.hasOwn(response, 'error') || typeof booking?.bookingId !== 'string' || !booking.bookingId || !isDeepStrictEqual(db.get(a, 'ride', booking.bookingId), booking)) return fail(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original ride could not be confirmed.');
-        return ok({ operationId, booking });
+        return ok({ operationId, booking: this.verifyRideReplay(a, record) });
       }
       if (method === 'POST' && path === '/rides/bookings') {
         const driver = drivers.find(d => d.id === body.driverId); if (!driver) fail(404, 'NOT_FOUND', 'Driver not found.');

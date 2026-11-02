@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Verify original ride replays (P1-13, step)
+
+Integrated and direct ride-booking retries verify the saved account-owned booking and requested terms before returning success. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Hold orphaned food orders (P1-13, step)
 
 Integrated food retries and new orders are held when an account has an order without its operation binding, preventing an uncertain original from being replaced. Guide: [agent flow](agent-flow.md).

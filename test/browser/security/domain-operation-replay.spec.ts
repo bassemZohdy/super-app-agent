@@ -186,10 +186,13 @@ test('ride operation replay returns one booking across trace IDs and refuses a c
   const saved = store.get<Record<string, unknown>>(residentApi.accountId, 'ride', bookingId)!;
   store.put(residentApi.accountId, 'ride', { ...saved, dropoff: 'Altered destination' }, bookingId);
   expect((await inspect(operation)).status).toBe(503);
+  expect((await request('trace-altered-booking', 'Downtown Dining')).status).toBe(503);
   store.put(residentApi.accountId, 'ride', saved, bookingId);
   store.db.prepare("DELETE FROM resources WHERE account_id=? AND kind='ride' AND id=?").run(residentApi.accountId, bookingId);
   expect((await inspect(operation)).status).toBe(503);
+  expect((await request('trace-missing-booking', 'Downtown Dining')).status).toBe(503);
   store.put(residentApi.accountId, 'ride', saved, bookingId);
+  expect((await request('trace-restored-booking', 'Downtown Dining')).data.booking?.bookingId).toBe(bookingId);
   const key = providerOperationKey(operation, 'rta', '/rides/bookings');
   const record = store.db.prepare('SELECT body FROM idempotency WHERE account_id=? AND key=?').get(residentApi.accountId, key) as { body: string };
   store.db.prepare('UPDATE idempotency SET body=? WHERE account_id=? AND key=?').run('{', residentApi.accountId, key);
@@ -203,4 +206,32 @@ test('ride operation replay returns one booking across trace IDs and refuses a c
   expect(separate.status).toBe(200);
   expect(separate.data.booking?.bookingId).not.toBe(first.data.booking?.bookingId);
   expect(rides()).toHaveLength(before + 2);
+});
+
+
+test('direct ride replay verifies the original booking for any idempotency key', async ({ residentApi, stack }) => {
+  const account = residentApi.accountId, store = stack.stores.get('rta')!;
+  const request = async () => {
+    const response = await fetch(`http://localhost:${stack.corePort + 101}/v1/accounts/${account}/rides/bookings`, {
+      method: 'POST', headers: { Authorization: `Bearer ${residentApi.token}`, 'Content-Type': 'application/json', 'Idempotency-Key': 'direct-ride-key' },
+      body: JSON.stringify({ driverId: 'drv_3', dropoff: 'Downtown Dining', expectedFareMinor: 2800 }),
+    });
+    return { status: response.status, data: await response.json() as { booking?: { bookingId: string }; code?: string } };
+  };
+  const first = await request(); expect(first.status).toBe(200);
+  const id = first.data.booking!.bookingId, booking = store.get<Record<string, unknown>>(account, 'ride', id)!;
+  const record = store.db.prepare('SELECT body FROM idempotency WHERE account_id=? AND key=?').get(account, 'direct-ride-key') as { body: string };
+  expect((await request()).data.booking?.bookingId).toBe(id);
+  try {
+    const wrongRoute = { ...booking, dropoff: 'Other destination' };
+    store.put(account, 'ride', wrongRoute, id);
+    const altered = await request(); expect(altered.status).toBe(503); expect(altered.data.code).toBe('PROVIDER_OUTCOME_UNKNOWN');
+    store.db.prepare('UPDATE idempotency SET body=? WHERE account_id=? AND key=?').run(JSON.stringify({ success: true, booking: wrongRoute }), account, 'direct-ride-key');
+    expect((await request()).status).toBe(503);
+    store.db.prepare('UPDATE idempotency SET body=? WHERE account_id=? AND key=?').run(record.body, account, 'direct-ride-key');
+    store.db.prepare("DELETE FROM resources WHERE account_id=? AND kind='ride' AND id=?").run(account, id);
+    expect((await request()).status).toBe(503);
+  } finally { store.put(account, 'ride', booking, id); store.db.prepare('UPDATE idempotency SET body=? WHERE account_id=? AND key=?').run(record.body, account, 'direct-ride-key'); }
+  expect((await request()).data.booking?.bookingId).toBe(id);
+  expect((store.list(account, 'ride') as Array<{ bookingId: string }>).filter(item => item.bookingId === id)).toHaveLength(1);
 });
