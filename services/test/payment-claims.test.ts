@@ -163,3 +163,35 @@ test('definitive settlement refusals do not persist or return provider error tex
   assert.doesNotMatch(JSON.stringify(f.source.db.prepare('SELECT body FROM provider_settlement_attempts').all()), /private-marker/i);
   assert.equal(f.gateway.claims!.get(f.actor.accountId, f.charge.id)?.state, 'RELEASED');
 });
+
+test('returned uncertain or contradictory settlement responses roll back and keep the original claim fenced', async t => {
+  for (const response of [
+    { status: 409, data: { success: false, code: 'SETTLEMENT_STATUS_UNKNOWN', error: 'private-marker' } },
+    { status: 409, data: { success: false, code: 'ALREADY_PAID', error: 'private-marker' } },
+    { status: 409, data: { success: false, code: 'PRIVATE_MARKER', error: 'private-marker' } },
+    { status: 503, data: { success: false, code: 'PAYABLE_CHANGED', error: 'private-marker' } },
+    { status: 200, data: { success: true, error: 'private-marker' } },
+    { status: 200, data: { success: false, code: 'PAYABLE_CHANGED' } },
+  ]) {
+    const f = fixture(t);
+    await assert.rejects(f.coordinator.execute(f.actor, 'returned-error', fp(response), f.charge, proof => {
+      f.apply(proof);
+      return response;
+    }), (error: unknown) => error instanceof SettlementError && error.code === 'SETTLEMENT_OUTCOME_UNKNOWN' && !error.message.includes('private-marker'));
+    assert.equal(f.source.get(f.actor.accountId, 'bill').status, 'UNPAID');
+    assert.equal(f.source.get(f.actor.accountId, 'used-payment', f.charge.id), undefined);
+    assert.equal((await f.coordinator.inspect(f.actor, f.charge.id)).state, 'PENDING');
+    assert.equal(f.gateway.claims!.get(f.actor.accountId, f.charge.id)?.state, 'CLAIMED');
+    assert.throws(f.refund, code('SETTLEMENT_IN_USE'));
+  }
+});
+
+test('a returned, explicit reviewed settlement refusal releases the original claim with sanitized text', async t => {
+  const f = fixture(t);
+  const result = await f.coordinator.execute(f.actor, 'returned-refusal', fp('returned-refusal'), f.charge, () => ({
+    status: 409, data: { success: false, code: 'PAYABLE_CHANGED', error: 'private-marker' },
+  }));
+  assert.equal(result.data.code, 'PAYABLE_CHANGED');
+  assert.doesNotMatch(JSON.stringify(result), /private-marker/i);
+  assert.equal(f.gateway.claims!.get(f.actor.accountId, f.charge.id)?.state, 'RELEASED');
+});

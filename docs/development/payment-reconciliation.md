@@ -6,6 +6,8 @@ Account, payment, attempt and claim identifiers must use the bounded identifier 
 
 The source coordinator releases a claim after a local refusal only for a reviewed, definitive rejection. Unknown codes, explicitly uncertain outcomes and codes indicating a prior effect leave the attempt pending and the claim fenced. Confirmed refusals retain a safe code and generic text rather than saving the provider's error message.
 
+The same rule applies whether the local effect throws or returns an error response. A malformed or contradictory success rolls back the local transaction and leaves the claim pending; it is not converted into a definitive refusal.
+
 PAY-19 adds **Payment accounts → Payment recovery** for stored payments, saved-card wallet funding, refunds and retained raw captures. It uses owned records, the balanced journal and fixed source-provider status reads to distinguish a capture that never committed from a provider effect whose response was lost. All money remains simulated.
 
 ## Use the workbench

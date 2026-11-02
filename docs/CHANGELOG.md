@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Preserve unconfirmed returned settlement outcomes (P1-02, step)
+
+Returned settlement errors and contradictory success responses now roll back local effects and keep the original claim fenced unless an explicit reviewed refusal proves non-application. Guide: [payment reconciliation](development/payment-reconciliation.md).
+
 ## 2 November 2026 — Preserve uncertain settlement claims (P1-02, step)
 
 The source settlement coordinator keeps uncertain or prior-effect errors fenced and returns generic text for confirmed refusals, avoiding provider text in saved attempts. Guide: [payment reconciliation](development/payment-reconciliation.md).

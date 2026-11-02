@@ -6,7 +6,7 @@ import { createHash,randomUUID } from 'node:crypto';
 import type { AccountDatabase } from './database.ts';
 import type { Actor } from '../../../packages/backend-kit/src/context.ts';
 import type { ApiResult } from './engine.ts';
-import { settlementFailure,type SettlementProvider } from './payment-claims.ts';
+import { SettlementError,settlementFailure,type SettlementProvider } from './payment-claims.ts';
 import type { ClaimTransport } from './settlement-client.ts';
 type Attempt={attemptId:string;paymentId:string;reference:string;amountMinor:number;state:'PENDING'|'APPLIED'|'RELEASED';gatewayConfirmed:boolean;captureDigest?:string;claimId?:string;receiptDigest?:string;response?:ApiResult};
 const hash=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -65,7 +65,12 @@ export class ProviderSettlements{
         if(current.state==='RELEASED')return current.response!;
         if(current.state==='APPLIED'||this.store.get(actor.accountId,'used-payment',proof.id))return settlementFailure('PAYMENT_ALREADY_USED','This payment was already applied.');
         const response=effect(reply.charge);
-        if(response.status!==200||response.data.success!==true)return settlementFailure('PROVIDER_REJECTED','The provider rejected settlement.');
+        if(!response||response.status!==200||!response.data||typeof response.data!=='object'||Array.isArray(response.data)||response.data.success!==true||Object.hasOwn(response.data,'error')){
+          const data=response?.data;
+          if(response&&[400,402,403,404,409].includes(response.status)&&data&&typeof data==='object'&&!Array.isArray(data)&&data.success===false&&typeof data.code==='string'&&PROVIDER_REJECTION_CODES.has(data.code)&&!isUncertainOutcomeCode(data.code)&&!isPriorEffectCode(data.code))
+            throw new SettlementError(response.status,data.code,'Provider settlement was rejected.');
+          throw new SettlementError(503,'SETTLEMENT_OUTCOME_UNKNOWN','Settlement outcome is unknown; preserve the original attempt.');
+        }
         this.store.put(actor.accountId,'used-payment',true,proof.id);
         this.store.db.prepare('INSERT INTO idempotency VALUES(?,?,?,?,?)').run(actor.accountId,key,fp,response.status,JSON.stringify(response.data));
         current.state='APPLIED';current.claimId=reply.claim.claimId;current.response=response;current.receiptDigest=hash(response);this.save(actor.accountId,current);return response;
