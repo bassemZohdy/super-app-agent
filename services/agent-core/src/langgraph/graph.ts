@@ -863,10 +863,13 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
       });
 
       onProgress?.('🚖 Dispatching the reviewed ride...');
-      await executeRideRequest('POST', '/rides/book', {}, { driverId: payload.driverId, expectedFareMinor: rideMinor });
+      const bookedRide = await executeRideRequest('POST', '/rides/book', {}, { driverId: payload.driverId, expectedFareMinor: rideMinor });
 
       onProgress?.('🍕 Dispatching the reviewed meal...');
-      await executeFoodRequest('POST', '/orders/create', {}, { restaurantId: payload.restaurantId, items: [payload.itemId], expectedAmountMinor: mealMinor, expectedItemPriceMinor: itemMinor, expectedDeliveryFeeMinor: feeMinor });
+      const orderedMeal = await executeFoodRequest('POST', '/orders/create', {}, { restaurantId: payload.restaurantId, items: [payload.itemId], expectedAmountMinor: mealMinor, expectedItemPriceMinor: itemMinor, expectedDeliveryFeeMinor: feeMinor });
+      const rideEta = bookedRide.data.booking.etaMinutes;
+      const foodEta = orderedMeal.data.order.estimatedDeliveryTime;
+      const restaurantName = typeof restaurant[0].name === 'string' && restaurant[0].name.trim() ? restaurant[0].name : 'Restaurant';
 
       state.currentSurface = {
         version: '1.0.0',
@@ -892,12 +895,12 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
             {
               type: 'MetricWidget',
               id: 'widget_ride_eta',
-              properties: { label: `Cab ETA (${ride[0].name})`, value: `${ride[0].etaMinutes} mins`, trend: 'neutral' },
+              properties: { label: `Cab ETA (${ride[0].name})`, value: Number.isSafeInteger(rideEta) && rideEta >= 0 ? `${rideEta} mins` : 'Unavailable', trend: 'neutral' },
             },
             {
               type: 'MetricWidget',
               id: 'widget_food_eta',
-              properties: { label: 'Pizza Napoli Delivery', value: '25 mins', trend: 'neutral' },
+              properties: { label: `${restaurantName} Delivery`, value: typeof foodEta === 'string' && foodEta.trim() ? foodEta : 'Unavailable', trend: 'neutral' },
             },
           ],
         },

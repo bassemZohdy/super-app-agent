@@ -40,6 +40,51 @@ test('P1-13: composite checkout charges the reviewed total and books the reviewe
   assert.equal(order?.items[0].item.id, binding.itemId);
 });
 
+test('P1-13: composite confirmation displays estimates from the booked ride and ordered meal', async t => {
+  ensureFunds();
+  const sid = 'composite_receipt_estimates';
+  assert.equal((await intent(sid)).status, 200);
+  const realRide = domainHandlers.ride, realFood = domainHandlers.food;
+  t.mock.method(domainHandlers, 'ride', (method, path, query, body) => {
+    const result = realRide(method, path, query, body);
+    return method === 'POST' && path === '/rides/book' && result.status === 200
+      ? { ...result, data: { ...result.data, booking: { ...result.data.booking, etaMinutes: 13 } } } : result;
+  });
+  t.mock.method(domainHandlers, 'food', (method, path, query, body) => {
+    const result = realFood(method, path, query, body);
+    return method === 'POST' && path === '/orders/create' && result.status === 200
+      ? { ...result, data: { ...result.data, order: { ...result.data.order, estimatedDeliveryTime: '41 mins' } } } : result;
+  });
+  const result = await action(sid);
+  assert.equal(result.status, 200);
+  const children = result.data.surface.view.children as Array<{ id: string; properties: { value: string; label: string } }>;
+  assert.equal(children.find(node => node.id === 'widget_ride_eta')?.properties.value, '13 mins');
+  assert.equal(children.find(node => node.id === 'widget_food_eta')?.properties.value, '41 mins');
+  assert.equal(children.find(node => node.id === 'widget_food_eta')?.properties.label, `${activeOrders.get([...activeOrders.keys()].at(-1)!)!.restaurantName} Delivery`);
+});
+
+test('P1-13: composite confirmation does not invent unavailable estimates', async t => {
+  ensureFunds();
+  const sid = 'composite_missing_estimates';
+  assert.equal((await intent(sid)).status, 200);
+  const realRide = domainHandlers.ride, realFood = domainHandlers.food;
+  t.mock.method(domainHandlers, 'ride', (method, path, query, body) => {
+    const result = realRide(method, path, query, body);
+    return method === 'POST' && path === '/rides/book' && result.status === 200
+      ? { ...result, data: { ...result.data, booking: { ...result.data.booking, etaMinutes: -1 } } } : result;
+  });
+  t.mock.method(domainHandlers, 'food', (method, path, query, body) => {
+    const result = realFood(method, path, query, body);
+    return method === 'POST' && path === '/orders/create' && result.status === 200
+      ? { ...result, data: { ...result.data, order: { ...result.data.order, estimatedDeliveryTime: '' } } } : result;
+  });
+  const result = await action(sid);
+  assert.equal(result.status, 200);
+  const children = result.data.surface.view.children as Array<{ id: string; properties: { value: string } }>;
+  assert.equal(children.find(node => node.id === 'widget_ride_eta')?.properties.value, 'Unavailable');
+  assert.equal(children.find(node => node.id === 'widget_food_eta')?.properties.value, 'Unavailable');
+});
+
 test('P1-13: composite review rejects modified bindings and changed prices before a wallet effect', async t => {
   ensureFunds();
   const sid = 'composite_stale_review';

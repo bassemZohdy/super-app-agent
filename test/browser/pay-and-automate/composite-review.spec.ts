@@ -17,6 +17,14 @@ test('the reviewed ride and meal total is the amount charged in the integrated w
   await approval.click();
   const result = await response;
   expect(result.status()).toBe(200);
+  const outcome = await result.json() as { surface: { view: { children: Array<{ id: string; properties: { label?: string; value?: string } }> } } };
+  const rideEstimate = outcome.surface.view.children.find(node => node.id === 'widget_ride_eta');
+  const mealEstimate = outcome.surface.view.children.find(node => node.id === 'widget_food_eta');
+  expect(rideEstimate?.properties.value).toMatch(/^\d+ mins$/);
+  expect(mealEstimate?.properties.value).toBe('25 min');
+  expect(mealEstimate?.properties.label).toBeTruthy();
+  await expect(resident.getByText(mealEstimate!.properties.label!, { exact: true })).toBeVisible();
+  await expect(resident.getByText('25 min', { exact: true })).toBeVisible();
   const action = result.request().postDataJSON() as { payload: { amountMinor: number; currency: string; driverId: string; deliveryFeeMinor: number } };
   expect(action.payload.currency).toBe('AED');
   expect(label).toContain(`AED ${(action.payload.amountMinor / 100).toFixed(2)}`);

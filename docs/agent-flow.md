@@ -54,6 +54,8 @@ Local application database initialization retries a busy journal-mode transition
 
 The local and integrated simulators use different successful ride and food statuses and item shapes; the adapter accepts their documented forms while applying the same selected-resource checks. The integrated food receipt includes the requested delivery address.
 
+The composite confirmation uses the selected restaurant's name and the confirmed ride and meal receipt estimates. An absent or invalid estimate is displayed as unavailable rather than substituted with a fixed time.
+
 Compatibility parking activation confirmations match the selected zone, vehicle and duration; extension confirmations match the ticket and require the reported prior and resulting durations to differ by the requested increment. Both require an active meter with usable display fields. The prior duration is reported by the same fixture and is not independent evidence of the earlier state.
 
 For integrated parking, the application verifies the wallet capture identity, account, amount, currency, merchant and reference before calling the parking provider. A later refusal or inconsistent meter leaves the overall outcome unconfirmed, because the wallet may already have been charged.

@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Show confirmed composite estimates (P1-13, step)
+
+Composite checkout displays ride and meal receipt estimates and the selected restaurant instead of fixed delivery details. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Inspect original food operations (P1-13, step)
 
 The integrated food service exposes account-scoped, read-only inspection of verified original order evidence. Guide: [agent flow](agent-flow.md).
