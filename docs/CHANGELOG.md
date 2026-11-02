@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 3 November 2026 - Reconcile the Zod advisory with the lockfile (P2-03, step)
+
+The current production lockfile resolves Zod to a patched version; a regression check rejects affected production copies. The backlog now reflects the remaining Angular advisories. Guide: [testing](development/testing.md).
+
 ## 3 November 2026 - Pin the focused container base image (P2-03, step)
 
 The focused agent Dockerfile pins its Node base by multi-platform image digest, with a regression check for the pin. Guide: [local development](development/local-development.md).
