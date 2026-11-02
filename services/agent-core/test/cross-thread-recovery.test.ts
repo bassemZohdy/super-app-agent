@@ -45,6 +45,29 @@ test('an unresolved payment blocks another conversation across reopen and a prev
 });
 
 
+test('a contradictory simulator refusal after payment stays unknown across conversations', async t => {
+  const h = await harness();
+  try {
+    const firstRoot = `/api/agent/threads/${await h.thread()}`, secondRoot = `/api/agent/threads/${await h.thread()}`;
+    const first = await h.req(`${firstRoot}/messages`, { message: 'pay fines' });
+    const second = await h.req(`${secondRoot}/messages`, { message: 'pay fines' });
+    const realFetch = globalThis.fetch;
+    const mocked = t.mock.method(globalThis, 'fetch', async (input: string | URL | Request, init?: RequestInit) => {
+      const response = await realFetch(input, init);
+      if (new URL(String(input)).pathname !== '/simulator/v1/payments') return response;
+      const receipt = await response.json();
+      return Response.json({ code: 'QUOTE_STALE', correlationId: randomUUID(), receipt }, { status: 409 });
+    });
+    const result = await h.req(`${firstRoot}/resume`, { approvalId: first.data.approval.id, decision: 'approve' });
+    assert.equal(result.data.status, 'unknown');
+    assert.equal((h.store.db.prepare('SELECT count(*) AS n FROM sa_sim_payments').get() as { n: number }).n, 1);
+    mocked.mock.restore();
+    assert.equal((await h.req(`${secondRoot}/resume`, { approvalId: second.data.approval.id, decision: 'approve' })).data.status, 'reconciliation_required');
+    assert.equal((await h.req(`${firstRoot}/recover`, {})).data.status, 'complete');
+    assert.equal((h.store.db.prepare('SELECT count(*) AS n FROM sa_sim_payments').get() as { n: number }).n, 1);
+  } finally { await h.close(); }
+});
+
 test('an in-flight payment blocks a previously opened approval for the same subject', async () => {
   const h = await harness();
   try {

@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 - Verify focused simulator refusals (P1-02, step)
+
+The focused simulator adapter accepts recognized refusals only in the expected bounded error envelope. Contradictory replies retain the original payment or renewal for recovery and block replacements. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 - Check payment documentation versions (P2-04, step)
 
 The documentation check compares explicit payment contract versions in tracked current guides with the source contracts, while leaving historical reports untouched. Guide: [application API](development/application-api.md).
