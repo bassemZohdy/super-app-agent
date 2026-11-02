@@ -69,3 +69,32 @@ test('lost payment response reconciles original operation after reopening SQLite
     assert.equal(recovered.data.receipt.idempotencyKey, review.data.approval.key);
   } finally { await h.close(); rmSync(dir, { recursive: true, force: true }); }
 });
+
+
+test('payment recovery remains unknown if consent expires after the effect', async () => {
+  const h = await harness();
+  try {
+    const id = await h.thread(), root = `/api/agent/threads/${id}`;
+    const review = await h.req(`${root}/messages`, { message: 'pay fines' });
+    const original = h.tools.pay.invoke;
+    h.tools.pay.invoke = async (...args) => { await original(...args); throw new Error('response lost after commit'); };
+    const unknown = await h.req(`${root}/resume`, { approvalId: review.data.approval.id, decision: 'approve' });
+    h.tools.pay.invoke = original;
+    assert.equal(unknown.data.status, 'unknown');
+    h.store.db.prepare('UPDATE sa_consents SET expires_at=? WHERE id=?').run(0, review.data.approval.id);
+    const deniedRecovery = await h.req(`${root}/recover`, {});
+    assert.equal(deniedRecovery.data.status, 'unknown');
+    assert.equal((await h.req(`${root}/messages`, { message: 'pay fines' })).status, 409);
+    assert.equal((await h.req(`${root}/cancel`, {})).status, 409);
+    assert.equal((h.store.db.prepare('SELECT count(*) AS n FROM sa_sim_payments').get() as { n: number }).n, 1);
+    h.store.db.prepare('UPDATE sa_consents SET expires_at=? WHERE id=?').run(review.data.approval.expiresAt, review.data.approval.id);
+    h.identities[0].permissions = ['fines:read'];
+    assert.equal((await h.req(`${root}/recover`, {})).data.status, 'unknown');
+    assert.equal((await h.req(`${root}/messages`, { message: 'pay fines' })).status, 409);
+    h.identities[0].permissions = ['fines:read', 'fines:pay'];
+    const recovered = await h.req(`${root}/recover`, {});
+    assert.equal(recovered.data.status, 'complete');
+    assert.equal(recovered.data.receipt.idempotencyKey, review.data.approval.key);
+    assert.equal((h.store.db.prepare('SELECT count(*) AS n FROM sa_sim_payments').get() as { n: number }).n, 1);
+  } finally { await h.close(); }
+});

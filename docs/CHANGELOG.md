@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Preserve unknown outcomes when recovery loses authority (P0-06, step)
+
+The focused fines and renewal graphs now retain an unknown outcome if a previously recorded operation cannot be reauthorized during recovery. Expired consent or revoked permission no longer turns a potentially committed effect into a definitive denial or permits a replacement. Tests simulate a lost response after commit, then expire consent and revoke permission; both remain blocked until the fixture restores authority and recovers the original operation. Real identity, durable production reconciliation and authority renewal remain separate. Guide: [testing](testing.md).
+
 ## 2 November 2026 — Preserve focused renewal outcomes on unrecognized refusals (P1-02, step)
 
 The focused agent no longer assumes every simulator 403 is a denial or every 409 a stale quote. Only named simulator refusal codes receive those classifications; unrecognized responses remain unknown so the original operation must be recovered. A renewal journey test commits the simulated effect before substituting an unrecognized 403 or 409, then verifies that replacement is blocked and recovery returns the original renewal. Existing consent and stale-quote refusals remain covered. Guide: [testing](testing.md).

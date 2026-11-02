@@ -57,6 +57,8 @@ Execution results for the implementation milestone belong in the dated [evidence
 
 `services/test/domain-telecom-receipt.test.ts` sends missing, malformed and wrong-bill receipts through the authenticated telecom adapter for both supported providers and verifies they remain unknown; a complete receipt for the selected bill is accepted. The same test compares receipts with a supplied reviewed amount in exact fils and rejects a one-fil difference and overflow-sized receipt. This checks the response boundary, not real provider settlement.
 
+Focused payment and renewal recovery tests simulate a lost response after commit, expire stored consent and revoke permission. They require the outcome to remain unknown and replacement blocked, then restore the test authority and recover the original operation without a second effect. They do not prove real identity or production authority renewal.
+
 The focused renewal journey substitutes an unrecognized simulator 403 or 409 after a simulated renewal commits, then checks that the outcome is unknown, replacement is blocked and recovery returns the original operation. The adapter tests retain explicit consent and stale-quote refusals.
 
 The retained domain and provider response tests cover codes for unknown, unconfirmed and reconciliation-required outcomes. `services/test/domain-failures.test.ts` also verifies that an unknown settlement after a wallet effect blocks later effects and replacement.

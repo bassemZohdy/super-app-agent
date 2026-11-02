@@ -88,6 +88,7 @@ export function createGraph(planner: Planner, tools: FinesAdapter, vehicles: Veh
       progress('execute');
       const pending = state.pending;
       if (!pending || state.decision?.decision !== 'approve' || state.decision.approvalId !== pending.id) throw new AgentError('CONSENT_REQUIRED', 403);
+      const hadOperation = store.hasOperation(pending.key, context().principal.subject);
       try {
         const ctx = context(), principal = await ctx.revalidate();
         if (principal.subject !== ctx.principal.subject || principal.workload !== ctx.principal.workload) throw new AgentError('AUTHORITY_CHANGED', 403);
@@ -103,7 +104,7 @@ export function createGraph(planner: Planner, tools: FinesAdapter, vehicles: Veh
       } catch (error) {
         const code = error instanceof AgentError ? error.code : 'PAYMENT_OUTCOME_UNKNOWN';
         await store.finish(pending.key);
-        return { status: ['AUTHORITY_EXPIRED', 'PERMISSION_DENIED', 'AUTHORITY_CHANGED', 'CONSENT_REQUIRED_OR_EXPIRED', 'APPROVAL_EXPIRED', 'PROVIDER_DENIED'].includes(code) ? 'denied' : code === 'QUOTE_STALE' ? 'stale' : 'unknown', reply: `Payment not confirmed (${code}). Inspect this interaction; never create a replacement payment for an unknown outcome.` };
+        return { status: hadOperation ? 'unknown' : ['AUTHORITY_EXPIRED', 'PERMISSION_DENIED', 'AUTHORITY_CHANGED', 'CONSENT_REQUIRED_OR_EXPIRED', 'APPROVAL_EXPIRED', 'PROVIDER_DENIED'].includes(code) ? 'denied' : code === 'QUOTE_STALE' ? 'stale' : 'unknown', reply: `Payment not confirmed (${code}). Inspect this interaction; never create a replacement payment for an unknown outcome.` };
       }
     })
     .addNode('renewPrepare', state => {
@@ -136,6 +137,7 @@ export function createGraph(planner: Planner, tools: FinesAdapter, vehicles: Veh
       const pending = state.renewalPending;
       if (!pending || state.renewalDecision?.decision !== 'approve' || state.renewalDecision.approvalId !== pending.id) throw new AgentError('CONSENT_REQUIRED', 403);
       const paid = paidSentence(state.receipt);
+      const hadOperation = store.hasOperation(pending.key, context().principal.subject);
       try {
         const ctx = context(), principal = await ctx.revalidate();
         if (principal.subject !== ctx.principal.subject || principal.workload !== ctx.principal.workload) throw new AgentError('AUTHORITY_CHANGED', 403);
@@ -150,7 +152,7 @@ export function createGraph(planner: Planner, tools: FinesAdapter, vehicles: Veh
         return { renewal: receipt, status: 'complete', reply: `${paid}Simulated registration renewal completed: ${aed(receipt.quote.amountMinor)}. No real funds were used.` };
       } catch (error) {
         const code = error instanceof AgentError ? error.code : 'RENEWAL_OUTCOME_UNKNOWN';
-        if (REFUSED.includes(code)) return { status: state.receipt ? 'partial' : code === 'QUOTE_STALE' ? 'stale' : 'denied', reply: `${paid}The registration was not renewed (${code}). No renewal was made.` };
+        if (!hadOperation && REFUSED.includes(code)) return { status: state.receipt ? 'partial' : code === 'QUOTE_STALE' ? 'stale' : 'denied', reply: `${paid}The registration was not renewed (${code}). No renewal was made.` };
         // An unknown outcome blocks any replacement until the same operation is reconciled.
         await store.finish(pending.key);
         return { status: 'unknown', reply: `Renewal not confirmed (${code}). ${paid ? 'The fines payment is complete. ' : ''}Inspect this interaction; never create a replacement renewal for an unknown outcome.` };

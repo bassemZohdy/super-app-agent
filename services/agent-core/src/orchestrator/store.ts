@@ -92,6 +92,10 @@ export class Store {
     const row = this.db.prepare('SELECT quote,expires_at FROM sa_consents WHERE id=? AND subject=? AND workload=? AND operation_key=?').get(id, principal.subject, principal.workload, key) as Consent | undefined;
     if (!row || row.expires_at <= Date.now() || digest(schema.parse(JSON.parse(row.quote))) !== digest(schema.parse(quote))) throw new AgentError('CONSENT_REQUIRED_OR_EXPIRED', 403);
   }
+  /** A prior operation may already have taken effect even when recovery cannot reauthorize it. */
+  hasOperation(key: string, subject: string): boolean {
+    return !!this.db.prepare('SELECT 1 FROM sa_operations WHERE key=? AND subject=?').get(key, subject);
+  }
   operation(key: string, subject: string, quote: Quote): Receipt | undefined {
     this.db.prepare("INSERT INTO sa_operations VALUES(?,?,?,'pending',NULL) ON CONFLICT(key) DO NOTHING").run(key, subject, JSON.stringify(quote));
     const row = this.db.prepare('SELECT * FROM sa_operations WHERE key=?').get(key) as Operation;
