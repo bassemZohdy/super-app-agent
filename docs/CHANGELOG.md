@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Remove confirmed payments from the fine snapshot (P1-13, step)
+
+After a verified simulated payment, the focused response and restored surface exclude the paid fines while retaining other entries from the earlier list. Guide: [shell parity](development/shell-parity.md).
+
 ## 2 November 2026 — Respect named fine reads (P1-13, step)
 
 Focused fine reads and surfaces now show only explicitly requested fines. A missing selection returns an unavailable message and no partial or stale list. Guide: [shell parity](development/shell-parity.md).

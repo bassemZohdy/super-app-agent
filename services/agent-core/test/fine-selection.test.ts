@@ -15,7 +15,7 @@ test('a planner cannot invent or substitute a fine before a review', async () =>
 });
 
 test('the graph retains an explicitly named fine even if the planner omits it', async () => {
-  const h = await harness({ planner: { async plan() { return { intent: 'pay_fines', fineIds: [] }; } } });
+  const h = await harness({ planner: { async plan(messages) { return { intent: messages.at(-1)?.content === 'show remaining fines' ? 'list_fines' : 'pay_fines', fineIds: [] }; } } });
   try {
     const root = `/api/agent/threads/${await h.thread()}`;
     const review = await h.req(`${root}/messages`, { message: 'pay fine-1' });
@@ -25,7 +25,14 @@ test('the graph retains an explicitly named fine even if the planner omits it', 
     const paid = await h.req(`${root}/resume`, { approvalId: review.data.approval.id, decision: 'approve' });
     assert.equal(paid.data.status, 'complete');
     assert.deepEqual(paid.data.receipt.quote.fineIds, ['fine-1']);
+    assert.deepEqual(paid.data.fines.map((fine: { id: string }) => fine.id), ['fine-2']);
+    assert.deepEqual(paid.data.surface.view.children.find((child: { id: string }) => child.id === 'fines').properties.rows.map((row: { id: string }) => row.id), ['fine-2']);
+    const inspected = await h.req(root);
+    assert.deepEqual(inspected.data.fines.map((fine: { id: string }) => fine.id), ['fine-2']);
+    assert.deepEqual(inspected.data.surface.view.children.find((child: { id: string }) => child.id === 'fines').properties.rows.map((row: { id: string }) => row.id), ['fine-2']);
     assert.deepEqual(h.store.fines('alice').map(fine => fine.id), ['fine-2']);
+    const refreshed = await h.req(`${root}/messages`, { message: 'show remaining fines' });
+    assert.deepEqual(refreshed.data.fines.map((fine: { id: string }) => fine.id), ['fine-2']);
   } finally { await h.close(); }
 });
 

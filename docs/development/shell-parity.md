@@ -52,3 +52,5 @@ Arabic suggestion buttons submit Arabic text. The deterministic demo planner sup
 
 Focused reads that name fines return only the selected outstanding records in both the response and the service surface. If any named fine is unavailable, the read returns an unavailable message with no partial list; a request without a selection lists all outstanding fines.
 
+After the payment receipt is verified and persisted, its fine IDs are removed from the previously fetched list in the response and restored surface. Other entries remain a snapshot from before the payment; request the fines list again to refresh it. Unknown payment outcomes do not remove any entries.
+

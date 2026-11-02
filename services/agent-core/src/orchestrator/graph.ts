@@ -119,7 +119,8 @@ export function createGraph(planner: Planner, tools: FinesAdapter, vehicles: Veh
         const receipt = prior || await invokeTool(tools.pay, { quote: pending.quote, consentId: pending.id }, { ...ctx, principal }, pending.key);
         if (receipt.idempotencyKey !== pending.key || digest(receipt.quote) !== digest(pending.quote)) throw new AgentError('RECEIPT_MISMATCH', 502);
         await store.finish(pending.key, receipt);
-        return { receipt, status: 'complete', reply: `Simulated payment completed: ${aed(receipt.quote.amountMinor)}. No real funds were used.` };
+        // Remove the verified paid items from the previously fetched snapshot.
+        return { receipt, fines: state.fines.filter(fine => !receipt.quote.fineIds.includes(fine.id)), status: 'complete', reply: `Simulated payment completed: ${aed(receipt.quote.amountMinor)}. No real funds were used.` };
       } catch (error) {
         const code = safeWriteError(error, 'PAYMENT_OUTCOME_UNKNOWN');
         if (code === 'OTHER_OPERATION_PENDING') return { status: 'reconciliation_required', reply: RECONCILIATION_REPLY };
