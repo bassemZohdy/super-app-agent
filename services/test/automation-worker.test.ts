@@ -216,7 +216,7 @@ test('AUTO-05: refusals, rejections and captured-but-unsettled orders land in th
   }
 });
 
-test('AUTO-05: preparation outages back off under the same identity and give up safely', async () => {
+test('AUTO-05: preparation outages back off under the same identity and remain held when unresolved', async () => {
   const store = new JobStore(':memory:'), keys: string[] = [];
   const { g, calls } = gateway({ prepare: async input => { keys.push(input.requestKey); throw fail(503, 'DOWN'); } });
   const job = store.enqueue(rule);
@@ -224,10 +224,29 @@ test('AUTO-05: preparation outages back off under the same identity and give up 
   const w = new AutomationWorker(store, g, { workerId: 'w', clock: () => now, sleep: async () => {}, retryDelayMs: 100, leaseMs: 30_000, maxAttempts: 3 });
   for (let i = 0; i < 3; i++) { await w.runOnce(); now += 10_000; }
   const done = store.get(job.id)!;
-  assert.equal(done.state, 'FAILED');
-  assert.equal(done.reason, 'PREPARE_UNAVAILABLE');
+  assert.equal(done.state, 'HELD');
+  assert.equal(done.reason, 'PREPARATION_UNKNOWN');
+  assert.deepEqual(store.outbox(job.id).map(event => event.kind), ['HELD']);
   assert.deepEqual([...new Set(keys)], [jobIdentity(rule).requestKey], 'every retry reused the original identity');
   assert.equal(calls.credential + calls.execute, 0);
+  assert.equal(await w.runOnce(), undefined);
+});
+
+test('a later preparation refusal cannot erase an earlier lost or interrupted response', async () => {
+  for (const interrupted of [false, true]) {
+    const store = new JobStore(':memory:'), job = store.enqueue(rule), t0 = 1_000_000;
+    const claim = store.claim('old-worker', 1000, t0)!;
+    store.transition(claim, 'PREPARING', {}, undefined, t0);
+    store.begin(claim, 'prepare', t0);
+    if (!interrupted) store.outcome(claim, 'unavailable');
+    const { g, calls } = gateway({ prepare: async () => { throw fail(403, 'AUTOMATION_WORKER_REQUIRED'); } });
+    try {
+      const done = await worker(store, g, 'new-worker', () => t0 + 2000).runOnce();
+      assert.equal(done?.state, 'HELD'); assert.equal(done?.reason, 'PREPARATION_UNKNOWN');
+      assert.deepEqual(store.outbox(job.id).map(event => event.kind), ['HELD']);
+      assert.equal(calls.credential + calls.execute, 0);
+    } finally { store.close(); }
+  }
 });
 
 test('AUTO-05: no credential reaches the database, the outbox or the attempt log, and history is append-only', async () => {

@@ -74,6 +74,10 @@ export class JobStore {
     return rows.map(r => ({ seq: Number(r.seq), jobId: String(r.job_id), kind: String(r.kind), body: JSON.parse(String(r.body)) as Record<string, unknown>, at: Number(r.at), deliveredAt: r.delivered_at == null ? undefined : Number(r.delivered_at) }));
   }
   attempts(jobId: string) { return this.db.prepare('SELECT fence,worker_id,step,outcome FROM job_attempts WHERE job_id=? ORDER BY seq').all(jobId).map(r => ({ fence: Number(r.fence), workerId: String(r.worker_id), step: String(r.step), outcome: r.outcome == null ? undefined : String(r.outcome) })); }
+  /** A lost or interrupted preparation may have reserved the occurrence even if a later request is refused. */
+  hasUnconfirmedPreparation(jobId: string): boolean {
+    return !!this.db.prepare("SELECT 1 FROM job_attempts WHERE job_id=? AND step='prepare' AND (outcome IS NULL OR outcome='unavailable') LIMIT 1").get(jobId);
+  }
 
   /** The operator's global kill switch (AUTO-15). Persisted, so a restart keeps it engaged until someone releases it. */
   killSwitch(): { engaged: boolean; reason?: string; at?: number } {

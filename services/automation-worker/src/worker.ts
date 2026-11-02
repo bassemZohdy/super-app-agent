@@ -97,6 +97,7 @@ export class AutomationWorker {
   private async prepare(claim: Claim): Promise<Job | undefined> {
     const { store } = this, job = claim.job, identity = jobIdentity(job);
     if (job.state === 'QUEUED') store.transition(claim, 'PREPARING', {}, undefined, this.now());
+    const hadUnconfirmedPreparation = store.hasUnconfirmedPreparation(job.id);
     store.begin(claim, 'prepare', this.now());
     try {
       const result = await this.gateway.prepare({ mandateId: job.mandateId, policyVersion: job.policyVersion, occurrenceKey: job.occurrenceKey, requestKey: identity.requestKey });
@@ -122,9 +123,14 @@ export class AutomationWorker {
       if (codeOf(e) === 'AUTOMATION_COOLDOWN') { store.outcome(claim, 'cooldown'); store.yield(claim, Math.max(this.opts.retryDelayMs, 30_000), this.now()); return undefined; }
       if (transient(e)) {
         store.outcome(claim, 'unavailable');
-        // Nothing is known to have moved, and the request key makes the retry the same preparation.
-        if (claim.job.attempts >= this.opts.maxAttempts) store.transition(claim, 'FAILED', { reason: 'PREPARE_UNAVAILABLE' }, { kind: 'FAILED', body: { reason: 'PREPARE_UNAVAILABLE' } }, this.now());
+        // The request key makes retries the same preparation, but the provider may have reserved it.
+        if (claim.job.attempts >= this.opts.maxAttempts) store.transition(claim, 'HELD', { reason: 'PREPARATION_UNKNOWN' }, { kind: 'HELD', body: { reason: 'PREPARATION_UNKNOWN' } }, this.now());
         else store.yield(claim, this.opts.retryDelayMs * claim.job.attempts, this.now());
+        return undefined;
+      }
+      if (hadUnconfirmedPreparation) {
+        store.outcome(claim, 'refused_after_uncertainty');
+        store.transition(claim, 'HELD', { reason: 'PREPARATION_UNKNOWN' }, { kind: 'HELD', body: { reason: 'PREPARATION_UNKNOWN' } }, this.now());
         return undefined;
       }
       store.outcome(claim, `rejected:${codeOf(e)}`);

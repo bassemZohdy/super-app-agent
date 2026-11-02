@@ -20,7 +20,7 @@ States: `QUEUED → PREPARING → PREPARED → CREDENTIALING → EXECUTING`, the
 
 The state and an append-only attempt row are written before the step they describe. Steps carry these rules:
 
-- **Prepare** retries under the original request key and gives up after a bounded number of attempts, because nothing is known to have moved.
+- **Prepare** retries under the original request key. If attempts are exhausted, or a later refusal follows a lost or interrupted response, the job is held as `PREPARATION_UNKNOWN`: the provider may have reserved the original occurrence. No credential is requested until that preparation is reconciled.
 - **Credential** is requested once per job. A definitive refusal fails the job. A transient failure is retried only because a retry can only replay or be refused. An already-issued credential, or an outage that exhausts the retries, holds the job.
 - **Execute** retries only the same credential while it is alive. A provider rejection before funds fails the job (the provider has released the reservation); a captured-but-unsettled order, a challenge or a lost response holds it.
 - **Restart** while a credential was in flight or in use holds the job (`CREDENTIAL_LOST_AFTER_RESTART`). The credential is never written to the database, the outbox, the attempt log or the logs, so it cannot be recovered, and a fresh one is never requested.

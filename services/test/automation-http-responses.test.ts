@@ -121,7 +121,7 @@ test('automation preparation is bound to the queued rule, occurrence, version an
       const job = store.enqueue(rule);
       const worker = new AutomationWorker(store, gateway, { workerId: 'worker-a', maxAttempts: 1, sleep: async () => {} });
       const result = await worker.runOnce();
-      assert.equal(result?.state, 'FAILED'); assert.equal(result?.reason, 'PREPARE_UNAVAILABLE');
+      assert.equal(result?.state, 'HELD'); assert.equal(result?.reason, 'PREPARATION_UNKNOWN');
       assert.equal(credentialCalls, 0);
       assert.ok(!store.outbox(job.id).some(event => event.kind === 'PREPARED'));
       assert.deepEqual(posted, { mandateId: 'mandate_1', occurrenceKey: 'occ_1', requestKey: job.id.replace(/^job_/, 'req_') });

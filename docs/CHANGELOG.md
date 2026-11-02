@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Preserve uncertain automation preparations (P1-02, step)
+
+Exhausted preparation retries and refusals after a lost or interrupted preparation remain held for reconciliation under the original request identity. Guide: [automation worker](development/automation-worker.md).
+
 ## 2 November 2026 — Reject contradictory automation replies (P1-02, step)
 
 The worker rejects success responses that also report errors, contradictory preparation skips, and empty, oversized or expired credentials before dispatch or challenge resumption. Guide: [automation worker](development/automation-worker.md).
