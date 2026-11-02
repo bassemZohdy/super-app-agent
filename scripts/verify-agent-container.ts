@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { withQualificationCleanup } from './qualification-cleanup.ts';
 
 // Its own compose project, so the data volume it starts from empty and removes at the end is never a developer's own agent data.
 const PROJECT = 'super-app-agent-qualify';
@@ -20,6 +21,7 @@ const call = async (path: string, body?: unknown, key = randomUUID(), bearer = t
 };
 const ready = async () => { for (let i = 0; i < 60; i++) { try { if ((await fetch(`${base}/ready`, { signal: AbortSignal.timeout(2000) })).ok) return; } catch { /* not up yet */ } await new Promise(done => setTimeout(done, 1000)); } throw new Error('the agent never became ready'); };
 
+await withQualificationCleanup(async () => {
 const revision = spawnSync('git', ['rev-parse', '--short', 'HEAD'], { encoding: 'utf8' }).stdout.trim();
 must(compose('down', '-v'), 'start from an empty volume');
 must(compose('build'), 'build');
@@ -78,4 +80,4 @@ must(compose('up', '-d', '--wait'), 'start again');
 await ready();
 assert.deepEqual((await call(root)).data.receipt, receipt, 'the volume kept the settled interaction');
 console.log('PASS: restarted from the persistent volume with the interaction intact. No Redis, PostgreSQL, external simulator or model download was needed.');
-must(compose('down', '-v'), 'remove the qualification project and its volume');
+}, async () => { must(compose('down', '-v'), 'remove the qualification project and its volume'); });

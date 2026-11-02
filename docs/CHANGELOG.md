@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 - Clean up failed container qualification (P2-06, step)
+
+The focused-container verification cleans its dedicated project and volume after failed checks as well as successful runs, while retaining both errors if cleanup fails. Guide: [local development](development/local-development.md).
+
 ## 2 November 2026 - Preserve uncertain automation retries (P1-10, step)
 
 A later credential or execution refusal no longer erases a prior uncertain response; timeout and rate-limit responses also remain uncertain. Guide: [automation worker](development/automation-worker.md).
