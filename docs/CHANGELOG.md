@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Sanitize kill-switch verification responses (P2-05, step)
+
+The stack verification bounds identity and broker responses and avoids including response bodies in failed assertions. Its identity-token reader rejects invalid responses without exposing their contents. Guide: [testing](testing.md).
+
 ## 2 November 2026 — Respect explicit English negation in demo requests (P1-13, step)
 
 The deterministic demo planner declines recognized negated payment and renewal requests rather than preparing a review. Guide: [shell parity](development/shell-parity.md).
