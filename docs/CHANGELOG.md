@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Coordinate separate-service civic payments (P1-13, step)
+
+HTTP-connected offline civic actions now acquire a non-expiring shared Redis fence before dispatch and retain it on uncertain or partial effects. A live Redis and local HTTP test confirms a lost wallet reply leaves the fence in place for a fresh agent process; definite pre-debit refusal releases it. Direct service calls and durable reconciliation remain outside this fence. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Fence uncertain offline checkout across sessions (P1-13, step)
 
 An uncertain or partially completed offline civic checkout now blocks overlapping civic payment actions in other agent sessions for the lifetime of the process. Tests cover uncertain wallet results, refused or changed utility settlement, and a definite pre-debit refusal. Durable cross-service recovery remains open. Guide: [integrations](integrations.md).

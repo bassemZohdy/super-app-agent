@@ -53,6 +53,17 @@ export class RedisSessionStore {
     if (result[0] === 'NOT_FOUND') throw new SessionError(404, 'SESSION_NOT_FOUND', 'Session not found or expired.');
     return decodeRecord(result[1]).state;
   }
+  /** A shared fixture has one civic-payment lane. Retain this record after an uncertain outcome or process loss. */
+  async acquireCivicFence() {
+    await this.connect();
+    const key = `${this.prefix}offline-civic-fence`, token = randomUUID();
+    if (await this.client.set(key, token, { NX: true }) !== 'OK')
+      throw new SessionError(409, 'CIVIC_RECONCILIATION_REQUIRED', 'An offline civic payment is in progress or needs reconciliation.');
+    return { release: async () => {
+      await this.connect();
+      await this.client.eval(`if redis.call('GET',KEYS[1])==ARGV[1] then return redis.call('DEL',KEYS[1]) else return 0 end`, { keys: [key], arguments: [token] });
+    } };
+  }
   async acquire(sid: string) {
     await this.connect();
     const key = `${this.key(sid)}:lock`, token = randomUUID();

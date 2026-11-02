@@ -27,3 +27,22 @@ test('Redis persists empty arrays, isolates owners/accounts, fences locks and re
   assert.equal((await b.list('alice')).length,1);
   await b.remove(sid,'alice'); await assert.rejects(()=>a.read(sid,'alice'),/expired/);
 });
+
+
+test('civic coordination survives client restart and only its owner can release it', async t => {
+  const prefix = `cityside-civic-test:${randomUUID()}:`, url = process.env.TEST_REDIS_URL || 'redis://127.0.0.1:6379';
+  const first = new RedisSessionStore(url, 60, prefix), second = new RedisSessionStore(url, 60, prefix);
+  t.after(async () => { await second.connect(); const keys = await second.client.keys(`${prefix}*`); if (keys.length) await second.client.del(keys); await first.close(); await second.close(); });
+  const held = await first.acquireCivicFence();
+  assert.equal(await first.client.ttl(`${prefix}offline-civic-fence`), -1, 'uncertain effects must never unlock on a timer');
+  await assert.rejects(() => second.acquireCivicFence(), /civic payment/i);
+  await first.close();
+  await assert.rejects(() => second.acquireCivicFence(), /civic payment/i, 'a restart retains the fence');
+  await held.release();
+  const current = await second.acquireCivicFence();
+  await held.release();
+  await assert.rejects(() => first.acquireCivicFence(), /civic payment/i, 'an old token cannot release a newer fence');
+  await current.release();
+  const fresh = await first.acquireCivicFence();
+  await fresh.release();
+});
