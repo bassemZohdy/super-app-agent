@@ -73,6 +73,21 @@ test('renewal binds a single named vehicle and clarifies multiple named vehicles
   } finally { await h.close(); }
 });
 
+test('a vehicle reference ending in a hyphen is not shortened to another vehicle', async () => {
+  const { h, say, payFinesDirectly } = await journey({ planner: { async plan() { return { intent: 'renew_registration', fineIds: [] }; } } });
+  try {
+    payFinesDirectly();
+    const result = await say('renew registration for veh-1-');
+    assert.equal(result.data.status, 'clarify');
+    assert.equal(result.data.renewalApproval, null);
+    assert.equal(count(h, 'sa_sim_renewals'), 0);
+    h.store.db.prepare('INSERT INTO sa_sim_vehicles VALUES(?,?,?,NULL)').run('alice', 'veh-1-', JSON.stringify({ id: 'veh-1-', description: 'Separate vehicle', renewalFeeMinor: 50000, version: 1 }));
+    const exact = await say('renew registration for veh-1-');
+    assert.equal(exact.data.renewalApproval.quote.vehicleId, 'veh-1-');
+    assert.equal(exact.data.renewalApproval.quote.amountMinor, 50000);
+  } finally { await h.close(); }
+});
+
 test('renewal journey: fines first, then a second approval, each with exactly one effect', async () => {
   const { h, say, decide, root } = await journey();
   try {

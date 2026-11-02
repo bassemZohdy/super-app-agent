@@ -54,6 +54,8 @@ Focused reads that name fines return only the selected outstanding records in bo
 
 While a focused payment approval is pending, both the structured fine list and the surface rows contain only the fine IDs in its approval quote. Restoring the interaction returns the same selection; the full fetched snapshot remains internal to the interaction.
 
+Named fine and vehicle references are bound with their complete ID, including trailing hyphens. An unavailable reference is not shortened to a different existing resource. The deterministic planner classifies the request; the graph binds its fine selection from the user's text.
+
 After the payment receipt is verified and persisted, its fine IDs are removed from the previously fetched list in the response and restored surface. Other entries remain a snapshot from before the payment; request the fines list again to refresh it. Unknown payment outcomes do not remove any entries.
 
 Each new focused request clears the prior fine and vehicle snapshots before planning. Clarification, unsupported requests and planning errors therefore cannot present an earlier list as their result. Conversation history remains available for supported selected-fine follow-ups; pending approvals and unknown outcomes must still be resolved before a new request.

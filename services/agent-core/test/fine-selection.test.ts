@@ -49,6 +49,23 @@ test('an unavailable named fine is rejected instead of paying other fines', asyn
   } finally { await h.close(); }
 });
 
+test('a fine reference ending in a hyphen is not shortened to another fine', async () => {
+  const h = await harness();
+  try {
+    const root = `/api/agent/threads/${await h.thread()}`;
+    for (const message of ['pay fine-1-', 'مراجعة دفع المخالفة fine-1-']) {
+      const result = await h.req(`${root}/messages`, { message });
+      assert.equal(result.data.status, 'invalid_selection');
+      assert.equal(result.data.approval, null);
+    }
+    assert.equal((h.store.db.prepare('SELECT count(*) AS n FROM sa_sim_payments').get() as { n: number }).n, 0);
+    h.store.db.prepare('INSERT INTO sa_sim_fines VALUES(?,?,?,NULL)').run('alice', 'fine-1-', JSON.stringify({ id: 'fine-1-', description: 'Separate fine', amountMinor: 20000, version: 1 }));
+    const exact = await h.req(`${root}/messages`, { message: 'pay fine-1-' });
+    assert.deepEqual(exact.data.approval.quote.fineIds, ['fine-1-']);
+    assert.equal(exact.data.approval.quote.amountMinor, 20000);
+  } finally { await h.close(); }
+});
+
 test('named fine reads return only the selected fines and reject unavailable selections', async () => {
   const h = await harness({ planner: { async plan() { return { intent: 'list_fines', fineIds: [] }; } } });
   try {

@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Preserve complete resource references (P1-13, step)
+
+Fine and vehicle selection retains trailing hyphens instead of substituting a shorter ID; the fixture planner leaves exact fine binding to the graph. Guide: [shell parity](development/shell-parity.md).
+
 ## 2 November 2026 — Align payment review records (P1-13, step)
 
 The structured focused response now matches the selected fine rows and quote during payment review, including when the interaction is restored. Guide: [shell parity](development/shell-parity.md).

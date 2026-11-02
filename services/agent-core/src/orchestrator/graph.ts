@@ -43,7 +43,7 @@ export function createGraph(planner: Planner, tools: FinesAdapter, vehicles: Veh
       try {
         const plan = Plan.parse(await planner.plan(state.messages, [tools.list, tools.pay, vehicles.list, vehicles.renew].map(({ id, description }) => ({ id, description }))));
         const userMessage = [...state.messages].reverse().find(message => message.role === 'user')?.content || '';
-        const selected = [...new Set((userMessage.match(/\bveh-[a-z0-9_-]+\b/gi) || []).map(id => id.replace(/^veh-/i, 'veh-')))];
+        const selected = [...new Set((userMessage.match(/\bveh-[a-z0-9_-]+/gi) || []).map(id => id.replace(/^veh-/i, 'veh-')))];
         if (plan.intent === 'renew_registration' && selected.length > 1) return { plan: { intent: 'clarify' as const, fineIds: [] }, pending: null, decision: null, receipt: null, vehicles: [], renewalPending: null, renewalDecision: null, renewal: null, status: 'clarify', reply: 'Please name one vehicle to renew and ask again.' };
         if (plan.vehicleId && !selected.includes(plan.vehicleId)) throw new AgentError('UNBOUND_VEHICLE_SELECTION');
         const fines = selectedFines(state.messages);

@@ -82,6 +82,6 @@ export class FixturePlanner implements Planner {
     }
     const prior = messages.slice(0, -1).some(m => /fine/.test(m.content));
     if (/renew/.test(text) && /(registration|vehicle|car)/.test(text)) return { intent: 'renew_registration', fineIds: [] };
-    return { intent: /pay/.test(text) && (/fine/.test(text) || prior) ? 'pay_fines' : /fine/.test(text) ? 'list_fines' : /^(hi|hello)/.test(text) ? 'clarify' : 'out_of_scope', fineIds: [...text.matchAll(/\bfine-\d+\b/g)].map(m => m[0]) };
+    return { intent: /pay/.test(text) && (/fine/.test(text) || prior) ? 'pay_fines' : /fine/.test(text) ? 'list_fines' : /^(hi|hello)/.test(text) ? 'clarify' : 'out_of_scope', fineIds: [] };
   }
 }
