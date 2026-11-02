@@ -3,6 +3,7 @@
  *  never logged or stored here. */
 import { tracedFetch as fetch } from '../../../packages/backend-kit/src/observability.ts';
 import { ClientCredentials } from '../../../packages/backend-kit/src/oauth.ts';
+import { boundedJsonResponse } from '../../../packages/backend-kit/src/bounded-json.ts';
 import type { ChallengeAnswer, ExecutedOrder, ExecutionGateway, GatewayFailure, PrepareResult } from './worker.ts';
 
 export type HttpGatewayConfig = { runId: string; paymentsUrl: string; brokerUrl: string; clientSecret: string; clientId?: string };
@@ -67,10 +68,18 @@ export class HttpExecutionGateway implements ExecutionGateway {
       response = await fetch(new URL('/api/delegation/automation/kill-switch', endpoint(this.config.brokerUrl)), { method: 'GET', redirect: 'error', signal: AbortSignal.timeout(5000),
         headers: { Authorization: `Bearer ${bearer}` } });
     } catch { throw failure(undefined, 'UNREACHABLE', 'The kill-switch state could not be read.'); }
-    if (response.status === 404) return undefined;
-    const data = await response.json().catch(() => ({})) as Record<string, unknown>;
-    if (!response.ok || typeof data.engaged !== 'boolean' || !Number.isFinite(data.at)) throw failure(response.status, 'KILL_SWITCH_UNREADABLE', 'The kill-switch state response was invalid.');
-    return { engaged: data.engaged, reason: String(data.reason ?? ''), at: Number(data.at) };
+    if (!response.ok) {
+      void response.body?.cancel().catch(() => {});
+      if (response.status === 404) return undefined;
+      throw failure(response.status, 'KILL_SWITCH_UNREADABLE', 'The kill-switch state response was invalid.');
+    }
+    let body: unknown;
+    try { body = await boundedJsonResponse(response, 65536); }
+    catch { throw failure(response.status, 'KILL_SWITCH_UNREADABLE', 'The kill-switch state response was invalid.'); }
+    if (!body || typeof body !== 'object' || Array.isArray(body)) throw failure(response.status, 'KILL_SWITCH_UNREADABLE', 'The kill-switch state response was invalid.');
+    const data = body as Record<string, unknown>;
+    if (data.success !== true || typeof data.engaged !== 'boolean' || typeof data.at !== 'number' || !Number.isSafeInteger(data.at) || data.at <= 0 || typeof data.reason !== 'string' || data.reason.length > 120 || (data.engaged && !data.reason.trim())) throw failure(response.status, 'KILL_SWITCH_UNREADABLE', 'The kill-switch state response was invalid.');
+    return { engaged: data.engaged, reason: data.reason, at: data.at };
   }
   async execute(runId: string, executionId: string, accessToken: string): Promise<ExecutedOrder> {
     if (runId !== this.config.runId) throw failure(400, 'RUN_MISMATCH', 'The job belongs to another run.');

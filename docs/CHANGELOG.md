@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Validate automation kill-switch responses (P1-10, step)
+
+The worker bounds and validates the broker's desired-state response before applying it. Contradictory, malformed or oversized responses leave the current switch unchanged. Guide: [automation worker](development/automation-worker.md).
+
 ## 2 November 2026 — Preserve automation kill-switch ordering (P1-10, step)
 
 Broker and local switch changes now advance their stored timestamps monotonically. Workers retain authority timestamps and atomically reject stale desired states, including after delayed polls or concurrent local changes. Guide: [automation worker](development/automation-worker.md).
