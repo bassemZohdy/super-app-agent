@@ -64,10 +64,10 @@ test('already-paid utility and telecom bills require a usable original receipt a
   process.env.APP_DATA_DIR = dir;
   t.after(() => { if (previous === undefined) delete process.env.APP_DATA_DIR; else process.env.APP_DATA_DIR = previous; removeTemp(dir); });
   const actor = actorFor({ sub: 'paid-bill-evidence' }), asset = assetsFor(actor.accountId), legacy = () => ({ status: 404, data: {} });
-  let receipt: unknown = 'paid-123', amount: unknown = 45, writes = 0;
+  let receipt: unknown = 'paid-123', amount: unknown = 45, writes = 0, duplicate = false;
   t.mock.method(ProviderClient.prototype, 'call', async (_provider, _actor, method, route) => {
     if (method !== 'GET') writes++;
-    if (method === 'GET' && route === '/bills') return { bills: [{ billId: 'bill123', status: 'PAID', totalAmount: amount, receiptNumber: receipt, accountNumber: asset.utilityAccount }] };
+    if (method === 'GET' && route === '/bills') { const bill = { billId: 'bill123', status: 'PAID', totalAmount: amount, receiptNumber: receipt, accountNumber: asset.utilityAccount }; return { bills: duplicate ? [bill, { ...bill, receiptNumber: 'different' }] : [bill] }; }
     throw new Error('Unexpected provider operation');
   });
   for (const provider of ['dewa', 'du', 'etisalat']) {
@@ -83,6 +83,7 @@ test('already-paid utility and telecom bills require a usable original receipt a
       amount = invalid;
       const result = await pay(); assert.equal(result.status, 503); assert.equal(result.data.code, 'PROVIDER_OUTCOME_UNKNOWN');
     }
+    amount = 45; duplicate = true; const ambiguous = await pay(); assert.equal(ambiguous.status, 503); assert.equal(ambiguous.data.code, 'PROVIDER_UNAVAILABLE'); duplicate = false;
     amount = 45; const result = await pay(); assert.equal(result.status, 200); assert.equal(result.data.receipt.receiptNumber, 'paid-123'); assert.equal(result.data.chargedAmount, 0);
   }
   assert.equal(writes, 0);

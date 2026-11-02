@@ -16,8 +16,8 @@ test('integrated bill settlement refuses a different frozen quote or provider re
   const payable = () => ({ id: `${provider}:bill:bill123`, kind: 'BILL', provider, obligationId: 'bill123', reference: provider === 'dewa' ? assetsFor(actor.accountId).utilityAccount : 'owned', revision: 'a'.repeat(64), status: 'UNPAID', amountMinor: 115 });
   const order = (state: string) => ({ id: scenario === 'wrong-id' || scenario === 'changed-id' && state === 'AUTHORIZED' ? 'other' : `${provider}_original`, ownerSub: scenario === 'wrong-owner' ? 'other' : actor.sub, accountId: scenario === 'wrong-account' ? 'other' : actor.accountId, state, version: 1, approvalDigest: scenario === 'changed-digest' && state === 'AUTHORIZED' ? 'b'.repeat(64) : 'a'.repeat(64), quote: { currency:scenario === 'wrong-currency' ? 'USD' : 'AED', source:{ id: scenario === 'wrong-source' ? 'other' : 'wallet', kind:'wallet', accountId:scenario === 'wrong-source-account' ? 'other' : actor.accountId, version:scenario === 'wrong-source-version' ? 2 : 1 }, terms:{ feeMinor: scenario === 'changed-terms' && state === 'AUTHORIZED' ? 1 : 0 }, totalMinor: 115, payable: scenario === 'wrong-quote' || scenario === 'wrong-authorized' && state === 'AUTHORIZED' || scenario === 'wrong-settled' && state === 'SETTLED' ? { ...payable(), obligationId: 'other' } : payable() }, receipt: { receiptNumber: scenario === 'blank-reference' ? '   ' : scenario === 'long-reference' ? 'r'.repeat(201) : 'receipt', obligationId: scenario === 'wrong-receipt' ? 'other' : 'bill123', amountMinor: scenario === 'wrong-amount' ? 116 : 115, currency: 'AED' } });
   t.mock.method(ProviderClient.prototype, 'call', async (name, _actor, _method, route) => {
-    if (name === provider && route === '/bills') return { bills: [{ billId: 'bill123', status: 'UNPAID', totalAmount: billAmount, accountNumber: assetsFor(actor.accountId).utilityAccount }] };
-    if (name === provider && route === '/payables') return { payables: [payable()] };
+    if (name === provider && route === '/bills') { const bill = { billId: 'bill123', status: 'UNPAID', totalAmount: billAmount, accountNumber: assetsFor(actor.accountId).utilityAccount }; return { bills: scenario === 'duplicate-bill' ? [bill, { ...bill, totalAmount: 9 }] : [bill] }; }
+    if (name === provider && route === '/payables') return { payables: scenario === 'duplicate-payable' ? [payable(), { ...payable(), id: 'conflicting-payable' }] : [payable()] };
     if (route === '/billing-accounts') return { billingAccounts: [{ status: 'ACTIVE', provider, reference: payable().reference }] };
     if (route === '/payment-orders') { creations++; return { order: { id: scenario === 'bad-created-id' ? '../other' : `${provider}_original` } }; }
     if (route === `/payment-orders/${provider}_original`) return { order: order('AWAITING_APPROVAL') };
@@ -36,6 +36,10 @@ test('integrated bill settlement refuses a different frozen quote or provider re
       const badBill = await run(); assert.equal(badBill.status, 503); assert.equal(badBill.data.code, 'PROVIDER_UNAVAILABLE'); assert.equal(creations, beforeCreations);
     }
     billAmount = 1.15;
+    for (scenario of ['duplicate-bill', 'duplicate-payable']) {
+      const beforeCreations = creations;
+      const ambiguous = await run(); assert.equal(ambiguous.status, 503); assert.equal(ambiguous.data.code, 'PROVIDER_UNAVAILABLE'); assert.equal(creations, beforeCreations);
+    }
     scenario = 'valid'; const good = await run(); assert.equal(good.status, 200); assert.equal(good.data.receipt.billId, 'bill123');
     scenario = 'reordered-quote'; assert.equal((await run()).status, 200);
     for (scenario of ['wrong-quote', 'wrong-id', 'wrong-owner', 'wrong-account', 'wrong-source', 'wrong-source-account', 'wrong-source-version', 'wrong-currency', 'bad-created-id']) { const beforeApprovals = approvals, beforeExecutions = executions;

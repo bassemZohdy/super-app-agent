@@ -100,7 +100,9 @@ export async function integratedRequest(service: string, actor: Actor, method: s
   const settleBill = async (provider: string, billId?: string) => {
     const { bills } = await call(provider, 'GET', '/bills');
     if (!Array.isArray(bills)) throw new UpstreamError(503, 'PROVIDER_UNAVAILABLE', 'The bills could not be read.');
-    const bill: Bill | undefined = bills.find((b: Bill) => (billId === undefined || b?.billId === billId) && (provider !== 'dewa' || ownedUtility(b)));
+    const matchingBills: Bill[] = bills.filter((b: Bill) => (billId === undefined || b?.billId === billId) && (provider !== 'dewa' || ownedUtility(b)));
+    if (matchingBills.length > 1) throw new UpstreamError(503, 'PROVIDER_UNAVAILABLE', 'The selected bill could not be uniquely confirmed.');
+    const bill = matchingBills[0];
     if (!bill) throw new UpstreamError(404, 'NOT_FOUND', 'Bill not found.');
     if (bill.status === 'PAID') {
       let paidAmountMinor: number;
@@ -116,7 +118,11 @@ export async function integratedRequest(service: string, actor: Actor, method: s
     let billAmountMinor: number;
     try { billAmountMinor = toMinor(bill.totalAmount); }
     catch { throw new UpstreamError(503, 'PROVIDER_UNAVAILABLE', 'The bill amount could not be confirmed. Review the original bill.'); }
-    const payable=(await call(provider,'GET','/payables')).payables.find((p:Payable)=>p.obligationId===bill.billId);
+    const payables=(await call(provider,'GET','/payables')).payables;
+    if(!Array.isArray(payables))throw new UpstreamError(503,'PROVIDER_UNAVAILABLE','The selected bill payable could not be confirmed.');
+    const matchingPayables=payables.filter((p:Payable)=>p?.obligationId===bill.billId);
+    if(matchingPayables.length>1)throw new UpstreamError(503,'PROVIDER_UNAVAILABLE','The selected bill payable could not be uniquely confirmed.');
+    const payable=matchingPayables[0];
     if(!payable||payable.kind!=='BILL'||payable.provider!==provider||provider==='dewa'&&payable.reference!==asset.utilityAccount||typeof payable.id!=='string'||!payable.id||typeof payable.reference!=='string'||!payable.reference||typeof payable.revision!=='string'||!payable.revision||!Number.isSafeInteger(payable.amountMinor)||payable.amountMinor<0||payable.status!=='UNPAID'||payable.amountMinor!==billAmountMinor||body.expectedPayableRevision&&body.expectedPayableRevision!==payable.revision||body.expectedAmountMinor!==undefined&&body.expectedAmountMinor!==payable.amountMinor)throw new UpstreamError(409,'PAYABLE_CHANGED','The reviewed bill changed. Review its current terms again.');
     const sameOrder=(value:unknown)=>{
       if(!value||typeof value!=='object'||Array.isArray(value))return false;

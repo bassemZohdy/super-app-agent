@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Refuse ambiguous bill identities (P1-13, step)
+
+Integrated utility and telecom settlement now requires one matching bill and one matching payable; duplicate provider identities stop before an order or already-paid receipt. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Require exact unpaid bill amounts (P1-13, step)
 
 Integrated utility and telecom settlement rejects unreadable, negative or fractional-fil bill amounts before creating an order, instead of rounding provider data. Guide: [integrations](integrations.md).
