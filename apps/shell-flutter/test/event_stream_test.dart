@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -25,6 +26,44 @@ void main() {
           Stream.value(utf8.encode('data: ${'x' * 262145}\n\n')),
         ).toList(),
         throwsFormatException,
+      );
+    },
+  );
+
+  test(
+    'SSE rejects an oversized unfinished line and cancels the source',
+    () async {
+      var cancelled = false;
+      final source = StreamController<List<int>>(
+        onCancel: () {
+          cancelled = true;
+        },
+      );
+      final frames = readCitizenFrames(source.stream)
+          .toList()
+          .timeout(const Duration(seconds: 3));
+      source.add(List<int>.filled(262145, 120));
+      await expectLater(frames, throwsFormatException);
+      expect(cancelled, isTrue);
+      await source.close();
+    },
+  );
+
+  test(
+    'SSE bounds accumulated lines while allowing many small events',
+    () async {
+      final large = 'data: ${'x' * 140000}\ndata: ${'x' * 140000}\n\n';
+      await expectLater(
+        readCitizenFrames(Stream.value(utf8.encode(large))).toList(),
+        throwsFormatException,
+      );
+      final many = 'data: {"sessionId":"session1"}\n\n' * 1000;
+      final frames = await readCitizenFrames(Stream.value(utf8.encode(many)))
+          .toList();
+      expect(frames, hasLength(1000));
+      expect(
+        frames.every((frame) => frame.envelope['sessionId'] == 'session1'),
+        isTrue,
       );
     },
   );

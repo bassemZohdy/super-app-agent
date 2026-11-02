@@ -12,12 +12,36 @@ class CitizenFrame {
   final bool unreadable;
 }
 
+// Split UTF-8 lines without buffering an unlimited unterminated line.
+Stream<String> _boundedLines(Stream<List<int>> source) async* {
+  final bytes = <int>[];
+  var afterCarriageReturn = false;
+  await for (final chunk in source) {
+    for (final byte in chunk) {
+      if (afterCarriageReturn) {
+        afterCarriageReturn = false;
+        if (byte == 10) continue;
+      }
+      if (byte == 10 || byte == 13) {
+        yield utf8.decode(bytes);
+        bytes.clear();
+        afterCarriageReturn = byte == 13;
+      } else {
+        if (bytes.length >= 262144) {
+          throw const FormatException('Stream event exceeds limit');
+        }
+        bytes.add(byte);
+      }
+    }
+  }
+  if (bytes.isNotEmpty) yield utf8.decode(bytes);
+}
+
 Stream<CitizenFrame> readCitizenFrames(Stream<List<int>> source) async* {
   final lines = <String>[];
   String? id;
   var bytes = 0;
-  await for (final line
-      in source.transform(utf8.decoder).transform(const LineSplitter())) {
+  await for (final line in _boundedLines(source)) {
     bytes += utf8.encode(line).length;
     if (bytes > 262144) {
       throw const FormatException('Stream event exceeds limit');

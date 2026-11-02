@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 3 November 2026 - Bound unfinished Flutter stream lines (P1-12, step)
+
+The Flutter stream reader rejects an oversized line as it arrives, before a terminator is received. Guide: [integrations](integrations.md).
+
 ## 3 November 2026 - Bound empty stream data lines (P1-12, step)
 
 The shared browser stream parser bounds empty data-line accumulation and counts inserted separators in event size. Guide: [integrations](integrations.md).
