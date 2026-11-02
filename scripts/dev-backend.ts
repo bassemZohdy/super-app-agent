@@ -1,8 +1,8 @@
-import { catalogServiceUrl, foodServiceUrl, gatewayUrl, profileServiceUrl, rideServiceUrl, walletServiceUrl } from './endpoints.ts';
+import { catalogServiceUrl, foodServiceUrl, gatewayUrl, profileServiceUrl, rideServiceUrl, telecomServiceUrl, walletServiceUrl } from './endpoints.ts';
 import type { Server } from 'node:http';
 /**
  * Unified Backend Runner for SuperApp Agent
- * Boots all 4 microservices + Agent Gateway in-process for fast local development.
+ * Boots all six application services + Agent Gateway in-process for fast local development.
  *
  * Each service listens on the port of its own endpoint URL (DEMO_*_URL, see endpoints.ts), on the loopback address unless
  * DEV_BACKEND_HOST says otherwise. This is a development runner, not a production profile.
@@ -28,7 +28,7 @@ const portOf = (url: string) => {
 };
 
 // Validate all ports before importing or starting any server, so a typo cannot leave a partial stack running.
-const ports = [rideServiceUrl, foodServiceUrl, walletServiceUrl, catalogServiceUrl, profileServiceUrl, gatewayUrl].map(portOf);
+const ports = [rideServiceUrl, foodServiceUrl, walletServiceUrl, catalogServiceUrl, profileServiceUrl, telecomServiceUrl, gatewayUrl].map(portOf);
 if (new Set(ports).size !== ports.length) throw new Error('Duplicate backend port: each service needs a distinct port.');
 const listen = (server: Server, url: string, message: string) => new Promise<void>((resolve, reject) => {
   const onError = (error: Error) => reject(error);
@@ -55,6 +55,10 @@ await listen(catalogServer, catalogServiceUrl, `📦 [service-catalog] listening
 process.env.PORT = String(portOf(profileServiceUrl));
 const { server: profileServer } = await import('../services/service-profile/src/index.ts');
 await listen(profileServer, profileServiceUrl, `👤 [service-profile] listening on ${profileServiceUrl}`);
+
+process.env.PORT = String(portOf(telecomServiceUrl));
+const { server: telecomServer } = await import('../services/service-telecom/src/index.ts');
+await listen(telecomServer, telecomServiceUrl, `📱 [service-telecom] listening on ${telecomServiceUrl}`);
 
 process.env.PORT = String(portOf(gatewayUrl));
 const { server: coreServer } = await import('../services/agent-core/src/index.ts');

@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 - Include telecom in the local backend runner (P2-06, step)
+
+The local runner starts the telecom application service alongside the other services and checks its configured listener before announcing readiness. Guide: [local development](development/local-development.md).
+
 ## 2 November 2026 - Describe food order recovery responses (P2-04, step)
 
 The application OpenAPI describes confirmed food orders and original-operation inspection responses with typed order, item, amount and identity fields. Guide: [application APIs](development/application-api.md).
