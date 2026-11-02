@@ -51,8 +51,9 @@ test('the reviewed composite identity is saved before dispatch and survives a lo
     const ridesBefore = stack.stores.get('rta')!.list(residentApi.accountId, 'ride').length;
     const evidence = await fetch(`${endpoint}/api/composite/reconciliation?${new URLSearchParams({ sessionId, accountId: residentApi.accountId })}`, { headers: { Authorization: `Bearer ${residentApi.token}` } });
     expect(evidence.status).toBe(200);
-    const report = await evidence.json() as { operationId: string; evidence: Array<{ step: string; assessment: string }> };
+    const report = await evidence.json() as { operationId: string; dispatch: string; evidence: Array<{ step: string; assessment: string }> };
     expect(report.operationId).toBe(expectedOperation);
+    expect(report.dispatch).toBe('UNCONFIRMED');
     expect(report.evidence).toEqual([{ step: 'WALLET', assessment: 'MATCH' }, { step: 'RIDE', assessment: 'UNCONFIRMED' }, { step: 'FOOD', assessment: 'UNCONFIRMED' }]);
     const fenceResponse = await fetch(`${endpoint}/api/composite/fence?${new URLSearchParams({ accountId: residentApi.accountId })}`, { headers: { Authorization: `Bearer ${residentApi.token}` } });
     const fence = await fenceResponse.json() as { status: string; sessionId: string; operationId: string };
@@ -97,6 +98,14 @@ test('the reviewed composite identity is saved before dispatch and survives a lo
     const blocked = await otherSend('/api/a2ui/action', { surfaceRevision: otherSurface.revision, action: 'confirm_composite_checkout', payload: otherBinding });
     expect(blocked.status).toBe(409);
     expect(blocked.data.code).toBe('COMPOSITE_RECONCILIATION_REQUIRED');
+    const cannotCancel = await send('/api/composite/reconciliation/cancel-undispatched', { operationId: expectedOperation });
+    expect(cannotCancel.status).toBe(409);
+    const dispatchKey = `${redisSessions()!.prefix}session:${sessionId}:composite-dispatch`;
+    const dispatchStage = await redisSessions()!.client.get(dispatchKey);
+    expect(dispatchStage).not.toBeNull();
+    await redisSessions()!.client.del(dispatchKey);
+    try { expect((await send('/api/composite/reconciliation/cancel-undispatched', { operationId: expectedOperation })).status).toBe(409); }
+    finally { await redisSessions()!.client.set(dispatchKey, dispatchStage!); }
     const incomplete = await send('/api/composite/reconciliation/resolve', { operationId: expectedOperation });
     expect(incomplete.status).toBe(409);
     expect(incomplete.data.code).toBe('COMPOSITE_EVIDENCE_UNCONFIRMED');
@@ -110,6 +119,8 @@ test('the reviewed composite identity is saved before dispatch and survives a lo
     expect(other.status).toBe(403);
     const otherResolve = await fetch(`${endpoint}/api/composite/reconciliation/resolve`, { method: 'POST', headers: { Authorization: `Bearer ${otherToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId, accountId: accountIdFor(otherClaims.sub), operationId: expectedOperation }) });
     expect(otherResolve.status).toBe(403);
+    const otherCancel = await fetch(`${endpoint}/api/composite/reconciliation/cancel-undispatched`, { method: 'POST', headers: { Authorization: `Bearer ${otherToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId, accountId: accountIdFor(otherClaims.sub), operationId: expectedOperation }) });
+    expect(otherCancel.status).toBe(403);
     expect((await send('/api/a2ui/intent', { text: 'Book a ride downtown and order pizza, pay with my wallet' })).data.code).toBe('RECONCILIATION_REQUIRED');
   } finally { ProviderClient.prototype.call = original; }
 });
@@ -139,6 +150,8 @@ test('competing sessions cannot both start a composite checkout for one account'
     const second = await send(sessions[1], '/api/a2ui/action', { surfaceRevision: surfaces[1].revision, action: 'confirm_composite_checkout', payload: bindings[1] });
     expect(second.status).toBe(409);
     expect(second.data.code).toBe('COMPOSITE_RECONCILIATION_REQUIRED');
+    const cancel = await send(sessions[0], '/api/composite/reconciliation/cancel-undispatched', { operationId: `${surfaces[0].revision}:confirm_composite_checkout` });
+    expect(cancel.status).toBe(409);
     release();
     expect((await first).status).toBe(200);
     expect(stack.stores.get('payments')!.list(residentApi.accountId, 'charge')).toHaveLength(1);
@@ -158,6 +171,7 @@ test('a lost fence write response preserves the original attempt without dispatc
   const surface = review.data.surface as { revision: string; view: { children: Array<{ onEvents?: Array<{ payload: Record<string, unknown> }> }> } };
   const binding = surface.view.children.flatMap(child => child.onEvents ?? []).find(event => event.payload.action === 'confirm_composite_checkout')!.payload;
   const originalAcquire = RedisSessionStore.prototype.acquire;
+  const operationId = `${surface.revision}:confirm_composite_checkout`;
   RedisSessionStore.prototype.acquire = async function (sid) {
     const lock = await originalAcquire.call(this, sid), begin = lock.beginComposite;
     lock.beginComposite = async state => { await begin(state); throw new Error('Simulated lost fence response'); };
@@ -167,10 +181,60 @@ test('a lost fence write response preserves the original attempt without dispatc
     const result = await send('/api/a2ui/action', { surfaceRevision: surface.revision, action: 'confirm_composite_checkout', payload: binding });
     expect(result.status).toBeGreaterThanOrEqual(500);
     const claims = JSON.parse(Buffer.from(residentApi.token.split('.')[1], 'base64url').toString()) as { sub: string };
-    expect((await redisSessions()!.read(sessionId, claims.sub)).state.compositeAttempt).toEqual({ operationId: `${surface.revision}:confirm_composite_checkout`, terms: binding });
+    expect((await redisSessions()!.read(sessionId, claims.sub)).state.compositeAttempt).toEqual({ operationId, terms: binding });
     expect(await redisSessions()!.inspectCompositeFence(claims.sub, residentApi.accountId)).toMatchObject({ status: 'BLOCKED', sessionId });
     expect(stack.stores.get('payments')!.list(residentApi.accountId, 'charge')).toHaveLength(0);
   } finally { RedisSessionStore.prototype.acquire = originalAcquire; }
+  const inspection = await fetch(`${endpoint}/api/composite/reconciliation?${new URLSearchParams({ sessionId, accountId: residentApi.accountId })}`, { headers: { Authorization: `Bearer ${residentApi.token}` } });
+  expect((await inspection.json()).dispatch).toBe('NOT_STARTED');
+  const wrong = await send('/api/composite/reconciliation/cancel-undispatched', { operationId: '11111111-1111-4111-8111-111111111111:confirm_composite_checkout' });
+  expect(wrong.status).toBe(409);
+  const otherToken = await login('bassem');
+  const otherClaims = JSON.parse(Buffer.from(otherToken.split('.')[1], 'base64url').toString()) as { sub: string };
+  const otherCancel = await fetch(`${endpoint}/api/composite/reconciliation/cancel-undispatched`, { method: 'POST', headers: { Authorization: `Bearer ${otherToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId, accountId: accountIdFor(otherClaims.sub), operationId }) });
+  expect(otherCancel.status).toBe(403);
+  const cancelled = await send('/api/composite/reconciliation/cancel-undispatched', { operationId });
+  expect(cancelled.status).toBe(200);
+  expect(cancelled.data.cancellation).toBe('CANCELLED');
+  expect((await send('/api/composite/reconciliation/cancel-undispatched', { operationId })).data.cancellation).toBe('ALREADY_CANCELLED');
+  const savedSession = await fetch(`${endpoint}/api/sessions/${sessionId}`, { headers: { Authorization: `Bearer ${residentApi.token}` } });
+  expect((await savedSession.json()).compositeCancellation).toMatchObject({ operationId, terms: binding });
+  const fence = await fetch(`${endpoint}/api/composite/fence?${new URLSearchParams({ accountId: residentApi.accountId })}`, { headers: { Authorization: `Bearer ${residentApi.token}` } });
+  expect((await fence.json()).status).toBe('CLEAR');
+  expect(stack.stores.get('payments')!.list(residentApi.accountId, 'charge')).toHaveLength(0);
+  expect(stack.stores.get('rta')!.list(residentApi.accountId, 'ride')).toHaveLength(0);
+  const next = await send('/api/a2ui/intent', { text: 'Book a ride downtown and order pizza, pay with my wallet' });
+  expect(next.status).toBe(200);
+  const nextSurface = next.data.surface as typeof surface;
+  const nextBinding = nextSurface.view.children.flatMap(child => child.onEvents ?? []).find(event => event.payload.action === 'confirm_composite_checkout')!.payload;
+  expect((await send('/api/a2ui/action', { surfaceRevision: nextSurface.revision, action: 'confirm_composite_checkout', payload: nextBinding })).status).toBe(200);
+  expect(stack.stores.get('payments')!.list(residentApi.accountId, 'charge')).toHaveLength(1);
+});
+
+test('a lost dispatch marker response keeps the original checkout blocked', async ({ residentApi, stack }) => {
+  const sessionId = `composite_${crypto.randomUUID()}`, endpoint = `http://localhost:${stack.corePort}`;
+  const send = async (path: string, body: Record<string, unknown>) => {
+    const response = await fetch(`${endpoint}${path}`, { method: 'POST', headers: { Authorization: `Bearer ${residentApi.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, sessionId, accountId: residentApi.accountId }) });
+    return { status: response.status, data: await response.json() };
+  };
+  const review = await send('/api/a2ui/intent', { text: 'Book a ride downtown and order pizza, pay with my wallet' });
+  const surface = review.data.surface as { revision: string; view: { children: Array<{ onEvents?: Array<{ payload: Record<string, unknown> }> }> } };
+  const binding = surface.view.children.flatMap(child => child.onEvents ?? []).find(event => event.payload.action === 'confirm_composite_checkout')!.payload;
+  const operationId = `${surface.revision}:confirm_composite_checkout`;
+  const originalAcquire = RedisSessionStore.prototype.acquire;
+  RedisSessionStore.prototype.acquire = async function (sid) {
+    const lock = await originalAcquire.call(this, sid), mark = lock.markCompositeDispatch;
+    lock.markCompositeDispatch = async operation => { await mark(operation); throw new Error('Simulated lost dispatch marker response'); };
+    return lock;
+  };
+  try {
+    expect((await send('/api/a2ui/action', { surfaceRevision: surface.revision, action: 'confirm_composite_checkout', payload: binding })).status).toBeGreaterThanOrEqual(500);
+  } finally { RedisSessionStore.prototype.acquire = originalAcquire; }
+  expect((await send('/api/composite/reconciliation/cancel-undispatched', { operationId })).status).toBe(409);
+  const claims = JSON.parse(Buffer.from(residentApi.token.split('.')[1], 'base64url').toString()) as { sub: string };
+  expect(await redisSessions()!.inspectCompositeFence(claims.sub, residentApi.accountId)).toMatchObject({ status: 'BLOCKED', sessionId, operationId });
+  expect((await redisSessions()!.read(sessionId, claims.sub)).state.compositeAttempt).toEqual({ operationId, terms: binding });
+  expect(stack.stores.get('payments')!.list(residentApi.accountId, 'charge')).toHaveLength(0);
 });
 
 test('a pre-dispatch composite refusal clears the saved attempt without moving funds', async ({ residentApi, stack }) => {

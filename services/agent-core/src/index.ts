@@ -62,7 +62,7 @@ function admitSession(sessionId: string, sub: string): boolean {
 }
 const sessionLimitReply = { success: false, code: 'SESSION_LIMIT_REACHED', error: 'Too many conversations are running. Wait for one to finish.' };
 const eligibilityReader=new EligibilityClient(),accountReader=new ProviderClient('service-wallet',process.env.SERVICE_WALLET_CLIENT_SECRET||'demo-wallet-secret');
-type RequestContext = { session?: SuperAppAgentState; release?: () => void | Promise<void>; save?: () => Promise<void>; assertLease?: () => Promise<void>; beginComposite?: () => Promise<void>; finishComposite?: (operationId: string) => Promise<void>; compositeOperation?: string };
+type RequestContext = { session?: SuperAppAgentState; release?: () => void | Promise<void>; save?: () => Promise<void>; assertLease?: () => Promise<void>; beginComposite?: () => Promise<void>; markCompositeDispatch?: (operationId: string) => Promise<void>; finishComposite?: (operationId: string) => Promise<void>; compositeOperation?: string; preserveComposite?: boolean };
 
 const compositeEvidence = (attempt: NonNullable<SuperAppAgentState['compositeAttempt']>, actor: Actor) => compareCompositeEvidence(attempt, actor.accountId, source => actorContext.run(actor, async () => {
   const path = source === 'wallet' ? '/wallet/operations/' : source === 'ride' ? '/rides/operations/' : '/orders/operations/';
@@ -179,10 +179,42 @@ async function handleGatewayRequest(
       const attempt = record.state.compositeAttempt;
       if (!record.state.reconciliation || !attempt) return { status: 404, data: { success: false, code: 'COMPOSITE_ATTEMPT_NOT_FOUND', error: 'No unresolved composite attempt was found.' } };
       const evidence = await compositeEvidence(attempt, actor);
-      return { status: 200, data: { success: true, operationId: attempt.operationId, evidence } };
+      const dispatch = await store.inspectCompositeDispatch(actor.sub, actor.accountId, query.sessionId, attempt.operationId);
+      return { status: 200, data: { success: true, operationId: attempt.operationId, dispatch, evidence } };
     } catch (error) {
       if (error instanceof SessionError) return { status: error.status, data: { success: false, code: error.code, error: error.message } };
       return { status: 503, data: { success: false, code: 'COMPOSITE_STATUS_UNAVAILABLE', error: 'Composite inspection is unavailable.' } };
+    }
+  }
+  if (normMethod === 'POST' && pathname === '/api/composite/reconciliation/cancel-undispatched') {
+    if (process.env.PROVIDER_INTEGRATION !== 'true' || process.env.DOMAIN_TRANSPORT !== 'http') return { status: 503, data: { success: false, code: 'COMPOSITE_STATUS_UNAVAILABLE', error: 'Integrated composite cancellation is unavailable in this mode.' } };
+    try {
+      const store = redisSessions();
+      if (!store) throw new SessionError(503, 'SESSION_STORE_UNAVAILABLE', 'Persistent session storage is required.');
+      const initial = await store.read(body.sessionId, actor.sub);
+      if (initial.accountId !== actor.accountId) return { status: 409, data: { success: false, code: 'SESSION_ACCOUNT_MISMATCH', error: 'This conversation belongs to another account.' } };
+      const lock = await store.acquire(body.sessionId);
+      try {
+        const current = await store.read(body.sessionId, actor.sub);
+        if (current.accountId !== actor.accountId) return { status: 409, data: { success: false, code: 'SESSION_ACCOUNT_MISMATCH', error: 'This conversation belongs to another account.' } };
+        const state = current.state, attempt = state.compositeAttempt;
+        if (state.compositeCancellation?.operationId === body.operationId) return { status: 200, data: { success: true, cancellation: 'ALREADY_CANCELLED', operationId: body.operationId } };
+        if (!state.reconciliation || !attempt || attempt.operationId !== body.operationId) return { status: 409, data: { success: false, code: 'COMPOSITE_ATTEMPT_CHANGED', error: 'The original checkout is not available for cancellation.' } };
+        if (eligibilityEnforced()) await eligibilityReader.require(actor);
+        state.compositeCancellation = { operationId: attempt.operationId, terms: structuredClone(attempt.terms), cancelledAt: Date.now() };
+        delete state.compositeAttempt; delete state.reconciliation; delete state.approval;
+        state.metadata = { ...state.metadata, runtime: { ...state.metadata?.runtime, status: 'cancelled' } };
+        state.currentSurface = { version: '1.0.0', sessionId: state.sessionId, timestamp: Date.now(), view: { type: 'Text', id: 'composite_undispatched_cancelled', properties: { text: 'The original checkout was cancelled before any service action started.' } } };
+        state.messages.push({ id: randomUUID(), role: 'assistant', content: 'The original checkout was cancelled before any service action started.', timestamp: Date.now() });
+        commitSurface(state);
+        await lock.cancelUndispatchedComposite(state, attempt.operationId);
+        await broadcast(state.sessionId, createA2UIMessage('A2UI_RENDER_SURFACE', state.sessionId, { mode: 'REPLACE', surface: state.currentSurface }));
+        return { status: 200, data: { success: true, cancellation: 'CANCELLED', operationId: attempt.operationId, surface: state.currentSurface } };
+      } finally { await lock.release(); }
+    } catch (error) {
+      if (error instanceof SessionError) return { status: error.status, data: { success: false, code: error.code, error: error.message } };
+      if (error instanceof EligibilityReadError) return { status: [403, 409].includes(error.status) ? error.status : 503, data: { success: false, code: error.status === 409 ? 'ELIGIBILITY_CHANGED' : 'ELIGIBILITY_DENIED', error: 'Current owner or workspace permission prevents cancellation.' } };
+      return { status: 503, data: { success: false, code: 'COMPOSITE_STATUS_UNAVAILABLE', error: 'Composite cancellation is unavailable.' } };
     }
   }
   if (normMethod === 'POST' && pathname === '/api/composite/reconciliation/resolve') {
@@ -434,7 +466,7 @@ async function handleGatewayRequest(
       if (normMethod === 'DELETE') { const record = await persistent.read(sid, actor.sub);if(eligibilityEnforced())await eligibilityReader.require({...actor,accountId:record.accountId,eligibilityEpoch:undefined}); await persistent.remove(sid, actor.sub); await discardRuntime(record.state); return { status: 200, data: { success: true } }; }
       const record = await persistent.read(sid, actor.sub);
       if(eligibilityEnforced())await eligibilityReader.require({...actor,accountId:record.accountId,eligibilityEpoch:undefined});
-      return { status: 200, data: { success: true, sessionId: sid, accountId: record.accountId, messages: record.state.messages, surface: record.state.currentSurface, serviceId:record.state.metadata?.manualService, modelPersonalContext: record.state.metadata?.modelPersonalContext !== false, inference: record.state.metadata?.inference, runtime: record.state.metadata?.runtime, approval: record.state.approval, approvalHistory: record.state.approvalHistory, ...(record.state.reconciliation ? { reconciliation: record.state.reconciliation, compositeAttempt: record.state.compositeAttempt } : {}), ...(record.state.compositeResolution ? { compositeResolution: record.state.compositeResolution } : {}) } };
+      return { status: 200, data: { success: true, sessionId: sid, accountId: record.accountId, messages: record.state.messages, surface: record.state.currentSurface, serviceId:record.state.metadata?.manualService, modelPersonalContext: record.state.metadata?.modelPersonalContext !== false, inference: record.state.metadata?.inference, runtime: record.state.metadata?.runtime, approval: record.state.approval, approvalHistory: record.state.approvalHistory, ...(record.state.reconciliation ? { reconciliation: record.state.reconciliation, compositeAttempt: record.state.compositeAttempt } : {}), ...(record.state.compositeResolution ? { compositeResolution: record.state.compositeResolution } : {}), ...(record.state.compositeCancellation ? { compositeCancellation: record.state.compositeCancellation } : {}) } };
     }
     if (!sessions.has(sid)) return { status: 404, data: { error: 'Session not found' } };
     if (sessionOwners.get(sid) !== actor.sub) return { status: 403, data: { error: 'Session belongs to a different user' } };
@@ -456,6 +488,7 @@ async function handleGatewayRequest(
       requestContext.save = () => lock.save(session);
       requestContext.assertLease = lock.assert;
       requestContext.beginComposite = () => lock.beginComposite(session);
+      requestContext.markCompositeDispatch = operationId => lock.markCompositeDispatch(operationId);
       requestContext.finishComposite = operationId => lock.finishComposite(session, operationId);
     } else {
       if ((pathname.endsWith('/action') || pathname.endsWith('/cancel')) && !sessions.has(body.sessionId)) return { status: 404, data: { error: 'Session not found' } };
@@ -574,7 +607,7 @@ async function handleGatewayRequest(
 
     recordApproval(session, 'confirmed', body.action);
     if (process.env.PROVIDER_INTEGRATION === 'true' && body.action === 'confirm_composite_checkout') {
-      if (!requestContext.beginComposite || !requestContext.finishComposite) throw new SessionError(503, 'SESSION_STORE_UNAVAILABLE', 'Persistent session storage is required before composite checkout.');
+      if (!requestContext.beginComposite || !requestContext.markCompositeDispatch || !requestContext.finishComposite) throw new SessionError(503, 'SESSION_STORE_UNAVAILABLE', 'Persistent session storage is required before composite checkout.');
       session.compositeAttempt = { operationId: actor.requestId, terms: structuredClone(body.payload || {}) };
       session.reconciliation = { outcome: 'UNKNOWN', steps: [] };
       try { await requestContext.beginComposite(); }
@@ -582,6 +615,9 @@ async function handleGatewayRequest(
       // overwrite the retained attempt when the result of that write is unknown.
       catch (error) { requestContext.save = undefined; throw error; }
       requestContext.compositeOperation = actor.requestId;
+      requestContext.preserveComposite = true;
+      await requestContext.markCompositeDispatch(actor.requestId);
+      requestContext.preserveComposite = false;
     }
     const updatedState = await actorContext.run(actor, () => executeRuntimeAction(
       session,
@@ -669,7 +705,7 @@ export async function executeGatewayRequest(method: string, pathname: string,
     }
     return { status, data: { success: false, error: message, code, outcome, steps, retry, surface } };
   } finally {
-    const finishComposite = !!requestContext.compositeOperation && (completed || executionOutcome(steps) === 'FAILED');
+    const finishComposite = !!requestContext.compositeOperation && !requestContext.preserveComposite && (completed || executionOutcome(steps) === 'FAILED');
     if (finishComposite && requestContext.session) {
       delete requestContext.session.compositeAttempt;
       delete requestContext.session.reconciliation;

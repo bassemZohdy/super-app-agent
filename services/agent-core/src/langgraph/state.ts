@@ -25,6 +25,7 @@ export interface SuperAppAgentState {
   reconciliation?: { outcome: 'UNKNOWN' | 'PARTIALLY_COMPLETED'; steps: import('../domain-operations.ts').Step[] };
   compositeAttempt?: { operationId: string; terms: Record<string, unknown> };
   compositeResolution?: { operationId: string; terms: Record<string, unknown>; resolvedAt: number };
+  compositeCancellation?: { operationId: string; terms: Record<string, unknown>; cancelledAt: number };
   threadCheckpointId?: string;
   metadata?: Record<string, any>;
 }
