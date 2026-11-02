@@ -863,11 +863,6 @@ export const server = http.createServer({ maxHeaderSize: 16384 }, telemetry.hand
     }
 
     const cursor = req.headers['last-event-id'];
-    const replay = typeof cursor === 'string' && cursor ? (persistent ? await persistent.after(sid, cursor) : eventJournal.after(sid, cursor)) : [];
-    if (replay === undefined) {
-      sendJson(req, res, 409, { error: 'Replay cursor expired or unknown', code: 'STREAM_RESET_REQUIRED' });
-      return;
-    }
     if (res.destroyed || req.aborted) return;
     const releaseStream = streamAdmission.acquire(authResult.user!.sub, sid);
     if (!releaseStream) {
@@ -875,17 +870,18 @@ export const server = http.createServer({ maxHeaderSize: 16384 }, telemetry.hand
       return;
     }
     const subscribers = sseClients.get(sid) || new Set();
-    res.writeHead(200, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache, no-transform',
-      'Connection': 'keep-alive',
-      'X-Accel-Buffering': 'no',
-      'Access-Control-Allow-Origin': allowedOrigin(req.headers.origin),
-        'Vary': 'Origin',
-    });
-    const writer = new StreamWriter(res);
+    let writer: StreamWriter | undefined;
     let delivery=Promise.resolve(),pendingMessages=0;
-    const listener = (msg: A2UIMessageEnvelope) => {if(res.writableEnded)return;if(pendingMessages>=32){operationalEvent('sse_backpressure');res.end();return;}pendingMessages++;delivery=delivery.then(async()=>{if(res.writableEnded)return;if(eligibilityEnforced()){const verified=await verifyKeycloakToken(authHeader);if(!verified.authenticated)throw Error('Identity inactive');await eligibilityReader.require(streamActor);}writer.send(eventFrame(msg));}).catch(()=>{res.end();}).finally(()=>{pendingMessages--;});};
+    const deliver = (msg: A2UIMessageEnvelope) => {if(res.writableEnded)return;if(pendingMessages>=32){operationalEvent('sse_backpressure');res.end();return;}pendingMessages++;delivery=delivery.then(async()=>{if(res.writableEnded)return;if(eligibilityEnforced()){const verified=await verifyKeycloakToken(authHeader);if(!verified.authenticated)throw Error('Identity inactive');await eligibilityReader.require(streamActor);}writer?.send(eventFrame(msg));}).catch(()=>{res.end();}).finally(()=>{pendingMessages--;});};
+    let replaying = true, bufferedBytes = 0;
+    const replayedIds = new Set<string>();
+    const buffered: A2UIMessageEnvelope[] = [];
+    const listener = (msg: A2UIMessageEnvelope) => {
+      if (!replaying) { if (!replayedIds.has(msg.id)) deliver(msg); return; }
+      bufferedBytes += Buffer.byteLength(eventFrame(msg));
+      if (buffered.length >= 32 || bufferedBytes > 262_144) { operationalEvent('sse_backpressure'); res.destroy(); return; }
+      buffered.push(msg);
+    };
     subscribers.add(listener);
     sseClients.set(sid, subscribers);
     let unsubscribe: (() => Promise<void>) | undefined;
@@ -894,7 +890,7 @@ export const server = http.createServer({ maxHeaderSize: 16384 }, telemetry.hand
     res.once('close', () => {
       closed = true;
       clearInterval(heartbeat); clearTimeout(expiry);
-      writer.close();
+      writer?.close();
       void unsubscribe?.().catch(() => {});
       subscribers.delete(listener);
       if (!subscribers.size && sseClients.get(sid) === subscribers) sseClients.delete(sid);
@@ -903,7 +899,18 @@ export const server = http.createServer({ maxHeaderSize: 16384 }, telemetry.hand
     try { unsubscribe = persistent ? await persistent.subscribe(sid, listener) : undefined; }
     catch { res.destroy(); return; }
     if (closed || res.destroyed) { void unsubscribe?.().catch(() => {}); return; }
-    heartbeat = setInterval(() => writer.send(': keepalive\n\n'), 20_000);
+    let replay: A2UIMessageEnvelope[] | undefined;
+    try { replay = typeof cursor === 'string' && cursor ? (persistent ? await persistent.after(sid, cursor) : eventJournal.after(sid, cursor)) : []; }
+    catch { sendJson(req, res, 503, { error: 'Stream replay unavailable' }); return; }
+    if (closed || res.destroyed) return;
+    if (replay === undefined) { sendJson(req, res, 409, { error: 'Replay cursor expired or unknown', code: 'STREAM_RESET_REQUIRED' }); return; }
+    for (const event of replay) replayedIds.add(event.id);
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', 'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no', 'Access-Control-Allow-Origin': allowedOrigin(req.headers.origin), 'Vary': 'Origin',
+    });
+    writer = new StreamWriter(res);
+    heartbeat = setInterval(() => writer?.send(': keepalive\n\n'), 20_000);
     // Reauthenticate each connection and close it at token expiry (or after 5 minutes).
     const lifetime = Math.min(300_000, (authResult.user!.expiresAt ?? Date.now() + 300_000) - Date.now());
     expiry = setTimeout(() => res.end(), Math.max(0, lifetime));
@@ -913,13 +920,26 @@ export const server = http.createServer({ maxHeaderSize: 16384 }, telemetry.hand
     });
     // Handshakes and initial snapshots have no cursor: only journaled events are resumable.
     writer.send(`retry: 1000\ndata: ${JSON.stringify(ack)}\n\n`);
-    if (cursor) for (const event of replay) listener(event);
+    if (cursor) for (const event of replay) {
+      deliver(event); await delivery;
+      if (closed || res.destroyed || res.writableEnded) return;
+    }
     else {
       const surface = (persistentState || sessions.get(sid))?.currentSurface;
-      if (surface) listener(createA2UIMessage('A2UI_RENDER_SURFACE', sid, {
+      if (surface) deliver(createA2UIMessage('A2UI_RENDER_SURFACE', sid, {
         mode: 'REPLACE', surface,
       }));
+      await delivery;
+      if (closed || res.destroyed || res.writableEnded) return;
     }
+    while (buffered.length) {
+      const event = buffered.shift()!;
+      bufferedBytes -= Buffer.byteLength(eventFrame(event));
+      if (replayedIds.has(event.id)) continue;
+      deliver(event); await delivery;
+      if (closed || res.destroyed || res.writableEnded) return;
+    }
+    replaying = false;
     return;
   }
 

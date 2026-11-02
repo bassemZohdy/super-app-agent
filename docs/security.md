@@ -50,6 +50,8 @@ The compatibility gateway admits at most five streams per session, 20 per authen
 
 Within each compatibility gateway process, Redis subscription changes are ordered so concurrent listeners wait for connection and unsubscribe completes before a replacement subscribes. Closing the store invalidates pending subscription work; a failed channel subscription can be retried.
 
+For a cursor reconnect, the gateway subscribes before reading replay, buffers a bounded number of live events during replay and suppresses replay/live overlap by event ID. If the buffer overflows, the connection closes so the client can resume from its last handled event. Replay is delivered in order without filling the live delivery queue with the entire backlog.
+
 Focused React and Angular conversation creation and inspection accept at most 4 MiB of streamed JSON, including restored history and the service panel. They count bytes instead of trusting response headers, reject invalid UTF-8 and request cancellation without waiting for an uncooperative sender. A malformed or oversized result is reported as unavailable for inspection.
 
 The focused simulator and compatible planner bound JSON response size. On overflow, they request cancellation but do not wait for an uncooperative response stream to finish cancelling. A write remains unknown for original-operation recovery; a model failure releases its active concurrency slot.
