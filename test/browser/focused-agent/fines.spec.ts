@@ -4,6 +4,22 @@ import { randomUUID } from 'node:crypto';
 import { test, expect } from './fixtures.ts';
 import { controlsBelowTarget, focusIsVisible, injectMotionCanary, stillMoving } from '../accessibility/measures.ts';
 
+test('the React fines sign-in and navigation follow the saved Arabic language', async ({ page, focused }) => {
+  await page.addInitScript(() => localStorage.setItem('cityside.locale', 'ar'));
+  await page.goto(focused.url);
+  await expect(page.locator('html')).toHaveAttribute('lang', 'ar');
+  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+  await expect(page.getByRole('heading', { name: 'مخالفاتك. قرارك.' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'كل خدمات المدينة' })).toBeVisible();
+  await page.getByLabel('رمز الوصول', { exact: true }).fill(focused.token);
+  await page.getByRole('button', { name: 'فتح مخالفاتي' }).click();
+  await expect(page.getByRole('button', { name: 'تسجيل الخروج' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'فحص المحادثة المحفوظة' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'استرداد العملية المحفوظة' })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect(await controlsBelowTarget(page)).toEqual([]);
+});
+
 test('retrieve fines, resume the exact review after restart, pay once and reject duplicate/stale/cross-owner approvals', async ({ page, focused }, info) => {
   await page.goto(focused.url);
   await page.getByLabel('Access token', { exact: true }).fill(focused.token);

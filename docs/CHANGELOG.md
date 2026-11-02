@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Localize React fines sign-in (P2-01, step)
+
+The React focused fines sign-in and navigation follow the saved English or Arabic language and page direction. Browser checks cover Arabic sign-in and navigation at desktop and phone widths. Guide: [shell parity](development/shell-parity.md).
+
 ## 2 November 2026 — Protect broker identity exchanges (P1-02, step)
 
 The delegation and automation broker limits successful identity responses and records only the HTTP status for rejected exchanges. Oversized responses do not reach the provider, and identity-server error text is not logged. Guide: [delegation](development/delegation.md).

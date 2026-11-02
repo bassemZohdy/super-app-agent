@@ -3,6 +3,7 @@ import { Building2, ShieldCheck } from 'lucide-react';
 import { FocusedAgentClient, FOCUSED_REQUEST_TIMEOUT_MS, AgentClientError, type AgentAction, type AgentResult } from '../../../packages/protocol-core/src/focused-agent-client.ts';
 import { WorkspacePanes } from './components/WorkspacePanes.tsx';
 import { A2UIRenderer } from './components/A2UIRenderer.tsx';
+import { useLocale } from './locale.ts';
 import './focused-fines.css';
 
 const savedThread = 'cityside.fines.thread.v1';
@@ -15,6 +16,7 @@ const amount = (minor: number) => new Intl.NumberFormat('en-AE', { style: 'curre
 
 /** The fines route shares Cityside's renderer and visual shell; other journeys retain their existing entry point. */
 export default function FocusedFinesWorkspace() {
+  const { t } = useLocale();
   const [client, setClient] = useState<FocusedAgentClient | null>(null);
   const [data, setData] = useState<AgentResult | null>(null);
   const [draft, setDraft] = useState('');
@@ -94,26 +96,26 @@ export default function FocusedFinesWorkspace() {
   return <div className="city-app focused-fines">
     <main className="main-workspace" id="main">
       <header className="topbar">
-        <a href="/" className="brand" aria-label="Cityside home"><span className="brand-mark"><Building2 size={24} /></span><span>city<span className="brand-light">side</span></span></a>
-        <span>Fines</span>
-        {client && <button className="text-button" disabled={pending} onClick={() => { controller.current?.abort(); setClient(null); setData(null); setDraft(''); setError(''); setUncertain(false); }}>Sign out</button>}
+        <a href="/" className="brand" aria-label={t('fines.brandHome')}><span className="brand-mark"><Building2 size={24} /></span><span>city<span className="brand-light">side</span></span></a>
+        <span>{t('fines.shortTitle')}</span>
+        {client && <button className="text-button" disabled={pending} onClick={() => { controller.current?.abort(); setClient(null); setData(null); setDraft(''); setError(''); setUncertain(false); }}>{t('fines.signOut')}</button>}
       </header>
-      <nav className="workspace-tools" aria-label="Fines tools">
-        <a href="/">All city services</a>
-        <button className="text-button" disabled={pending || !!active || !!needsRecovery} onClick={newConversation}>Start a new conversation</button>
-        {client && <><button className="text-button" disabled={pending} onClick={inspect}>Inspect saved conversation</button><button className="text-button" disabled={pending || data?.status === 'cancelled'} onClick={() => transition('recover', {})}>Recover saved operation</button></>}
+      <nav className="workspace-tools" aria-label={t('fines.tools')}>
+        <a href="/">{t('fines.allServices')}</a>
+        <button className="text-button" disabled={pending || !!active || !!needsRecovery} onClick={newConversation}>{t('fines.start')}</button>
+        {client && <><button className="text-button" disabled={pending} onClick={inspect}>{t('fines.inspect')}</button><button className="text-button" disabled={pending || data?.status === 'cancelled'} onClick={() => transition('recover', {})}>{t('fines.recover')}</button></>}
       </nav>
-      <p className="focused-notice"><ShieldCheck size={18} aria-hidden="true" /> Demo records and payments are simulated. You review the exact amount before confirming.</p>
+      <p className="focused-notice"><ShieldCheck size={18} aria-hidden="true" /> {t('fines.simulatedReview')}</p>
       {error && <p className="focused-error" role="alert">{error}</p>}
       {pending && <p className="focused-notice" role="status">{progress}</p>}
       {!client ? <section className="focused-login" aria-labelledby="fines-heading">
-        <h1 id="fines-heading">Your fines.<br />Your decision.</h1>
-        <p>View outstanding fines and review a simulated payment. Sign in with your local demo access token.</p>
+        <h1 id="fines-heading">{t('fines.headline')}</h1>
+        <p>{t('fines.loginIntro')}</p>
         <form onSubmit={event => { event.preventDefault(); signIn(event.currentTarget); }}>
-          <label htmlFor="fines-access-token">Access token</label>
+          <label htmlFor="fines-access-token">{t('fines.token')}</label>
           <input id="fines-access-token" name="token" type="password" autoComplete="off" required disabled={pending} aria-describedby="fines-token-help" />
-          <p id="fines-token-help">The local setup generates this token. It is kept only in this page’s memory; signing out clears it.</p>
-          <button type="submit" className="login-button" disabled={pending}>Open my fines</button>
+          <p id="fines-token-help">{t('fines.tokenHelp')}</p>
+          <button type="submit" className="login-button" disabled={pending}>{t('fines.open')}</button>
         </form>
       </section> : <WorkspacePanes revealDetailsKey={active?.id} conversation={<>
         <section className="focused-conversation" aria-labelledby="conversation-heading">
