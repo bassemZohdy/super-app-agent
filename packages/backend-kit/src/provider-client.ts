@@ -63,6 +63,6 @@ export class ProviderClient {
     }
     const code = upstreamCode || 'PROVIDER_REJECTED';
     record(response.status, code);
-    throw new UpstreamError(response.status, code, typeof data.error === 'string' ? data.error : `The ${provider} request was rejected.`);
+    throw new UpstreamError(response.status, code, 'The provider rejected the request. Review its status.');
   }
 }

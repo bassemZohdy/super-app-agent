@@ -57,3 +57,18 @@ test('contradictory or ambiguous provider write replies remain unknown', async t
       (error: unknown) => error instanceof UpstreamError && error.status === 409 && error.code === 'PAYABLE_CHANGED');
   } finally { fetchMock.mock.restore(); }
 });
+
+
+test('provider rejection text is not exposed in application errors', async t => {
+  const actor = actorFor({ sub: 'test-user' }, 'test-account', 'Bearer test');
+  const client = new ProviderClient('test-client', '');
+  const privateDetail = 'example-private-provider-detail';
+  t.mock.method(globalThis, 'fetch', async () => Response.json({ success: false, code: 'PAYABLE_CHANGED', error: `Internal detail: ${privateDetail}` }, { status: 409 }));
+  await assert.rejects(client.call('dewa', actor, 'POST', '/payments', {}), (error: unknown) => {
+    if (!(error instanceof UpstreamError)) return false;
+    assert.equal(error.status, 409);
+    assert.equal(error.code, 'PAYABLE_CHANGED');
+    assert.equal(error.message.includes(privateDetail), false);
+    return true;
+  });
+});

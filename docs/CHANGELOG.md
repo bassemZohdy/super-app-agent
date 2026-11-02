@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Do not expose provider rejection text (P0-14, step)
+
+The application provider client now uses a fixed rejection message instead of copying free-form upstream error text into application errors. The response status and provider code are retained for existing callers; provider codes remain a separate data-minimization concern. A regression checks that an injected private detail does not appear in the error. Guide: [testing](testing.md).
+
 ## 2 November 2026 — Keep provider calls within the selected account (P1-02, step)
 
 The application provider client rejects paths that normalize outside the selected account prefix, including encoded separators and backslashes, before sending a request. The explicit account-list bootstrap route remains available. Tests cover traversal attempts, a normal encoded payable path with query and bootstrap. This confines path construction; provider-side ownership and authorization remain required. Guide: [testing](testing.md).
