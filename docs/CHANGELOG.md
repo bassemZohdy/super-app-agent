@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bind utility settlement to the account (P1-13, step)
+
+Standalone and grouped utility payments reject bills or payables outside the account's synthetic utility account, and reject a mismatched premise when present. Focused boundary tests and all 17 documented application contract writes passed; live checks used revision `3858ce6` plus this change, Node 24.16.0, Docker 29.9.2 and Compose 5.6.1 on a disposable synthetic stack. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Bind integrated fine settlement to the account plate (P1-13, step)
 
 Standalone and manual grouped fine settlement refuse provider fines or selection quotes for a different plate before creating payment. Wrong-plate tests and the valid grouped checkout and application contract writes passed; live checks used revision `b151013` plus this change, Node 24.16.0, Docker 29.9.2 and Compose 5.6.1 on a disposable synthetic stack. Guide: [integrations](integrations.md).

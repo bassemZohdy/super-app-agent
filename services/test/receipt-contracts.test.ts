@@ -15,15 +15,16 @@ test('integrated receipt mappings preserve utility premise, owned fine plate/dis
   const previous = process.env.APP_DATA_DIR; process.env.APP_DATA_DIR = dir;
   t.after(async () => { if (previous === undefined) delete process.env.APP_DATA_DIR; else process.env.APP_DATA_DIR = previous; removeTemp(dir); });
   let status = 'UNPAID'; let captures = 0;
-  const bill = { billId: 'dewa_contract_bill', premiseId: 'DEWA-CONTRACT-PREMISE', status, totalAmount: 420.4 };
-  const payable = { id:'dewa:bill:dewa_contract_bill', obligationId:bill.billId, kind:'BILL', provider:'dewa', reference:'owned-dewa', amountMinor:42040, status:'UNPAID', revision:'a'.repeat(64) };
+  const actor = actorFor({ sub: 'receipt-contract-user' }), asset = assetsFor(actor.accountId);
+  const bill = { billId: 'dewa_contract_bill', premiseId: asset.premiseId, accountNumber: asset.utilityAccount, status, totalAmount: 420.4 };
+  const payable = { id:'dewa:bill:dewa_contract_bill', obligationId:bill.billId, kind:'BILL', provider:'dewa', reference:asset.utilityAccount, amountMinor:42040, status:'UNPAID', revision:'a'.repeat(64) };
   let orderState='AWAITING_APPROVAL';
   const mappingOrder=()=>({id:'mapping-order',ownerSub:actor.sub,accountId:actor.accountId,state:orderState,version:orderState==='AWAITING_APPROVAL'?1:2,approvalDigest:'a'.repeat(64),fundsCaptured:orderState==='SETTLED',quote:{currency:'AED',source:{id:'wallet',kind:'wallet',accountId:actor.accountId,version:1},totalMinor:42040,payable},receipt:{receiptNumber:'receipt_contract_capture',obligationId:bill.billId,amountMinor:42040,currency:'AED'}});
   t.mock.method(ProviderClient.prototype, 'call', async (provider, _actor, method, route) => {
     if (provider === 'police' && method === 'GET') return { fines: [{ plateNumber: assetsFor(actor.accountId).plate, originalAmount: 450, discountAmount: 30, payableAmount: 420 }], count: 1, totalOriginal: 450, totalDiscount: 30, totalPayable: 420 };
     if (provider === 'dewa' && method === 'GET' && route === '/bills') return { bills: [{ ...bill, status }] };
     if(provider==='dewa'&&route==='/payables')return{payables:[payable]};
-    if(provider==='payments'&&route==='/billing-accounts')return{billingAccounts:[{status:'ACTIVE',provider:'dewa',reference:'owned-dewa'}]};
+    if(provider==='payments'&&route==='/billing-accounts')return{billingAccounts:[{status:'ACTIVE',provider:'dewa',reference:asset.utilityAccount}]};
     if(provider==='payments'&&route==='/payment-orders')return{order:mappingOrder()};
     if(provider==='payments'&&route==='/payment-orders/mapping-order')return{order:mappingOrder()};
     if(provider==='payments'&&route.endsWith('/approve')){orderState='AUTHORIZED';return{order:mappingOrder()};}
@@ -32,7 +33,6 @@ test('integrated receipt mappings preserve utility premise, owned fine plate/dis
     if (provider === 'dewa' && method === 'POST') return { success: true, receipt: { billId: bill.billId, receiptNumber: 'receipt_contract_capture', amountPaid: '420.40' } };
     throw new Error('Unexpected provider operation');
   });
-  const actor = actorFor({ sub: 'receipt-contract-user' });
   const legacy = () => ({ status: 404, data: {} });
   const currentBill = await integratedRequest('service-food', actor, 'GET', '/utilities/bill', {}, {}, legacy);
   assert.equal(currentBill.data.bill.payableId, payable.id); assert.equal(currentBill.data.bill.payableRevision, payable.revision);

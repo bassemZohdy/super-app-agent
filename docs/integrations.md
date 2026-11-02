@@ -32,6 +32,8 @@ The offline `/fines/pay` and `/fines/settle` fixture checks any supplied `expect
 
 The `/fines/check` and `/fines` lookups return fines and exact fils totals for the requested plate. The offline fixture defaults to its seeded plate; the integrated path defaults to the selected account's synthetic plate and rejects a different requested plate before contacting the provider. The current integrated mapping represents one synthetic plate per account, not a general multi-vehicle entitlement model.
 
+Integrated standalone and manual grouped utility settlement require the provider's bill and payable to match the selected account's synthetic utility account before payment. If a bill includes a premise ID, it must match the account's synthetic premise; generated bills may omit that field. Grouped checkout rechecks the account when it rereads selected payables. This is a one-account demo mapping, not a general multi-premise entitlement model.
+
 Integrated standalone and manual grouped fine settlement also require selected provider fines and the resulting selection quote to match the account's synthetic plate before creating a payment. An off-plate selection or quote is refused; this check does not replace a production multi-vehicle entitlement model.
 
 Standalone utility and fine surfaces include the displayed amount in their approval payload in both modes. The offline fixture compares that amount with the current bill or selected fines before settlement, so a changed amount requires a fresh review. Revision-bound requests still require the integrated provider.
