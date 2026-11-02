@@ -106,6 +106,7 @@ test('wallet panel explains unreadable account-wide payment evidence', async ({ 
   expect(response.status).toBe(200);
   const result = await response.json() as { charge: { id: string } }, id = result.charge.id;
   const transaction = store.get<Record<string, unknown>>(account, 'transaction', id)!;
+  const charge = store.get<Record<string, unknown>>(account, 'charge', id)!;
   expect((await residentApi.call('overview')).data.wallet.walletPaymentReview).toBe('NOT_DETECTED');
   store.db.prepare("UPDATE resources SET body='{' WHERE account_id=? AND kind='transaction' AND id=?").run(account, id);
   try {
@@ -115,7 +116,13 @@ test('wallet panel explains unreadable account-wide payment evidence', async ({ 
     await resident.getByRole('button', { name: 'Payment accounts', exact: true }).click();
     const panel = resident.getByRole('region', { name: 'Payment accounts', exact: true });
     await expect(panel.getByText('Some wallet payment records need review before new concierge wallet payments. Review your payment history; there is no automatic clearance.', { exact: true })).toBeVisible();
-  } finally { store.put(account, 'transaction', transaction, id); }
+    await panel.getByRole('button', { name: 'Load recovery cases', exact: true }).click();
+    const issues = panel.getByRole('region', { name: 'Records needing manual review', exact: true });
+    await expect(issues.getByText(`Unreadable transaction record · ${id}`, { exact: true })).toBeVisible();
+    store.db.prepare("UPDATE resources SET body='{' WHERE account_id=? AND kind='charge' AND id=?").run(account, id);
+    await panel.getByRole('button', { name: 'Load recovery cases', exact: true }).click();
+    await expect(issues.getByText(`Unreadable payment record · ${id}`, { exact: true })).toBeVisible();
+  } finally { store.put(account, 'charge', charge, id); store.put(account, 'transaction', transaction, id); }
   expect((await residentApi.call('overview')).data.wallet.walletPaymentReview).toBe('NOT_DETECTED');
 });
 

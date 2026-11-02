@@ -12,7 +12,7 @@ import { PaymentCheckout } from '../provider-simulator/src/payment-checkout.ts';
 import { ProviderSettlements } from '../provider-simulator/src/provider-settlements.ts';
 import { actorFor } from '../../packages/backend-kit/src/context.ts';
 import { UpstreamError, type ProviderClient } from '../../packages/backend-kit/src/provider-client.ts';
-import { recoveryInspectionSchema } from '../../packages/protocol-core/src/payment-reconciliation.ts';
+import { recoveryInspectionSchema, recoveryEvidenceIssueSchema } from '../../packages/protocol-core/src/payment-reconciliation.ts';
 import { validateRequest } from '../../packages/protocol-core/src/request-validation.ts';
 const decision=(o:{version:number;approvalDigest:string})=>({expectedVersion:o.version,approvalDigest:o.approvalDigest});
 function fixture(t:any, path=':memory:') {
@@ -87,6 +87,32 @@ test('more than 100 owned legacy records paginate without loss and do not author
   let cursor='',seen:string[]=[];do{const page=f.recovery.list(f.actor,cursor);seen.push(...page.cases.map(c=>c.operationId));cursor=page.nextCursor||'';}while(cursor);assert.equal(seen.length,111);assert.equal(new Set(seen).size,111);
   const i=await f.inspect(seen[0],'LEGACY');assert.equal(i.classification,'BLOCKED');assert.deepEqual(i.actions,[]);assert.equal(f.gateway.ledger!.summary(f.actor.accountId).balanceMinor,149889);
 });
+test('recovery list isolates unreadable evidence without hiding other owned cases', t => {
+  const f=fixture(t), other=actorFor({sub:'different-recovery-owner'}); f.db.accounts(other.sub); f.gateway.seed(other);
+  const make=(reference:string)=>f.db.transaction(()=>f.gateway.execute(f.actor,'POST','/charges',{amountMinor:100,merchant:'dewa',reference,source:'wallet'})).data.charge;
+  const good=make('good:bill'), corrupt=make('damaged:bill'), orphan=make('orphan:bill');
+  f.db.db.prepare("UPDATE resources SET body='{' WHERE account_id=? AND kind='charge' AND id=?").run(f.actor.accountId,corrupt.id);
+  f.db.db.prepare("UPDATE resources SET body='{' WHERE account_id=? AND kind='transaction' AND id=?").run(f.actor.accountId,corrupt.id);
+  f.db.db.prepare("DELETE FROM resources WHERE account_id=? AND kind='charge' AND id=?").run(f.actor.accountId,orphan.id);
+  const result=f.recovery.list(f.actor);
+  assert.ok(result.cases.some(c=>c.operationId===good.id));
+  assert.deepEqual(result.evidenceIssues.map(i=>[i.kind,i.id]).sort(), [
+    ['UNREADABLE_CHARGE',corrupt.id], ['UNREADABLE_TRANSACTION',corrupt.id], ['ORPHANED_CHARGE_JOURNAL',orphan.id],
+  ].sort());
+  assert.equal(result.evidenceIssuesTruncated,false);
+  const validateIssue=new Ajv({strict:false}).compile(recoveryEvidenceIssueSchema);
+  assert.ok(result.evidenceIssues.every(issue=>validateIssue(issue)));
+  assert.equal(validateIssue({kind:'UNREADABLE_CHARGE',id:null}),true);
+  assert.equal(validateIssue({kind:'UNREADABLE_CHARGE',id:'invalid id'}),false);
+  assert.deepEqual(f.recovery.list(other).evidenceIssues,[]);
+  f.db.db.prepare("INSERT INTO resources(account_id,kind,id,body) VALUES(?,'charge','!private','{}')").run(f.actor.accountId);
+  for(let n=0;n<27;n++)f.db.db.prepare("INSERT INTO resources(account_id,kind,id,body) VALUES(?,'transaction',?,'{')").run(f.actor.accountId,`broken-${n}`);
+  const bounded=f.recovery.list(f.actor); assert.equal(bounded.evidenceIssues.length,25); assert.equal(bounded.evidenceIssuesTruncated,true);
+  assert.ok(bounded.evidenceIssues.some(i=>i.kind==='UNREADABLE_CHARGE'&&i.id===null));
+  assert.ok(!JSON.stringify(bounded.evidenceIssues).includes('!private'));
+  assert.equal(f.gateway.ledger!.summary(f.actor.accountId).balanceMinor,149700);
+});
+
 test('journal mismatch and persisted decision tampering fail closed',async t=>{
   const f=fixture(t),o=f.create();f.fail('after');await f.checkout.execute(f.actor,o.id,decision(o));const i=await f.inspect(o.id);
   const row=f.db.db.prepare('SELECT body FROM payment_recovery_inspections WHERE id=?').get(i.id)!;const altered={...JSON.parse(String(row.body)),actions:['REFUND_UNAPPLIED_LEGACY']};f.db.db.prepare('UPDATE payment_recovery_inspections SET body=? WHERE id=?').run(JSON.stringify(altered),i.id);assert.throws(()=>f.recovery.get(f.actor,i.id),(e:any)=>e.code==='RECOVERY_INSPECTION_CORRUPT');

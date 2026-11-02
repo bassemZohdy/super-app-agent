@@ -12246,12 +12246,47 @@
                         "null"
                       ],
                       "maxLength": 200
+                    },
+                    "evidenceIssues": {
+                      "type": "array",
+                      "maxItems": 25,
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "enum": [
+                              "UNREADABLE_CHARGE",
+                              "UNREADABLE_TRANSACTION",
+                              "ORPHANED_CHARGE_JOURNAL"
+                            ]
+                          },
+                          "id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "minLength": 1,
+                            "maxLength": 160,
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "id"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "evidenceIssuesTruncated": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
                     "success",
                     "cases",
-                    "nextCursor"
+                    "nextCursor",
+                    "evidenceIssues",
+                    "evidenceIssuesTruncated"
                   ],
                   "additionalProperties": false
                 }
@@ -12377,12 +12412,47 @@
                         "null"
                       ],
                       "maxLength": 200
+                    },
+                    "evidenceIssues": {
+                      "type": "array",
+                      "maxItems": 25,
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "enum": [
+                              "UNREADABLE_CHARGE",
+                              "UNREADABLE_TRANSACTION",
+                              "ORPHANED_CHARGE_JOURNAL"
+                            ]
+                          },
+                          "id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "minLength": 1,
+                            "maxLength": 160,
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "id"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "evidenceIssuesTruncated": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
                     "success",
                     "cases",
-                    "nextCursor"
+                    "nextCursor",
+                    "evidenceIssues",
+                    "evidenceIssuesTruncated"
                   ],
                   "additionalProperties": false
                 }

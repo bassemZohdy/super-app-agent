@@ -13,6 +13,16 @@ import { initializeRecoveryAudit,appendRecoveryAudit } from './recovery-audit.ts
 const json=(v:any):string=>Array.isArray(v)?`[${v.map(json).join(',')}]`:v&&typeof v==='object'?`{${Object.entries(v).sort(([a],[b])=>a.localeCompare(b)).map(([k,x])=>`${JSON.stringify(k)}:${json(x)}`).join(',')}}`:JSON.stringify(v);
 const hash=(v:unknown)=>createHash('sha256').update(json(v)).digest('hex');
 const deny=(code:string,message:string,status=409):never=>{throw new SettlementError(status,code,message);};
+// Only structurally usable legacy captures enter the ordinary recovery list; unreadable rows are reported separately.
+const legacyChargeClass = `CASE WHEN json_valid(body)=0 THEN 'UNREADABLE' WHEN json_type(body)<>'object' THEN 'UNREADABLE'
+  WHEN json_type(body,'$.orderId')='text' AND length(json_extract(body,'$.orderId'))>0 THEN 'OTHER'
+  WHEN json_type(body,'$.orderId') IS NOT NULL AND json_type(body,'$.orderId')<>'null' THEN 'UNREADABLE'
+  WHEN json_type(body,'$.id')='text' AND json_extract(body,'$.id')=id AND json_type(body,'$.accountId')='text' AND json_extract(body,'$.accountId')=account_id
+    AND json_type(body,'$.merchant')='text' AND length(json_extract(body,'$.merchant')) BETWEEN 1 AND 200
+    AND json_type(body,'$.source')='text' AND length(json_extract(body,'$.source')) BETWEEN 1 AND 200
+    AND json_type(body,'$.status')='text' AND length(json_extract(body,'$.status')) BETWEEN 1 AND 200
+    AND json_type(body,'$.amountMinor')='integer' AND json_extract(body,'$.amountMinor') BETWEEN 1 AND 100000000
+    THEN 'LEGACY' ELSE 'UNREADABLE' END`;
 type Evidence={record:any;remote:any;summary:RecoveryCase;termsDigest:string;localDigest:string;sourceDigest:string;classification:RecoveryInspection['classification'];captureState:RecoveryInspection['captureState'];sourceState:string;reason:string;actions:RecoveryAction[]};
 export class PaymentReconciliation {
   readonly orders:PaymentOrders;readonly funding:WalletFunding;readonly refunds:PaymentRefunds;readonly clock:()=>number;
@@ -33,9 +43,15 @@ export class PaymentReconciliation {
       SELECT 'PAYMENT' kind,id,body,'PAYMENT:'||id position FROM payment_authorization_orders WHERE account_id=?
       UNION ALL SELECT 'FUNDING',id,body,'FUNDING:'||id FROM wallet_funding_orders WHERE account_id=?
       UNION ALL SELECT 'REFUND',id,body,'REFUND:'||id FROM payment_refunds WHERE account_id=?
-      UNION ALL SELECT 'LEGACY',id,body,'LEGACY:'||id FROM resources WHERE account_id=? AND kind='charge' AND json_extract(body,'$.orderId') IS NULL)
+      UNION ALL SELECT 'LEGACY',id,body,'LEGACY:'||id FROM resources WHERE account_id=? AND kind='charge' AND (${legacyChargeClass})='LEGACY')
       WHERE position>? ORDER BY position LIMIT 26`).all(a.accountId,a.accountId,a.accountId,a.accountId,cursor);
-    return {cases:rows.slice(0,25).map(row=>this.summary(String(row.kind) as RecoveryKind,JSON.parse(String(row.body)))),nextCursor:rows.length>25?String(rows[24].position):null};
+    const issues=this.orders.store.db.prepare(`SELECT * FROM (
+      SELECT 'UNREADABLE_CHARGE' kind,id FROM resources WHERE account_id=? AND kind='charge' AND (${legacyChargeClass})='UNREADABLE'
+      UNION ALL SELECT 'UNREADABLE_TRANSACTION',id FROM resources WHERE account_id=? AND kind='transaction' AND CASE WHEN json_valid(body)=0 THEN 1 WHEN json_type(body)<>'object' THEN 1 ELSE 0 END
+      UNION ALL SELECT 'ORPHANED_CHARGE_JOURNAL',substr(j.reference,8) FROM payment_journal_entries j WHERE j.account_id=? AND j.kind='PAYMENT' AND j.reference LIKE 'charge:%'
+        AND NOT EXISTS (SELECT 1 FROM resources r WHERE r.account_id=j.account_id AND r.kind='charge' AND r.id=substr(j.reference,8))) ORDER BY kind,id LIMIT 26`).all(a.accountId,a.accountId,a.accountId);
+    return {cases:rows.slice(0,25).map(row=>this.summary(String(row.kind) as RecoveryKind,JSON.parse(String(row.body)))),nextCursor:rows.length>25?String(rows[24].position):null,
+      evidenceIssues:issues.slice(0,25).map(row=>({kind:String(row.kind) as 'UNREADABLE_CHARGE'|'UNREADABLE_TRANSACTION'|'ORPHANED_CHARGE_JOURNAL',id:typeof row.id==='string'&&/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,159}$/.test(row.id)?row.id:null})),evidenceIssuesTruncated:issues.length>25};
   }
   get(a:Actor,id:string):RecoveryInspection{this.owner(a);const row=this.orders.store.db.prepare('SELECT body FROM payment_recovery_inspections WHERE id=? AND account_id=?').get(id,a.accountId);if(!row)deny('RECOVERY_INSPECTION_NOT_FOUND','This inspection is not owned by the workspace.',404);const i=JSON.parse(String(row!.body));if(i.ownerSub!==a.sub)deny('RECOVERY_INSPECTION_NOT_FOUND','Inspection not found.',404);if(i.decisionDigest!==hash(this.decision(i)))deny('RECOVERY_INSPECTION_CORRUPT','The persisted decision binding is inconsistent.');return i;}
   private decision(i:RecoveryInspection){const {id,ownerSub,accountId,kind,operationId,state,amountMinor,sourceLabel,provider,createdAt,expiresAt,termsDigest,localDigest,sourceDigest,classification,captureState,sourceState,reason,actions}=i;return {id,ownerSub,accountId,kind,operationId,state,amountMinor,sourceLabel,provider,createdAt,expiresAt,termsDigest,localDigest,sourceDigest,classification,captureState,sourceState,reason,actions};}

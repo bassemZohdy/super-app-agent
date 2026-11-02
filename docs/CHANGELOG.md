@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Show damaged payment evidence (P1-12, step)
+
+The recovery list retains readable cases and shows bounded account-owned identifiers for unreadable payment evidence and orphaned journals without exposing damaged bodies. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Explain account-wide wallet evidence holds (P1-12, step)
 
 The payment overview and React panel also report wallet review holds caused by unreadable transactions and orphaned payment journals. Guide: [agent flow](agent-flow.md).

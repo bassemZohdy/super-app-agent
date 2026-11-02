@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { formatTime, formatDateTime, translate, type CatalogKey, type Locale } from '../../../packages/protocol-core/src/i18n.ts';
 import { formatAED } from '../../../packages/protocol-core/src/payments.ts';
-import type { RecoveryAudit, RecoveryCase, RecoveryInspection } from '../../../packages/protocol-core/src/payment-reconciliation.ts';
+import type { RecoveryAudit, RecoveryCase, RecoveryInspection, RecoveryEvidenceIssue } from '../../../packages/protocol-core/src/payment-reconciliation.ts';
 type Props = {
   busy: boolean;
   read(path: string, query?: Record<string, string>): Promise<any>;
@@ -15,6 +15,13 @@ export function PaymentRecoveryPanel({ busy, read, mutate, work, locale = 'en' }
   const [cases, setCases] = useState<RecoveryCase[]>(), [cursor, setCursor] = useState<string | null>(null);
   const [inspection, setInspection] = useState<RecoveryInspection>(), [audit, setAudit] = useState<RecoveryAudit[]>([]);
   const [inspectionId, setInspectionId] = useState('');
+  const [issues, setIssues] = useState<RecoveryEvidenceIssue[] | null>();
+  const [issuesTruncated, setIssuesTruncated] = useState(false);
+  const updateIssues = (result: { evidenceIssues?: unknown; evidenceIssuesTruncated?: unknown }) => {
+    const rows = result.evidenceIssues;
+    if (!Array.isArray(rows) || rows.length > 25 || typeof result.evidenceIssuesTruncated !== 'boolean' || rows.some(row => !row || typeof row !== 'object' || !['UNREADABLE_CHARGE','UNREADABLE_TRANSACTION','ORPHANED_CHARGE_JOURNAL'].includes(row.kind) || !(row.id === null || typeof row.id === 'string' && /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,159}$/.test(row.id)))) { setIssues(null); setIssuesTruncated(false); return; }
+    setIssues(rows as RecoveryEvidenceIssue[]); setIssuesTruncated(result.evidenceIssuesTruncated);
+  };
   const inspect = (c: RecoveryCase) => void work(async () => {
     setInspection(undefined); setAudit([]);
     const result = await mutate('reconciliation/inspect', { kind: c.kind, operationId: c.operationId });
@@ -26,14 +33,16 @@ export function PaymentRecoveryPanel({ busy, read, mutate, work, locale = 'en' }
     <h3>{t('recovery.title')}</h3>
     <p>{t('recovery.intro')}</p>
     <button disabled={busy} onClick={() => void work(async () => {
-      const result = await read('reconciliation'); setCases(result.cases); setCursor(result.nextCursor);
+      const result = await read('reconciliation'); setCases(result.cases); setCursor(result.nextCursor); updateIssues(result);
     })}>{t('recovery.load')}</button>
+    {issues === null && <p role="status">{t('recovery.issuesUnknown')}</p>}
+    {issues && issues.length > 0 && <section aria-label={t('recovery.evidenceIssues')}><h4>{t('recovery.evidenceIssues')}</h4><p>{t('recovery.evidenceIssuesNote')}</p><ul>{issues.map((issue, index) => <li key={`${issue.kind}:${issue.id ?? index}`}>{t(`recovery.issue.${issue.kind}`)} · {issue.id ?? t('recovery.issueUnknownId')}</li>)}</ul>{issuesTruncated && <p>{t('recovery.issuesMore')}</p>}</section>}
     {cases && <><p>{t('recovery.loaded', { count: cases.length })}</p><ul>{cases.map(c => <li key={`${c.kind}:${c.operationId}`}>
       <strong>{c.kind} · {formatAED(c.amountMinor)}</strong><p>{c.provider} · {c.sourceLabel} · {c.state}</p><p>{c.operationId}</p>
       <button disabled={busy} onClick={() => inspect(c)}>{t('recovery.inspect', { id: c.operationId })}</button>
     </li>)}</ul>{cursor && <button disabled={busy} onClick={() => void work(async () => {
       const result = await read('reconciliation', { cursor });
-      setCases(current => [...(current || []), ...result.cases.filter((c: RecoveryCase) => !current?.some(x => x.kind === c.kind && x.operationId === c.operationId))]); setCursor(result.nextCursor);
+      updateIssues(result); setCases(current => [...(current || []), ...result.cases.filter((c: RecoveryCase) => !current?.some(x => x.kind === c.kind && x.operationId === c.operationId))]); setCursor(result.nextCursor);
     })}>{t('recovery.loadMore')}</button>}</>}
     <label>{t('recovery.refLabel')}<input value={inspectionId} maxLength={160} onChange={e => setInspectionId(e.target.value)} placeholder="recovery_…" /></label>
     <button disabled={busy || !/^recovery_[a-f0-9-]{36}$/.test(inspectionId)} onClick={() => void work(async () => {
