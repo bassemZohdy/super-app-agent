@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Keep compatibility payment quotes stable (P0-04, step)
+
+Compatibility bill, fine and recharge transitions reject changes to the complete quote or approval digest during one attempt, including after approval. JSON key ordering does not affect comparison. The check does not authenticate provider quotes or persist a separate reference across requests. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Bind compatibility payment order ownership (P0-04, step)
 
 Compatibility bill, fine and recharge transitions now require the original safe order ID, subject, workspace and requested wallet source on every returned order before approval, execution or recovery. Substituted identities and funding sources remain unknown. Provider-signed quotes and production delegated consent remain separate. Guide: [integrations](integrations.md).
