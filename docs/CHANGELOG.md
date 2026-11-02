@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Limit focused recovery request churn (P0-11, step)
+
+The focused agent admits up to 16 recovery attempts per conversation in a rolling minute, preserving inspection, completed-request replay and the original operation identity. The limit persists across SQLite reopen and provides a retry hint for ordinary HTTP responses; streamed requests receive an error event. Tests cover expiry, isolation, restart and recovery without a duplicate simulated payment. This is a local per-conversation limit, not a global quota or storage-retention policy. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Bound focused conversation messages (P0-11, step)
 
 The focused agent admits at most 128 new messages per conversation after upgrade, storing admission atomically with the request record. Inspection, replay, approval and original-operation recovery remain available at the limit. Tests cover the boundary, concurrent requests, another resident and SQLite reopen. This does not bound other request records or historical storage. Guide: [agent flow](agent-flow.md).

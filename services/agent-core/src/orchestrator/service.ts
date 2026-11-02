@@ -65,6 +65,7 @@ export class AgentService {
       } else {
         // Native continuation after a failed node, or reconcile ONLY the same persisted approved operation.
         if (state.next.includes('approval') || state.next.includes('renewApproval')) return this.inspect(id);
+        this.store.admitRecovery(id);
         if (values.status === 'unknown' && values.renewalPending && values.renewalDecision?.decision === 'approve') {
           await this.graph.updateState(this.options(id), { status: 'approved' }, 'renewApproval');
           await this.graph.invoke(null, this.options(id));

@@ -13,6 +13,8 @@ const THREAD_CREATION_WINDOW_MS = 3600000;
 const MAX_THREAD_CREATIONS_PER_SUBJECT = 128;
 const MAX_THREAD_CREATIONS = 4096;
 const MAX_MESSAGES_PER_THREAD = 128;
+const MAX_RECOVERIES_PER_WINDOW = 16;
+const RECOVERY_WINDOW_MS = 60000;
 export class Store {
   private readonly active = new Set<string>();
   readonly db: Database;
@@ -36,6 +38,8 @@ export class Store {
       CREATE TABLE IF NOT EXISTS sa_message_requests (
         thread_id TEXT NOT NULL, request_id TEXT NOT NULL, PRIMARY KEY(thread_id,request_id),
         FOREIGN KEY(thread_id,request_id) REFERENCES sa_requests(thread_id,request_id));
+      CREATE TABLE IF NOT EXISTS sa_recovery_events (thread_id TEXT NOT NULL REFERENCES sa_threads(id), created_at INTEGER NOT NULL);
+      CREATE INDEX IF NOT EXISTS sa_recovery_events_thread_time ON sa_recovery_events(thread_id,created_at);
       CREATE TABLE IF NOT EXISTS sa_consents (
         id TEXT PRIMARY KEY, subject TEXT NOT NULL, workload TEXT NOT NULL,
         operation_key TEXT NOT NULL, quote TEXT NOT NULL, expires_at INTEGER NOT NULL);
@@ -129,6 +133,15 @@ export class Store {
       if (count.n >= MAX_MESSAGES_PER_THREAD) throw new AgentError('MESSAGE_LIMIT_REACHED', 429);
       this.db.prepare('INSERT INTO sa_requests(thread_id,request_id,fingerprint) VALUES(?,?,?)').run(id, requestId, fingerprint);
       this.db.prepare('INSERT INTO sa_message_requests(thread_id,request_id) VALUES(?,?)').run(id, requestId);
+    }).immediate();
+  }
+  admitRecovery(id: string) {
+    this.db.transaction(() => {
+      const now = Date.now();
+      this.db.prepare('DELETE FROM sa_recovery_events WHERE thread_id=? AND created_at<=?').run(id, now - RECOVERY_WINDOW_MS);
+      const count = this.db.prepare('SELECT count(*) AS n FROM sa_recovery_events WHERE thread_id=?').get(id) as { n: number };
+      if (count.n >= MAX_RECOVERIES_PER_WINDOW) throw new AgentError('RECOVERY_RATE_LIMIT_REACHED', 429);
+      this.db.prepare('INSERT INTO sa_recovery_events(thread_id,created_at) VALUES(?,?)').run(id, now);
     }).immediate();
   }
   saveRequest(id: string, requestId: string, fingerprint: string, response?: unknown) {

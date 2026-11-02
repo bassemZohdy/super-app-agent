@@ -109,6 +109,10 @@ export function createServer(service: AgentService, auth: Authenticator, workloa
       logEvent('warn', 'agent.request_failed', { correlationId, code, status });
       if (res.destroyed) return;
       if (code === 'BODY_READ_TIMEOUT' || code === 'BODY_TOO_LARGE') res.setHeader('Connection', 'close');
+      if (!res.headersSent && code === 'RECOVERY_RATE_LIMIT_REACHED') {
+        res.setHeader('Retry-After', '60');
+        if (res.hasHeader('Access-Control-Allow-Origin')) res.setHeader('Access-Control-Expose-Headers', 'Retry-After');
+      }
       if (res.headersSent) res.end(`event: error\ndata: ${JSON.stringify({ code, correlationId })}\n\n`);
       else send(status, { code, correlationId });
     });
