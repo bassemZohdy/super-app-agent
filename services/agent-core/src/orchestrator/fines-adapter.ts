@@ -17,10 +17,16 @@ export class FinesAdapter {
 export async function invokeTool<I, O>(tool: Tool<I, O>, input: I, ctx: ExecutionContext, key?: string): Promise<O> {
   authorize(ctx.principal, tool.permission);
   if (tool.consequential && !key) throw new AgentError('IDEMPOTENCY_KEY_REQUIRED');
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    return tool.output.parse(await tool.invoke(tool.input.parse(input), ctx, AbortSignal.timeout(tool.timeoutMs), key));
+    const deadline = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => { reject(new AgentError('TOOL_TIMEOUT_OR_INVALID_RESPONSE', 502)); controller.abort(); }, tool.timeoutMs);
+      timer.unref();
+    });
+    return tool.output.parse(await Promise.race([tool.invoke(tool.input.parse(input), ctx, controller.signal, key), deadline]));
   } catch (error) {
     if (error instanceof AgentError) throw error;
     throw new AgentError('TOOL_TIMEOUT_OR_INVALID_RESPONSE', 502);
-  }
+  } finally { clearTimeout(timer); }
 }

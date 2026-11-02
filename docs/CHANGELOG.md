@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bound focused tool waits (P1-02, step)
+
+The focused invocation wrapper now stops waiting at the configured deadline even if a tool ignores its abort signal. A deadline wins over a simultaneous abort-triggered refusal, so a dispatched write remains unknown rather than being treated as a definitive refusal. Tests cover a noncooperative read and a simulated payment committed before a withheld reply, including replacement blocking and original-key recovery. This cannot forcibly stop noncooperative in-process work. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Stabilize focused model deadline tests (P2-05, step)
 
 The focused planner's loopback timeout tests warm the connection and allow scheduling headroom before asserting a bounded deadline, one provider request and socket closure for stalls before headers and during the response body. A watchdog fails the test if the timeout stops working. This improves the test gate without changing runtime model deadlines. Guide: [testing](testing.md).

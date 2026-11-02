@@ -77,6 +77,8 @@ Execution results for the implementation milestone belong in the dated [evidence
 
 `services/agent-core/test/request-concurrency.test.ts` uses reduced test limits and a controlled authenticator to saturate each focused HTTP pool. It checks busy responses, health access, workload-key separation, a simulator payment under public saturation, slot release and a disconnected request whose authentication remains active. It does not cover pre-header socket floods or distributed capacity.
 
+`services/agent-core/test/tool-deadline.test.ts` checks the deadline against a tool that ignores cancellation and an abort-triggered refusal. It also holds a response after a simulated payment commits, verifies the unknown outcome blocks replacement, then recovers the original key with one effect. It does not prove that noncooperative work is terminated.
+
 `services/test/jwt-lifecycle.test.ts` also advances a controlled clock during signing-key retrieval and online introspection, checking that the shared verifier rejects tokens that expire during either wait and accepts a still-valid control. This does not replace real identity-provider lifecycle testing.
 
 `services/agent-core/test/thread-expiry-recovery.test.ts` expires conversations after a simulated effect and lost response, reopens SQLite and verifies that only the owner’s linked unresolved conversation is extended. It also covers saved legacy approvals and refusal to guess when the evidence is absent.
