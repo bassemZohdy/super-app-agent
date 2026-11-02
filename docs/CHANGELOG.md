@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Verify automation inbox ownership (P1-10, step)
+
+The automation inbox rejects malformed or contradictory mandate lists and checks each mandate's owner and account before exposing job history. Guide: [automation worker](development/automation-worker.md).
+
 ## 2 November 2026 — Deduplicate automation claims (P1-10, step)
 
 Worker claims atomically suppress unclaimed duplicate occurrences across rule versions, including jobs enqueued outside the scheduler, while preserving original claimed or held work. Guide: [automation worker](development/automation-worker.md).

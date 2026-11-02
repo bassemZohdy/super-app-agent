@@ -7,15 +7,16 @@ import { join } from 'node:path';
 import { JobStore } from '../automation-worker/src/jobs.ts';
 import { automationInbox } from '../agent-core/src/automation-inbox.ts';
 import { validateRequest } from '../../packages/protocol-core/src/request-validation.ts';
+import type { Actor } from '../../packages/backend-kit/src/context.ts';
 
 // AUTO-14 step 3: the owner's inbox feed returns only entries for rules the signed-in owner holds, with the
 // request's correlation id. Polling replaces streaming for the demo; a missing job store is an empty inbox.
-const owner = { sub: 'owner_1', username: 'owner_1', name: 'Owner', accountId: 'acct_1', requestId: 'req_feed_1' } as any;
+const owner: Actor = { sub: 'owner_1', username: 'owner_1', name: 'Owner', accountId: 'acct_1', requestId: 'req_feed_1' };
 const rule = (mandateId: string, occurrenceKey = 'occ_2026_11') => ({ mandateId, policyVersion: 1, occurrenceKey, target: 'dewa:home' });
 const cleanup = (dir: string) => { try { removeTemp(dir); } catch { /* Windows may briefly hold the directory */ } };
 const provider = (mandates: string[]) => async (_p: string, _a: unknown, _m: string, path: string) => {
   assert.equal(path, '/payment-mandates', 'the owned set comes from the owner-scoped mandate list');
-  return { mandates: mandates.map(id => ({ id })) };
+  return { success: true, executionEnabled: false, mandates: mandates.map(id => ({ id, ownerSub: owner.sub, accountId: owner.accountId })) };
 };
 
 test('AUTO-14: the inbox returns only the signed-in owner\'s rules, with the request correlation id', async () => {
@@ -30,6 +31,27 @@ test('AUTO-14: the inbox returns only the signed-in owner\'s rules, with the req
     assert.deepEqual(feed.entries.map(e => e.mandateId), ['mandate_mine']);
     assert.equal(feed.entries[0].kind, 'SKIPPED');
     assert.equal(feed.entries[0].reason, 'FINE_REQUIRES_REVIEW');
+  } finally { cleanup(dir); }
+});
+
+test('the inbox rejects malformed or cross-owner mandate lists before reading any job', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'cityside-inbox-invalid-')), path = join(dir, 'jobs.sqlite');
+  try {
+    const store = new JobStore(path);
+    store.enqueueSkipped(rule('mandate_other'), 'FINE_REQUIRES_REVIEW');
+    store.close();
+    const good = { id: 'mandate_other', ownerSub: owner.sub, accountId: owner.accountId };
+    for (const body of [
+      null, {}, { success: false, mandates: [good] }, { success: true, mandates: 'bad' },
+      { success: true, mandates: [{ ...good, ownerSub: 'someone_else' }] },
+      { success: true, mandates: [{ ...good, accountId: 'other_account' }] },
+      { success: true, mandates: [{ id: 'mandate_other' }] },
+      { success: true, mandates: [{ ...good, id: { toString: 'mandate_other' } }] },
+      { success: true, mandates: [good, good] },
+      { success: true, error: 'private-marker', mandates: [good] },
+    ]) {
+      await assert.rejects(automationInbox(owner, async () => body, path), (error: unknown) => error instanceof Error && !error.message.includes('private-marker'));
+    }
   } finally { cleanup(dir); }
 });
 
