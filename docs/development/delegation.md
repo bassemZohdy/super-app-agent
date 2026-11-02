@@ -36,6 +36,8 @@ If a provider echoes the delegated bearer anywhere in its JSON response, the bro
 
 The OAuth actor is `delegation-broker`, in `azp`. There is no custom `act` mapper and no claim of native RFC 8693 delegation. The initiating human/service is recorded separately. The assertion's external subject is `cityside:<internal user UUID>`; Keycloak links it to the existing internal token subject. Tokens/assertions stay in broker memory and never enter LangGraph, Redis checkpoints, API results or audit rows.
 
+Delegation and automation token exchanges limit successful identity-server replies to 64 KiB. Rejected replies are discarded without logging their bodies; diagnostics contain only the HTTP status. An unreadable or oversized delegation exchange leaves its reserved operation unconfirmed and does not dispatch to a provider.
+
 ## API contract
 
 All browser calls use `/api/delegation` on agent-core with a normal signed user bearer. Do not place tokens in URLs, documentation or terminal recordings. Owner/account are checked server-side. No endpoint accepts a user-subject override or arbitrary actor.

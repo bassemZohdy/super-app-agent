@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Protect broker identity exchanges (P1-02, step)
+
+The delegation and automation broker limits successful identity responses and records only the HTTP status for rejected exchanges. Oversized responses do not reach the provider, and identity-server error text is not logged. Guide: [delegation](development/delegation.md).
+
 ## 2 November 2026 — Validate local backend startup (P2-06, step)
 
 The development backend rejects duplicate or invalid ports before opening listeners and waits for all six services before announcing readiness. Process tests verify health endpoints and released ports after stopping. Guide: [local development](development/local-development.md).

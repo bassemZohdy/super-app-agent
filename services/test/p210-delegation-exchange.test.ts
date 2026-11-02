@@ -232,6 +232,43 @@ test('P2-10: when the issuer refuses the exchange nothing is executed and the fa
   assert.equal(issuerName(), saved.get('DELEGATION_ISSUER') || 'http://localhost:4000/api/delegation');
 });
 
+test('identity-server errors cannot put response text into broker logs or execution records', async t => {
+  const owner = await user('alice'), runnerToken = await runner(), created = await createGrant(owner), id = created!.data.grant.id;
+  const marker = 'identity-private-canary';
+  const fake = http.createServer((_req, res) => res.writeHead(400, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'invalid_grant', error_description: marker })));
+  await new Promise<void>(resolve => fake.listen(0, '127.0.0.1', resolve));
+  const address = fake.address(); assert.ok(address && typeof address !== 'string');
+  const previous = process.env.KEYCLOAK_TOKEN_URL, before = seen.length, logs: string[] = [];
+  t.mock.method(console, 'error', (...args: unknown[]) => { logs.push(args.map(String).join(' ')); });
+  process.env.KEYCLOAK_TOKEN_URL = `http://127.0.0.1:${address.port}/token`;
+  try {
+    const result = await execute(id, runnerToken, 'identity-reject-1');
+    assert.equal(result?.data.code, 'DELEGATION_EXCHANGE_FAILED');
+    assert.equal(seen.length, before);
+    assert.ok(!JSON.stringify([result, logs, grantStore().jobs(id, 'alice-sub'), grantStore().history(id, 'alice-sub')]).includes(marker));
+    assert.equal((await execute(id, runnerToken, 'identity-reject-1'))?.data.code, 'RECONCILIATION_REQUIRED');
+  } finally {
+    process.env.KEYCLOAK_TOKEN_URL = previous; fake.closeAllConnections(); await new Promise<void>(resolve => fake.close(() => resolve()));
+  }
+});
+
+test('an oversized streaming identity reply stops before completion without a provider dispatch', { timeout: 4000 }, async () => {
+  const owner = await user('alice'), runnerToken = await runner(), created = await createGrant(owner), id = created!.data.grant.id;
+  const fake = http.createServer((_req, res) => { res.writeHead(200, { 'content-type': 'application/json' }); res.write(`{"padding":"${'x'.repeat(65537)}`); });
+  await new Promise<void>(resolve => fake.listen(0, '127.0.0.1', resolve));
+  const address = fake.address(); assert.ok(address && typeof address !== 'string');
+  const previous = process.env.KEYCLOAK_TOKEN_URL, before = seen.length;
+  process.env.KEYCLOAK_TOKEN_URL = `http://127.0.0.1:${address.port}/token`;
+  try {
+    const result = await execute(id, runnerToken, 'oversized-identity-1');
+    assert.equal(result?.status, 503); assert.equal(seen.length, before);
+    assert.equal(grantStore().jobs(id, 'alice-sub')[0].state, 'unknown');
+    assert.equal((await execute(id, runnerToken, 'oversized-identity-1'))?.data.code, 'RECONCILIATION_REQUIRED');
+  } finally {
+    process.env.KEYCLOAK_TOKEN_URL = previous; fake.closeAllConnections(); await new Promise<void>(resolve => fake.close(() => resolve()));
+  }
+});
+
 test('P2-10: a delegated bearer is refused by the provider check when it was never bound to a grant', async () => {
   const unbound = bearer(issuer.mint({ aud: ['provider-api'], azp: brokerClient, sub: 'alice-sub', scope: 'delegation.read' }));
   await assert.rejects(() => delegatedAuthorization(unbound, { provider: 'payments', accountId: accountIdFor('alice-sub', 'personal'), method: 'GET', path: '/wallet', body: {} }));

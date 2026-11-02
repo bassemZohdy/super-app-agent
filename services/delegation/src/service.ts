@@ -55,12 +55,11 @@ async function exchange(grant: ReturnType<GrantStore['get']>, operationId: strin
     body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', client_id: brokerClient, assertion, scope, client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer', client_assertion: clientAssertion }),
   });
   if (!response.ok) {
-    const error = await response.json().catch(() => ({})) as { error?: string; error_description?: string };
-    // OAuth errors are bounded diagnostics only; assertions and tokens are never logged.
-    logEvent('error', 'Delegation exchange rejected', { status: response.status, error: String(error.error || '').slice(0, 100), error_description: String(error.error_description || '').replace(/[A-Za-z0-9_-]{60,}/g, '[redacted]').slice(0, 250) });
+    void response.body?.cancel().catch(() => {});
+    logEvent('error', 'Delegation exchange rejected', { status: response.status });
     throw new DelegationError(503, 'DELEGATION_EXCHANGE_FAILED', `Keycloak rejected the delegated exchange (${response.status}).`);
   }
-  const data = await response.json() as { access_token: string; refresh_token?: string };
+  const data = await boundedJsonResponse(response, 65536) as { access_token: string; refresh_token?: string };
   if (data.refresh_token || typeof data.access_token !== 'string') throw new Error('Unexpected delegated response');
   const authorization = `Bearer ${data.access_token}`, c = await verifyJwt(authorization, 'provider-api');
   const aud = typeof c.aud === 'string' ? [c.aud] : c.aud;
@@ -141,12 +140,12 @@ async function mintExecutionToken(permit: Permit) {
     body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', client_id: brokerClient, assertion, scope, client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer', client_assertion: clientAssertion }),
   });
   if (!response.ok) {
-    const error = await response.json().catch(() => ({})) as { error?: string; error_description?: string };
-    logEvent('error', 'Automation credential exchange rejected', { status: response.status, error: String(error.error || '').slice(0, 100), error_description: String(error.error_description || '').replace(/[A-Za-z0-9_-]{60,}/g, '[redacted]').slice(0, 250) });
+    void response.body?.cancel().catch(() => {});
+    logEvent('error', 'Automation credential exchange rejected', { status: response.status });
     if (response.status >= 400 && response.status < 500) throw new MintRefused(`rejected ${response.status}`);
     throw new Error(`exchange failed ${response.status}`);
   }
-  const data = await response.json() as { access_token: string; refresh_token?: string };
+  const data = await boundedJsonResponse(response, 65536) as { access_token: string; refresh_token?: string };
   if (data.refresh_token || typeof data.access_token !== 'string') throw new Error('Unexpected delegated response');
   const c = await verifyJwt(`Bearer ${data.access_token}`, 'provider-api');
   if (c.act !== undefined || (c.realm_access?.roles?.length || 0) > 0) deny('ISSUED_TOKEN_MISMATCH');
