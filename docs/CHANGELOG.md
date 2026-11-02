@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Limit focused-agent conversation creation (P0-11, step)
+
+The local focused agent limits successful conversation creation within a rolling hour per resident and globally, including across cancellation and SQLite reopen. Admission and rate records are transactional, and existing conversations remain accessible. Tests cover rate expiration, isolation, restart and concurrent global admission. This does not provide distributed quotas or historical-record retention. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Bound focused-agent active conversations (P0-11, step)
 
 The local focused agent now limits active conversations to 64 per resident and 1,024 overall, with transactional admission and a 429 response when full. Expired conversations with linked unresolved operations retain a slot and remain inspectable; cancelled or ordinary expired conversations free their slot. Tests cover concurrent admission, resident isolation and the global limit. This is not a distributed quota, rate limit or historical-data retention policy. Guide: [agent flow](agent-flow.md).

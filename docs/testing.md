@@ -59,7 +59,7 @@ Execution results for the implementation milestone belong in the dated [evidence
 
 `services/agent-core/test/process-commit-recovery.test.ts` uses a local proxy to hold the simulator reply after a payment or renewal commits, kills the real agent process, and verifies that restart blocks a replacement and recovers the original operation once. It does not prove distributed failover or real-provider behavior.
 
-`services/agent-core/test/thread-quotas.test.ts` exercises resident and global active-conversation limits, concurrent admission, slot release and the slot retained by an expired unresolved conversation. It does not test distributed quotas or long-term storage retention.
+`services/agent-core/test/thread-quotas.test.ts` exercises resident and global active-conversation limits, concurrent admission, slot release and the slot retained by an expired unresolved conversation. It also checks creation-rate limits across cancellation and SQLite reopen, expiration of rate events, resident isolation and concurrent global admission. It does not test distributed quotas or long-term storage retention.
 
 `services/agent-core/test/thread-expiry-recovery.test.ts` expires conversations after a simulated effect and lost response, reopens SQLite and verifies that only the owner’s linked unresolved conversation is extended. It also covers saved legacy approvals and refusal to guess when the evidence is absent.
 
