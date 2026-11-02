@@ -328,6 +328,7 @@ function handleFoodRequest(
     }
 
     totalMinor += toMinor(targetRestaurant.deliveryFee);
+    if (body.expectedAmountMinor !== undefined && body.expectedAmountMinor !== totalMinor) return { status: 409, data: { error: 'Order price changed', code: 'PRICE_CHANGED' } };
     if (totalMinor > MAX_MONEY * 100) return invalidInput('Order total exceeds demo limit');
     const orderId = `ord_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
 

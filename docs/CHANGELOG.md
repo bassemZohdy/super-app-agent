@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bind composite checkout to reviewed terms (P1-13, step)
+
+Composite approval binds the displayed ride, meal, delivery fee, total and currency, rechecks prices before dispatch and passes reviewed amounts to each service. Wallet receipts require the selected mode's currency. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Verify integrated parking meter changes (P1-13, step)
 
 Parking activation checks the charged fee, and extension verifies the vehicle, zone, fee and expiry against the meter read before capture. Guide: [agent flow](agent-flow.md).

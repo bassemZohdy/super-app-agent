@@ -6,8 +6,9 @@ const explicitSelection = (value: unknown, kind: string): string => {
   if (typeof value === 'string' && value.trim()) return value;
   throw new HttpError(409, `Choose an available ${kind} before continuing.`);
 };
+const walletCurrency = () => process.env.PROVIDER_INTEGRATION === 'true' ? 'AED' : 'USD';
+const formatWalletAmount = (amount: number) => `${walletCurrency()} ${amount.toFixed(2)}`;
 import { formatStatementAED } from '../../../../packages/protocol-core/src/payment-history.ts';
-import { formatAED } from '../../../../packages/protocol-core/src/payments.ts';
 import { toMinor, fromMinor } from '../../../../packages/protocol-core/src/request-validation.ts';
 import { handlePaymentSurfaceAction } from '../payment-surfaces.ts';
 import { actorContext } from '../../../../packages/backend-kit/src/context.ts';
@@ -85,7 +86,7 @@ interface WalletTransaction {
 }
 interface RideOption { id: string; car: string; name: string; etaMinutes: number; rating: number; fare: number; lat: number; lng: number }
 interface FoodItem { id: string; name: string; description: string; price: number; dietary?: string[] }
-interface Restaurant { name: string; items: FoodItem[] }
+interface Restaurant { id: string; name: string; deliveryFee: number; items: FoodItem[] }
 interface ParkingZone {
   id: string; name: string; code: string; city?: string; lat: number; lng: number;
   tariffPerHour?: number; hourlyRate?: number; availableSpots: number; totalCapacity?: number;
@@ -846,17 +847,26 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
         },
       };
     } else if (action === 'confirm_composite_checkout') {
-      onProgress?.('💳 Deducting $40.00 from Wallet for ride + food combo...');
+      const rides = (await executeRideRequest('GET', '/rides/options', { destination: 'Downtown Dining' })).data.options as RideOption[];
+      const restaurants = (await executeFoodRequest('GET', '/restaurants/search', { query: 'pizza' })).data.restaurants as Restaurant[];
+      const ride = Array.isArray(rides) ? rides.filter(option => option.id === payload.driverId) : [];
+      const restaurant = Array.isArray(restaurants) ? restaurants.filter(option => option.id === payload.restaurantId) : [];
+      const items = restaurant.length === 1 && Array.isArray(restaurant[0].items) ? restaurant[0].items.filter(item => item.id === payload.itemId) : [];
+      let totalMinor = -1, rideMinor = -1, mealMinor = -1;
+      try { if (ride.length === 1 && items.length === 1) { rideMinor = toMinor(ride[0].fare); mealMinor = toMinor(items[0].price) + toMinor(restaurant[0].deliveryFee); totalMinor = rideMinor + mealMinor; } } catch { /* Reject changed or malformed quotes. */ }
+      if (!Number.isSafeInteger(totalMinor) || totalMinor <= 0 || totalMinor !== payload.amountMinor || rideMinor !== payload.rideAmountMinor || mealMinor !== payload.mealAmountMinor || payload.currency !== walletCurrency())
+        throw new HttpError(409, 'The reviewed ride or meal changed. Start a new review.');
+      onProgress?.(`💳 Deducting ${formatWalletAmount(totalMinor / 100)} from Wallet for the reviewed ride and meal...`);
       const payRes = await executeWalletRequest('POST', '/wallet/pay', {}, {
-        amount: 40.0,
+        amount: totalMinor / 100,
         purpose: 'Ride to Downtown + Woodfired Pizza',
       });
 
-      onProgress?.('🚖 Dispatching Comfort Sedan...');
-      await executeRideRequest('POST', '/rides/book', {}, { driverId: 'drv_1' });
+      onProgress?.('🚖 Dispatching the reviewed ride...');
+      await executeRideRequest('POST', '/rides/book', {}, { driverId: payload.driverId, expectedFareMinor: rideMinor });
 
-      onProgress?.('🍕 Dispatching Pizza Napoli kitchen order...');
-      await executeFoodRequest('POST', '/orders/create', {}, { restaurantId: 'rest_1', items: ['item_diavola'] });
+      onProgress?.('🍕 Dispatching the reviewed meal...');
+      await executeFoodRequest('POST', '/orders/create', {}, { restaurantId: payload.restaurantId, items: [payload.itemId], expectedAmountMinor: mealMinor });
 
       state.currentSurface = {
         version: '1.0.0',
@@ -876,13 +886,13 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
               type: 'Text',
               id: 'composite_desc',
               properties: {
-                text: `Payment of $40.00 settled from wallet. Remaining balance: $${payRes.data.remainingBalance}.`,
+                text: `Payment of ${formatWalletAmount(totalMinor / 100)} settled from wallet. Remaining balance: ${formatWalletAmount(payRes.data.remainingBalance)}.`,
               },
             },
             {
               type: 'MetricWidget',
               id: 'widget_ride_eta',
-              properties: { label: 'Cab ETA (Alex M.)', value: '4 mins', trend: 'neutral' },
+              properties: { label: `Cab ETA (${ride[0].name})`, value: `${ride[0].etaMinutes} mins`, trend: 'neutral' },
             },
             {
               type: 'MetricWidget',
@@ -893,8 +903,8 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
         },
       };
     } else if (action === 'topup_wallet') {
-      const topupAmount = payload.amount || 50.0;
-      onProgress?.(`💳 Adding $${topupAmount} to wallet...`);
+      const topupAmount = typeof payload.amount === 'number' ? payload.amount : 50.0;
+      onProgress?.(`💳 Adding ${formatWalletAmount(topupAmount)} to wallet...`);
       const res = await executeWalletRequest('POST', '/wallet/topup', {}, { amount: topupAmount });
 
       state.currentSurface = {
@@ -914,7 +924,7 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
             {
               type: 'MetricWidget',
               id: 'new_balance',
-              properties: { label: 'Updated Balance', value: `$${res.data.newBalance}`, trend: 'up' },
+              properties: { label: 'Updated Balance', value: formatWalletAmount(res.data.newBalance), trend: 'up' },
             },
           ],
         },
@@ -1158,7 +1168,7 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
           {
             type: 'MetricWidget',
             id: 'metric_balance',
-            properties: { label: 'Active DubaiPay Balance', value: `${balance.toFixed(2)} AED`, trend: 'neutral' },
+            properties: { label: 'Active DubaiPay Balance', value: formatWalletAmount(balance), trend: 'neutral' },
           },
           {
             type: 'DataTable',
@@ -1175,7 +1185,7 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
               rows: txs.slice(0, 4).map((t) => ({
                 type: t.type,
                 purpose: t.purpose,
-                amount: formatAED(Math.round(t.amount*100)),
+                amount: formatWalletAmount(t.amount),
                 funding: `${t.sourceLabel||'Retained history'}${t.sourceLast4?` · •••• ${t.sourceLast4}`:''}`,
                 state: `${t.status}${t.settlementState?` · ${t.settlementState}`:''}`,
                 walletEffect: typeof t.walletDeltaMinor==='number'?formatStatementAED(t.walletDeltaMinor):'Retained opening history',
@@ -1186,7 +1196,7 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
           {
             type: 'Button',
             id: 'btn_topup_50',
-            properties: { label: 'Quick Top-Up (+50.00 AED via DubaiPay)', variant: 'outline', fullWidth: true },
+            properties: { label: `Quick Top-Up (+${formatWalletAmount(50)} via DubaiPay)`, variant: 'outline', fullWidth: true },
             onEvents: [
               {
                 event: 'onPress',
@@ -1773,7 +1783,9 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
     const preferredTierId = preferences?.mobility?.preferredTier;
     const selectedRide = rideData.options.find((o) => o.id === preferredTierId) || rideData.options[0];
     const selectedFood = foodData.restaurants[0].items[0];
-    const totalEst = selectedRide.fare + selectedFood.price;
+    const mealMinor = toMinor(selectedFood.price) + toMinor(foodData.restaurants[0].deliveryFee);
+    const totalMinor = toMinor(selectedRide.fare) + mealMinor;
+    const totalEst = totalMinor / 100;
 
     return {
       version: '1.0.0',
@@ -1806,15 +1818,15 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
             id: 'metric_cab',
             properties: {
               label: `1. Cab: ${selectedRide.car}`,
-              value: `$${selectedRide.fare.toFixed(2)} (ETA ${selectedRide.etaMinutes}m)`,
+              value: `${formatWalletAmount(selectedRide.fare)} (ETA ${selectedRide.etaMinutes}m)`,
             },
           },
           {
             type: 'MetricWidget',
             id: 'metric_dinner',
             properties: {
-              label: `2. Dinner: ${selectedFood.name}`,
-              value: `$${selectedFood.price.toFixed(2)}`,
+              label: `2. Dinner: ${selectedFood.name} (including delivery)`,
+              value: formatWalletAmount(mealMinor / 100),
             },
           },
           {
@@ -1822,7 +1834,7 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
             id: 'metric_wallet_status',
             properties: {
               label: '3. Wallet Balance Available',
-              value: `$${walletData.balance.toFixed(2)}`,
+              value: formatWalletAmount(walletData.balance),
               trend: 'neutral',
             },
           },
@@ -1830,7 +1842,7 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
             type: 'Button',
             id: 'btn_confirm_both',
             properties: {
-              label: `Authorize Both & Pay $${totalEst.toFixed(2)}`,
+              label: `Authorize Both & Pay ${formatWalletAmount(totalEst)}`,
               variant: 'primary',
               fullWidth: true,
             },
@@ -1838,7 +1850,7 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
               {
                 event: 'onPress',
                 actionType: 'AGENT_ACTION_DISPATCH',
-                payload: { action: 'confirm_composite_checkout' },
+                payload: { action: 'confirm_composite_checkout', driverId: selectedRide.id, restaurantId: foodData.restaurants[0].id, itemId: selectedFood.id, rideAmountMinor: toMinor(selectedRide.fare), mealAmountMinor: mealMinor, amountMinor: totalMinor, currency: walletCurrency() },
               },
             ],
           },

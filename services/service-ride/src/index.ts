@@ -420,6 +420,7 @@ function handleRideRequest(
     const driverId = body.driverId;
     const selectedDriver = drivers.find(d => d.id === driverId);
     if (!selectedDriver) return { status: 404, data: { error: 'Driver not found' } };
+    if (body.expectedFareMinor !== undefined && body.expectedFareMinor !== toMinor(selectedDriver.fare)) return { status: 409, data: { error: 'Ride fare changed', code: 'PRICE_CHANGED' } };
     const bookingId = `bk_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
 
     const booking: RideBooking = {

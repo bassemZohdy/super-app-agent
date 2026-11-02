@@ -32,7 +32,9 @@ For compatibility domain writes, both local and HTTP adapters treat authenticati
 
 Compatibility domain adapters dispatch only the registered write routes with route-specific receipt checks; unrecognized mutations are rejected before a local handler or HTTP service is called. Adding a write requires registering its route and receipt validation together.
 
-Compatibility wallet payment and top-up confirmations require a settled USD fixture transaction of the expected type, with an exact requested amount and a valid nonnegative balance. An inconsistent receipt leaves the write unknown and stops the rest of a composite checkout.
+Compatibility wallet payment and top-up confirmations require a settled transaction of the expected type and currency (USD for the offline fixture, AED for integrated providers), with an exact requested amount and a valid nonnegative balance. An inconsistent receipt leaves the write unknown and stops the rest of a composite checkout. Currency labels in retained surfaces still need standardization.
+
+The compatibility ride-and-meal review binds the selected driver, restaurant, item, individual prices, delivery fee, total and wallet currency. It rechecks the current options before charging, and each service checks its reviewed amount before booking. The three effects remain separate: a later refusal can leave an earlier payment or booking completed and requires reconciliation.
 
 Compatibility ride booking confirmations require the selected driver, a confirmed or dispatched status and any supplied pickup and destination to match. A mismatched booking is unknown and prevents subsequent checkout effects.
 

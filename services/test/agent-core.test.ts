@@ -84,7 +84,7 @@ test('agent-core: composite multi-domain intent orchestrates ride, food, and wal
   const actionRes = await executeCoreRequest('POST', '/api/a2ui/action', {}, {
     sessionId: sid, surfaceRevision: getOrCreateSession(sid).currentSurface?.revision,
     action: 'confirm_composite_checkout',
-    payload: {},
+    payload: confirmBtn.onEvents[0].payload,
   });
 
   assert.strictEqual(actionRes.status, 200);

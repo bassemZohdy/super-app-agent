@@ -33,3 +33,13 @@ test('wallet payment and top-up confirmations match the requested amount and set
     }
   }
 });
+
+test('integrated wallet receipts reject USD rather than the expected AED', async t => {
+  const previousTransport = process.env.DOMAIN_TRANSPORT, previousIntegration = process.env.PROVIDER_INTEGRATION;
+  process.env.DOMAIN_TRANSPORT = 'http'; process.env.PROVIDER_INTEGRATION = 'true';
+  t.after(() => { if (previousTransport === undefined) delete process.env.DOMAIN_TRANSPORT; else process.env.DOMAIN_TRANSPORT = previousTransport; if (previousIntegration === undefined) delete process.env.PROVIDER_INTEGRATION; else process.env.PROVIDER_INTEGRATION = previousIntegration; });
+  t.mock.method(globalThis, 'fetch', async () => Response.json({ success: true, transaction: { id: 'tx1', type: 'PAYMENT', amount: 1, currency: 'USD', status: 'SETTLED' }, remainingBalance: 50 }));
+  const steps: Step[] = [];
+  await assert.rejects(trackDomainOperations(steps, () => actorContext.run(actorFor({ sub: 'test-user' }, 'account', 'Bearer test'), () => callDomainAsync('wallet', 'POST', '/wallet/pay', {}, { amount: 1 }))), (error: unknown) => error instanceof DomainOperationError && error.code === 'DOMAIN_OUTCOME_UNKNOWN');
+  assert.equal(steps[0].state, 'UNKNOWN');
+});

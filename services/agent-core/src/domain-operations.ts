@@ -82,7 +82,7 @@ function confirmedReceipt(service: string, path: string, data: any, body: unknow
     if (path === '/wallet/pay' || path === '/wallet/topup') {
       if (!record(body) || !record(data.transaction)) return false;
       const request = body as { amount?: unknown }, tx = data.transaction;
-      if (!named(tx.id) || tx.type !== (path === '/wallet/pay' ? 'PAYMENT' : 'TOPUP') || tx.currency !== 'USD' || tx.status !== 'SETTLED' ||
+      if (!named(tx.id) || tx.type !== (path === '/wallet/pay' ? 'PAYMENT' : 'TOPUP') || tx.currency !== (process.env.PROVIDER_INTEGRATION === 'true' ? 'AED' : 'USD') || tx.status !== 'SETTLED' ||
         typeof request.amount !== 'number' || typeof tx.amount !== 'number') return false;
       try {
         const amount = toMinor(request.amount), balance = toMinor(path === '/wallet/pay' ? data.remainingBalance : data.newBalance);
@@ -121,7 +121,8 @@ function confirmedReceipt(service: string, path: string, data: any, body: unknow
   if (service === 'ride') {
     if (path === '/rides/book') {
       if (!record(body) || !record(data.booking) || !record(data.booking.driver)) return false;
-      const request = body as { driverId?: unknown; pickup?: unknown; dropoff?: unknown }, booking = data.booking;
+      const request = body as { driverId?: unknown; pickup?: unknown; dropoff?: unknown; expectedFareMinor?: unknown }, booking = data.booking;
+      try { if (request.expectedFareMinor !== undefined && (!Number.isSafeInteger(request.expectedFareMinor) || toMinor(booking.fare) !== request.expectedFareMinor)) return false; } catch { return false; }
       return named(request.driverId) && booking.driver.id === request.driverId && named(booking.bookingId) && ['DISPATCHED', 'CONFIRMED'].includes(booking.status) &&
         (request.pickup === undefined || (named(request.pickup) && booking.pickup === request.pickup)) &&
         (request.dropoff === undefined || (named(request.dropoff) && booking.dropoff === request.dropoff));
@@ -157,7 +158,7 @@ function confirmedReceipt(service: string, path: string, data: any, body: unknow
   if (service === 'food') {
     if (path === '/orders/create') {
       if (!record(body) || !record(data.order)) return false;
-      const request = body as { restaurantId?: unknown; items?: unknown; deliveryAddress?: unknown }, order = data.order;
+      const request = body as { restaurantId?: unknown; items?: unknown; deliveryAddress?: unknown; expectedAmountMinor?: unknown }, order = data.order;
       if (!named(request.restaurantId) || order.restaurantId !== request.restaurantId || !named(order.orderId) ||
         !['ACCEPTED_BY_KITCHEN', 'CONFIRMED'].includes(order.status) || !Array.isArray(request.items) || request.items.length === 0 ||
         !request.items.every(named) || !Array.isArray(order.items) ||
@@ -174,7 +175,7 @@ function confirmedReceipt(service: string, path: string, data: any, body: unknow
         if (remaining < 0) return false;
         counts.set(item.id, remaining);
       }
-      try { return [...counts.values()].every(count => count === 0) && typeof order.totalAmount === 'number' && toMinor(order.totalAmount) >= 0; }
+      try { const total = toMinor(order.totalAmount); return [...counts.values()].every(count => count === 0) && total >= 0 && (request.expectedAmountMinor === undefined || Number.isSafeInteger(request.expectedAmountMinor) && total === request.expectedAmountMinor); }
       catch { return false; }
     }
     if (path === '/utilities/pay') {

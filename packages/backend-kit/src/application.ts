@@ -301,7 +301,9 @@ export async function integratedRequest(service: string, actor: Actor, method: s
         const restaurant = restaurants.find(r => r.id === body.restaurantId);
         const items = body.items.map((id: string) => restaurant?.items.find(item => item.id === id));
         if (!restaurant || items.some((item) => !item)) throw new UpstreamError(404, 'NOT_FOUND', 'Menu item not found.');
-        const order = { orderId: randomUUID(), restaurantId: restaurant.id, restaurantName: restaurant.name, items, deliveryAddress: body.deliveryAddress || '100 Market St, Apt 4B', totalAmount: items.reduce((sum: number, item) => sum + Math.round(item!.price * 100), 0) / 100, status: 'CONFIRMED', estimatedDeliveryTime: '25 min', timestamp: Date.now() };
+        const totalMinor = items.reduce((sum: number, item) => sum + toMinor(item!.price), 0) + toMinor(restaurant.deliveryFee);
+        if (body.expectedAmountMinor !== undefined && body.expectedAmountMinor !== totalMinor) throw new UpstreamError(409, 'PRICE_CHANGED', 'Order price changed.');
+        const order = { orderId: randomUUID(), restaurantId: restaurant.id, restaurantName: restaurant.name, items, deliveryAddress: body.deliveryAddress || '100 Market St, Apt 4B', totalAmount: totalMinor / 100, status: 'CONFIRMED', estimatedDeliveryTime: '25 min', timestamp: Date.now() };
         db.put(actor.accountId, 'order', order, order.orderId); return successful({ order });
       }
       if (method === 'GET' && path.startsWith('/orders/track/')) { const order = db.get(actor.accountId, 'order', path.split('/').pop()!); if (!order) throw new UpstreamError(404, 'NOT_FOUND', 'Order not found.'); return successful({ order }); }

@@ -45,7 +45,7 @@ const actionSchemas: Record<string, Schema> = {
   pay_utilities_bill: object({ billId: id,expectedPayableRevision:{type:'string',pattern:'^[a-f0-9]{64}$'},expectedAmountMinor:{type:'integer',minimum:1,maximum:100000000} }), pay_police_fines: object({ fineIds: {...list(id,20),minItems:1,uniqueItems:true},expectedPayables:fineSelectionItemsSchema,expectedAmountMinor:{type:'integer',minimum:1,maximum:100000000} }, ['fineIds']),
   confirm_smartcity_checkout: object({expectedPayables:{type:'array',minItems:0,maxItems:30,items:paymentObject({provider:{enum:['dewa','police']},payableId:id,expectedRevision:{type:'string',pattern:'^[a-f0-9]{64}$'}})},expectedAmountMinor:{type:'integer',minimum:1,maximum:100000000},targetReference:text(160),expectedTargetVersion:{type:'integer',minimum:1,maximum:1000000},offlineReview:object({billId:id,billAmountMinor:{type:'integer',minimum:0,maximum:100000000},fines:{type:'array',maxItems:20,items:object({fineId:id,amountMinor:{type:'integer',minimum:1,maximum:100000000}},['fineId','amountMinor'])},tagNumber:text(160)},['billId','billAmountMinor','fines','tagNumber'])}), confirm_movein: object({ contractNumber: id, premiseId: id }, ['contractNumber', 'premiseId']),
   book_ride: object({ selectedChoice: id, driverId: id }), order_food: object({ selectedChoice: id }),
-  confirm_composite_checkout: object(), topup_wallet: object({ amount: moneySchema }, ['amount']),
+  confirm_composite_checkout: object({ driverId: id, restaurantId: id, itemId: id, rideAmountMinor: { type: 'integer', minimum: 1, maximum: 100000000 }, mealAmountMinor: { type: 'integer', minimum: 1, maximum: 100000000 }, amountMinor: { type: 'integer', minimum: 1, maximum: 100000000 }, currency: { enum: ['USD', 'AED'] } }, ['driverId', 'restaurantId', 'itemId', 'rideAmountMinor', 'mealAmountMinor', 'amountMinor', 'currency']), topup_wallet: object({ amount: moneySchema }, ['amount']),
   pay_telecom_bill: object({ provider: { enum: ['etisalat', 'du'] }, billId: id,expectedPayableRevision:{type:'string',pattern:'^[a-f0-9]{64}$'},expectedAmountMinor:{type:'integer',minimum:1,maximum:100000000} }, ['provider','billId']),
   update_preferences: object({ ...preferencesSchema.properties }),
 };
@@ -127,7 +127,7 @@ for (const path of ['/api/auth/config', '/api/accounts', '/api/sessions']) route
 route('agent-core', 'GET', '/api/sessions/{sessionId}', object({ sessionId, accountId: id }, ['sessionId']));
 route('agent-core', 'DELETE', '/api/sessions/{sessionId}', object({ sessionId }, ['sessionId']));
 route('service-ride', 'GET', '/rides/options', object({ destination: text() }), [], 'ride_getOptions');
-route('service-ride', 'POST', '/rides/book', object({ driverId: id, pickup: text(), dropoff: text() }, ['driverId']), [], 'ride_bookCab');
+route('service-ride', 'POST', '/rides/book', object({ driverId: id, pickup: text(), dropoff: text(), expectedFareMinor: { type: 'integer', minimum: 1, maximum: 100000000 } }, ['driverId']), [], 'ride_bookCab');
 route('service-ride', 'GET', '/rides/track/{bookingId}', object({ bookingId: id }, ['bookingId']), [], 'ride_trackStatus');
 route('service-ride', 'GET', '/mobility/parking/zones', object(), ['/parking/zones'], 'mobility_getParkingZones');
 route('service-ride', 'POST', '/mobility/parking/activate', object({ zoneId: id, durationHours: hours, plateNumber: text(128) }, ['zoneId', 'durationHours', 'plateNumber']), ['/parking/activate'], 'mobility_activateParking');
@@ -142,7 +142,7 @@ route('service-ride', 'GET', '/mobility/salik/passings', object(), ['/salik/pass
 route('service-ride', 'GET', '/mobility/ev/chargers', object(), ['/ev/chargers'], 'mobility_getEVChargers');
 route('service-ride', 'POST', '/mobility/ev/start', object({ chargerId: id, plateNumber: text(128) }, ['chargerId', 'plateNumber']), ['/ev/start'], 'mobility_startEVSession');
 route('service-food', 'GET', '/restaurants/search', object({ query: text() }), [], 'food_searchRestaurants');
-route('service-food', 'POST', '/orders/create', object({ restaurantId: id, items: list(id), deliveryAddress: text() }, ['restaurantId', 'items']), [], 'food_createOrder');
+route('service-food', 'POST', '/orders/create', object({ restaurantId: id, items: list(id), deliveryAddress: text(), expectedAmountMinor: { type: 'integer', minimum: 1, maximum: 100000000 } }, ['restaurantId', 'items']), [], 'food_createOrder');
 route('service-food', 'GET', '/orders/track/{orderId}', object({ orderId: id }, ['orderId']), [], 'food_trackOrder');
 route('service-food', 'GET', '/utilities/consumption', object(), ['/consumption'], 'utilities_getConsumption');
 route('service-food', 'GET', '/utilities/bill', object(), ['/bill'], 'utilities_getBill');

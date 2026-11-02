@@ -66,7 +66,7 @@ test('E2E SuperApp Agent Journey: Complete Composite Multi-Service User Flow', a
   const actionRes = await executeCoreRequest('POST', '/api/a2ui/action', {}, {
     sessionId, surfaceRevision: getOrCreateSession(sessionId).currentSurface?.revision,
     action: actionName,
-    payload: {},
+    payload: confirmBtn.onEvents[0].payload,
   });
 
   assert.strictEqual(actionRes.status, 200);
@@ -78,14 +78,14 @@ test('E2E SuperApp Agent Journey: Complete Composite Multi-Service User Flow', a
   assert.strictEqual(finalWalletRes.status, 200);
   assert.strictEqual(
     finalWalletRes.data.balance,
-    Math.round((startBalance - 40.0) * 100) / 100,
-    'Wallet balance deducted exactly $40.00'
+    Math.round((startBalance - confirmBtn.onEvents[0].payload.amountMinor / 100) * 100) / 100,
+    'Wallet balance deducted exactly the reviewed amount'
   );
 
   const txLedgerRes = executeWalletRequest('GET', '/wallet/transactions');
   assert.strictEqual(txLedgerRes.status, 200);
   const latestTx = txLedgerRes.data.transactions[0];
-  assert.strictEqual(latestTx.amount, 40.0);
+  assert.strictEqual(latestTx.amount, confirmBtn.onEvents[0].payload.amountMinor / 100);
   assert.strictEqual(latestTx.type, 'PAYMENT');
   assert.strictEqual(latestTx.status, 'SETTLED');
 

@@ -19,6 +19,9 @@ test('integrated ride and food responses pass the compatibility adapter with the
   const engine = new ProviderEngine('rta', store); store.accounts(actor.sub); engine.seed(actor);
   t.after(() => { store.close(); if (previousDir === undefined) delete process.env.APP_DATA_DIR; else process.env.APP_DATA_DIR = previousDir; if (previousTransport === undefined) delete process.env.DOMAIN_TRANSPORT; else process.env.DOMAIN_TRANSPORT = previousTransport; removeTemp(dir); });
   t.mock.method(ProviderClient.prototype, 'call', async (_provider, _actor, method, path, body) => store.transaction(() => engine.execute(actor, method, path, body)).data);
+  assert.throws(() => store.transaction(() => engine.execute(actor, 'POST', '/rides/bookings', { driverId: 'drv_1', expectedFareMinor: 1 })));
+  const wrongFood = await integratedRequest('service-food', actor, 'POST', '/orders/create', {}, { restaurantId: 'rest_1', items: ['item_diavola'], expectedAmountMinor: 1 }, () => ({ status: 404, data: {} }));
+  assert.equal(wrongFood.status, 409);
   t.mock.method(globalThis, 'fetch', async (input, init) => {
     const path = new URL(String(input)).pathname;
     const service = path.startsWith('/rides/') ? 'service-ride' : 'service-food';
@@ -34,5 +37,27 @@ test('integrated ride and food responses pass the compatibility adapter with the
     assert.equal(food.data.order.deliveryAddress, 'Address');
   });
   await trackDomainOperations(steps, run);
+  assert.deepEqual(steps.map(step => step.state), ['SUCCEEDED', 'SUCCEEDED']);
+});
+
+test('integrated wallet payment and top-up receipts pass with AED and the requested amount', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'integrated-wallet-'));
+  const previousDir = process.env.APP_DATA_DIR, previousTransport = process.env.DOMAIN_TRANSPORT, previousIntegration = process.env.PROVIDER_INTEGRATION;
+  process.env.APP_DATA_DIR = dir; process.env.DOMAIN_TRANSPORT = 'http'; process.env.PROVIDER_INTEGRATION = 'true';
+  const store = new AccountDatabase(':memory:'), actor = actorFor({ sub: 'integrated-wallet-receipt' }, undefined, 'Bearer test');
+  const engine = new ProviderEngine('payments', store); store.accounts(actor.sub); engine.seed(actor);
+  t.after(() => { store.close(); if (previousDir === undefined) delete process.env.APP_DATA_DIR; else process.env.APP_DATA_DIR = previousDir; if (previousTransport === undefined) delete process.env.DOMAIN_TRANSPORT; else process.env.DOMAIN_TRANSPORT = previousTransport; if (previousIntegration === undefined) delete process.env.PROVIDER_INTEGRATION; else process.env.PROVIDER_INTEGRATION = previousIntegration; removeTemp(dir); });
+  t.mock.method(ProviderClient.prototype, 'call', async (_provider, _actor, method, path, body) => store.transaction(() => engine.execute(actor, method, path, body)).data);
+  t.mock.method(globalThis, 'fetch', async (input, init) => {
+    const result = await integratedRequest('service-wallet', actor, 'POST', new URL(String(input)).pathname, {}, JSON.parse(String(init?.body)), () => ({ status: 404, data: {} }));
+    return Response.json(result.data, { status: result.status });
+  });
+  const steps: Step[] = [];
+  await trackDomainOperations(steps, () => actorContext.run(actor, async () => {
+    const payment = await callDomainAsync('wallet', 'POST', '/wallet/pay', {}, { amount: 10, purpose: 'Demo' });
+    assert.equal(payment.data.transaction.currency, 'AED');
+    const topup = await callDomainAsync('wallet', 'POST', '/wallet/topup', {}, { amount: 5 });
+    assert.equal(topup.data.transaction.currency, 'AED');
+  }));
   assert.deepEqual(steps.map(step => step.state), ['SUCCEEDED', 'SUCCEEDED']);
 });

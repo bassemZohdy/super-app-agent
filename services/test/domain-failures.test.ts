@@ -3,15 +3,71 @@ import assert from 'node:assert/strict';
 import { executeCoreRequest as core, getOrCreateSession, sseClients, server } from '../agent-core/src/index.ts';
 import { domainHandlers, callDomain, trackDomainOperations, type Step } from '../agent-core/src/domain-operations.ts';
 import { executeWalletRequest as wallet, balance, transactions, policeFines } from '../service-wallet/src/index.ts';
-import { activeOrders } from '../service-food/src/index.ts';
-import { activeRides, activeParkingMeters } from '../service-ride/src/index.ts';
+import { activeOrders, executeFoodRequest as food } from '../service-food/src/index.ts';
+import { activeRides, activeParkingMeters, executeRideRequest as ride } from '../service-ride/src/index.ts';
 import { readEventStream } from '../../packages/protocol-core/src/sse-client.ts';
 
 const composite = 'Book a ride downtown and order pizza, pay with my wallet';
 const intent = (sid: string, text = composite) => core('POST', '/api/a2ui/intent', {}, { sessionId: sid, text });
 const offered=(sid:string,action:string)=>getOrCreateSession(sid).currentSurface!.view.children!.find((n:any)=>n.onEvents?.some((e:any)=>e.payload?.action===action))?.onEvents?.find((e:any)=>e.payload.action===action)?.payload||{};
-const action = (sid: string, action = 'confirm_composite_checkout') => core('POST', '/api/a2ui/action', {}, { sessionId: sid, surfaceRevision: getOrCreateSession(sid).currentSurface?.revision, action, payload: offered(sid,action) });
+const originalBindings = new Map<string, object>();
+const action = (sid: string, action = 'confirm_composite_checkout') => {
+  const key = `${sid}:${action}`, binding = offered(sid, action);
+  if (binding.action === action) originalBindings.set(key, binding);
+  return core('POST', '/api/a2ui/action', {}, { sessionId: sid, surfaceRevision: getOrCreateSession(sid).currentSurface?.revision, action, payload: originalBindings.get(key) || binding });
+};
 function ensureFunds() { if (balance < 50) assert.equal(wallet('POST', '/wallet/topup', {}, { amount: 100 }).status, 200); }
+
+test('P1-13: composite checkout charges the reviewed total and books the reviewed ride and meal', async () => {
+  ensureFunds();
+  const sid = 'composite_reviewed_selection';
+  const review = await intent(sid);
+  assert.equal(review.status, 200);
+  const binding = offered(sid, 'confirm_composite_checkout');
+  assert.equal(binding.driverId, 'drv_3');
+  assert.equal(binding.restaurantId, 'rest_1');
+  assert.equal(binding.itemId, 'item_diavola');
+  assert.equal(binding.amountMinor, 4899);
+  assert.equal(binding.currency, 'USD');
+  const before = balance, rideIds = new Set(activeRides.keys()), orderIds = new Set(activeOrders.keys());
+  const result = await action(sid);
+  assert.equal(result.status, 200);
+  assert.equal(balance, Math.round((before - 48.99) * 100) / 100);
+  const booked = [...activeRides.entries()].find(([id]) => !rideIds.has(id))?.[1];
+  const order = [...activeOrders.entries()].find(([id]) => !orderIds.has(id))?.[1];
+  assert.equal(booked?.driver.id, binding.driverId);
+  assert.equal(order?.restaurantId, binding.restaurantId);
+  assert.equal(order?.items[0].item.id, binding.itemId);
+});
+
+test('P1-13: composite review rejects modified bindings and changed prices before a wallet effect', async t => {
+  ensureFunds();
+  const sid = 'composite_stale_review';
+  assert.equal((await intent(sid)).status, 200);
+  const binding = offered(sid, 'confirm_composite_checkout'), revision = getOrCreateSession(sid).currentSurface?.revision;
+  const before = balance, realWallet = domainHandlers.wallet, realRide = domainHandlers.ride;
+  let writes = 0;
+  t.mock.method(domainHandlers, 'wallet', (method, path, query, body) => { if (method === 'POST') writes++; return realWallet(method, path, query, body); });
+  const altered = await core('POST', '/api/a2ui/action', {}, { sessionId: sid, surfaceRevision: revision, action: 'confirm_composite_checkout', payload: { ...binding, amountMinor: binding.amountMinor + 1 } });
+  assert.equal(altered.status, 403);
+  t.mock.method(domainHandlers, 'ride', (method, path, query, body) => {
+    const result = realRide(method, path, query, body);
+    if (method !== 'GET' || path !== '/rides/options') return result;
+    return { ...result, data: { ...result.data, options: result.data.options.map((option: { id: string; fare: number }) => option.id === binding.driverId ? { ...option, fare: option.fare + 1 } : option) } };
+  });
+  const stale = await action(sid);
+  assert.equal(stale.status, 409);
+  assert.equal(writes, 0);
+  assert.equal(balance, before);
+});
+
+test('P1-13: local ride and meal handlers reject changed reviewed prices before booking', () => {
+  const rides = activeRides.size, orders = activeOrders.size;
+  assert.equal(ride('POST', '/rides/book', {}, { driverId: 'drv_3', expectedFareMinor: 1 }).status, 409);
+  assert.equal(food('POST', '/orders/create', {}, { restaurantId: 'rest_1', items: ['item_diavola'], expectedAmountMinor: 1 }).status, 409);
+  assert.equal(activeRides.size, rides);
+  assert.equal(activeOrders.size, orders);
+});
 
 test('P0-12: insufficient funds returns failure JSON and failure SSE surface without clearing fines', async () => {
   const sid = 'failure_fines_session';
@@ -54,13 +110,13 @@ test('P0-12: composite stops at rejected second effect and records exact partial
   assert.equal(result.data.outcome, 'PARTIALLY_COMPLETED');
   assert.equal(result.data.code, 'PARTIAL_EXECUTION');
   assert.deepEqual(result.data.steps.map((step: Step) => [step.service, step.state]), [['wallet', 'SUCCEEDED'], ['ride', 'FAILED']]);
-  assert.equal(balance, Math.round((before - 40) * 100) / 100);
+  assert.equal(balance, Math.round((before - 48.99) * 100) / 100);
   assert.equal(transactions.length, ledger + 1);
   assert.equal(activeRides.size, rides); assert.equal(activeOrders.size, orders); assert.equal(foodEffects, 0);
   assert.deepEqual(result.data.retry, { allowed: false, next: 'reconcile' });
   assert.equal(result.data.surface.view.style.variant, 'warning');
   assert.equal((await intent(sid)).data.code, 'RECONCILIATION_REQUIRED');
-  assert.equal(balance, Math.round((before - 40) * 100) / 100);
+  assert.equal(balance, Math.round((before - 48.99) * 100) / 100);
 });
 
 test('P0-12: effect applied then exception yields UNKNOWN; no later effect or unsafe retry', async t => {
@@ -79,12 +135,12 @@ test('P0-12: effect applied then exception yields UNKNOWN; no later effect or un
   assert.equal(result.data.outcome, 'UNKNOWN');
   assert.equal(result.data.code, 'DOMAIN_OUTCOME_UNKNOWN');
   assert.equal(result.data.steps[0].state, 'UNKNOWN');
-  assert.equal(balance, Math.round((before - 40) * 100) / 100);
+  assert.equal(balance, Math.round((before - 48.99) * 100) / 100);
   assert.equal(activeRides.size, rides); assert.equal(activeOrders.size, orders);
   assert.ok(!JSON.stringify(result).includes('never-expose'));
   assert.deepEqual(result.data.retry, { allowed: false, next: 'reconcile' });
   assert.equal((await action(sid)).data.code, 'RECONCILIATION_REQUIRED');
-  assert.equal(balance, Math.round((before - 40) * 100) / 100);
+  assert.equal(balance, Math.round((before - 48.99) * 100) / 100);
 });
 
 test('P1-02: an unknown settlement after a wallet effect blocks later effects and a replacement', async t => {
@@ -101,11 +157,11 @@ test('P1-02: an unknown settlement after a wallet effect blocks later effects an
   assert.equal(result.data.outcome, 'UNKNOWN');
   assert.equal(result.data.steps[0].state, 'UNKNOWN');
   assert.deepEqual(result.data.retry, { allowed: false, next: 'reconcile' });
-  assert.equal(balance, Math.round((before - 40) * 100) / 100);
+  assert.equal(balance, Math.round((before - 48.99) * 100) / 100);
   assert.equal(activeRides.size, rides);
   assert.equal(activeOrders.size, orders);
   assert.equal((await action(sid)).data.code, 'RECONCILIATION_REQUIRED');
-  assert.equal(balance, Math.round((before - 40) * 100) / 100);
+  assert.equal(balance, Math.round((before - 48.99) * 100) / 100);
 });
 
 test('P1-02: a rate-limit response after a wallet effect blocks later effects and a replacement', async t => {
@@ -122,11 +178,11 @@ test('P1-02: a rate-limit response after a wallet effect blocks later effects an
   assert.equal(result.data.outcome, 'UNKNOWN');
   assert.equal(result.data.steps[0].state, 'UNKNOWN');
   assert.deepEqual(result.data.retry, { allowed: false, next: 'reconcile' });
-  assert.equal(balance, Math.round((before - 40) * 100) / 100);
+  assert.equal(balance, Math.round((before - 48.99) * 100) / 100);
   assert.equal(activeRides.size, rides);
   assert.equal(activeOrders.size, orders);
   assert.equal((await action(sid)).data.code, 'RECONCILIATION_REQUIRED');
-  assert.equal(balance, Math.round((before - 40) * 100) / 100);
+  assert.equal(balance, Math.round((before - 48.99) * 100) / 100);
 });
 
 test('P1-13: a mismatched wallet receipt after a debit blocks later effects and a replacement', async t => {
@@ -142,11 +198,11 @@ test('P1-13: a mismatched wallet receipt after a debit blocks later effects and 
   const result = await action(sid);
   assert.equal(result.data.outcome, 'UNKNOWN');
   assert.equal(result.data.steps[0].state, 'UNKNOWN');
-  assert.equal(balance, Math.round((before - 40) * 100) / 100);
+  assert.equal(balance, Math.round((before - 48.99) * 100) / 100);
   assert.equal(activeRides.size, rides);
   assert.equal(activeOrders.size, orders);
   assert.equal((await action(sid)).data.code, 'RECONCILIATION_REQUIRED');
-  assert.equal(balance, Math.round((before - 40) * 100) / 100);
+  assert.equal(balance, Math.round((before - 48.99) * 100) / 100);
 });
 
 test('P1-13: a mismatched ride receipt stops composite checkout and blocks replacement', async t => {
@@ -162,7 +218,7 @@ test('P1-13: a mismatched ride receipt stops composite checkout and blocks repla
   const result = await action(sid);
   assert.equal(result.data.outcome, 'UNKNOWN');
   assert.deepEqual(result.data.steps.map((step: Step) => [step.service, step.state]), [['wallet', 'SUCCEEDED'], ['ride', 'UNKNOWN']]);
-  assert.equal(balance, Math.round((before - 40) * 100) / 100);
+  assert.equal(balance, Math.round((before - 48.99) * 100) / 100);
   assert.equal(activeRides.size, rides + 1);
   assert.equal(activeOrders.size, orders);
   assert.equal((await action(sid)).data.code, 'RECONCILIATION_REQUIRED');
@@ -182,7 +238,7 @@ test('P1-13: a mismatched food receipt after order creation blocks replacement c
   const result = await action(sid);
   assert.equal(result.data.outcome, 'UNKNOWN');
   assert.deepEqual(result.data.steps.map((step: Step) => [step.service, step.state]), [['wallet', 'SUCCEEDED'], ['ride', 'SUCCEEDED'], ['food', 'UNKNOWN']]);
-  assert.equal(balance, Math.round((before - 40) * 100) / 100);
+  assert.equal(balance, Math.round((before - 48.99) * 100) / 100);
   assert.equal(activeRides.size, rides + 1);
   assert.equal(activeOrders.size, orders + 1);
   assert.equal((await action(sid)).data.code, 'RECONCILIATION_REQUIRED');

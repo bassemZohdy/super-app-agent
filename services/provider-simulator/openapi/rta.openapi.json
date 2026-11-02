@@ -7560,6 +7560,11 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 200
+                  },
+                  "expectedFareMinor": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100000000
                   }
                 },
                 "required": [

@@ -186,14 +186,14 @@ test('E2E Life Scenario 4: Composite Multi-Agent Orchestration with HITL Checkou
   const checkoutRes = await executeCoreRequest('POST', '/api/a2ui/action', {}, {
     sessionId, surfaceRevision: getOrCreateSession(sessionId).currentSurface?.revision,
     action: 'confirm_composite_checkout',
-    payload: {},
+    payload: btn.onEvents[0].payload,
   });
   assert.strictEqual(checkoutRes.status, 200);
   assert.strictEqual(checkoutRes.data.surface.view.id, 'composite_success_card');
 
   // 4. Verify post-settlement wallet ledger deduction
   const endBalance = executeWalletRequest('GET', '/wallet/balance').data.balance;
-  assert.strictEqual(endBalance, Math.round((startBalance - 40.0) * 100) / 100);
+  assert.strictEqual(endBalance, Math.round((startBalance - btn.onEvents[0].payload.amountMinor / 100) * 100) / 100);
 
   // 5. Verify both rides and food orders registered
   const rides = executeRideRequest('GET', '/rides/options');

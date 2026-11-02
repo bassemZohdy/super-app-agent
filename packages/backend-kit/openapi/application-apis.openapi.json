@@ -223,6 +223,11 @@
                     "minLength": 1,
                     "maxLength": 500,
                     "pattern": "\\S"
+                  },
+                  "expectedFareMinor": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100000000
                   }
                 },
                 "required": [
@@ -2431,6 +2436,11 @@
                     "minLength": 1,
                     "maxLength": 500,
                     "pattern": "\\S"
+                  },
+                  "expectedAmountMinor": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100000000
                   }
                 },
                 "required": [
