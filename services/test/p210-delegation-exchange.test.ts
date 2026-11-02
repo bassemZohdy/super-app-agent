@@ -42,6 +42,8 @@ Object.assign(process.env, { KEYCLOAK_ISSUER: issuer.issuer, KEYCLOAK_JWKS_URL: 
 const seen: string[] = [];
 let topupReply: Record<string, unknown> | undefined;
 let topupStatus = 200;
+let echoDelegatedCredential = false;
+let includeSensitiveFields = false;
 const provider = http.createServer((req, res) => {
   void (async () => {
     const authorization = String(req.headers.authorization || ''), accountId = decodeURIComponent((req.url || '').split('/')[3] || '');
@@ -53,7 +55,7 @@ const provider = http.createServer((req, res) => {
         res.writeHead(topupStatus, { 'Content-Type': 'application/json' }).end(JSON.stringify(topupReply)); return;
       }
       await delegatedAuthorization(authorization, { provider: 'payments', accountId, method: 'GET', path: '/wallet', body: {} });
-      res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ success: true, wallet: { balanceMinor: 150000 } }));
+      res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ success: true, wallet: { balanceMinor: 150000 }, ...(echoDelegatedCredential ? { detail: `provider echo ${authorization.slice(7)}` } : {}), ...(includeSensitiveFields ? { nested: { access_token: 'provider-private-canary' } } : {}) }));
     } catch { res.writeHead(403, { 'Content-Type': 'application/json' }).end(JSON.stringify({ success: false })); }
   })();
 });
@@ -135,6 +137,31 @@ test('delegated provider failures are unknown and never expose the provider resp
       assert.equal(seen.length, before + 1);
     }
   } finally { topupReply = undefined; topupStatus = 200; }
+});
+
+test('a provider cannot return or persist an echoed delegated credential', async () => {
+  const owner = await user('alice'), runnerToken = await runner(), created = await createGrant(owner), id = created!.data.grant.id;
+  const key = 'credential-echo-1'; echoDelegatedCredential = true;
+  try {
+    const result = await execute(id, runnerToken, key), credential = seen.at(-1)!.slice(7);
+    assert.equal(result?.status, 503);
+    const jobs = grantStore().jobs(id, 'alice-sub');
+    assert.equal(jobs[0].state, 'unknown');
+    assert.ok(!JSON.stringify([result, jobs, grantStore().history(id, 'alice-sub')]).includes(credential));
+    assert.equal((await execute(id, runnerToken, key))?.data.code, 'RECONCILIATION_REQUIRED');
+  } finally { echoDelegatedCredential = false; }
+});
+
+test('sensitive provider fields are redacted before a successful result is stored or replayed', async () => {
+  const owner = await user('alice'), runnerToken = await runner(), created = await createGrant(owner, { ...grantBody(), maxOperations: 2 }), id = created!.data.grant.id;
+  const key = 'sensitive-fields-1'; includeSensitiveFields = true;
+  try {
+    const result = await execute(id, runnerToken, key), replay = await execute(id, runnerToken, key);
+    assert.equal(result?.status, 200); assert.equal(result?.data.result.wallet.balanceMinor, 150000);
+    assert.equal(result?.data.result.nested.access_token, '[REDACTED]');
+    assert.equal(replay?.data.replay, true);
+    assert.ok(!JSON.stringify([result, replay, grantStore().jobs(id, 'alice-sub')]).includes('provider-private-canary'));
+  } finally { includeSensitiveFields = false; }
 });
 
 test('P2-10: an owner grants consent, the runner executes it, and the provider sees exactly the owner as the broker client', async () => {

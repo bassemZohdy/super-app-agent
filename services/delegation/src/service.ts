@@ -2,7 +2,7 @@ import { tracedFetch as fetch } from '../../../packages/backend-kit/src/observab
 import { delegationIssuer, paymentsUrl } from '../../../packages/backend-kit/src/local-endpoints.ts';
 import { join } from 'node:path';
 import { verifyJwt, type JwtClaims } from '../../../packages/backend-kit/src/jwt.ts';
-import { logEvent } from '../../../packages/backend-kit/src/redact.ts';
+import { logEvent, redact } from '../../../packages/backend-kit/src/redact.ts';
 import { brokerClient, runnerClient, DelegationError, deny, digest, tokenHash,grantInput } from './policy.ts';
 import { GrantStore } from './store.ts';
 import { PermitStore, type ExecutionView, type Permit } from './permits.ts';
@@ -92,6 +92,7 @@ async function execute(id: string, requestKey: unknown, authorization?: string):
     const response = await fetch(target, { method: g.method, redirect: 'error', signal: AbortSignal.timeout(8000), headers: { Authorization: bearer, 'Content-Type': 'application/json', 'Idempotency-Key': `delegation-${job.id}` }, ...(g.method === 'POST' ? { body: JSON.stringify(g.body) } : {}) });
     const parsed = await boundedJsonResponse(response);
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Invalid provider response');
+    if (JSON.stringify(parsed).includes(bearer.slice(7))) throw new Error('Provider echoed a credential');
     const result = parsed as { success?: boolean };
     let success = response.ok && result.success === true && !Object.hasOwn(result, 'error');
     if (success && g.method === 'POST' && g.provider === 'payments' && g.path === '/topups') {
@@ -109,8 +110,9 @@ async function execute(id: string, requestKey: unknown, authorization?: string):
       store.finish(job, { code: 'EXECUTION_OUTCOME_UNKNOWN' }, false);
       return { status: 503, data: { success: false, operationId: job.id, code: 'EXECUTION_OUTCOME_UNKNOWN', error: 'The provider could not confirm this operation. Inspect its status before retrying.' } };
     }
-    store.finish(job, result, true);
-    return { status: 200, data: { success: true, operationId: job.id, result } };
+    const safeResult = redact(result);
+    store.finish(job, safeResult, true);
+    return { status: 200, data: { success: true, operationId: job.id, result: safeResult } };
   } catch (e) {
     store.finish(job, { code: e instanceof DelegationError ? e.code : 'EXECUTION_OUTCOME_UNKNOWN' }, false);
     throw e;

@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Protect delegated execution results (P1-02, step)
+
+The broker refuses a provider result that echoes its delegated bearer and redacts sensitive fields before saving or replaying successful results. The original execution remains unknown when a credential is echoed. Guide: [delegation](development/delegation.md).
+
 ## 2 November 2026 — Keep delegated failures unconfirmed (P1-02, step)
 
 Delegated provider failures now return an unconfirmed outcome even when the HTTP response is successful, and raw failure bodies are not returned or saved. The original execution remains blocked pending reconciliation. Guide: [delegation](development/delegation.md).
