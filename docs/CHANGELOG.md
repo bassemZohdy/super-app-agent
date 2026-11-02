@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Qualify isolated React payment journeys (P0-08, step)
+
+The React payment-account browser journeys passed on desktop and mobile with fresh synthetic providers and qualification Keycloak/Redis. Commands, revision, tool versions and limits: [evidence](reports/2026-11-02-isolated-payment-browser.md). Guide: [testing](testing.md).
+
 ## 2 November 2026 — Use isolated realm credentials in React E2E (P0-08, step)
 
 The React fixture reads client credentials from the selected stack and refuses missing credentials in qualification. The previously failing stale-action journey passed on desktop and mobile against disposable Compose, using revision `216d524` plus this change, Node 24.16.0, Docker 29.9.2 and Compose 5.6.1. Guide: [testing](testing.md).

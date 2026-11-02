@@ -4,6 +4,8 @@ This register records what was verified, when, against which revision and with w
 
 ## Focused agent milestone
 
+[Isolated React payment browser qualification](2026-11-02-isolated-payment-browser.md) records the selected payment-account journeys against `7004049` with temporary synthetic providers and qualification Keycloak/Redis. It does not replace the full compatibility operating qualification or native-device testing.
+
 [Local selected-planner qualification](2026-10-28-local-planner.md) records clean implementation `44e2d16`, the pinned local model, the declared English/Arabic quality/latency gates and actual isolated authority checks. It does not extend the older full compatibility operating qualification.
 
 [One-process LangGraph/SQLite agent](2026-10-26-simple-agent.md) records the fines slice, native checkpoint/restart and duplicate-effect verification. It is separate from the legacy Compose operating qualification below.
