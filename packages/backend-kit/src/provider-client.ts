@@ -40,7 +40,11 @@ export class ProviderClient {
     let response: Response;
     try {
       response = await send();
-      if (response.status === 401 && !actor.authorization) { this.credentials.invalidate(); response = await send(); }
+      if (response.status === 401) {
+        if (!actor.authorization) this.credentials.invalidate();
+        if (method === 'POST') { void response.body?.cancel().catch(() => {}); throw new Error('Write outcome unconfirmed'); }
+        if (!actor.authorization) { void response.body?.cancel().catch(() => {}); response = await send(); }
+      }
     } catch { record(503, method === 'POST' ? 'PROVIDER_OUTCOME_UNKNOWN' : 'PROVIDER_UNAVAILABLE'); throw new UpstreamError(503, method === 'POST' ? 'PROVIDER_OUTCOME_UNKNOWN' : 'PROVIDER_UNAVAILABLE', `The ${provider} simulator is unavailable.`); }
     let data: Record<string, unknown>;
     try {

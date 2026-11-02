@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Preserve provider writes after authentication failures (P1-02, step)
+
+The provider client no longer automatically resends a write after a 401; it retains an unconfirmed outcome and invalidates rejected service credentials for subsequent calls. Guide: [connections](development/connections.md).
+
 ## 2 November 2026 — Reconcile prior provider effects (P1-02, step)
 
 Provider write refusals that indicate a prior payment, capture, decision, dispatch or conflicting operation identity remain unconfirmed until the original effect is inspected. Guide: [connections](development/connections.md).

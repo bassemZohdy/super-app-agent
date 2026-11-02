@@ -109,3 +109,54 @@ test('known provider rejection codes remain available to callers', async t => {
     finally { mock.mock.restore(); }
   }
 });
+
+test('service-token 401 never automatically repeats a provider write', async t => {
+  const previous = process.env.KEYCLOAK_TOKEN_URL;
+  process.env.KEYCLOAK_TOKEN_URL = 'http://127.0.0.1/token';
+  t.after(() => { if (previous === undefined) delete process.env.KEYCLOAK_TOKEN_URL; else process.env.KEYCLOAK_TOKEN_URL = previous; });
+  const actor = actorFor({ sub: 'test-user' }, 'test-account');
+  const client = new ProviderClient('test-client', 'fixture-secret');
+  let tokens = 0, writes = 0, reads = 0;
+  t.mock.method(globalThis, 'fetch', async (input, init) => {
+    const path = new URL(String(input)).pathname;
+    if (path === '/token') { tokens++; return Response.json({ access_token: `fixture-token-${tokens}`, expires_in: 300 }); }
+    if (init?.method === 'POST') {
+      writes++;
+      return Response.json({ success: false, code: 'ACTOR_REQUIRED' }, { status: 401 });
+    }
+    reads++;
+    return Response.json({ success: true, bills: [] });
+  });
+  await assert.rejects(client.call('dewa', actor, 'POST', '/payments', {}, 'original-key'),
+    (error: unknown) => error instanceof UpstreamError && error.code === 'PROVIDER_OUTCOME_UNKNOWN');
+  assert.equal(writes, 1); assert.equal(tokens, 1);
+  await client.call('dewa', actor, 'GET', '/bills');
+  assert.equal(tokens, 2, 'the rejected service token is invalidated for later reads');
+  assert.equal(reads, 1);
+});
+
+test('an end-user 401 leaves a write unconfirmed without retry', async t => {
+  const actor = actorFor({ sub: 'test-user' }, 'test-account', 'Bearer test');
+  const client = new ProviderClient('test-client', '');
+  let calls = 0;
+  t.mock.method(globalThis, 'fetch', async () => { calls++; return Response.json({ success: false, code: 'ACTOR_REQUIRED' }, { status: 401 }); });
+  await assert.rejects(client.call('dewa', actor, 'POST', '/payments', {}, 'original-key'),
+    (error: unknown) => error instanceof UpstreamError && error.code === 'PROVIDER_OUTCOME_UNKNOWN');
+  assert.equal(calls, 1);
+});
+
+test('a service-token 401 on a read may refresh and retry', async t => {
+  const previous = process.env.KEYCLOAK_TOKEN_URL;
+  process.env.KEYCLOAK_TOKEN_URL = 'http://127.0.0.1/token';
+  t.after(() => { if (previous === undefined) delete process.env.KEYCLOAK_TOKEN_URL; else process.env.KEYCLOAK_TOKEN_URL = previous; });
+  const actor = actorFor({ sub: 'test-user' }, 'test-account');
+  const client = new ProviderClient('test-client', 'fixture-secret');
+  let tokens = 0, reads = 0;
+  t.mock.method(globalThis, 'fetch', async input => {
+    if (new URL(String(input)).pathname === '/token') { tokens++; return Response.json({ access_token: `fixture-token-${tokens}`, expires_in: 300 }); }
+    reads++;
+    return reads === 1 ? Response.json({ success: false }, { status: 401 }) : Response.json({ success: true, bills: [] });
+  });
+  assert.deepEqual((await client.call('dewa', actor, 'GET', '/bills')).bills, []);
+  assert.equal(tokens, 2); assert.equal(reads, 2);
+});
