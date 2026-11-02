@@ -12,6 +12,10 @@ export class UpstreamError extends Error {
   constructor(status: number, code: string, message: string) { super(message); this.status = status; this.code = code; }
 }
 const ports: Record<string, number> = PROVIDER_PORTS;
+export function providerOperationKey(operationId: string, provider: string, path: string): string {
+  const derived = `${operationId}:${provider}:${path}`;
+  return derived.length <= 200 ? derived : `sha256:${createHash('sha256').update(derived).digest('hex')}`;
+}
 export class ProviderClient {
   readonly credentials: ClientCredentials;
   constructor(clientId: string, secret: string) { this.credentials = new ClientCredentials(clientId, secret); }
@@ -28,8 +32,7 @@ export class ProviderClient {
     if (!bootstrap && !url.pathname.startsWith(`${accountPrefix}/`))
       throw new UpstreamError(400, 'PROVIDER_PATH_INVALID', 'The provider path is invalid.');
     if (process.env.NODE_ENV === 'production' && url.protocol !== 'https:') throw new UpstreamError(503, 'HTTPS_REQUIRED', 'Provider HTTPS is required.');
-    const derivedKey = `${actor.requestId}:${provider}:${path}`;
-    const boundedKey = derivedKey.length <= 200 ? derivedKey : `sha256:${createHash('sha256').update(derivedKey).digest('hex')}`;
+    const boundedKey = providerOperationKey(actor.requestId, provider, path);
     const send = async () => fetch(url, {
       method, redirect: 'error', signal: AbortSignal.timeout(8000),
       headers: { Authorization: actor.authorization || `Bearer ${await this.credentials.token()}`, 'Content-Type': 'application/json',

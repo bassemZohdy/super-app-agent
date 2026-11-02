@@ -58,6 +58,8 @@ New food-operation records bind the original receipt digest. An altered receipt,
 
 An authenticated account can inspect `GET /orders/operations/{operationId}` for a verified original food order. This lookup never places an order. A missing operation does not establish that no order was placed, and missing or inconsistent receipt evidence remains unconfirmed.
 
+The integrated ride service also provides `GET /rides/operations/{operationId}` for an account-owned operation. It compares the provider's saved operation response with the stored booking and does not dispatch a ride. A missing operation does not establish non-application; malformed, missing or inconsistent booking evidence remains unconfirmed. This comparison checks consistency of local records, not an independent audit archive.
+
 Local application database initialization retries a busy journal-mode transition for up to five seconds. A cross-process check exercises simultaneous first opens and the same food operation against one database; it is not distributed deployment or cross-service recovery evidence.
 
 The local and integrated simulators use different successful ride and food statuses and item shapes; the adapter accepts their documented forms while applying the same selected-resource checks. The integrated food receipt includes the requested delivery address.

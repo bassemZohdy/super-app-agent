@@ -128,6 +128,7 @@ route('agent-core', 'GET', '/api/sessions/{sessionId}', object({ sessionId, acco
 route('agent-core', 'DELETE', '/api/sessions/{sessionId}', object({ sessionId }, ['sessionId']));
 route('service-ride', 'GET', '/rides/options', object({ destination: text() }), [], 'ride_getOptions');
 route('service-ride', 'POST', '/rides/book', object({ driverId: id, pickup: text(), dropoff: text(), expectedFareMinor: { type: 'integer', minimum: 1, maximum: 100000000 } }, ['driverId']), [], 'ride_bookCab');
+route('service-ride', 'GET', '/rides/operations/{operationId}', object({ operationId: { type: 'string', minLength: 1, maxLength: 200, pattern: '^[A-Za-z0-9_.:-]+$' } }, ['operationId']));
 route('service-ride', 'GET', '/rides/track/{bookingId}', object({ bookingId: id }, ['bookingId']), [], 'ride_trackStatus');
 route('service-ride', 'GET', '/mobility/parking/zones', object(), ['/parking/zones'], 'mobility_getParkingZones');
 route('service-ride', 'POST', '/mobility/parking/activate', object({ zoneId: id, durationHours: hours, plateNumber: text(128) }, ['zoneId', 'durationHours', 'plateNumber']), ['/parking/activate'], 'mobility_activateParking');

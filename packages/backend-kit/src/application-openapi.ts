@@ -57,6 +57,7 @@ export const APPLICATION_OPERATIONS: ApplicationOperation[] = [
   // service-ride (RTA, Salik, EV)
   { service: 'service-ride', method: 'GET', path: '/rides/options', operationId: 'getRideOptions', summary: 'List ride options', response: ok(RAW) },
   { service: 'service-ride', method: 'POST', path: '/rides/book', operationId: 'bookRide', summary: 'Book a ride', bodyRequired: true, response: ok(RAW) },
+  { service: 'service-ride', method: 'GET', path: '/rides/operations/{operationId}', operationId: 'inspectRideOperation', summary: 'Inspect the original ride operation', response: ENVELOPE('Original confirmed ride.', ['operationId', 'booking']), errors: { '404': 'Operation not found for this account; absence does not establish non-application.', '503': 'Original ride evidence is unconfirmed, or a provider or eligibility service is unavailable.' } },
   { service: 'service-ride', method: 'GET', path: '/rides/track/{bookingId}', operationId: 'trackRide', summary: 'Track a ride booking', response: ok(RAW) },
   { service: 'service-ride', method: 'GET', path: '/mobility/parking/zones', operationId: 'getParkingZones', summary: 'List parking zones', response: ok(RAW) },
   { service: 'service-ride', method: 'GET', path: '/mobility/parking/active', operationId: 'getActiveParking', summary: 'List active parking sessions', response: ok(RAW) },

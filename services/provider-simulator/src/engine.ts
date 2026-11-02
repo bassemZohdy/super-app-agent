@@ -24,6 +24,8 @@ import { ProviderPayables, type PayableProvider } from './payables.ts';
 import { PaymentLedger } from './payment-ledger.ts';
 import { paymentRegistry } from './payment-registry.ts';
 import { randomUUID } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
+import { providerOperationKey } from '../../../packages/backend-kit/src/provider-client.ts';
 import { AccountDatabase } from './database.ts';
 import type { ProviderId } from './contracts.ts';
 import { assetsFor, type Actor } from '../../../packages/backend-kit/src/context.ts';
@@ -260,6 +262,20 @@ export class ProviderEngine {
         const session = { id: randomUUID(), ...body, status: 'CHARGING', startedAt: now() }; db.put(a, 'ev', session, session.id); return ok({ session });
       }
       if (method === 'GET' && path === '/rides/options') return ok({ options: drivers });
+      if (method === 'GET' && /^\/rides\/operations\/[^/]+$/.test(path)) {
+        let operationId: string;
+        try { operationId = decodeURIComponent(path.split('/')[3]); } catch { return fail(400, 'VALIDATION_ERROR', 'Invalid operation identity.'); }
+        if (!/^[A-Za-z0-9_.:-]{1,200}$/.test(operationId)) return fail(400, 'VALIDATION_ERROR', 'Invalid operation identity.');
+        const key = providerOperationKey(operationId, 'rta', '/rides/bookings');
+        const record = db.db.prepare('SELECT fingerprint,status,body FROM idempotency WHERE account_id=? AND key=?').get(a, key) as { fingerprint: unknown; status: unknown; body: unknown } | undefined;
+        if (!record) return fail(404, 'NOT_FOUND', 'The original ride operation was not found.');
+        let saved: unknown;
+        try { saved = typeof record.body === 'string' ? JSON.parse(record.body) : undefined; } catch { /* Hold unreadable evidence. */ }
+        const response = saved && typeof saved === 'object' && !Array.isArray(saved) ? saved as { success?: unknown; booking?: unknown } : undefined;
+        const booking = response?.booking && typeof response.booking === 'object' && !Array.isArray(response.booking) ? response.booking as { bookingId?: unknown } : undefined;
+        if (typeof record.fingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(record.fingerprint) || record.status !== 200 || response?.success !== true || Object.hasOwn(response, 'error') || typeof booking?.bookingId !== 'string' || !booking.bookingId || !isDeepStrictEqual(db.get(a, 'ride', booking.bookingId), booking)) return fail(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original ride could not be confirmed.');
+        return ok({ operationId, booking });
+      }
       if (method === 'POST' && path === '/rides/bookings') {
         const driver = drivers.find(d => d.id === body.driverId); if (!driver) fail(404, 'NOT_FOUND', 'Driver not found.');
         if (body.expectedFareMinor !== undefined && body.expectedFareMinor !== minor(driver.fare)) fail(409, 'PRICE_CHANGED', 'Ride fare changed.');

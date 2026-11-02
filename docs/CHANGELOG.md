@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Inspect original ride operations (P1-13, step)
+
+The integrated ride service offers account-scoped, read-only inspection of a saved operation and its matching booking. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Preserve long operation identities (P1-02, step)
 
 Provider calls bound long derived idempotency keys deterministically while preserving existing shorter keys. Guide: [agent flow](agent-flow.md).

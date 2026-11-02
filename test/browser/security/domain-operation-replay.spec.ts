@@ -1,4 +1,5 @@
 import { expect, isolatedTest as test } from '../stack.ts';
+import { providerOperationKey } from '../../../packages/backend-kit/src/provider-client.ts';
 
 test('wallet operation identity survives different trace IDs and rejects changed terms', async ({ residentApi, stack }) => {
   const wallet = () => residentApi.call('overview').then(result => result.data.wallet.balanceMinor as number);
@@ -69,6 +70,29 @@ test('ride operation replay returns one booking across trace IDs and refuses a c
   expect(replay.data.booking).toEqual(first.data.booking);
   expect(first.data.booking?.dropoff).toBe('Downtown Dining');
   expect(rides()).toHaveLength(before + 1);
+  const inspect = async (identity: string, accountId = residentApi.accountId) => fetch(`http://localhost:${stack.corePort + 1}/rides/operations/${encodeURIComponent(identity)}`, { headers: { Authorization: `Bearer ${residentApi.token}`, 'X-Account-Id': accountId } });
+  const found = await inspect(operation);
+  expect(found.status).toBe(200);
+  expect(((await found.json()) as { booking: { bookingId: string } }).booking.bookingId).toBe(first.data.booking?.bookingId);
+  expect((await inspect('missing-operation')).status).toBe(404);
+  expect((await inspect('../invalid')).status).toBe(400);
+  const store = stack.stores.get('rta')!, bookingId = first.data.booking!.bookingId;
+  const claims = JSON.parse(Buffer.from(residentApi.token.split('.')[1], 'base64url').toString()) as { sub: string };
+  const otherAccount = store.accounts(claims.sub).find(account => account.id !== residentApi.accountId);
+  expect(otherAccount).toBeTruthy();
+  expect((await inspect(operation, otherAccount!.id)).status).toBe(404);
+  const saved = store.get<Record<string, unknown>>(residentApi.accountId, 'ride', bookingId)!;
+  store.put(residentApi.accountId, 'ride', { ...saved, dropoff: 'Altered destination' }, bookingId);
+  expect((await inspect(operation)).status).toBe(503);
+  store.put(residentApi.accountId, 'ride', saved, bookingId);
+  store.db.prepare("DELETE FROM resources WHERE account_id=? AND kind='ride' AND id=?").run(residentApi.accountId, bookingId);
+  expect((await inspect(operation)).status).toBe(503);
+  store.put(residentApi.accountId, 'ride', saved, bookingId);
+  const key = providerOperationKey(operation, 'rta', '/rides/bookings');
+  const record = store.db.prepare('SELECT body FROM idempotency WHERE account_id=? AND key=?').get(residentApi.accountId, key) as { body: string };
+  store.db.prepare('UPDATE idempotency SET body=? WHERE account_id=? AND key=?').run('{', residentApi.accountId, key);
+  expect((await inspect(operation)).status).toBe(503);
+  store.db.prepare('UPDATE idempotency SET body=? WHERE account_id=? AND key=?').run(record.body, residentApi.accountId, key);
   const changed = await request('trace-third', 'Other destination');
   expect(changed.status).toBe(503);
   expect(changed.data.code).toBe('PROVIDER_OUTCOME_UNKNOWN');

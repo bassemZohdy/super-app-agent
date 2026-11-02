@@ -274,6 +274,13 @@ export async function integratedRequest(service: string, actor: Actor, method: s
       }
       if (method === 'POST' && path === '/mobility/ev/start') return successfulWithoutDuplicate(await call('rta', method, '/ev/sessions', body));
       if (method === 'POST' && path === '/rides/book') return successfulWithoutDuplicate(await call('rta', method, '/rides/bookings', body));
+      const rideOperation = /^\/rides\/operations\/([^/]+)$/.exec(path);
+      if (method === 'GET' && rideOperation) {
+        let operationId: string;
+        try { operationId = decodeURIComponent(rideOperation[1]); } catch { throw new UpstreamError(400, 'VALIDATION_ERROR', 'Invalid operation identity.'); }
+        if (!/^[A-Za-z0-9_.:-]{1,200}$/.test(operationId)) throw new UpstreamError(400, 'VALIDATION_ERROR', 'Invalid operation identity.');
+        return successfulWithoutDuplicate(await call('rta', method, `/rides/operations/${encodeURIComponent(operationId)}`));
+      }
       if (method === 'GET' && path.startsWith('/rides/track/')) return successfulWithoutDuplicate(await call('rta', method, `/rides/bookings/${encodeURIComponent(path.split('/').pop()!)}`));
     }
     if (service === 'service-food') {

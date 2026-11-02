@@ -93,6 +93,7 @@ export const operations: Record<ProviderId, Operation[]> = {
     op('POST', '/ev/sessions', 'startCharging', { session: opaque }, 'Start a simulated charging session.', object({ chargerId: text, plateNumber: text })),
     op('GET', '/rides/options', 'listRideOptions', { options: list }, 'List demo vehicle and fare options.'),
     op('POST', '/rides/bookings', 'bookRide', { booking: opaque }, 'Create an account-owned demo ride.', object({ driverId: text, pickup: text, dropoff: text, expectedFareMinor: { type: 'integer', minimum: 1, maximum: 100000000 } }, ['driverId'])),
+    op('GET', '/rides/operations/{operationId}', 'inspectRideOperation', { operationId: text, booking: opaque }, 'Inspect the original account-owned booking for an application operation without creating a ride.'),
     op('GET', '/rides/bookings/{bookingId}', 'getRide', { booking: opaque }, 'Read a booking owned by this account.'),
   ],
   dewa: [
