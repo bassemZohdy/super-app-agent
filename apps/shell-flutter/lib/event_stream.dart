@@ -102,6 +102,7 @@ class CitizenEventStream {
   final void Function(String) onStatus;
   final void Function() onAuthRequired;
   bool _closed = false;
+  final Completer<void> _closeSignal = Completer<void>();
   http.Client? _client;
   Timer? _timer;
   Completer<void>? _waiting;
@@ -113,9 +114,15 @@ class CitizenEventStream {
       _client = http.Client();
       try {
         onStatus('Connecting to live updates…');
+        if (_closed) return;
+        final token = await Future.any<String?>([
+          Future<String>.sync(authorization),
+          _closeSignal.future.then((_) => null),
+        ]);
+        if (_closed || token == null) return;
         final request = http.Request('GET', url)
           ..headers.addAll({
-            'Authorization': await authorization(),
+            'Authorization': token,
             'Accept': 'text/event-stream',
             if (_cursor != null) 'Last-Event-ID': _cursor!,
           });
@@ -173,6 +180,7 @@ class CitizenEventStream {
 
   void close() {
     _closed = true;
+    if (!_closeSignal.isCompleted) _closeSignal.complete();
     _client?.close();
     _timer?.cancel();
     if (_waiting != null && !_waiting!.isCompleted) _waiting!.complete();

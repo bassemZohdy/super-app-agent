@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 3 November 2026 - Stop Flutter streams during authorization (P1-12, step)
+
+Closing a Flutter stream promptly ends a pending authorization wait and prevents a late connection. Guide: [integrations](integrations.md).
+
 ## 3 November 2026 - Reset unsafe Flutter stream cursors (P1-12, step)
 
 Flutter clears unsafe replay cursors after handled or skipped events and preserves the last handled cursor on handler failure. Guide: [integrations](integrations.md).

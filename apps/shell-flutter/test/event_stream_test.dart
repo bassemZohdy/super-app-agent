@@ -176,6 +176,44 @@ void main() {
     );
   });
 
+  test('closing during authorization finishes promptly without connecting', () async {
+    for (final reject in [false, true]) {
+      final authorization = Completer<String>();
+      final started = Completer<void>();
+      var calls = 0;
+      final client = MockClient((_) async { calls++; return http.Response('{}', 401); });
+      final stream = CitizenEventStream(
+        url: Uri.parse('http://localhost/stream'), sessionId: 'session1',
+        authorization: () { started.complete(); return authorization.future; },
+        onStatus: (_) {}, onAuthRequired: () => fail('Unexpected auth rejection'),
+        onEnvelope: (_) => fail('Unexpected message'),
+      );
+      await http.runWithClient(() async {
+        final running = stream.run();
+        await started.future;
+        stream.close();
+        await running.timeout(const Duration(seconds: 2));
+        if (reject) { authorization.completeError(StateError('late authorization failure')); }
+        else { authorization.complete('Bearer late'); }
+        await Future<void>.delayed(Duration.zero);
+        expect(calls, 0);
+      }, () => client);
+    }
+  });
+
+  test('closing in the connecting callback never starts authorization', () async {
+    var tokens = 0;
+    late CitizenEventStream stream;
+    stream = CitizenEventStream(
+      url: Uri.parse('http://localhost/stream'), sessionId: 'session1',
+      authorization: () async { tokens++; return 'Bearer token'; },
+      onStatus: (_) => stream.close(), onAuthRequired: () => fail('Unexpected auth rejection'),
+      onEnvelope: (_) => fail('Unexpected message'),
+    );
+    await stream.run().timeout(const Duration(seconds: 2));
+    expect(tokens, 0);
+  });
+
   test('unsafe cursors request a fresh snapshot after readable and unreadable events', () async {
     for (final cursor in [
       'x' * 129,
