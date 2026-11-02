@@ -79,7 +79,7 @@
   "services/provider-simulator/src/payment-reconciliation.ts": 5,
   "services/provider-simulator/src/payment-registry.ts": 1,
   "services/provider-simulator/src/provider-settlements.ts": 4,
-  "services/provider-simulator/src/settlement-client.ts": 2,
+  "services/provider-simulator/src/settlement-client.ts": 1,
   "services/service-catalog/src/index.ts": 5,
   "services/service-food/src/index.ts": 4,
   "services/service-profile/src/index.ts": 5,

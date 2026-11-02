@@ -5,12 +5,14 @@ import { mkdtempSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { AccountDatabase } from '../provider-simulator/src/database.ts';
 import { ProviderEngine,ApiError } from '../provider-simulator/src/engine.ts';
 import { PaymentLedger } from '../provider-simulator/src/payment-ledger.ts';
 import { PaymentClaims,SettlementError,claimantFor } from '../provider-simulator/src/payment-claims.ts';
 import { ProviderSettlements } from '../provider-simulator/src/provider-settlements.ts';
-import type { ClaimTransport } from '../provider-simulator/src/settlement-client.ts';
+import { SettlementClient, type ClaimTransport } from '../provider-simulator/src/settlement-client.ts';
 import { actorFor } from '../../packages/backend-kit/src/context.ts';
 const fp=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 function fixture(t:any,paths:{payment?:string;source?:string}={}){
@@ -25,6 +27,30 @@ function fixture(t:any,paths:{payment?:string;source?:string}={}){
   return {payment,source,actor,gateway,provider,bill,charge,transport,coordinator,apply,refund};
 }
 const code=(expected:string)=>(e:any)=>e.code===expected;
+
+test('settlement transport completes a captured bill through a local HTTP claim and acknowledgement', async t => {
+  const f=fixture(t), previous=process.env.PROVIDER_PAYMENTS_URL;
+  const actions:string[]=[];
+  const server=http.createServer(async (request,response)=>{
+    try {
+      const chunks:Buffer[]=[]; for await(const chunk of request)chunks.push(Buffer.from(chunk));
+      const data=JSON.parse(Buffer.concat(chunks).toString('utf8')) as {attemptId:string;reference:string;amountMinor:number;claimId:string;receiptDigest:string};
+      const action=request.url!.split('/').pop();actions.push(action!);
+      assert.equal(request.headers.authorization,'Bearer fixture-token');
+      const result=action==='claim'?f.gateway.claims!.claim(f.actor.accountId,f.charge.id,'dewa',data):f.gateway.claims!.acknowledge(f.actor.accountId,f.charge.id,'dewa',data);
+      response.writeHead(200,{'Content-Type':'application/json'});response.end(JSON.stringify({success:true,...result}));
+    }catch{response.writeHead(500);response.end();}
+  });
+  await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
+  t.after(()=>{server.closeAllConnections();server.close();if(previous===undefined)delete process.env.PROVIDER_PAYMENTS_URL;else process.env.PROVIDER_PAYMENTS_URL=previous;});
+  process.env.PROVIDER_PAYMENTS_URL=`http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const gateway=new SettlementClient('dewa');t.mock.method(gateway.credentials,'token',async()=> 'fixture-token');
+  const source=new ProviderSettlements(f.source,'dewa',gateway);
+  assert.equal((await source.execute(f.actor,'http-claim',fp('http-claim'),f.charge,f.apply)).status,200);
+  assert.deepEqual(actions,['claim','ack']);
+  assert.equal(f.gateway.claims!.get(f.actor.accountId,f.charge.id)?.state,'APPLIED');
+  assert.equal((await source.inspect(f.actor,f.charge.id)).gatewayConfirmed,true);
+});
 
 test('a stale captured GET cannot settle after refund; gateway claim checks current state under the writer transaction',async t=>{
   const f=fixture(t),stale=structuredClone(f.charge);f.refund();

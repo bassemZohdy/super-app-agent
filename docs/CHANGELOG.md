@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Harden settlement claim transport (P1-02, step)
+
+The settlement client refuses redirects and automatic 401 retries, bounds and sanitizes replies, and verifies claim, charge and acknowledgement bindings before allowing settlement to proceed. Guide: [payment reconciliation](development/payment-reconciliation.md).
+
 ## 2 November 2026 — Restrict provider request methods (P1-02, step)
 
 The application provider client accepts only its supported GET and POST operations and restricts the account bootstrap route to GET before obtaining credentials or making a request. Guide: [connections](development/connections.md).
