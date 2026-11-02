@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Hold orphaned food orders (P1-13, step)
+
+Integrated food retries and new orders are held when an account has an order without its operation binding, preventing an uncertain original from being replaced. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Verify direct wallet replays (P1-13, step)
 
 Direct superapp wallet-payment replays verify their original account-owned payment evidence regardless of idempotency key. Guide: [agent flow](agent-flow.md).

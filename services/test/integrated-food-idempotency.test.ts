@@ -57,6 +57,31 @@ test('integrated food order retries retain the original order across application
   const malformed = await run(); assert.equal(malformed.status, 503); assert.equal(malformed.data.code, 'PROVIDER_OUTCOME_UNKNOWN');
   assert.equal(inspector.list(actor.accountId, 'order').length, 1, 'malformed operation data never creates a replacement');
   inspector.put(actor.accountId, 'food-order-operation', saved, row.id);
+  inspector.db.prepare("DELETE FROM resources WHERE account_id=? AND kind='food-order-operation' AND id=?").run(actor.accountId, row.id);
+  try {
+    assert.equal((await inspect()).status, 503, 'an orphaned order makes missing operation evidence uncertain');
+    const attempts = await Promise.all([run(), run()]);
+    for (const attempt of attempts) { assert.equal(attempt.status, 503); assert.equal(attempt.data.code, 'PROVIDER_OUTCOME_UNKNOWN'); }
+    assert.equal(inspector.list(actor.accountId, 'order').length, 1, 'an orphaned order cannot be replaced');
+    inspector.db.prepare("UPDATE resources SET body='{' WHERE account_id=? AND kind='order' AND id=?").run(actor.accountId, first.data.order.orderId);
+    inspector.db.prepare("INSERT INTO resources(account_id,kind,id,body) VALUES(?,'food-order-operation','unreadable','{')").run(actor.accountId);
+    assert.equal((await run()).status, 503, 'unreadable orphan evidence remains held');
+    inspector.db.prepare("DELETE FROM resources WHERE account_id=? AND kind='food-order-operation' AND id='unreadable'").run(actor.accountId);
+    inspector.put(actor.accountId, 'order', original, first.data.order.orderId);
+    inspector.put(actor.accountId, 'food-order-operation', { orderId: first.data.order.orderId }, 'incomplete-binding');
+    assert.equal((await run()).status, 503, 'an incomplete unrelated binding does not prove an order is linked');
+    inspector.put(actor.accountId, 'food-order-operation', { ...saved, receiptDigest: '0'.repeat(64) }, 'incomplete-binding');
+    assert.equal((await run()).status, 503, 'a binding must match the original receipt');
+    inspector.db.prepare("DELETE FROM resources WHERE account_id=? AND kind='food-order-operation' AND id='incomplete-binding'").run(actor.accountId);
+    const independent = { ...actor, requestId: 'another:food-order' };
+    assert.equal((await run(independent)).status, 503, 'unlinked orders conservatively hold other new orders');
+    assert.equal((await inspect(other, 'missing-operation')).status, 404, 'another account is unaffected');
+    assert.deepEqual((await run(other)).data, secondAccount.data, 'another account can replay its own order');
+    assert.equal((await run({ ...other, requestId: 'independent-order' })).status, 200, 'another account can create its own order');
+  } finally {
+    inspector.put(actor.accountId, 'food-order-operation', saved, row.id);
+  }
+  assert.deepEqual((await run()).data, first.data, 'restoring evidence permits the original replay');
   inspector.db.prepare("DELETE FROM resources WHERE account_id=? AND kind='order' AND id=?").run(actor.accountId, first.data.order.orderId);
   const missing = await run(); assert.equal(missing.status, 503); assert.equal(missing.data.code, 'PROVIDER_OUTCOME_UNKNOWN');
   assert.equal(inspector.list(actor.accountId, 'order').length, 0, 'missing evidence never causes a replacement order');

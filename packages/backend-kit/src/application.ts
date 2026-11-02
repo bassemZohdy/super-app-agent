@@ -286,7 +286,31 @@ export async function integratedRequest(service: string, actor: Actor, method: s
     if (service === 'service-food') {
       const readFoodOperation = (operationId: string) => {
         const saved = db.get<unknown>(actor.accountId, 'food-order-operation', stableKey(`food-order:${operationId}`));
-        if (saved === undefined) return undefined;
+        if (saved === undefined) {
+          // An older order with no surviving operation binding may belong to this identity.
+          const orders = db.db.prepare("SELECT id,body FROM resources WHERE account_id=? AND kind='order'").all(actor.accountId) as Array<{ id: string; body: string }>;
+          if (orders.length) {
+            const bindings = db.db.prepare("SELECT body FROM resources WHERE account_id=? AND kind='food-order-operation'").all(actor.accountId) as Array<{ body: string }>;
+            const verified = new Map<string, Set<string>>();
+            for (const binding of bindings) {
+              try {
+                const record: unknown = JSON.parse(binding.body);
+                if (!record || typeof record !== 'object' || Array.isArray(record)) continue;
+                const value = record as { fingerprint?: unknown; orderId?: unknown; receiptDigest?: unknown };
+                if (typeof value.fingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(value.fingerprint) || typeof value.orderId !== 'string' || !/^[a-f0-9-]{36}$/.test(value.orderId) || typeof value.receiptDigest !== 'string' || !/^[a-f0-9]{64}$/.test(value.receiptDigest)) continue;
+                const digests = verified.get(value.orderId) ?? new Set<string>();
+                digests.add(value.receiptDigest); verified.set(value.orderId, digests);
+              } catch { /* Unreadable records cannot establish a binding. */ }
+            }
+            for (const order of orders) {
+              try {
+                const receipt: unknown = JSON.parse(order.body);
+                if (!receipt || typeof receipt !== 'object' || Array.isArray(receipt) || (receipt as { orderId?: unknown }).orderId !== order.id || !verified.get(order.id)?.has(createHash('sha256').update(canonicalJson(receipt)).digest('hex'))) throw new Error('Unverified order');
+              } catch { throw new UpstreamError(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original food order could not be confirmed.'); }
+            }
+          }
+          return undefined;
+        }
         if (!saved || typeof saved !== 'object' || Array.isArray(saved)) throw new UpstreamError(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original food order could not be confirmed.');
         const record = saved as { fingerprint?: unknown; orderId?: unknown; receiptDigest?: unknown };
         if (typeof record.fingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(record.fingerprint) || typeof record.orderId !== 'string' || !/^[a-f0-9-]{36}$/.test(record.orderId) || typeof record.receiptDigest !== 'string' || !/^[a-f0-9]{64}$/.test(record.receiptDigest)) throw new UpstreamError(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original food order could not be confirmed.');
@@ -299,9 +323,11 @@ export async function integratedRequest(service: string, actor: Actor, method: s
         let operationId: string;
         try { operationId = decodeURIComponent(operationPath[1]); } catch { throw new UpstreamError(400, 'VALIDATION_ERROR', 'Invalid operation identity.'); }
         if (!/^[A-Za-z0-9_.:-]{1,200}$/.test(operationId)) throw new UpstreamError(400, 'VALIDATION_ERROR', 'Invalid operation identity.');
-        const saved = readFoodOperation(operationId);
-        if (!saved) throw new UpstreamError(404, 'NOT_FOUND', 'The original food operation was not found.');
-        return successful({ operationId, order: saved.order });
+        return db.transaction(() => {
+          const saved = readFoodOperation(operationId);
+          if (!saved) throw new UpstreamError(404, 'NOT_FOUND', 'The original food operation was not found.');
+          return successful({ operationId, order: saved.order });
+        });
       }
       if (method === 'GET' && path === '/utilities/consumption') {
         const result = await call('dewa', method, '/consumption');
