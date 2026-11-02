@@ -1,6 +1,6 @@
 import { demoPortOffset, keycloakIssuerUrl, redisUrl } from '../endpoints.ts';
 import { fixtureClientSecret } from './client-secrets.ts';
-import { cleanupAll, rethrowWithCleanup } from './cleanup.ts';
+import { cleanupAll, rethrowWithCleanup, temporaryEnvironment } from './cleanup.ts';
 /** Isolated local APIs/SQLite, with the existing local Keycloak and Redis only. */
 import assert from 'node:assert/strict';
 import http, { type Server } from 'node:http';
@@ -31,8 +31,9 @@ export async function startEnvironment(options:{authorizationClock?:()=>number;i
   const appUrl = `http://localhost:${appPort}`;
   const coreUrl = `http://localhost:${corePort}`;
   const sessionPrefix = `cityside-e2e:${crypto.randomUUID()}:`;
-  for(const provider of ['rta','dewa','etisalat','du','police'])process.env[`PROVIDER_${provider.toUpperCase()}_CLAIM_SECRET`]=secret(`provider-${provider}-settlement`);
-  Object.assign(process.env, {
+  const settings: Record<string, string> = {};
+  for(const provider of ['rta','dewa','etisalat','du','police'])settings[`PROVIDER_${provider.toUpperCase()}_CLAIM_SECRET`]=secret(`provider-${provider}-settlement`);
+  Object.assign(settings, {
     ELIGIBILITY_ENFORCEMENT:'true',ELIGIBILITY_READER_SECRET:secret('provider-eligibility'),
     PROVIDER_INTEGRATION: 'true', DOMAIN_TRANSPORT: 'http', SESSION_STORE: 'redis',
     // Exercise the strict interactive provider lane; never proxy isolated tests to live grants.
@@ -51,16 +52,17 @@ export async function startEnvironment(options:{authorizationClock?:()=>number;i
     HTTP_REQUESTS_PER_MINUTE: '10000',
   });
   for (const [index, name] of ['ride', 'food', 'wallet', 'catalog', 'profile', 'telecom'].entries()) {
-    process.env[`SERVICE_${name.toUpperCase()}_URL`] = `http://localhost:${corePort + 1 + index}`;
-    process.env[`SERVICE_${name.toUpperCase()}_CLIENT_SECRET`] = secret(`service-${name}`);
+    settings[`SERVICE_${name.toUpperCase()}_URL`] = `http://localhost:${corePort + 1 + index}`;
+    settings[`SERVICE_${name.toUpperCase()}_CLIENT_SECRET`] = secret(`service-${name}`);
   }
   for (const [index, name] of ['rta', 'dewa', 'etisalat', 'du', 'police', 'dld', 'payments'].entries()) {
-    process.env[`PROVIDER_${name.toUpperCase()}_URL`] = `http://localhost:${corePort + 101 + index}`;
+    settings[`PROVIDER_${name.toUpperCase()}_URL`] = `http://localhost:${corePort + 101 + index}`;
   }
   async function listen(server: Server, port: number) {
     servers.push(server);
     await new Promise<void>((done, fail) => { server.once('error', fail); server.listen(port, options.automation && port === corePort + 107 ? '0.0.0.0' : '127.0.0.1', () => { server.off('error', fail); done(); }); });
   }
+  let restoreEnvironment = () => {};
   const cleanup = async () => {
     let sessionStore: ReturnType<typeof import('../../services/agent-core/src/session-store.ts').redisSessions>;
     await cleanupAll([
@@ -84,9 +86,11 @@ export async function startEnvironment(options:{authorizationClock?:()=>number;i
       async () => { await sessionStore?.close(); },
       ...databases.map(database => () => { database.close(); }),
       async () => { await rm(dir, { recursive: true, force: true }); },
+      () => { restoreEnvironment(); },
     ]);
   };
   try {
+    restoreEnvironment = temporaryEnvironment(process.env, settings);
     const lostSettlementResponses=new Set<string>(),heldAcknowledgements=new Set<string>(),failedPreparations=new Set<string>(),lostReversals=new Set<string>(),blockedSourceReads=new Set<string>();
     const {SettlementClient}=await import('../../services/provider-simulator/src/settlement-client.ts');
     const { ProviderClient,UpstreamError }=await import('../../packages/backend-kit/src/provider-client.ts');

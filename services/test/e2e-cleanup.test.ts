@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cleanupAll, rethrowWithCleanup } from '../../scripts/e2e/cleanup.ts';
+import { cleanupAll, rethrowWithCleanup, temporaryEnvironment } from '../../scripts/e2e/cleanup.ts';
 
 test('isolated cleanup attempts every resource even when earlier cleanup fails', async () => {
   const order: string[] = [], redisFailure = new Error('redis cleanup failed'), databaseFailure = new Error('database close failed');
@@ -19,4 +19,16 @@ test('a startup failure remains visible if cleanup also fails', async () => {
   const startup = new Error('startup failed'), cleanup = new Error('cleanup failed');
   await assert.rejects(rethrowWithCleanup(startup, async () => {}), error => error === startup);
   await assert.rejects(rethrowWithCleanup(startup, async () => { throw cleanup; }), error => error instanceof AggregateError && error.errors[0] === startup && error.errors[1] === cleanup);
+});
+
+
+test('temporary settings restore prior values even when another cleanup fails', async () => {
+  const env: NodeJS.ProcessEnv = { EXISTING: 'before', UNRELATED: 'keep' };
+  const restore = temporaryEnvironment(env, { EXISTING: 'temporary', ADDED: 'temporary' });
+  assert.deepEqual(env, { EXISTING: 'temporary', ADDED: 'temporary', UNRELATED: 'keep' });
+  env.UNRELATED = 'changed by caller';
+  await assert.rejects(cleanupAll([() => { throw new Error('cleanup failed'); }, restore]), AggregateError);
+  assert.deepEqual(env, { EXISTING: 'before', UNRELATED: 'changed by caller' });
+  restore();
+  assert.deepEqual(env, { EXISTING: 'before', UNRELATED: 'changed by caller' });
 });

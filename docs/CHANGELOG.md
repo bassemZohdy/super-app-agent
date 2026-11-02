@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 3 November 2026 - Restore isolated environment settings (P2-06, step)
+
+Isolated test runs restore the process settings they changed after normal shutdown or failed startup, even if another cleanup operation fails. Guide: [testing](development/testing.md).
+
 ## 3 November 2026 - Check nested wallet identities in composite recovery (P1-13, step)
 
 Composite recovery holds a checkout when its wallet charge or transaction carries a conflicting operation identity, while allowing verified older evidence without those fields. Guide: [integrations](integrations.md).
