@@ -54,10 +54,16 @@ export function createGraph(planner: Planner, tools: FinesAdapter, vehicles: Veh
         return { plan: { intent: 'clarify' as const, fineIds: [] }, status: 'model_unavailable', reply: 'The planning provider is unavailable or returned an invalid plan. No operation ran.' };
       }
     })
-    .addNode('list', async () => {
+    .addNode('list', async state => {
       progress('list');
-      try { return { fines: await invokeTool(tools.list, {}, context()) }; }
-      catch { return { status: 'service_unavailable', reply: 'The fines service is unavailable. No payment was attempted.' }; }
+      try {
+        const fines = await invokeTool(tools.list, {}, context());
+        if (state.plan.intent !== 'list_fines' || !state.plan.fineIds.length) return { fines };
+        const selected = fines.filter(fine => state.plan.fineIds.includes(fine.id));
+        if (selected.length !== state.plan.fineIds.length) return { fines: [], status: 'invalid_selection', reply: 'One or more requested fines are unavailable. Review outstanding fines again.' };
+        return { fines: selected };
+      }
+      catch { return { fines: [], status: 'service_unavailable', reply: 'The fines service is unavailable. No payment was attempted.' }; }
     })
     .addNode('listVehicles', async state => {
       progress('listVehicles');
@@ -183,7 +189,7 @@ export function createGraph(planner: Planner, tools: FinesAdapter, vehicles: Veh
     })
     .addNode('respond', state => {
       progress('respond');
-      const reply = state.plan.intent === 'clarify' && state.status === 'planned' ? 'Would you like to view outstanding fines, review a simulated payment or renew a vehicle registration?' : state.plan.intent === 'out_of_scope' ? 'This agent currently supports viewing and simulating payment of government fines, and renewing a vehicle registration once they are paid.' : state.plan.intent === 'list_fines' && state.status !== 'service_unavailable' ? `You have ${state.fines.length} outstanding simulated fine(s). Ask to pay selected fines to review a payment.` : state.reply;
+      const reply = state.plan.intent === 'clarify' && state.status === 'planned' ? 'Would you like to view outstanding fines, review a simulated payment or renew a vehicle registration?' : state.plan.intent === 'out_of_scope' ? 'This agent currently supports viewing and simulating payment of government fines, and renewing a vehicle registration once they are paid.' : state.plan.intent === 'list_fines' && state.status === 'planned' ? `You have ${state.fines.length} outstanding simulated fine(s). Ask to pay selected fines to review a payment.` : state.reply;
       return { reply, messages: [{ role: 'assistant' as const, content: reply }], status: state.status === 'planned' ? 'complete' : state.status };
     })
     .addEdge(START, 'understand')

@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Respect named fine reads (P1-13, step)
+
+Focused fine reads and surfaces now show only explicitly requested fines. A missing selection returns an unavailable message and no partial or stale list. Guide: [shell parity](development/shell-parity.md).
+
 ## 2 November 2026 — Bind Arabic demo selections (P1-13, step)
 
 The deterministic demo planner recognizes exact Arabic requests naming a fine or vehicle, while refusing ambiguous or negated mixed-language requests. Browser checks verify a named fine is reviewed and paid only after confirmation. Guide: [shell parity](development/shell-parity.md).

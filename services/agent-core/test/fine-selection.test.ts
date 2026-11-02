@@ -39,6 +39,25 @@ test('an unavailable named fine is rejected instead of paying other fines', asyn
   } finally { await h.close(); }
 });
 
+test('named fine reads return only the selected fines and reject unavailable selections', async () => {
+  const h = await harness({ planner: { async plan() { return { intent: 'list_fines', fineIds: [] }; } } });
+  try {
+    const root = `/api/agent/threads/${await h.thread()}`;
+    const single = await h.req(`${root}/messages`, { message: 'عرض المخالفة fine-1' });
+    assert.equal(single.data.status, 'complete');
+    assert.deepEqual(single.data.fines.map((fine: { id: string }) => fine.id), ['fine-1']);
+    assert.deepEqual(single.data.surface.view.children.find((child: { id: string }) => child.id === 'fines').properties.rows.map((row: { id: string }) => row.id), ['fine-1']);
+    assert.match(single.data.reply, /1 outstanding/);
+    const missing = await h.req(`${root}/messages`, { message: 'show fine-1 and fine-9' });
+    assert.equal(missing.data.status, 'invalid_selection');
+    assert.deepEqual(missing.data.fines, []);
+    assert.deepEqual(missing.data.surface.view.children.find((child: { id: string }) => child.id === 'fines').properties.rows, []);
+    assert.match(missing.data.reply, /unavailable/i);
+    const all = await h.req(`${root}/messages`, { message: 'show all fines' });
+    assert.deepEqual(all.data.fines.map((fine: { id: string }) => fine.id), ['fine-1', 'fine-2']);
+  } finally { await h.close(); }
+});
+
 for (const intermediate of [false, true]) test(`follow-up selection uses only the immediately preceding user turn (intermediate=${intermediate})`, async () => {
   const h = await harness({ planner: { async plan(messages) { return { intent: messages.at(-1)?.content === 'pay them' ? 'pay_fines' : 'list_fines', fineIds: [] }; } } });
   try {
