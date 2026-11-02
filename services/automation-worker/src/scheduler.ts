@@ -27,7 +27,6 @@ export interface RuleSource {
   balance?(rule: ScheduledRule): Promise<{ balanceMinor: number; qualifyingDebits?: number }>;
 }
 export type TickResult = { enqueued: string[]; skipped: string[] };
-const MISSED = 'MISSED_CATCH_UP';
 
 export class Scheduler {
   readonly store: JobStore; readonly source: RuleSource; readonly leadMs: number;
@@ -42,20 +41,21 @@ export class Scheduler {
       if (rule.state !== 'APPROVED' || !(startsAt <= now && now < expiresAt)) continue;
       const base = { mandateId: rule.mandateId, policyVersion: rule.policyVersion, target: rule.target };
       const enqueue = (key: string) => { this.store.enqueue({ ...base, occurrenceKey: key }, now); out.enqueued.push(`${rule.mandateId}:${key}`); };
-      const skip = (key: string) => { this.store.enqueueSkipped({ ...base, occurrenceKey: key }, MISSED, now); out.skipped.push(`${rule.mandateId}:${key}`); };
+      const periodic = (keys: string[]) => {
+        const result = this.store.schedulePeriodic(base, keys, now);
+        out.enqueued.push(...result.enqueued.map(key => `${rule.mandateId}:${key}`));
+        out.skipped.push(...result.skipped.map(key => `${rule.mandateId}:${key}`));
+      };
       const handled = this.store.handledKeys(rule.mandateId);
       const trigger = rule.trigger;
       if (trigger.type === 'CALENDAR') {
-        const { pending, skipped } = calendarCatchUp(trigger, rule.timezone, now, startsAt, expiresAt, handled);
-        skipped.forEach(skip);
-        if (pending) enqueue(pending.key);
+        const { pending, skipped } = calendarCatchUp(trigger, rule.timezone, now, startsAt, expiresAt, new Set());
+        periodic([...skipped, ...(pending ? [pending.key] : [])]);
       } else if (trigger.type === 'INVOICE_DUE') {
         // One occurrence per due date: invoices sharing a due date are one scheduled run, and the provider picks the invoice at preparation.
         const runs = new Map((await this.source.dueInvoices(rule)).map(i => invoiceRun(i.dueDate, trigger.daysBefore, rule.timezone)).map(o => [o.key, o]));
-        const due = [...runs.values()].filter(o => o.runAtUtc >= startsAt && o.runAtUtc < expiresAt && o.runAtUtc <= now && !handled.has(o.key)).sort((a, b) => a.runAtUtc - b.runAtUtc || a.key.localeCompare(b.key));
-        const newest = due.pop();
-        due.forEach(o => skip(o.key));
-        if (newest) enqueue(newest.key);
+        const due = [...runs.values()].filter(o => o.runAtUtc >= startsAt && o.runAtUtc < expiresAt && o.runAtUtc <= now).sort((a, b) => a.runAtUtc - b.runAtUtc || a.key.localeCompare(b.key));
+        periodic(due.map(o => o.key));
       } else if (trigger.type === 'PARKING_ENDING') {
         // One occurrence per session expiry: the next extension needs the new expiry that the previous one produced. Whether the session may be extended is decided at preparation.
         const session = this.source.parkingSession ? await this.source.parkingSession(rule) : null;

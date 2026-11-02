@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Prevent queued automation catch-up bursts (P1-10, step)
+
+Periodic catch-up atomically skips older unclaimed jobs and retains only the newest, while claimed or held work blocks a replacement and remains untouched. Guide: [automation worker](development/automation-worker.md).
+
 ## 2 November 2026 — Align parking schedule previews (P1-10, step)
 
 Parking previews use the first eligible instant within the mandate window and require the session still to be active at that instant. Guide: [automation worker](development/automation-worker.md).

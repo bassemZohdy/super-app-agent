@@ -125,6 +125,44 @@ export class JobStore {
     });
   }
 
+  /** Atomically retain at most the newest unclaimed periodic occurrence; never replace dispatched or held work. */
+  schedulePeriodic(base: { mandateId: string; policyVersion: number; target: string }, occurrences: string[], now = Date.now()): { enqueued: string[]; skipped: string[] } {
+    if (![base.mandateId, base.target, ...occurrences].every(v => typeof v === 'string' && token.test(v)) || !Number.isSafeInteger(base.policyVersion) || base.policyVersion < 1)
+      throw new JobError('JOB_INPUT_INVALID', 'Use bounded identifiers and a positive policy version.');
+    const keys = [...new Set(occurrences)].sort();
+    if (!keys.length) return { enqueued: [], skipped: [] };
+    const prefix = keys[0]!.startsWith('CAL:') ? 'CAL:' : 'INV:';
+    if (!keys.every(key => key.startsWith(prefix))) throw new JobError('JOB_INPUT_INVALID', 'Use one periodic occurrence type.');
+    return this.atomic(() => {
+      const jobs = this.db.prepare('SELECT * FROM jobs WHERE mandate_id=?').all(base.mandateId).map(row);
+      const blocked = jobs.some(job => ['PREPARING', 'PREPARED', 'CREDENTIALING', 'EXECUTING', 'HELD'].includes(job.state) || (job.state === 'QUEUED' && (job.fence > 0 || !job.occurrenceKey.startsWith(prefix))));
+      const unclaimed = jobs.filter(job => job.state === 'QUEUED' && job.fence === 0 && job.occurrenceKey.startsWith(prefix));
+      const existing = new Set(jobs.map(job => job.occurrenceKey));
+      const available = [...new Set([...keys.filter(key => !existing.has(key)), ...unclaimed.map(job => job.occurrenceKey)])].sort();
+      const latest = [...keys, ...jobs.filter(job => job.occurrenceKey.startsWith(prefix)).map(job => job.occurrenceKey)].sort().at(-1);
+      const keep = !blocked && latest === available.at(-1) ? latest : undefined;
+      const reason = blocked ? 'PRIOR_UNRESOLVED' : 'MISSED_CATCH_UP';
+      const result = { enqueued: [] as string[], skipped: [] as string[] };
+      for (const job of unclaimed) {
+        if (job.occurrenceKey === keep) continue;
+        this.db.prepare("UPDATE jobs SET state='SKIPPED',reason=?,updated_at=? WHERE id=? AND state='QUEUED' AND fence=0").run(reason, now, job.id);
+        this.db.prepare('INSERT OR IGNORE INTO job_outbox(job_id,kind,body,at) VALUES(?,?,?,?)').run(job.id, 'SKIPPED', JSON.stringify({ reason }), now);
+        result.skipped.push(job.occurrenceKey);
+      }
+      for (const key of keys) {
+        if (existing.has(key)) continue;
+        const { id } = jobIdentity({ ...base, occurrenceKey: key }), skipped = key !== keep;
+        this.db.prepare('INSERT INTO jobs(id,mandate_id,policy_version,occurrence_key,target,state,reason,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)')
+          .run(id, base.mandateId, base.policyVersion, key, base.target, skipped ? 'SKIPPED' : 'QUEUED', skipped ? reason : null, now, now);
+        if (skipped) {
+          this.db.prepare('INSERT INTO job_outbox(job_id,kind,body,at) VALUES(?,?,?,?)').run(id, 'SKIPPED', JSON.stringify({ reason }), now);
+          result.skipped.push(key);
+        } else result.enqueued.push(key);
+      }
+      return result;
+    });
+  }
+
   /** Occurrence keys already turned into a job for this rule under any of its versions, so a revision never repeats an occurrence. */
   handledKeys(mandateId: string): Set<string> {
     return new Set(this.db.prepare('SELECT occurrence_key FROM jobs WHERE mandate_id=?').all(mandateId).map(r => String(r.occurrence_key)));

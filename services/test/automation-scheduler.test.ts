@@ -34,7 +34,7 @@ test('AUTO-06: stepping the clock and jumping it give deterministic runs, and do
   const stepped = new JobStore(':memory:'), jumped = new JobStore(':memory:');
   const a = new Scheduler(stepped, source([calendar()])), b = new Scheduler(jumped, source([calendar()]));
   for (let t = utc('2026-10-30T00:00:00Z'); t <= utc('2026-12-01T00:00:00Z'); t += 6 * HOUR) await a.tick(t);
-  assert.deepEqual(keys(stepped, 'QUEUED'), ['CAL:2026-10', 'CAL:2026-11'], 'a scheduler that was up ran each month once');
+  assert.deepEqual(keys(stepped, 'QUEUED'), ['CAL:2026-11'], 'an unclaimed older occurrence is not left pending');
   // The same rule after a month of downtime: only the latest occurrence stays pending.
   const result = await b.tick(utc('2026-12-01T00:00:00Z'));
   assert.deepEqual(result.enqueued, ['mandate_cal:CAL:2026-11']);
@@ -195,4 +195,44 @@ test('parking previews use the first runnable time inside the mandate window', a
     sessionEnd = end + 30 * 60_000;
     assert.equal(await scheduler.nextRun(rule, start), null, 'a trigger at mandate expiry is outside the window');
   } finally { store.close(); }
+});
+
+test('periodic catch-up supersedes only unclaimed queued work and never replaces an in-flight job', async () => {
+  const store = new JobStore(':memory:'), scheduler = new Scheduler(store, source([calendar()]));
+  try {
+    await scheduler.tick(utc('2026-10-31T05:00:00Z'));
+    await scheduler.tick(utc('2026-11-30T05:00:00Z'));
+    assert.deepEqual(keys(store, 'QUEUED'), ['CAL:2026-11']);
+    assert.deepEqual(keys(store, 'SKIPPED'), ['CAL:2026-10']);
+    const old = store.list().find(job => job.occurrenceKey === 'CAL:2026-10')!;
+    assert.equal(old.reason, 'MISSED_CATCH_UP');
+    assert.deepEqual(store.outbox(old.id).map(event => event.kind), ['SKIPPED']);
+    const claim = store.claim('worker', 60_000, utc('2026-11-30T05:01:00Z'))!;
+    store.transition(claim, 'PREPARING', {}, undefined, utc('2026-11-30T05:01:00Z'));
+    await scheduler.tick(utc('2026-12-31T05:00:00Z'));
+    assert.equal(store.get(claim.job.id)?.state, 'PREPARING');
+    assert.deepEqual(keys(store, 'QUEUED'), []);
+    assert.ok(keys(store, 'SKIPPED').includes('CAL:2026-12'));
+    assert.equal(store.list().find(job => job.occurrenceKey === 'CAL:2026-12')?.reason, 'PRIOR_UNRESOLVED');
+  } finally { store.close(); }
+});
+
+test('invoice catch-up is atomic across schedulers and preserves held original work', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'cityside-periodic-')), path = join(dir, 'jobs.sqlite');
+  const a = new JobStore(path), b = new JobStore(path), rule = invoice();
+  const read = source([rule], { invoices: ['2026-11-15', '2026-12-15'] });
+  try {
+    await new Scheduler(a, read).tick(utc('2026-11-12T05:00:00Z'));
+    await Promise.all([new Scheduler(a, read).tick(utc('2026-12-12T05:00:00Z')), new Scheduler(b, read).tick(utc('2026-12-12T05:00:00Z'))]);
+    assert.deepEqual(keys(a, 'QUEUED'), ['INV:2026-12-15']);
+    assert.deepEqual(keys(a, 'SKIPPED'), ['INV:2026-11-15']);
+    const claim = a.claim('worker', 60_000, utc('2026-12-12T05:01:00Z'))!;
+    a.transition(claim, 'HELD', { reason: 'PREPARATION_UNKNOWN' }, undefined, utc('2026-12-12T05:01:00Z'));
+    const next = source([rule], { invoices: ['2027-01-15'] });
+    await new Scheduler(b, next).tick(utc('2027-01-12T05:00:00Z'));
+    assert.equal(a.get(claim.job.id)?.state, 'HELD');
+    assert.deepEqual(keys(a, 'QUEUED'), []);
+    assert.ok(keys(a, 'SKIPPED').includes('INV:2027-01-15'));
+    assert.equal(a.list().find(job => job.occurrenceKey === 'INV:2027-01-15')?.reason, 'PRIOR_UNRESOLVED');
+  } finally { a.close(); b.close(); try { removeTemp(dir); } catch { /* Windows may briefly hold the directory */ } }
 });
