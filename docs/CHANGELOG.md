@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Restrict provider request methods (P1-02, step)
+
+The application provider client accepts only its supported GET and POST operations and restricts the account bootstrap route to GET before obtaining credentials or making a request. Guide: [connections](development/connections.md).
+
 ## 2 November 2026 — Preserve provider writes after authentication failures (P1-02, step)
 
 The provider client no longer automatically resends a write after a 401; it retains an unconfirmed outcome and invalidates rejected service credentials for subsequent calls. Guide: [connections](development/connections.md).

@@ -50,3 +50,20 @@ test('provider paths cannot escape the selected account', async t => {
   await client.call('dewa', actor, 'GET', '/v1/accounts');
   assert.deepEqual(paths, ['/v1/accounts/test-account/bills', '/v1/accounts/test-account/payables/dewa%3Abill%3Aone', '/v1/accounts']);
 });
+
+test('provider client refuses unsupported methods and write access to the account bootstrap route', async t => {
+  const actor = actorFor({ sub: 'test-user' }, 'test-account', 'Bearer test');
+  const client = new ProviderClient('test-client', '');
+  let calls = 0;
+  t.mock.method(globalThis, 'fetch', async () => { calls++; return Response.json({ success: true }); });
+  for (const method of ['PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS', 'post', 'get']) {
+    await assert.rejects(client.call('dewa', actor, method, '/bills', {}),
+      (error: unknown) => error instanceof UpstreamError && error.code === 'PROVIDER_METHOD_INVALID');
+  }
+  await assert.rejects(client.call('payments', actor, 'POST', '/v1/accounts', {}),
+    (error: unknown) => error instanceof UpstreamError && error.code === 'PROVIDER_PATH_INVALID');
+  assert.equal(calls, 0);
+  await client.call('payments', actor, 'GET', '/v1/accounts');
+  await client.call('dewa', actor, 'POST', '/bills', {});
+  assert.equal(calls, 2);
+});

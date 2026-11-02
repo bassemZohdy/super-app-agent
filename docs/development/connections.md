@@ -14,6 +14,8 @@ A document is accepted only if it is OpenAPI 3.1, every path is a plain path (no
 
 `ProviderClient` records every call for its owner: time, provider, method, path, status, an error code on failure and the duration. Account and object ids in the path are replaced (`/v1/accounts/{account}/payment-orders/{id}/approve`), the record is bounded to 50 calls per owner and 500 owners, and `/api/connections` returns only the signed-in owner's calls, newest first. Nothing else about a call (headers, bodies, tokens) is kept.
 
+The client accepts GET and POST only; other methods are refused before credentials or network access. The account-list bootstrap route is GET-only, while ordinary operations remain scoped to the selected account.
+
 A provider write is treated as definitively refused only when a 4xx response explicitly reports failure with a reviewed rejection code. An unfamiliar, incomplete or contradictory write response remains `PROVIDER_OUTCOME_UNKNOWN`, so callers retain the original operation for reconciliation; provider-supplied text and unrecognized codes are not recorded or exposed.
 
 Even a recognized refusal remains unknown if it indicates that an effect or decision was already applied, captured, paid or dispatched, a payment was already used, or an idempotency key conflicts. Those codes do not establish which operation produced the prior state; inspect the original operation before deciding what happened.
