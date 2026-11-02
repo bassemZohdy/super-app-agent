@@ -26,8 +26,10 @@ async function readBody(req: http.IncomingMessage, timeoutMs: number, ignored = 
     req.once('close', () => req.off('error', onError));
   });
 }
-export function createServer(service: AgentService, auth: Authenticator, workloadKey: string, options: { bodyTimeoutMs?: number } = {}) {
+export function createServer(service: AgentService, auth: Authenticator, workloadKey: string, options: { bodyTimeoutMs?: number; maxPublicRequests?: number; maxSimulatorRequests?: number } = {}) {
   const bodyTimeoutMs = options.bodyTimeoutMs ?? 10000;
+  const maxPublicRequests = options.maxPublicRequests ?? 64, maxSimulatorRequests = options.maxSimulatorRequests ?? 16;
+  let publicRequests = 0, simulatorRequests = 0;
   return http.createServer({ requestTimeout: 30000, headersTimeout: 10000 }, (req, res) => {
     const correlationId = randomUUID();
     res.setHeader('X-Correlation-ID', correlationId); res.setHeader('Cache-Control', 'no-store');
@@ -45,63 +47,72 @@ export function createServer(service: AgentService, auth: Authenticator, workloa
       const path = new URL(req.url || '/', 'http://localhost').pathname;
       if (req.method === 'GET' && path === '/live') return send(200, { live: true });
       if (req.method === 'GET' && path === '/ready') { service.store.ready(); return send(200, { ready: true, dependencies: ['sqlite'], plannerConfigured: true }); }
-      const principal = await auth.authenticate(req.headers.authorization);
-      if (res.destroyed) throw new AgentError('CLIENT_DISCONNECTED', 499);
-      const ctx: ExecutionContext = { principal, authorization: req.headers.authorization || '', correlationId, revalidate: () => auth.authenticate(req.headers.authorization) };
-      const refreshAuthority = async (permission: string) => {
-        const current = await ctx.revalidate();
+      const trustedSimulator = path.startsWith('/simulator/') && equalSecret(String(req.headers['x-agent-key'] || ''), workloadKey);
+      if (trustedSimulator ? simulatorRequests >= maxSimulatorRequests : publicRequests >= maxPublicRequests) {
+        res.setHeader('Connection', 'close'); throw new AgentError('SERVER_BUSY', 503);
+      }
+      if (trustedSimulator) simulatorRequests++; else publicRequests++;
+      try {
+        const principal = await auth.authenticate(req.headers.authorization);
         if (res.destroyed) throw new AgentError('CLIENT_DISCONNECTED', 499);
-        if (current.subject !== principal.subject || current.workload !== principal.workload) throw new AgentError('AUTHORITY_CHANGED', 403);
-        authorize(current, permission);
-        ctx.principal = current;
-        return current;
-      };
-      await execution.run(ctx, async () => {
-        if (path.startsWith('/simulator/')) {
-          if (!equalSecret(String(req.headers['x-agent-key'] || ''), workloadKey)) throw new AgentError('WORKLOAD_REQUIRED', 403);
-          if (req.method === 'GET' && path === '/simulator/v1/fines') { authorize(principal, 'fines:read'); return send(200, await service.store.fines(principal.subject)); }
-          if (req.method === 'POST' && path === '/simulator/v1/payments') {
-            authorize(principal, 'fines:pay');
-            const body = z.object({ quote: Quote, consentId: z.string().uuid() }).strict().parse(await readBody(req, bodyTimeoutMs));
-            const key = z.string().regex(/^[a-f0-9]{64}$/).parse(req.headers['idempotency-key']);
-            return send(200, await service.store.simulatePayment(await refreshAuthority('fines:pay'), key, body.quote, body.consentId));
+        const ctx: ExecutionContext = { principal, authorization: req.headers.authorization || '', correlationId, revalidate: () => auth.authenticate(req.headers.authorization) };
+        const refreshAuthority = async (permission: string) => {
+          const current = await ctx.revalidate();
+          if (res.destroyed) throw new AgentError('CLIENT_DISCONNECTED', 499);
+          if (current.subject !== principal.subject || current.workload !== principal.workload) throw new AgentError('AUTHORITY_CHANGED', 403);
+          authorize(current, permission);
+          ctx.principal = current;
+          return current;
+        };
+        await execution.run(ctx, async () => {
+          if (path.startsWith('/simulator/')) {
+            if (!equalSecret(String(req.headers['x-agent-key'] || ''), workloadKey)) throw new AgentError('WORKLOAD_REQUIRED', 403);
+            if (req.method === 'GET' && path === '/simulator/v1/fines') { authorize(principal, 'fines:read'); return send(200, await service.store.fines(principal.subject)); }
+            if (req.method === 'POST' && path === '/simulator/v1/payments') {
+              authorize(principal, 'fines:pay');
+              const body = z.object({ quote: Quote, consentId: z.string().uuid() }).strict().parse(await readBody(req, bodyTimeoutMs));
+              const key = z.string().regex(/^[a-f0-9]{64}$/).parse(req.headers['idempotency-key']);
+              return send(200, await service.store.simulatePayment(await refreshAuthority('fines:pay'), key, body.quote, body.consentId));
+            }
+            if (req.method === 'GET' && path === '/simulator/v1/vehicles') { authorize(principal, 'vehicles:read'); return send(200, service.store.vehicles(principal.subject)); }
+            if (req.method === 'POST' && path === '/simulator/v1/renewals') {
+              authorize(principal, 'vehicles:renew');
+              const body = z.object({ quote: RenewalQuote, consentId: z.string().uuid() }).strict().parse(await readBody(req, bodyTimeoutMs));
+              const key = z.string().regex(/^[a-f0-9]{64}$/).parse(req.headers['idempotency-key']);
+              return send(200, service.store.simulateRenewal(await refreshAuthority('vehicles:renew'), key, body.quote, body.consentId));
+            }
+            throw new AgentError('NOT_FOUND', 404);
           }
-          if (req.method === 'GET' && path === '/simulator/v1/vehicles') { authorize(principal, 'vehicles:read'); return send(200, service.store.vehicles(principal.subject)); }
-          if (req.method === 'POST' && path === '/simulator/v1/renewals') {
-            authorize(principal, 'vehicles:renew');
-            const body = z.object({ quote: RenewalQuote, consentId: z.string().uuid() }).strict().parse(await readBody(req, bodyTimeoutMs));
-            const key = z.string().regex(/^[a-f0-9]{64}$/).parse(req.headers['idempotency-key']);
-            return send(200, service.store.simulateRenewal(await refreshAuthority('vehicles:renew'), key, body.quote, body.consentId));
+          authorize(principal, 'fines:read');
+          if (req.method === 'POST' && path === '/api/agent/threads') {
+            await readBody(req, bodyTimeoutMs, true);
+            return send(201, { threadId: await service.store.createThread(await refreshAuthority('fines:read')) });
           }
-          throw new AgentError('NOT_FOUND', 404);
-        }
-        authorize(principal, 'fines:read');
-        if (req.method === 'POST' && path === '/api/agent/threads') {
-          await readBody(req, bodyTimeoutMs, true);
-          return send(201, { threadId: await service.store.createThread(await refreshAuthority('fines:read')) });
-        }
-        const match = /^\/api\/agent\/threads\/([a-f0-9-]{36})(?:\/(messages|resume|cancel|recover))?$/.exec(path);
-        if (!match) throw new AgentError('NOT_FOUND', 404);
-        const id = z.string().uuid().parse(match[1]);
-        if (req.method === 'GET' && !match[2]) return send(200, await service.inspect(id));
-        if (req.method !== 'POST' || !match[2]) throw new AgentError('NOT_FOUND', 404);
-        const requestId = Id.parse(req.headers['idempotency-key']);
-        const action = match[2] === 'messages' ? 'message' : match[2] as 'resume' | 'cancel' | 'recover';
-        let body: unknown = undefined;
-        if (action === 'message') body = z.object({ message: Message }).strict().parse(await readBody(req, bodyTimeoutMs)).message;
-        if (action === 'resume') body = Decision.parse(await readBody(req, bodyTimeoutMs));
-        if (action === 'cancel' || action === 'recover') await readBody(req, bodyTimeoutMs, true);
-        await refreshAuthority('fines:read');
-        const streaming = req.headers.accept === 'text/event-stream';
-        if (streaming) {
-          res.writeHead(200, { 'Content-Type': 'text/event-stream', 'X-Accel-Buffering': 'no' });
-          ctx.onProgress = node => { if (!res.destroyed) res.write(`event: progress\ndata: ${JSON.stringify({ node, correlationId })}\n\n`); };
-        }
-        const result = await service.transition(id, requestId, action, body);
-        logEvent('info', 'agent.transition', { correlationId, threadId: id, action });
-        if (streaming) { if (!res.destroyed) res.end(`event: result\ndata: ${JSON.stringify(result)}\n\n`); }
-        else send(200, result);
-      });
+          const match = /^\/api\/agent\/threads\/([a-f0-9-]{36})(?:\/(messages|resume|cancel|recover))?$/.exec(path);
+          if (!match) throw new AgentError('NOT_FOUND', 404);
+          const id = z.string().uuid().parse(match[1]);
+          if (req.method === 'GET' && !match[2]) return send(200, await service.inspect(id));
+          if (req.method !== 'POST' || !match[2]) throw new AgentError('NOT_FOUND', 404);
+          const requestId = Id.parse(req.headers['idempotency-key']);
+          const action = match[2] === 'messages' ? 'message' : match[2] as 'resume' | 'cancel' | 'recover';
+          let body: unknown = undefined;
+          if (action === 'message') body = z.object({ message: Message }).strict().parse(await readBody(req, bodyTimeoutMs)).message;
+          if (action === 'resume') body = Decision.parse(await readBody(req, bodyTimeoutMs));
+          if (action === 'cancel' || action === 'recover') await readBody(req, bodyTimeoutMs, true);
+          await refreshAuthority('fines:read');
+          const streaming = req.headers.accept === 'text/event-stream';
+          if (streaming) {
+            res.writeHead(200, { 'Content-Type': 'text/event-stream', 'X-Accel-Buffering': 'no' });
+            ctx.onProgress = node => { if (!res.destroyed) res.write(`event: progress\ndata: ${JSON.stringify({ node, correlationId })}\n\n`); };
+          }
+          const result = await service.transition(id, requestId, action, body);
+          logEvent('info', 'agent.transition', { correlationId, threadId: id, action });
+          if (streaming) { if (!res.destroyed) res.end(`event: result\ndata: ${JSON.stringify(result)}\n\n`); }
+          else send(200, result);
+        });
+      } finally {
+        if (trustedSimulator) simulatorRequests--; else publicRequests--;
+      }
     };
     void run().catch(error => {
       const status = error instanceof AgentError ? error.status : error instanceof z.ZodError ? 400 : 503;

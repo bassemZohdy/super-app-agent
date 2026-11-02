@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bound concurrent focused HTTP handlers (P0-11, step)
+
+The focused API limits active public request handlers and reserves a separate bounded pool for simulator requests carrying the workload key. Excess requests receive a busy response; slots remain occupied until handler work settles, including after disconnect. Loopback tests cover saturation, a simulated payment through the reserved pool and subsequent slot release. This is not a socket, distributed or proxy quota. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Limit focused recovery request churn (P0-11, step)
 
 The focused agent admits up to 16 recovery attempts per conversation in a rolling minute, preserving inspection, completed-request replay and the original operation identity. The limit persists across SQLite reopen and provides a retry hint for ordinary HTTP responses; streamed requests receive an error event. Tests cover expiry, isolation, restart and recovery without a duplicate simulated payment. This is a local per-conversation limit, not a global quota or storage-retention policy. Guide: [agent flow](agent-flow.md).
