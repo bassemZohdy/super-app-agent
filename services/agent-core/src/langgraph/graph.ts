@@ -9,6 +9,7 @@ const explicitSelection = (value: unknown, kind: string): string => {
 const walletCurrency = () => process.env.PROVIDER_INTEGRATION === 'true' ? 'AED' : 'USD';
 const formatWalletAmount = (amount: number) => `${walletCurrency()} ${amount.toFixed(2)}`;
 const demoFoodAddress = '100 Market St, Apt 4B';
+const demoCompositeDestination = 'Downtown Dining';
 import { formatStatementAED } from '../../../../packages/protocol-core/src/payment-history.ts';
 import { toMinor, fromMinor } from '../../../../packages/protocol-core/src/request-validation.ts';
 import { handlePaymentSurfaceAction } from '../payment-surfaces.ts';
@@ -225,7 +226,7 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
       } else if (hasTerm(lower, 'pizza') && hasTerm(lower, 'ride')) {
         // Legacy multi-domain fallback for backwards compatibility
         onProgress?.('🔀 Orchestrating composite workflow across Ride, Food, and Wallet microservices...');
-        const rideRes = await executeRideRequest('GET', '/rides/options', { destination: 'Downtown Dining' });
+        const rideRes = await executeRideRequest('GET', '/rides/options', { destination: demoCompositeDestination });
         const foodRes = await executeFoodRequest('GET', '/restaurants/search', { query: 'pizza' });
         const walletRes = await executeWalletRequest('GET', '/wallet/balance');
 
@@ -859,7 +860,8 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
         },
       };
     } else if (action === 'confirm_composite_checkout') {
-      const rides = (await executeRideRequest('GET', '/rides/options', { destination: 'Downtown Dining' })).data.options as RideOption[];
+      const dropoff = explicitSelection(payload.dropoff, 'ride destination');
+      const rides = (await executeRideRequest('GET', '/rides/options', { destination: dropoff })).data.options as RideOption[];
       const restaurants = (await executeFoodRequest('GET', '/restaurants/search', { query: 'pizza' })).data.restaurants as Restaurant[];
       const ride = Array.isArray(rides) ? rides.filter(option => option.id === payload.driverId) : [];
       const restaurant = Array.isArray(restaurants) ? restaurants.filter(option => option.id === payload.restaurantId) : [];
@@ -875,7 +877,7 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
       });
 
       onProgress?.('🚖 Dispatching the reviewed ride...');
-      const bookedRide = await executeRideRequest('POST', '/rides/book', {}, { driverId: payload.driverId, expectedFareMinor: rideMinor });
+      const bookedRide = await executeRideRequest('POST', '/rides/book', {}, { driverId: payload.driverId, dropoff, expectedFareMinor: rideMinor });
 
       onProgress?.('🍕 Dispatching the reviewed meal...');
       const orderedMeal = await executeFoodRequest('POST', '/orders/create', {}, { restaurantId: payload.restaurantId, items: [payload.itemId], expectedAmountMinor: mealMinor, expectedItemPriceMinor: itemMinor, expectedDeliveryFeeMinor: feeMinor });
@@ -1837,6 +1839,11 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
             },
           },
           {
+            type: 'Text',
+            id: 'comp_ride_destination',
+            properties: { text: `Ride destination: ${demoCompositeDestination}` },
+          },
+          {
             type: 'MetricWidget',
             id: 'metric_cab',
             properties: {
@@ -1874,7 +1881,7 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
               {
                 event: 'onPress',
                 actionType: 'AGENT_ACTION_DISPATCH',
-                payload: { action: 'confirm_composite_checkout', driverId: selectedRide.id, restaurantId: foodData.restaurants[0].id, itemId: selectedFood.id, rideAmountMinor: toMinor(selectedRide.fare), itemAmountMinor: itemMinor, deliveryFeeMinor: feeMinor, mealAmountMinor: mealMinor, amountMinor: totalMinor, currency: walletCurrency() },
+                payload: { action: 'confirm_composite_checkout', driverId: selectedRide.id, dropoff: demoCompositeDestination, restaurantId: foodData.restaurants[0].id, itemId: selectedFood.id, rideAmountMinor: toMinor(selectedRide.fare), itemAmountMinor: itemMinor, deliveryFeeMinor: feeMinor, mealAmountMinor: mealMinor, amountMinor: totalMinor, currency: walletCurrency() },
               },
             ],
           },

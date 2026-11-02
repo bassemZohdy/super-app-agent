@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bind composite ride destination (P1-13, step)
+
+Composite checkout displays its demo ride destination and verifies the booked ride against the approved destination. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Show the food delivery address (P1-13, step)
 
 Standalone food reviews show their fixed demo delivery address and bind orders to it. Guide: [agent flow](agent-flow.md).

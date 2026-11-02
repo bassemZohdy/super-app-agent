@@ -9,6 +9,7 @@ test('the reviewed ride and meal total is the amount charged in the integrated w
   if (await views.isVisible()) await views.getByRole('button', { name: /Service details/ }).click();
   const approval = resident.getByRole('button', { name: /Authorize Both & Pay AED/ });
   await expect(approval).toBeVisible();
+  await expect(resident.getByText('Ride destination: Downtown Dining', { exact: true })).toBeVisible();
   const delivery = resident.getByText(/^Delivery: AED /);
   await expect(delivery).toBeVisible();
   const deliveryLabel = await delivery.innerText();
@@ -25,13 +26,15 @@ test('the reviewed ride and meal total is the amount charged in the integrated w
   expect(mealEstimate?.properties.label).toBeTruthy();
   await expect(resident.getByText(mealEstimate!.properties.label!, { exact: true })).toBeVisible();
   await expect(resident.getByText('25 min', { exact: true })).toBeVisible();
-  const action = result.request().postDataJSON() as { payload: { amountMinor: number; currency: string; driverId: string; deliveryFeeMinor: number } };
+  const action = result.request().postDataJSON() as { payload: { amountMinor: number; currency: string; driverId: string; dropoff: string; deliveryFeeMinor: number } };
   expect(action.payload.currency).toBe('AED');
   expect(label).toContain(`AED ${(action.payload.amountMinor / 100).toFixed(2)}`);
   expect(deliveryLabel).toBe(`Delivery: AED ${(action.payload.deliveryFeeMinor / 100).toFixed(2)}`);
   await expect(resident.getByText(`Payment of AED ${(action.payload.amountMinor / 100).toFixed(2)} settled from wallet.`, { exact: false })).toBeVisible();
   expect((await residentApi.call('overview')).data.wallet.balanceMinor).toBe(balanceBefore - action.payload.amountMinor);
-  const rides = stack.stores.get('rta')!.list(residentApi.accountId, 'ride') as Array<{ driver: { id: string } }>;
+  const rides = stack.stores.get('rta')!.list(residentApi.accountId, 'ride') as Array<{ driver: { id: string }; dropoff: string }>;
   expect(rides).toHaveLength(ridesBefore + 1);
   expect(rides.at(-1)?.driver.id).toBe(action.payload.driverId);
+  expect(rides.at(-1)?.dropoff).toBe(action.payload.dropoff);
+  expect(action.payload.dropoff).toBe('Downtown Dining');
 });

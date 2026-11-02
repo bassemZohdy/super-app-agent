@@ -86,6 +86,9 @@ test('P1-13: composite checkout charges the reviewed total and books the reviewe
   assert.equal(binding.itemId, 'item_diavola');
   assert.equal(binding.amountMinor, 4899);
   assert.equal(binding.currency, 'USD');
+  assert.equal(binding.dropoff, 'Downtown Dining');
+  const destination = getOrCreateSession(sid).currentSurface!.view.children!.find(node => node.id === 'comp_ride_destination');
+  assert.equal(destination?.properties?.text, `Ride destination: ${binding.dropoff}`);
   const before = balance, rideIds = new Set(activeRides.keys()), orderIds = new Set(activeOrders.keys());
   const result = await action(sid);
   assert.equal(result.status, 200);
@@ -93,6 +96,7 @@ test('P1-13: composite checkout charges the reviewed total and books the reviewe
   const booked = [...activeRides.entries()].find(([id]) => !rideIds.has(id))?.[1];
   const order = [...activeOrders.entries()].find(([id]) => !orderIds.has(id))?.[1];
   assert.equal(booked?.driver.id, binding.driverId);
+  assert.equal(booked?.dropoff, binding.dropoff);
   assert.equal(order?.restaurantId, binding.restaurantId);
   assert.equal(order?.items[0].item.id, binding.itemId);
 });
@@ -152,6 +156,8 @@ test('P1-13: composite review rejects modified bindings and changed prices befor
   t.mock.method(domainHandlers, 'wallet', (method, path, query, body) => { if (method === 'POST') writes++; return realWallet(method, path, query, body); });
   const altered = await core('POST', '/api/a2ui/action', {}, { sessionId: sid, surfaceRevision: revision, action: 'confirm_composite_checkout', payload: { ...binding, amountMinor: binding.amountMinor + 1 } });
   assert.equal(altered.status, 403);
+  const alteredDestination = await core('POST', '/api/a2ui/action', {}, { sessionId: sid, surfaceRevision: revision, action: 'confirm_composite_checkout', payload: { ...binding, dropoff: 'Other destination' } });
+  assert.equal(alteredDestination.status, 403);
   t.mock.method(domainHandlers, 'ride', (method, path, query, body) => {
     const result = realRide(method, path, query, body);
     if (method !== 'GET' || path !== '/rides/options') return result;
@@ -346,6 +352,24 @@ test('P1-13: a mismatched ride receipt stops composite checkout and blocks repla
   assert.equal(activeOrders.size, orders);
   assert.equal((await action(sid)).data.code, 'RECONCILIATION_REQUIRED');
   assert.equal(activeRides.size, rides + 1);
+});
+
+test('P1-13: a ride receipt for a different destination stops the composite meal and blocks replacement', async t => {
+  ensureFunds();
+  const sid = 'failure_ride_destination_mismatch';
+  assert.equal((await intent(sid)).status, 200);
+  const realRide = domainHandlers.ride;
+  t.mock.method(domainHandlers, 'ride', (method, path, query, body) => {
+    const result = realRide(method, path, query, body);
+    return method === 'POST' ? { ...result, data: { ...result.data, booking: { ...result.data.booking, dropoff: 'Other destination' } } } : result;
+  });
+  const rides = activeRides.size, orders = activeOrders.size;
+  const result = await action(sid);
+  assert.equal(result.data.outcome, 'UNKNOWN');
+  assert.deepEqual(result.data.steps.map((step: Step) => [step.service, step.state]), [['wallet', 'SUCCEEDED'], ['ride', 'UNKNOWN']]);
+  assert.equal(activeRides.size, rides + 1);
+  assert.equal(activeOrders.size, orders);
+  assert.equal((await action(sid)).data.code, 'RECONCILIATION_REQUIRED');
 });
 
 test('P1-13: a mismatched food receipt after order creation blocks replacement checkout', async t => {
