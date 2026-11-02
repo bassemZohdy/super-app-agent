@@ -12,6 +12,8 @@ Compatibility utility receipts must identify the requested bill, report an AED a
 
 For an already-paid integrated utility or telecom bill, the application requires a nonblank, bounded original receipt reference and a valid amount in exact fils before returning a successful receipt. Missing or malformed evidence is unconfirmed and never starts a replacement payment. A supplied reviewed amount must still match.
 
+For an unpaid integrated utility or telecom bill, the bill's amount must also convert to exact fils before the application compares the current payable and creates an order. Malformed or fractional-fil amounts are unavailable for payment rather than rounded into a different reviewed amount.
+
 Integrated utility and telecom payments additionally compare each returned order's frozen payable and total with the selected bill before approval and execution, and verify the settled receipt's bill, amount and currency. An inconsistent original order or receipt remains unknown for inspection rather than reporting payment success.
 
 Integrated toll and prepaid recharges bind the saved quote and each payment order to the requested provider, target, version, balance and amount. The settled receipt must confirm that target and expected credited balance. Recovery uses the original quote and order; a mismatch is left unknown for inspection.

@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Require exact unpaid bill amounts (P1-13, step)
+
+Integrated utility and telecom settlement rejects unreadable, negative or fractional-fil bill amounts before creating an order, instead of rounding provider data. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Verify previously paid bill evidence (P1-13, step)
 
 Integrated utility and telecom bill responses require a usable original receipt reference and valid exact-fils amount before reporting an already-paid bill. Invalid evidence remains unconfirmed without another payment. Guide: [integrations](integrations.md).

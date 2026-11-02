@@ -113,8 +113,11 @@ export async function integratedRequest(service: string, actor: Actor, method: s
       return { success: true, bill, chargedAmount: 0, receipt: { billId: bill.billId, ...(bill.premiseId ? { premiseId: bill.premiseId } : {}), receiptNumber: bill.receiptNumber, amountPaid: bill.totalAmount.toFixed(2), currency: 'AED' } };
     }
     if (bill.status !== 'UNPAID' || bill.expiresAt && Date.parse(bill.expiresAt) <= Date.now()) throw new UpstreamError(409, 'PAYABLE_UNAVAILABLE', 'This bill is no longer payable.');
+    let billAmountMinor: number;
+    try { billAmountMinor = toMinor(bill.totalAmount); }
+    catch { throw new UpstreamError(503, 'PROVIDER_UNAVAILABLE', 'The bill amount could not be confirmed. Review the original bill.'); }
     const payable=(await call(provider,'GET','/payables')).payables.find((p:Payable)=>p.obligationId===bill.billId);
-    if(!payable||payable.kind!=='BILL'||payable.provider!==provider||provider==='dewa'&&payable.reference!==asset.utilityAccount||typeof payable.id!=='string'||!payable.id||typeof payable.reference!=='string'||!payable.reference||typeof payable.revision!=='string'||!payable.revision||!Number.isSafeInteger(payable.amountMinor)||payable.amountMinor<0||payable.status!=='UNPAID'||payable.amountMinor!==Math.round(bill.totalAmount*100)||body.expectedPayableRevision&&body.expectedPayableRevision!==payable.revision||body.expectedAmountMinor!==undefined&&body.expectedAmountMinor!==payable.amountMinor)throw new UpstreamError(409,'PAYABLE_CHANGED','The reviewed bill changed. Review its current terms again.');
+    if(!payable||payable.kind!=='BILL'||payable.provider!==provider||provider==='dewa'&&payable.reference!==asset.utilityAccount||typeof payable.id!=='string'||!payable.id||typeof payable.reference!=='string'||!payable.reference||typeof payable.revision!=='string'||!payable.revision||!Number.isSafeInteger(payable.amountMinor)||payable.amountMinor<0||payable.status!=='UNPAID'||payable.amountMinor!==billAmountMinor||body.expectedPayableRevision&&body.expectedPayableRevision!==payable.revision||body.expectedAmountMinor!==undefined&&body.expectedAmountMinor!==payable.amountMinor)throw new UpstreamError(409,'PAYABLE_CHANGED','The reviewed bill changed. Review its current terms again.');
     const sameOrder=(value:unknown)=>{
       if(!value||typeof value!=='object'||Array.isArray(value))return false;
       const order=value as {quote?:{totalMinor?:unknown;payable?:Payable}}, quoted=order.quote?.payable;
