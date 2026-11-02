@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bind wallet transactions to captured charges (P1-02, step)
+
+Integrated wallet payment confirmation now matches the transaction to the captured charge and its account, amount and original reference. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Bind composite meal price and delivery fee (P1-13, step)
 
 The composite review displays and binds the meal price and delivery fee separately, rechecks both and verifies the resulting order. Guide: [agent flow](agent-flow.md).

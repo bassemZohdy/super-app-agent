@@ -43,3 +43,27 @@ test('integrated wallet receipts reject USD rather than the expected AED', async
   await assert.rejects(trackDomainOperations(steps, () => actorContext.run(actorFor({ sub: 'test-user' }, 'account', 'Bearer test'), () => callDomainAsync('wallet', 'POST', '/wallet/pay', {}, { amount: 1 }))), (error: unknown) => error instanceof DomainOperationError && error.code === 'DOMAIN_OUTCOME_UNKNOWN');
   assert.equal(steps[0].state, 'UNKNOWN');
 });
+
+test('integrated wallet payments require a matching captured charge for this account and request', async t => {
+  const previousTransport = process.env.DOMAIN_TRANSPORT, previousIntegration = process.env.PROVIDER_INTEGRATION;
+  process.env.DOMAIN_TRANSPORT = 'http'; process.env.PROVIDER_INTEGRATION = 'true';
+  t.after(() => { if (previousTransport === undefined) delete process.env.DOMAIN_TRANSPORT; else process.env.DOMAIN_TRANSPORT = previousTransport; if (previousIntegration === undefined) delete process.env.PROVIDER_INTEGRATION; else process.env.PROVIDER_INTEGRATION = previousIntegration; });
+  const actor = actorFor({ sub: 'receipt-owner' }, 'account', 'Bearer test');
+  const transaction = { id: 'tx1', type: 'PAYMENT', amount: 1, currency: 'AED', status: 'SETTLED' };
+  const charge = { id: 'tx1', accountId: actor.accountId, amountMinor: 100, currency: 'AED', status: 'CAPTURED', refunded: false, merchant: 'superapp', reference: actor.requestId, source: 'wallet' };
+  const changes = [null, { id: 'other' }, { accountId: 'other' }, { amountMinor: 101 }, { currency: 'USD' }, { status: 'PENDING' }, { refunded: true }, { merchant: 'other' }, { reference: 'other' }, { source: 'other' }];
+  for (const change of changes) {
+    const steps: Step[] = [];
+    const fetchMock = t.mock.method(globalThis, 'fetch', async () => Response.json({ success: true, transaction, charge: change === null ? undefined : { ...charge, ...change }, remainingBalance: 50 }));
+    try {
+      await assert.rejects(trackDomainOperations(steps, () => actorContext.run(actor, () => callDomainAsync('wallet', 'POST', '/wallet/pay', {}, { amount: 1 }))), (error: unknown) => error instanceof DomainOperationError && error.code === 'DOMAIN_OUTCOME_UNKNOWN');
+      assert.equal(steps[0].state, 'UNKNOWN');
+    } finally { fetchMock.mock.restore(); }
+  }
+  const fetchMock = t.mock.method(globalThis, 'fetch', async () => Response.json({ success: true, transaction, charge: { ...charge, reference: 'reviewed-reference' }, remainingBalance: 50 }));
+  try {
+    const steps: Step[] = [];
+    await trackDomainOperations(steps, () => actorContext.run(actor, () => callDomainAsync('wallet', 'POST', '/wallet/pay', {}, { amount: 1, referenceId: 'reviewed-reference' })));
+    assert.equal(steps[0].state, 'SUCCEEDED');
+  } finally { fetchMock.mock.restore(); }
+});

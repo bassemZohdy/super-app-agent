@@ -81,12 +81,18 @@ function confirmedReceipt(service: string, path: string, data: any, body: unknow
   if (service === 'wallet') {
     if (path === '/wallet/pay' || path === '/wallet/topup') {
       if (!record(body) || !record(data.transaction)) return false;
-      const request = body as { amount?: unknown }, tx = data.transaction;
+      const request = body as { amount?: unknown; referenceId?: unknown }, tx = data.transaction;
       if (!named(tx.id) || tx.type !== (path === '/wallet/pay' ? 'PAYMENT' : 'TOPUP') || tx.currency !== (process.env.PROVIDER_INTEGRATION === 'true' ? 'AED' : 'USD') || tx.status !== 'SETTLED' ||
         typeof request.amount !== 'number' || typeof tx.amount !== 'number') return false;
       try {
         const amount = toMinor(request.amount), balance = toMinor(path === '/wallet/pay' ? data.remainingBalance : data.newBalance);
-        return amount > 0 && toMinor(tx.amount) === amount && balance >= 0;
+        if (amount <= 0 || toMinor(tx.amount) !== amount || balance < 0) return false;
+        if (process.env.PROVIDER_INTEGRATION === 'true' && path === '/wallet/pay') {
+          const actor = actorContext.getStore(), capture = data.charge;
+          const reference = request.referenceId === undefined ? actor?.requestId : request.referenceId;
+          if (!actor || !record(capture) || !named(reference) || capture.id !== tx.id || capture.accountId !== actor.accountId || capture.amountMinor !== amount || capture.currency !== 'AED' || capture.status !== 'CAPTURED' || capture.refunded !== false || capture.merchant !== 'superapp' || capture.reference !== reference || capture.source !== 'wallet') return false;
+        }
+        return true;
       } catch { return false; }
     }
     if (path === '/fines/pay') {
