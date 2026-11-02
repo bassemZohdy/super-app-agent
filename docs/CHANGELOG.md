@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Verify owner pause-all results (P1-10, step)
+
+Pause-all validates all mandate owners, accounts, states and versions before dispatch, and reports contradictory or unreadable pause responses as unconfirmed without provider text. Guide: [automation worker](development/automation-worker.md).
+
 ## 2 November 2026 — Verify automation inbox ownership (P1-10, step)
 
 The automation inbox rejects malformed or contradictory mandate lists and checks each mandate's owner and account before exposing job history. Guide: [automation worker](development/automation-worker.md).

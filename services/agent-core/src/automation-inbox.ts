@@ -7,7 +7,7 @@ import { existsSync } from 'node:fs';
 import { JobStore } from '../../automation-worker/src/jobs.ts';
 import { inboxFor, type InboxEntry } from '../../automation-worker/src/inbox.ts';
 import type { Actor } from '../../../packages/backend-kit/src/context.ts';
-import { UpstreamError } from '../../../packages/backend-kit/src/provider-client.ts';
+import { ownedMandates } from './owned-mandates.ts';
 
 export type InboxCall = (provider: string, actor: Actor, method: string, path: string) => Promise<unknown>;
 export type AutomationInbox = { requestId: string; entries: InboxEntry[] };
@@ -16,16 +16,7 @@ export const defaultJobsPath = () => process.env.AUTOMATION_JOBS_DB || '.data/au
 
 export async function automationInbox(actor: Actor, call: InboxCall, jobsPath = defaultJobsPath()): Promise<AutomationInbox> {
   const listed = await call('payments', actor, 'GET', '/payment-mandates');
-  if (!listed || typeof listed !== 'object' || Array.isArray(listed)) throw new UpstreamError(503, 'MANDATE_LIST_INVALID', 'The mandate list could not be confirmed.');
-  const data = listed as Record<string, unknown>;
-  if (data.success !== true || Object.hasOwn(data, 'error') || !Array.isArray(data.mandates) || data.mandates.length > 100) throw new UpstreamError(503, 'MANDATE_LIST_INVALID', 'The mandate list could not be confirmed.');
-  const owned = new Set<string>();
-  for (const entry of data.mandates) {
-    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) throw new UpstreamError(503, 'MANDATE_LIST_INVALID', 'The mandate list could not be confirmed.');
-    const mandate = entry as Record<string, unknown>;
-    if (typeof mandate.id !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,100}$/.test(mandate.id) || mandate.ownerSub !== actor.sub || mandate.accountId !== actor.accountId || owned.has(mandate.id)) throw new UpstreamError(503, 'MANDATE_LIST_INVALID', 'The mandate list could not be confirmed.');
-    owned.add(mandate.id);
-  }
+  const owned = new Set(ownedMandates(listed, actor).map(mandate => mandate.id));
   const requestId = String(actor.requestId ?? '');
   if (owned.size === 0 || !existsSync(jobsPath)) return { requestId, entries: [] };
   const store = new JobStore(jobsPath);
