@@ -161,6 +161,19 @@ test('the owner continues only the next unstarted step after matching original e
   };
   try {
     expect((await send('/api/a2ui/action', { surfaceRevision: surface.revision, action: 'confirm_composite_checkout', payload: binding })).data.outcome).toBe('UNKNOWN');
+    const otherSession = `composite_${crypto.randomUUID()}`;
+    const otherSend = async (path: string, body: Record<string, unknown>) => {
+      const response = await fetch(`${endpoint}${path}`, { method: 'POST', headers: { Authorization: `Bearer ${residentApi.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, sessionId: otherSession, accountId: residentApi.accountId }) });
+      return { status: response.status, data: await response.json() };
+    };
+    const otherReview = await otherSend('/api/a2ui/intent', { text: 'Book a ride downtown and order pizza, pay with my wallet' });
+    expect(otherReview.status).toBe(200);
+    const otherSurface = otherReview.data.surface as typeof surface;
+    const otherBinding = otherSurface.view.children.flatMap(child => child.onEvents ?? []).find(event => event.payload.action === 'confirm_composite_checkout')!.payload;
+    const otherAction = () => otherSend('/api/a2ui/action', { surfaceRevision: otherSurface.revision, action: 'confirm_composite_checkout', payload: otherBinding });
+    const blocked = await otherAction();
+    expect(blocked.status).toBe(409);
+    expect(blocked.data.code).toBe('COMPOSITE_RECONCILIATION_REQUIRED');
     const continueStep = (step: string, id = operationId) => send('/api/composite/reconciliation/continue', { operationId: id, step });
     expect((await continueStep('FOOD')).status).toBe(409);
     expect((await continueStep('RIDE', '11111111-1111-4111-8111-111111111111:confirm_composite_checkout')).status).toBe(409);
@@ -217,6 +230,14 @@ test('the owner continues only the next unstarted step after matching original e
     const foodDb = new DatabaseSync(join(process.env.APP_DATA_DIR!, 'service-food.sqlite'), { readOnly: true });
     try { expect(foodDb.prepare("SELECT count(*) AS n FROM resources WHERE account_id=? AND kind='order'").get(residentApi.accountId)!.n).toBe(1); }
     finally { foodDb.close(); }
+    // Resolution releases the account fence; a newly reviewed session may then start its own operation.
+    const nextReview = await otherSend('/api/a2ui/intent', { text: 'Book a ride downtown and order pizza, pay with my wallet' });
+    expect(nextReview.status).toBe(200);
+    const nextSurface = nextReview.data.surface as typeof surface;
+    const nextBinding = nextSurface.view.children.flatMap(child => child.onEvents ?? []).find(event => event.payload.action === 'confirm_composite_checkout')!.payload;
+    expect((await otherSend('/api/a2ui/action', { surfaceRevision: nextSurface.revision, action: 'confirm_composite_checkout', payload: nextBinding })).status).toBe(200);
+    expect(payments.list(residentApi.accountId, 'charge')).toHaveLength(2);
+    expect(stack.stores.get('rta')!.list(residentApi.accountId, 'ride')).toHaveLength(2);
   } finally { release(); ProviderClient.prototype.call = original; }
 });
 
