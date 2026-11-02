@@ -1,6 +1,6 @@
 # Provider backend demonstration
 
-This is a local integration environment, not an integration with the named real entities. Producer: the provider-simulator package. Consumers: the application microservices. Contract version: 2.0.0 for DLD, 2.3.0 for RTA status/recharge, 2.5.0 for DEWA, 2.6.0 for telecom/Police, and 2.18.0 for payment setup, authorization, capture, recovery/history and lifecycle; OpenAPI 3.1. This demo security migration changes authentication while retaining `/v1` resource schemas. Sign in again for the provider audience; service-header impersonation clients must migrate. Future breaking resource changes require explicit versioning and migration.
+This is a local integration environment, not an integration with the named real entities. Producer: the provider-simulator package. Consumers: the application microservices. Contract version: 2.0.0 for DLD, 2.3.0 for RTA status/recharge, 2.5.0 for DEWA, 2.6.0 for telecom/Police, and 2.19.0 for payment setup, authorization, capture, recovery/history and lifecycle; OpenAPI 3.1. This demo security migration changes authentication while retaining `/v1` resource schemas. Sign in again for the provider audience; service-header impersonation clients must migrate. Future breaking resource changes require explicit versioning and migration.
 
 ## Service and account boundaries
 

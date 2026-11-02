@@ -39,9 +39,9 @@ export class PaymentEvents{
     CREATE TABLE IF NOT EXISTS payment_event_deliveries(producer TEXT NOT NULL,nonce TEXT NOT NULL,event_id TEXT NOT NULL,content_hash TEXT NOT NULL,PRIMARY KEY(producer,nonce));
     CREATE TABLE IF NOT EXISTS payment_event_views(account_id TEXT NOT NULL REFERENCES accounts(id),producer TEXT NOT NULL,subject_kind TEXT NOT NULL,subject_id TEXT NOT NULL,event_type TEXT NOT NULL,version INTEGER NOT NULL,event_id TEXT NOT NULL,state TEXT NOT NULL,received_at TEXT NOT NULL,PRIMARY KEY(account_id,producer,subject_kind,subject_id,event_type));`);}
   private atomic<T>(fn:()=>T):T{const db=this.store.db;if(!db.isTransaction)return this.store.transaction(fn);const name=`payment_events_${++this.sequence}`;db.exec(`SAVEPOINT ${name}`);try{const result=fn();db.exec(`RELEASE ${name}`);return result;}catch(e){db.exec(`ROLLBACK TO ${name}`);db.exec(`RELEASE ${name}`);throw e;}}
-  emit(input:Omit<PaymentEvent,'id'|'schemaVersion'|'producer'|'occurredAt'>):PaymentEvent{
+  emit(input:Omit<PaymentEvent,'id'|'schemaVersion'|'producer'|'occurredAt'>,legacyVersion:2|3=2):PaymentEvent{
     if(!this.store.db.isTransaction)throw new Error('Financial events must share the committed domain transaction.');
-    const content={...input,schemaVersion:(input.subject.kind==='LEGACY_PAYMENT'?2:1) as 1|2,producer:this.producer},contentHash=hash(content),s=input.subject;
+    const content={...input,schemaVersion:(input.subject.kind==='LEGACY_PAYMENT'?legacyVersion:1) as 1|2|3,producer:this.producer},contentHash=hash(content),s=input.subject;
     const previous=this.store.db.prepare('SELECT content_hash,body FROM payment_event_outbox WHERE account_id=? AND subject_kind=? AND subject_id=? AND event_type=? AND version=?').get(input.accountId,s.kind,s.id,input.type,s.version);
     if(previous){if(previous.content_hash!==contentHash)return fail('EVENT_VERSION_CONFLICT','This event version already contains different terms.');return JSON.parse(String(previous.body));}
     const event:PaymentEvent={...content,id:`evt_${randomUUID()}`,occurredAt:new Date(this.clock()).toISOString()};if(!validate(event))return fail('EVENT_INVALID','Financial event does not match its bounded contract.');
@@ -63,7 +63,7 @@ export class PaymentEvents{
     const prior=this.store.db.prepare('SELECT version FROM payment_legacy_event_versions WHERE account_id=? AND payment_id=?').get(charge.accountId,charge.id),version=Number(prior?.version||0)+1;
     if(version>1000000)return fail('EVENT_VERSION_LIMIT','Legacy capture event version exhausted.');
     this.store.db.prepare('INSERT INTO payment_legacy_event_versions VALUES(?,?,?) ON CONFLICT(account_id,payment_id) DO UPDATE SET version=excluded.version').run(charge.accountId,charge.id,version);
-    return this.emit({accountId:charge.accountId,subject:{kind:'LEGACY_PAYMENT',id:charge.id,version},type:'LEGACY_CAPTURE_CHANGED',state:charge.refunded?'REFUNDED':charge.status,binding:{captureDigest:legacyCaptureDigest(charge),paymentId:charge.id,amountMinor:charge.amountMinor,currency:'AED'}});
+    return this.emit({accountId:charge.accountId,subject:{kind:'LEGACY_PAYMENT',id:charge.id,version},type:'LEGACY_CAPTURE_CHANGED',state:charge.refunded?'REFUNDED':charge.status,binding:{captureDigest:legacyCaptureDigest(charge),paymentId:charge.id,amountMinor:charge.amountMinor,currency:'AED'}},Object.hasOwn(charge,'operationId')?3:2);
   }
   private original(event:PaymentEvent){
     if(event.subject.kind==='LEGACY_PAYMENT'){
@@ -78,6 +78,7 @@ export class PaymentEvents{
   private bound(event:PaymentEvent){
     const o=this.original(event),b=event.binding,q=o.quote;
     if(event.subject.kind==='LEGACY_PAYMENT'){
+      if((event.schemaVersion===3)!==Object.hasOwn(o,'operationId'))return fail('EVENT_BINDING_MISMATCH','The event version cannot confirm the capture operation identity.');
       if(b.captureDigest!==legacyCaptureDigest(o)||b.paymentId!==o.id||b.amountMinor!==o.amountMinor||o.currency!=='AED')return fail('EVENT_BINDING_MISMATCH','The legacy event must match the immutable original capture.');
       if(event.producer==='payments'){
         const saved=this.store.db.prepare('SELECT body FROM payment_event_outbox WHERE id=?').get(event.id);

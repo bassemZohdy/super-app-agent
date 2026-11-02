@@ -20,7 +20,7 @@ Source credit and its receipt commit atomically with source proof consumption/id
 
 ## APIs and persistence
 
-Payment contract **1.14.0**; payment-provider OpenAPI **2.18.0**; RTA **2.3.0**; Etisalat/du and Police **2.6.0**; DEWA **2.5.0**; DLD **2.0.0**.
+Payment contract **1.15.0**; payment-provider OpenAPI **2.19.0**; RTA **2.3.0**; Etisalat/du and Police **2.6.0**; DEWA **2.5.0**; DLD **2.0.0**.
 
 Provider routes are relative to `/v1/accounts/{accountId}`:
 

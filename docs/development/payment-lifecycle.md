@@ -1,6 +1,6 @@
 # Owner, workspace and funding lifecycle
 
-PAY-21 adds current access checks to the local synthetic demo. Payment contract **1.14.0** and payments OpenAPI **2.18.0** retain the existing `/v1` paths. Automatic mandate execution remains disabled.
+PAY-21 adds current access checks to the local synthetic demo. Payment contract **1.15.0** and payments OpenAPI **2.19.0** retain the existing `/v1` paths. Automatic mandate execution remains disabled.
 
 ## What changes
 

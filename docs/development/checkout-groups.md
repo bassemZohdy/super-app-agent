@@ -27,7 +27,7 @@ Offline utility settlement checks a supplied reviewed amount in fils before chan
 
 ## APIs and persistence
 
-Payment contract **1.14.0**, payment-provider OpenAPI **2.18.0**. Provider paths are relative to `/v1/accounts/{accountId}` and require the interactive owner token. Machine and delegated tokens cannot use group routes. POST requires `Idempotency-Key`.
+Payment contract **1.15.0**, payment-provider OpenAPI **2.19.0**. Provider paths are relative to `/v1/accounts/{accountId}` and require the interactive owner token. Machine and delegated tokens cannot use group routes. POST requires `Idempotency-Key`.
 
 | Provider route | Request / behavior |
 | --- | --- |

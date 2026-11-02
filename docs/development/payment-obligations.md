@@ -24,7 +24,7 @@ An explicit cancellation or definitive failure can release an **uncaptured** res
 
 Open **Payment accounts**, then **Show business reservations and attempts** under **Access & in-flight work**. Each reservation names the original order and business resource. The attempt view names the original payment, planned amount, source and whether capture is recorded. It is an owned read model; it cannot charge, approve, release an unknown reservation or grant automation permission.
 
-The existing owner-only `/api/payments/lifecycle` and private operator inspection return `obligations` and `attempts` arrays. Shared payment contract **1.14.0**, payments OpenAPI **2.18.0** describe their strict shapes. No new caller-controlled origin, permit, obligation key or command field is accepted by order creation. The existing interactive-owner restriction remains in force.
+The existing owner-only `/api/payments/lifecycle` and private operator inspection return `obligations` and `attempts` arrays. Shared payment contract **1.15.0**, payments OpenAPI **2.19.0** describe their strict shapes. No new caller-controlled origin, permit, obligation key or command field is accepted by order creation. The existing interactive-owner restriction remains in force.
 
 Transport replay and current state are deliberately distinct. An exact HTTP creation-key replay returns its saved original response and order ID. A changed body with that key conflicts. Read the current original order/lifecycle to see later authorization, unknown or settlement state. Do not treat an old creation response as permission to replace an order.
 

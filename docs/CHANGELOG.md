@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bind wallet event operation identity (P1-02, step)
+
+Operation-linked wallet capture notifications use a distinct version whose digest includes the original operation identity; unbound earlier notifications remain inspection-only. Guide: [payment events](development/payment-events.md).
+
 ## 2 November 2026 — Identify legacy wallet hold records (P1-12, step)
 
 The recovery workbench identifies reference-only wallet captures behind an account hold and opens their original inspection without authorizing another payment. Guide: [agent flow](agent-flow.md).

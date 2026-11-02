@@ -33,6 +33,35 @@ test('legacy capture/decline/refund events commit once with journal/resource sta
   assert.equal(f.gateway.execute(f.actor,'POST','/charges',{amountMinor:999999,merchant:'rta',reference:'decline',source:'wallet'}).status,402);f.gateway.execute(f.actor,'POST',`/charges/${c.id}/refunds`,{reason:'No application'});
   assert.deepEqual(f.rows().map(e=>e.state),['CAPTURED','DECLINED','REFUNDED']);assert.deepEqual(f.rows().filter(e=>e.subject.id===c.id).map(e=>e.subject.version),[1,2]);assert.equal(f.gateway.ledger!.summary(f.actor.accountId).balanceMinor,150000);assert.ok(!JSON.stringify(f.rows()).includes('not-persisted'));
 });
+test('operation-bound wallet capture events bind the original operation identity',t=>{
+  const f=fixture(t),body={amountMinor:100,merchant:'superapp',reference:'booking-ref',operationId:'original-operation',source:'wallet'};
+  const c=f.db.transaction(()=>f.gateway.execute(f.actor,'POST','/charges',body)).data.charge;
+  const event=f.rows()[0],validate=new Ajv({strict:false}).compile(paymentEventSchema);
+  assert.equal(event.schemaVersion,3);assert.equal(validate(event),true);
+  assert.equal(validate({...event,producer:'rta'}),false);assert.equal(validate({...event,type:'LEGACY_SETTLEMENT_CHANGED'}),false);
+  assert.notEqual(legacyCaptureDigest(c),legacyCaptureDigest({...c,operationId:'different-operation'}));
+  for(const changed of [{...c,operationId:'different-operation'},(({operationId:_operationId,...rest})=>rest)(c)]) {
+    f.db.put(f.actor.accountId,'charge',changed,c.id);
+    assert.throws(()=>f.receive(event),{code:'EVENT_BINDING_MISMATCH'});
+    assert.equal(f.db.events!.status(f.actor.accountId).received,0);
+  }
+  f.db.put(f.actor.accountId,'charge',c,c.id);
+  assert.equal(f.receive(event).disposition,'APPLIED');
+  assert.equal(f.gateway.ledger!.summary(f.actor.accountId).balanceMinor,149900);
+});
+
+test('an old unbound event cannot confirm an operation-linked capture',t=>{
+  const f=fixture(t),c=f.db.transaction(()=>f.gateway.execute(f.actor,'POST','/charges',{amountMinor:100,merchant:'superapp',reference:'booking-ref',operationId:'original-operation',source:'wallet'})).data.charge;
+  const emitted=f.rows()[0],{operationId:_operationId,...oldCapture}=c;
+  const oldDigest=createHash('sha256').update(JSON.stringify([c.id,c.accountId,c.amountMinor,c.merchant,c.reference,c.source,c.currency,c.createdAt])).digest('hex');
+  assert.equal(legacyCaptureDigest(oldCapture),oldDigest);
+  const previous={...emitted,schemaVersion:2 as const,binding:{...emitted.binding,captureDigest:oldDigest}};
+  f.db.db.prepare('UPDATE payment_event_outbox SET body=? WHERE id=?').run(JSON.stringify(previous),previous.id);
+  assert.throws(()=>f.receive(previous),{code:'EVENT_BINDING_MISMATCH'});
+  assert.equal(f.db.events!.status(f.actor.accountId).received,0);
+  assert.equal(f.gateway.ledger!.summary(f.actor.accountId).balanceMinor,149900);
+});
+
 test('failed outbox append rolls back legacy capture, journal, resource, transaction and event version together',t=>{
   const f=fixture(t);f.db.db.exec("CREATE TRIGGER fail_legacy_event BEFORE INSERT ON payment_event_outbox BEGIN SELECT RAISE(ABORT,'injected event failure');END");assert.throws(()=>f.charge(),/event failure/);assert.equal(f.gateway.ledger!.summary(f.actor.accountId).balanceMinor,150000);assert.equal(f.db.list(f.actor.accountId,'charge').length,0);assert.equal(f.db.list(f.actor.accountId,'transaction').length,0);assert.equal(f.db.db.prepare('SELECT count(*) n FROM payment_legacy_event_versions').get()!.n,0);
 });
