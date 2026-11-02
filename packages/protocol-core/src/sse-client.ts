@@ -15,12 +15,12 @@ export async function* readEventStream(response: Response): AsyncGenerator<Strea
     while (true) {
       const { value, done } = await reader.read();
       buffer += decoder.decode(value, { stream: !done });
-      if (buffer.length + eventBytes > 1_000_000) throw new Error('Stream frame exceeds client limit');
       let match: RegExpExecArray | null;
       while ((match = /\r\n|\r|\n/.exec(buffer))) {
         if (!done && match[0] === '\r' && match.index === buffer.length - 1) break;
         const line = buffer.slice(0, match.index);
         buffer = buffer.slice(match.index + match[0].length);
+        if (line.length > 1_000_000) throw new Error('Stream frame exceeds client limit');
         if (!line) {
           if (data.length) yield { data: data.join('\n'), id, ...(event ? { event } : {}), ...(invalidId ? { invalidId: true } : {}) };
           data = []; id = undefined; event = undefined; invalidId = false; eventBytes = 0;
@@ -38,6 +38,7 @@ export async function* readEventStream(response: Response): AsyncGenerator<Strea
         }
         if (eventBytes > 1_000_000) throw new Error('Stream frame exceeds client limit');
       }
+      if (buffer.length + eventBytes > 1_000_000) throw new Error('Stream frame exceeds client limit');
       if (done) break;
     }
   } finally {

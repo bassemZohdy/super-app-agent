@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 3 November 2026 - Handle coalesced browser stream events (P1-12, step)
+
+The shared stream parser accepts many small events delivered together while continuing to reject oversized individual frames. Guide: [security](security.md).
+
 ## 3 November 2026 - Bind browser stream events to their session (P1-12, step)
 
 React and Angular ignore foreign or malformed session envelopes and resume beyond them without displaying their contents. Guide: [security](security.md).

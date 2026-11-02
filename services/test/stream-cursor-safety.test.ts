@@ -4,6 +4,22 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { connectEventStream, readEventStream } from '../../packages/protocol-core/src/sse-client.ts';
 
+test('coalesced small events are accepted while oversized frames remain bounded', async () => {
+  const frame = `data: ${'x'.repeat(1000)}\n\n`;
+  const response = new Response(new ReadableStream<Uint8Array>({
+    start(controller) { controller.enqueue(new TextEncoder().encode(frame.repeat(1100))); controller.close(); },
+  }));
+  let count = 0;
+  for await (const event of readEventStream(response)) { assert.equal(event.data.length, 1000); count++; }
+  assert.equal(count, 1100);
+  const oversized = new Response(new ReadableStream<Uint8Array>({
+    start(controller) { controller.enqueue(new TextEncoder().encode('data: ' + 'x'.repeat(600_000))); controller.enqueue(new TextEncoder().encode('x'.repeat(400_001))); controller.close(); },
+  }));
+  await assert.rejects(readEventStream(oversized).next(), /Stream frame exceeds client limit/);
+  const multiline = new Response(`data: ${'x'.repeat(500_001)}\ndata: ${'y'.repeat(500_001)}\n\n`);
+  await assert.rejects(readEventStream(multiline).next(), /Stream frame exceeds client limit/);
+});
+
 test('invalid cursor values reset replay without stopping later events', async () => {
   const response = new Response('id: previous-1\ndata: first\n\nid: ' + 'x'.repeat(129) + '\ndata: second\n\nid: valid_3\ndata: third\n\n');
   const frames = [];
