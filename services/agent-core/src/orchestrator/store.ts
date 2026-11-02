@@ -7,6 +7,8 @@ import { AgentError, Fine, Quote, Receipt, RenewalQuote, RenewalReceipt, Vehicle
 type Thread = { subject: string; workload: string; expires_at: number; cancelled: number };
 type Consent = { quote: string; expires_at: number };
 type Operation = { subject: string; quote: string; status: 'pending' | 'unknown' | 'complete'; receipt: string | null };
+const MAX_ACTIVE_THREADS_PER_SUBJECT = 64;
+const MAX_ACTIVE_THREADS = 1024;
 export class Store {
   private readonly active = new Set<string>();
   readonly db: Database;
@@ -19,6 +21,8 @@ export class Store {
       CREATE TABLE IF NOT EXISTS sa_threads (
         id TEXT PRIMARY KEY, subject TEXT NOT NULL, workload TEXT NOT NULL,
         expires_at INTEGER NOT NULL, cancelled INTEGER NOT NULL DEFAULT 0);
+      CREATE INDEX IF NOT EXISTS sa_threads_subject_activity ON sa_threads(subject,cancelled,expires_at);
+      CREATE INDEX IF NOT EXISTS sa_threads_activity ON sa_threads(cancelled,expires_at);
       CREATE TABLE IF NOT EXISTS sa_requests (
         thread_id TEXT REFERENCES sa_threads(id), request_id TEXT NOT NULL,
         fingerprint TEXT NOT NULL, response TEXT, PRIMARY KEY(thread_id,request_id));
@@ -64,9 +68,20 @@ export class Store {
   }
   ready() { this.db.prepare('SELECT 1').get(); }
   createThread(principal: Principal) {
-    const id = randomUUID();
-    this.db.prepare('INSERT INTO sa_threads(id,subject,workload,expires_at) VALUES(?,?,?,?)').run(id, principal.subject, principal.workload, Date.now() + 86400000);
-    return id;
+    return this.db.transaction(() => {
+      const now = Date.now();
+      // An expired conversation linked to an unresolved operation still occupies a slot: it must remain inspectable.
+      const active = `t.cancelled=0 AND (t.expires_at>? OR EXISTS (SELECT 1 FROM sa_thread_operations link
+        JOIN sa_operations op ON op.key=link.operation_key AND op.subject=t.subject AND op.status IN ('pending','unknown')
+        JOIN sa_operation_owners owner ON owner.operation_key=op.key AND owner.consent_id=link.consent_id
+        WHERE link.thread_id=t.id))`;
+      const subjectCount = this.db.prepare(`SELECT count(*) AS n FROM sa_threads t WHERE t.subject=? AND ${active}`).get(principal.subject, now) as { n: number };
+      const totalCount = this.db.prepare(`SELECT count(*) AS n FROM sa_threads t WHERE ${active}`).get(now) as { n: number };
+      if (subjectCount.n >= MAX_ACTIVE_THREADS_PER_SUBJECT || totalCount.n >= MAX_ACTIVE_THREADS) throw new AgentError('THREAD_LIMIT_REACHED', 429);
+      const id = randomUUID();
+      this.db.prepare('INSERT INTO sa_threads(id,subject,workload,expires_at) VALUES(?,?,?,?)').run(id, principal.subject, principal.workload, now + 86400000);
+      return id;
+    }).immediate();
   }
   checkThread(id: string, principal: Principal, allowCancelled = false) {
     const row = this.db.prepare('SELECT * FROM sa_threads WHERE id=? AND subject=? AND workload=?').get(id, principal.subject, principal.workload) as Thread | undefined;

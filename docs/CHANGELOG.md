@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bound focused-agent active conversations (P0-11, step)
+
+The local focused agent now limits active conversations to 64 per resident and 1,024 overall, with transactional admission and a 429 response when full. Expired conversations with linked unresolved operations retain a slot and remain inspectable; cancelled or ordinary expired conversations free their slot. Tests cover concurrent admission, resident isolation and the global limit. This is not a distributed quota, rate limit or historical-data retention policy. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Exercise process death after simulator commit (P0-06, step)
 
 A local proxy test now observes a simulated payment or renewal commit, holds its reply, kills the real focused-agent process and restarts it against the same SQLite file. It verifies the pending original blocks a second conversation, recovery uses the original key, and exactly one simulator effect exists. The subprocess helper also treats an already signalled process as stopped. This is local process-kill evidence, not distributed failover or real-provider qualification. Guide: [testing](testing.md).
