@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bind standalone approvals to reviewed amounts (P1-13, step)
+
+Standalone fine and utility approvals carry the displayed amount in offline and integrated modes. Offline fixtures reject stale terms before settlement; tests also reject client tampering with the bound amount. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Guard offline utility settlement terms (P1-13, step)
 
 The offline utility fixture refuses changed reviewed amounts, unsupported revisions and repeated settlement of an already-paid bill. Composite checkout passes its reviewed utility amount; a post-debit change stops the journey for reconciliation. Guide: [grouped checkout](development/checkout-groups.md).

@@ -1427,7 +1427,7 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
               {
                 event: 'onPress',
                 actionType: 'AGENT_ACTION_DISPATCH',
-                payload: { action: 'pay_utilities_bill',billId:bill.billId,...(bill.payableRevision?{expectedPayableRevision:bill.payableRevision,expectedAmountMinor:Math.round(bill.totalAmount*100)}:{}) },
+                payload: { action: 'pay_utilities_bill',billId:bill.billId,expectedAmountMinor:toMinor(bill.totalAmount),...(bill.payableRevision?{expectedPayableRevision:bill.payableRevision}:{}) },
               },
             ],
           },
@@ -1505,7 +1505,7 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
               {
                 event: 'onPress',
                 actionType: 'AGENT_ACTION_DISPATCH',
-                payload: { action:'pay_police_fines',fineIds:finesData.fines.map((f: Fine)=>f.fineId),...(finesData.fines.every((f: Fine)=>f.payableRevision)?{expectedPayables:finesData.fines.map((f: Fine)=>({payableId:f.payableId,expectedRevision:f.payableRevision})),expectedAmountMinor:Math.round(finesData.totalPayable*100)}:{}) },
+                payload: { action:'pay_police_fines',fineIds:finesData.fines.map((f: Fine)=>f.fineId),...(finesData.fines.length?{expectedAmountMinor:toMinor(finesData.totalPayable)}:{}),...(finesData.fines.length&&finesData.fines.every((f: Fine)=>f.payableRevision)?{expectedPayables:finesData.fines.map((f: Fine)=>({payableId:f.payableId,expectedRevision:f.payableRevision}))}:{}) },
               },
             ],
           },
