@@ -30,7 +30,13 @@ export async function* readEventStream(response: Response): AsyncGenerator<Strea
         const separator = line.indexOf(':');
         const field = separator < 0 ? line : line.slice(0, separator);
         const text = separator < 0 ? '' : line.slice(separator + 1).replace(/^ /, '');
-        if (field === 'data') { data.push(text); eventBytes += text.length; }
+        if (field === 'data') {
+          // Bound array overhead even when every data line is empty, and count
+          // the newline inserted between lines in the resulting event body.
+          if (data.length >= 10_000) throw new Error('Stream frame exceeds client limit');
+          eventBytes += text.length + (data.length ? 1 : 0);
+          data.push(text);
+        }
         if (field === 'event') event = text;
         if (field === 'id') {
           invalidId = !/^[A-Za-z0-9_.:-]{0,128}$/.test(text);

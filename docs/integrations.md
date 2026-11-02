@@ -119,6 +119,8 @@ The conversation is first and service details second by default, side by side at
 
 Design brief: retain Cityside's Avenir/system type, primary teal, white background, slate text/borders and semantic error/focus tokens from `ui-tokens`; use the existing renderer, a left-aligned conversation and a distinct exact-payment review. Keep one primary confirmation, secondary reject/cancel actions, labelled controls, visible focus and 44px targets. Mobile reflows the panes without a detail overlay, and the shared reduced-motion stylesheet applies. New styles contain no raw colors, hosted fonts or images.
 
+The shared browser stream parser limits each event to 10,000 data lines and one million UTF-16 code units, including inserted line separators. It cancels an oversized stream; multiple complete small events can share a network chunk.
+
 Transitions consume named SSE `progress`, `result` and `error` frames. The authoritative result replaces the panel/transcript. Approval dispatch must match the displayed approval ID; repeated clicks are locked while pending. A connection failure blocks replacement messages and payments until **Recover saved operation** has checked the original operation. **Inspect saved conversation** is read-only; **Cancel conversation** closes a settled/reviewing thread and is unavailable during an unknown outcome. After a process restart, inspection restores the exact saved review. Cancellation never implies a dispatched payment was undone.
 
 ### Angular and Flutter adoption

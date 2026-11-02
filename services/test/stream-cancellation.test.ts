@@ -29,6 +29,27 @@ test('oversized streams and early consumer exit do not wait for cancellation', a
   assert.equal(normal.wasCancelled(), true);
 });
 
+test('an event with excessive empty data lines is bounded and cancelled', async () => {
+  const oversized = uncooperativeResponse('data:\n'.repeat(10_001));
+  await assert.rejects(within(readEventStream(oversized.response).next()), /Stream frame exceeds client limit/);
+  assert.equal(oversized.wasCancelled(), true);
+});
+
+test('multiline event size includes inserted newline separators', async () => {
+  const line = `data: ${'x'.repeat(100)}\n`;
+  await assert.rejects(readEventStream(new Response(line.repeat(10_000) + '\n')).next(), /Stream frame exceeds client limit/);
+});
+
+test('the data-line budget resets between events', async () => {
+  const stream = readEventStream(new Response(('data:\n'.repeat(10_000) + '\n').repeat(2)));
+  for (let i = 0; i < 2; i++) {
+    const result = await stream.next();
+    assert.equal(result.done, false);
+    assert.equal(result.value!.data.length, 9_999);
+  }
+  assert.equal((await stream.next()).done, true);
+});
+
 test('focused authorization failures do not wait for upstream cancellation', async t => {
   const refused = uncooperativeResponse('private response', 403);
   t.mock.method(globalThis, 'fetch', async () => refused.response);
