@@ -24,7 +24,7 @@ const claimScript = `local existing=redis.call('GET',KEYS[1]); if existing then
  if ARGV[5]~='1' then return {'NOT_FOUND'} end
  redis.call('SET',KEYS[1],ARGV[3],'EX',ARGV[4]); redis.call('SADD',KEYS[2],KEYS[1]); redis.call('EXPIRE',KEYS[2],ARGV[4]); return {'OK',ARGV[3]}`;
 type CivicAction = 'confirm_smartcity_checkout' | 'pay_utilities_bill' | 'pay_dewa_bill' | 'pay_police_fines';
-type CivicOwner = { subject: string; accountId: string; sessionId: string; action: CivicAction };
+type CivicOwner = { subject: string; accountId: string; sessionId: string; action: CivicAction; surfaceRevision?: string };
 export type CivicStepName = 'WALLET' | 'UTILITY' | 'FINES' | 'TOLL';
 type CivicStepState = 'STARTED' | 'CONFIRMED' | 'REJECTED' | 'UNKNOWN';
 type CivicStep = { name: CivicStepName; state: CivicStepState; receiptReference?: string };
@@ -49,6 +49,7 @@ function civicReview(value: unknown): CivicReview | undefined {
 const civicStepNames: ReadonlySet<string> = new Set(['WALLET', 'UTILITY', 'FINES', 'TOLL']);
 const civicStepStates: ReadonlySet<string> = new Set(['STARTED', 'CONFIRMED', 'REJECTED', 'UNKNOWN']);
 const civicOwnerDigest = (subject: string, accountId: string) => createHash('sha256').update(JSON.stringify([subject, accountId])).digest('hex');
+const civicRetiredKey = (prefix: string, owner: string, sessionId: string, surfaceRevision: string) => `${prefix}civic-retired:${createHash('sha256').update(JSON.stringify([owner, sessionId, surfaceRevision])).digest('hex')}`;
 const civicActions: ReadonlySet<string> = new Set(['confirm_smartcity_checkout', 'pay_utilities_bill', 'pay_dewa_bill', 'pay_police_fines']);
 export class RedisSessionStore {
   readonly client: RedisClientType;
@@ -82,13 +83,16 @@ export class RedisSessionStore {
   }
   /** A shared fixture has one civic-payment lane. Retain this record after an uncertain outcome or process loss. */
   async acquireCivicFence(owner: CivicOwner) {
-    if (!owner.subject || !owner.accountId || !/^[a-zA-Z0-9_-]{8,128}$/.test(owner.sessionId) || !civicActions.has(owner.action)) throw new SessionError(400, 'CIVIC_CONTEXT_INVALID', 'The civic payment context is invalid.');
+    if (!owner.subject || !owner.accountId || !/^[a-zA-Z0-9_-]{8,128}$/.test(owner.sessionId) || !civicActions.has(owner.action) || owner.surfaceRevision !== undefined && !/^[0-9a-f-]{36}$/.test(owner.surfaceRevision)) throw new SessionError(400, 'CIVIC_CONTEXT_INVALID', 'The civic payment context is invalid.');
     await this.connect();
     const key = `${this.prefix}offline-civic-fence`;
-    let record = { version: 4, nonce: randomUUID(), owner: civicOwnerDigest(owner.subject, owner.accountId), sessionId: owner.sessionId, action: owner.action, steps: [] as CivicStep[], review: null as CivicReview | null };
+    let record = { version: 5, nonce: randomUUID(), owner: civicOwnerDigest(owner.subject, owner.accountId), sessionId: owner.sessionId, action: owner.action, surfaceRevision: owner.surfaceRevision ?? null, steps: [] as CivicStep[], review: null as CivicReview | null };
     let current = JSON.stringify(record);
-    if (await this.client.set(key, current, { NX: true }) !== 'OK')
-      throw new SessionError(409, 'CIVIC_RECONCILIATION_REQUIRED', 'An offline civic payment is in progress or needs reconciliation.');
+    const retired = owner.surfaceRevision ? civicRetiredKey(this.prefix, record.owner, owner.sessionId, owner.surfaceRevision) : `${this.prefix}civic-retired:none`;
+    const admitted = await this.client.eval(`if ARGV[2]=='1' and redis.call('EXISTS',KEYS[2])~=0 then return -1 end
+      if redis.call('EXISTS',KEYS[1])~=0 then return 0 end; redis.call('SET',KEYS[1],ARGV[1]); return 1`, { keys: [key, retired], arguments: [current, owner.surfaceRevision ? '1' : '0'] });
+    if (admitted === -1) throw new SessionError(409, 'CIVIC_APPROVAL_RESOLVED', 'This civic approval was already resolved.');
+    if (admitted !== 1) throw new SessionError(409, 'CIVIC_RECONCILIATION_REQUIRED', 'An offline civic payment is in progress or needs reconciliation.');
     const save = async (updated: typeof record) => {
       const next = JSON.stringify(updated);
       await this.connect();
@@ -118,25 +122,51 @@ export class RedisSessionStore {
       },
     };
   }
-  async inspectCivicFence(subject: string, accountId: string): Promise<{ status: 'CLEAR' | 'BLOCKED'; sessionId?: string; action?: CivicAction; civicSteps?: CivicStep[]; civicReview?: CivicReview }> {
+  async inspectCivicFence(subject: string, accountId: string): Promise<{ status: 'CLEAR' | 'BLOCKED'; sessionId?: string; action?: CivicAction; civicSteps?: CivicStep[]; civicReview?: CivicReview; revision?: string; surfaceRevision?: string }> {
     await this.connect();
     const raw = await this.client.get(`${this.prefix}offline-civic-fence`);
     if (raw === null) return { status: 'CLEAR' };
     try {
-      const record = JSON.parse(raw) as { version?: unknown; owner?: unknown; sessionId?: unknown; action?: unknown; steps?: unknown; review?: unknown };
-      if (record && (record.version === 1 || record.version === 2 || record.version === 3 || record.version === 4) && record.owner === civicOwnerDigest(subject, accountId) &&
+      const record = JSON.parse(raw) as { version?: unknown; owner?: unknown; sessionId?: unknown; action?: unknown; steps?: unknown; review?: unknown; surfaceRevision?: unknown };
+      if (record && (record.version === 1 || record.version === 2 || record.version === 3 || record.version === 4 || record.version === 5) && record.owner === civicOwnerDigest(subject, accountId) &&
           typeof record.sessionId === 'string' && /^[a-zA-Z0-9_-]{8,128}$/.test(record.sessionId) &&
           typeof record.action === 'string' && civicActions.has(record.action)) {
         if (record.version === 1) return { status: 'BLOCKED', sessionId: record.sessionId, action: record.action as CivicAction };
         if (Array.isArray(record.steps) && record.steps.length <= 4 && record.steps.every((step: unknown) => !!step && typeof step === 'object' && civicStepNames.has((step as CivicStep).name) && civicStepStates.has((step as CivicStep).state))) {
-          const review = (record.version === 3 || record.version === 4) && record.review !== null ? civicReview(record.review) : undefined;
-          if ((record.version === 3 || record.version === 4) && record.review !== null && !review) return { status: 'BLOCKED' };
-          if (record.version === 4 && record.steps.some((step: CivicStep) => step.receiptReference !== undefined && (step.state !== 'CONFIRMED' || !civicReference(step.receiptReference)))) return { status: 'BLOCKED' };
-          return { status: 'BLOCKED', sessionId: record.sessionId, action: record.action as CivicAction, ...(review ? { civicReview: review } : {}), civicSteps: record.steps.map((step: CivicStep) => ({ name: step.name, state: step.state, ...(record.version === 4 && step.receiptReference ? { receiptReference: step.receiptReference } : {}) })) };
+          const review = (record.version === 3 || record.version === 4 || record.version === 5) && record.review !== null ? civicReview(record.review) : undefined;
+          if ((record.version === 3 || record.version === 4 || record.version === 5) && record.review !== null && !review) return { status: 'BLOCKED' };
+          if ((record.version === 4 || record.version === 5) && record.steps.some((step: CivicStep) => step.receiptReference !== undefined && (step.state !== 'CONFIRMED' || !civicReference(step.receiptReference)))) return { status: 'BLOCKED' };
+          return { status: 'BLOCKED', sessionId: record.sessionId, action: record.action as CivicAction, ...((record.version === 4 || record.version === 5) ? { revision: createHash('sha256').update(raw).digest('hex') } : {}), ...(record.version === 5 && typeof record.surfaceRevision === 'string' && /^[0-9a-f-]{36}$/.test(record.surfaceRevision) ? { surfaceRevision: record.surfaceRevision } : {}), ...(review ? { civicReview: review } : {}), civicSteps: record.steps.map((step: CivicStep) => ({ name: step.name, state: step.state, ...((record.version === 4 || record.version === 5) && step.receiptReference ? { receiptReference: step.receiptReference } : {}) })) };
         }
       }
     } catch { /* A legacy or unreadable fence stays blocked without exposing its contents. */ }
     return { status: 'BLOCKED' };
+  }
+  async civicApprovalResolved(subject: string, accountId: string, sessionId: string, surfaceRevision: string): Promise<boolean> {
+    await this.connect();
+    return await this.client.exists(civicRetiredKey(this.prefix, civicOwnerDigest(subject, accountId), sessionId, surfaceRevision)) === 1;
+  }
+  async hasCivicResolution(subject: string, accountId: string, revision: string): Promise<boolean> {
+    await this.connect();
+    const [raw, active] = await this.client.mGet([`${this.prefix}civic-resolution:${revision}`, `${this.prefix}offline-civic-fence`]);
+    if (!raw || raw === active || createHash('sha256').update(raw).digest('hex') !== revision) return false;
+    try { const record = JSON.parse(raw) as { version?: unknown; owner?: unknown }; return record.version === 5 && record.owner === civicOwnerDigest(subject, accountId); }
+    catch { return false; }
+  }
+  async resolveCivicFence(subject: string, accountId: string, revision: string): Promise<void> {
+    await this.connect();
+    const key = `${this.prefix}offline-civic-fence`, raw = await this.client.get(key);
+    if (!raw || createHash('sha256').update(raw).digest('hex') !== revision) throw new SessionError(409, 'CIVIC_REVIEW_CHANGED', 'The civic review changed.');
+    let retired: string;
+    try {
+      const record = JSON.parse(raw) as { version?: unknown; owner?: unknown; sessionId?: unknown; surfaceRevision?: unknown };
+      if (record.version !== 5 || record.owner !== civicOwnerDigest(subject, accountId) || typeof record.sessionId !== 'string' || !/^[a-zA-Z0-9_-]{8,128}$/.test(record.sessionId) || typeof record.surfaceRevision !== 'string' || !/^[0-9a-f-]{36}$/.test(record.surfaceRevision)) throw new Error('context mismatch');
+      retired = civicRetiredKey(this.prefix, record.owner, record.sessionId, record.surfaceRevision);
+    } catch { throw new SessionError(409, 'CIVIC_REVIEW_CHANGED', 'The civic review changed.'); }
+    const saved = await this.client.eval(`if redis.call('GET',KEYS[1])~=ARGV[1] then return 0 end
+      local archived=redis.call('GET',KEYS[2]); if archived and archived~=ARGV[1] then return 0 end
+      redis.call('SET',KEYS[3],'1'); if not archived then redis.call('SET',KEYS[2],ARGV[1]) end; redis.call('DEL',KEYS[1]); return 1`, { keys: [key, `${this.prefix}civic-resolution:${revision}`, retired], arguments: [raw] });
+    if (saved !== 1) throw new SessionError(409, 'CIVIC_REVIEW_CHANGED', 'The civic review changed.');
   }
   async acquire(sid: string) {
     await this.connect();

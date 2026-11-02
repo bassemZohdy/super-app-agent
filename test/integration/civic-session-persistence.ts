@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { RedisGraphSaver } from '../../services/agent-core/src/langgraph/checkpointer.ts';
 import { executeGatewayRequest } from '../../services/agent-core/src/index.ts';
 import { domainHandlers } from '../../services/agent-core/src/domain-operations.ts';
@@ -24,9 +24,11 @@ test('shared civic fence is released after session save and retained if session 
   process.env.REDIS_URL = process.env.TEST_REDIS_URL || 'redis://127.0.0.1:6379';
   const check = new RedisSessionStore(process.env.REDIS_URL), key = 'superapp:offline-civic-fence';
   await check.connect(); assert.equal(await check.client.exists(key), 0, 'test needs a separate Redis database');
+  let unavailableTollLookup = false;
   const server = http.createServer(async (req, res) => {
     const chunks: Buffer[] = []; for await (const chunk of req) chunks.push(Buffer.from(chunk));
     const path = new URL(req.url!, 'http://localhost').pathname, method = req.method!, body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : {};
+    if (unavailableTollLookup && method === 'GET' && path.startsWith('/mobility/salik/recharges/')) { res.writeHead(503, { 'content-type': 'application/json' }); res.end(JSON.stringify({ success: false, error: 'Unavailable' })); return; }
     const handler = path.startsWith('/profile/') ? domainHandlers.profile : path.startsWith('/utilities/') ? domainHandlers.food : path.startsWith('/mobility/') ? domainHandlers.ride : domainHandlers.wallet;
     const result = handler(method, path, {}, body);
     res.writeHead(result.status, { 'content-type': 'application/json' }); res.end(JSON.stringify(result.data));
@@ -35,7 +37,7 @@ test('shared civic fence is released after session save and retained if session 
   const address = server.address(); assert.ok(address && typeof address !== 'string');
   const base = `http://127.0.0.1:${address.port}`;
   Object.assign(process.env, { SERVICE_WALLET_URL: base, SERVICE_FOOD_URL: base, SERVICE_RIDE_URL: base, SERVICE_PROFILE_URL: base });
-  const ids = [`civic_persist_success_${randomUUID()}`, `civic_persist_failure_${randomUUID()}`];
+  const ids = [`civic_persist_success_${randomUUID()}`, `civic_persist_failure_${randomUUID()}`], auditKeys: string[] = [];
   t.after(async () => {
     await new Promise<void>(resolve => server.close(() => resolve()));
     const store = redisSessions()!;
@@ -47,7 +49,7 @@ test('shared civic fence is released after session save and retained if session 
         await store.remove(sid, 'local-demo-user');
       } catch (error) { if (!(error instanceof SessionError && error.status === 404)) throw error; }
     }
-    await check.client.del(key); await check.close(); await store.close();
+    await check.client.del([key, ...auditKeys]); await check.close(); await store.close();
   });
   const clear = await executeGatewayRequest('GET', '/api/civic/reconciliation', {}, {}, headers);
   assert.equal(clear.status, 200); assert.equal(clear.data.status, 'CLEAR');
@@ -89,4 +91,43 @@ test('shared civic fence is released after session save and retained if session 
   const other = await executeGatewayRequest('GET', '/api/civic/reconciliation', { accountId: accountIdFor('local-demo-user', 'household') }, {}, headers);
   assert.deepEqual(other.data, { success: true, status: 'BLOCKED', outcome: 'SUCCEEDED', steps: [] });
   assert.equal((await executeGatewayRequest('GET', '/api/civic/reconciliation', { accountId: accountIdFor('different-user') }, {}, headers)).status, 403);
+  const revision = status.data.revision; assert.match(revision, /^[a-f0-9]{64}$/);
+  const stale = await executeGatewayRequest('POST', '/api/civic/reconciliation/resolve', {}, { revision: 'a'.repeat(64) }, headers);
+  assert.equal(stale.status, 409); assert.equal(await check.client.exists(key), 1);
+  const otherResolution = await executeGatewayRequest('POST', '/api/civic/reconciliation/resolve', {}, { revision, accountId: accountIdFor('local-demo-user', 'household') }, headers);
+  assert.equal(otherResolution.status, 409); assert.equal(await check.client.exists(key), 1);
+  unavailableTollLookup = true;
+  const unavailable = await executeGatewayRequest('POST', '/api/civic/reconciliation/resolve', {}, { revision }, headers);
+  assert.equal(unavailable.status, 409); assert.equal(unavailable.data.code, 'CIVIC_EVIDENCE_INCOMPLETE'); assert.equal(await check.client.exists(key), 1);
+  unavailableTollLookup = false;
+  const tx = transactions.at(-1)!, savedAmount = tx.amount;
+  tx.amount += 0.01;
+  try {
+    const changedEvidence = await executeGatewayRequest('POST', '/api/civic/reconciliation/resolve', {}, { revision }, headers);
+    assert.equal(changedEvidence.status, 409); assert.equal(changedEvidence.data.code, 'CIVIC_EVIDENCE_INCOMPLETE'); assert.equal(await check.client.exists(key), 1);
+  } finally { tx.amount = savedAmount; }
+  const ownerDigest = createHash('sha256').update(JSON.stringify(['local-demo-user', accountIdFor('local-demo-user')])).digest('hex');
+  const retiredDigest = createHash('sha256').update(JSON.stringify([ownerDigest, ids[1], pending.surfaceRevision])).digest('hex');
+  auditKeys.push(`superapp:civic-resolution:${revision}`, `superapp:civic-retired:${retiredDigest}`);
+  const activeRecord = await check.client.get(key); assert.ok(activeRecord);
+  await check.client.set(auditKeys[0], activeRecord);
+  assert.equal(await check.hasCivicResolution('local-demo-user', accountIdFor('local-demo-user'), revision), false, 'an archive alone is not a completed resolution');
+  const concurrent = await Promise.all([1, 2].map(() => executeGatewayRequest('POST', '/api/civic/reconciliation/resolve', {}, { revision }, headers)));
+  assert.equal(concurrent.filter(item => item.status === 200 && item.data.resolution === 'RESOLVED').length, 1);
+  assert.ok(concurrent.every(item => item.status === 200 || item.status === 409));
+  assert.equal(await check.client.exists(key), 0); assert.equal(await check.client.exists(auditKeys[0]), 1);
+  await assert.rejects(() => check.acquireCivicFence({ subject: 'local-demo-user', accountId: accountIdFor('local-demo-user'), sessionId: ids[1], action: 'confirm_smartcity_checkout', surfaceRevision: pending.surfaceRevision }), /resolved/i, 'the old approval cannot start a replacement checkout');
+  const oldReplay = await executeGatewayRequest('POST', '/api/a2ui/action', {}, pending, headers);
+  assert.equal(oldReplay.status, 409); assert.equal(oldReplay.data.code, 'CIVIC_APPROVAL_RESOLVED'); assert.equal(balance, beforeVerify); assert.equal(transactions.length, ledgerBeforeVerify);
+
+  const nextFence = await check.acquireCivicFence({ subject: 'another-owner', accountId: 'another-account', sessionId: 'another_session', action: 'confirm_smartcity_checkout' });
+  try {
+    const replay = await executeGatewayRequest('POST', '/api/civic/reconciliation/resolve', {}, { revision }, headers);
+    assert.equal(replay.status, 200); assert.equal(replay.data.resolution, 'ALREADY_RESOLVED');
+    assert.equal(await check.client.exists(key), 1, 'replay cannot clear a newer checkout');
+    const otherReplay = await executeGatewayRequest('POST', '/api/civic/reconciliation/resolve', {}, { revision, accountId: accountIdFor('local-demo-user', 'household') }, headers);
+    assert.equal(otherReplay.status, 409);
+  } finally { await nextFence.release(); }
+  assert.equal(balance, beforeVerify); assert.equal(transactions.length, ledgerBeforeVerify);
+
 });

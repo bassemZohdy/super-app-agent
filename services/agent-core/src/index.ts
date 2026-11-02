@@ -17,6 +17,7 @@ import { randomUUID } from 'node:crypto';
 import { trackDomainOperations, executionOutcome, DomainOperationError, callDomainAsync, type Step } from './domain-operations.ts';
 import { withCivicFinalizers } from './civic-finalization.ts';
 import { compareCivicEvidence } from './civic-evidence.ts';
+import { completeCivicSteps } from './civic-resolution.ts';
 import { validateRequest } from '../../../packages/protocol-core/src/request-validation.ts';
 import http from 'node:http';
 import { EventJournal, StreamWriter, eventFrame } from './event-stream.ts';
@@ -162,6 +163,24 @@ async function handleGatewayRequest(
         : undefined;
       return { status: 200, data: { success: true, ...status, ...(civicEvidence ? { civicEvidence } : {}) } };
     } catch { return { status: 503, data: { success: false, code: 'CIVIC_STATUS_UNAVAILABLE', error: 'Shared offline civic status is unavailable.' } }; }
+  }
+  if (normMethod === 'POST' && pathname === '/api/civic/reconciliation/resolve') {
+    if (process.env.PROVIDER_INTEGRATION === 'true' || process.env.DOMAIN_TRANSPORT !== 'http') return { status: 503, data: { success: false, code: 'CIVIC_STATUS_UNAVAILABLE', error: 'Shared offline civic status is unavailable in this mode.' } };
+    try {
+      const store = redisSessions();
+      if (!store) throw new Error('Shared storage unavailable');
+      if (await store.hasCivicResolution(actor.sub, actor.accountId, body.revision)) return { status: 200, data: { success: true, resolution: 'ALREADY_RESOLVED', revision: body.revision } };
+      const status = await store.inspectCivicFence(actor.sub, actor.accountId);
+      if (status.revision !== body.revision || status.action !== 'confirm_smartcity_checkout' || !status.surfaceRevision || !status.civicReview || !status.civicSteps || !completeCivicSteps(status.civicReview, status.civicSteps))
+        return { status: 409, data: { success: false, code: 'CIVIC_REVIEW_CHANGED', error: 'The original complete checkout is not available for resolution.' } };
+      const evidence = await compareCivicEvidence(status.civicReview, status.civicSteps, (source, reference) => actorContext.run(actor, async () => (await callDomainAsync(source === 'fine-receipt' ? 'wallet' : source, 'GET', source === 'wallet' ? '/wallet/transactions' : source === 'food' ? '/utilities/bill' : source === 'fine-receipt' ? `/fines/receipts/${encodeURIComponent(reference || '')}` : `/mobility/salik/recharges/${encodeURIComponent(reference || '')}`)).data));
+      if (evidence.length !== status.civicSteps.length || evidence.some(item => item.assessment !== 'MATCH')) return { status: 409, data: { success: false, code: 'CIVIC_EVIDENCE_INCOMPLETE', error: 'The original checkout evidence could not be confirmed.' } };
+      await store.resolveCivicFence(actor.sub, actor.accountId, body.revision);
+      return { status: 200, data: { success: true, resolution: 'RESOLVED', revision: body.revision } };
+    } catch (error) {
+      if (error instanceof SessionError && error.status === 409) return { status: 409, data: { success: false, code: error.code, error: error.message } };
+      return { status: 503, data: { success: false, code: 'CIVIC_STATUS_UNAVAILABLE', error: 'Shared offline civic status is unavailable.' } };
+    }
   }
   const paymentAccounts = await handlePaymentAccounts(actor, normMethod, pathname, normMethod==='GET'?query:body);
   if (paymentAccounts) return paymentAccounts;
@@ -312,6 +331,11 @@ async function handleGatewayRequest(
           error: 'This action is disabled for the current review state.', surface: session.currentSurface } };
       }
       return { status: 403, data: { error: 'Action is not authorized for the current UI surface' } };
+    }
+    if (process.env.PROVIDER_INTEGRATION !== 'true' && process.env.DOMAIN_TRANSPORT === 'http' && ['confirm_smartcity_checkout', 'pay_utilities_bill', 'pay_dewa_bill', 'pay_police_fines'].includes(body.action)) {
+      const store = redisSessions();
+      if (!store) throw new SessionError(503, 'SESSION_STORE_UNAVAILABLE', 'Shared civic payment coordination is unavailable.');
+      if (await store.civicApprovalResolved(actor.sub, actor.accountId, body.sessionId, body.surfaceRevision)) return { status: 409, data: { success: false, code: 'CIVIC_APPROVAL_RESOLVED', error: 'This civic approval was already resolved. Start a new review.' } };
     }
     if (authResult.user) {
       (session as any).user = authResult.user;

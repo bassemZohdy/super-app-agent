@@ -73,6 +73,7 @@ route('agent-core', 'POST', '/api/a2ui/model-privacy', object({ sessionId, accou
 route('agent-core', 'GET', '/api/services', object({ accountId: id }));
 route('agent-core', 'GET', '/api/connections', object({ accountId: id, refresh: { enum: ['1'] } }));
 route('agent-core', 'GET', '/api/civic/reconciliation', object({ accountId: id, verify: { enum: ['1'] } }));
+route('agent-core', 'POST', '/api/civic/reconciliation/resolve', object({ accountId: id, revision: { type: 'string', pattern: '^[a-f0-9]{64}$' } }, ['revision']));
 route('agent-core', 'GET', '/api/payments/overview', object({ accountId: id }, ['accountId']));
 for(const path of ['eligibility','lifecycle'])route('agent-core','GET',`/api/payments/${path}`,object({accountId:id},['accountId']));
 route('agent-core','GET','/api/payments/wallet-funding-orders',object({accountId:id},['accountId']));

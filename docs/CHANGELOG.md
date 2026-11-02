@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Resolve a verified complete civic checkout (P1-13, step)
+
+The owner can explicitly acknowledge a complete offline composite checkout after the gateway rechecks every recorded step against current fixture evidence. Resolution atomically archives the exact revision, retires the original approval and clears its fence; retries do not clear newer checkouts. Live Redis/HTTP tests cover stale, unknown, changed-evidence, cross-account and concurrent requests. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Compare the selected fine receipt (P1-13, step)
 
 Offline civic evidence now requires the wallet ledger and a fine receipt to match the reviewed fine IDs and amounts. Live Redis/HTTP and focused tests cover matching receipts, altered selections and unavailable evidence; integrated provider mode does not use the shared fixture lookup. Guide: [integrations](integrations.md).

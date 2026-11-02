@@ -57,13 +57,15 @@ test('civic fence inspection exposes journey details only to its owner and accou
   const owner = { subject: 'alice', accountId: accountIdFor('alice'), sessionId: 'civic_owner_session', action: 'confirm_smartcity_checkout' as const };
   assert.deepEqual(await store.inspectCivicFence(owner.subject, owner.accountId), { status: 'CLEAR' });
   const fence = await store.acquireCivicFence(owner);
-  assert.deepEqual(await store.inspectCivicFence(owner.subject, owner.accountId), { status: 'BLOCKED', sessionId: owner.sessionId, action: owner.action, civicSteps: [] });
+  const initial = await store.inspectCivicFence(owner.subject, owner.accountId);
+  assert.equal(initial.status, 'BLOCKED'); assert.equal(initial.sessionId, owner.sessionId); assert.equal(initial.action, owner.action); assert.deepEqual(initial.civicSteps, []); assert.match(initial.revision!, /^[a-f0-9]{64}$/);
   const reviewed = { billId: 'DEWA-1', billAmountMinor: 200, fines: [{ fineId: 'FINE-1', amountMinor: 300 }], tagNumber: 'SLK-1', tollAmountMinor: 10000 };
   await assert.rejects(() => fence.startStep('WALLET'), /review/i);
   await assert.rejects(() => fence.bindReview({ ...reviewed, fines: [reviewed.fines[0], reviewed.fines[0]] }), /review/i);
   await assert.rejects(() => fence.bindReview({ ...reviewed, billAmountMinor: Number.MAX_SAFE_INTEGER }), /review/i);
   await assert.rejects(() => fence.bindReview({ ...reviewed, tollAmountMinor: 9999 }), /review/i);
   await fence.bindReview(reviewed);
+  await assert.rejects(() => store.resolveCivicFence(owner.subject, owner.accountId, initial.revision!), /changed/i, 'a stale review cannot clear the current fence');
   assert.deepEqual((await store.inspectCivicFence(owner.subject, owner.accountId)).civicReview, reviewed);
   await assert.rejects(() => fence.bindReview({ ...reviewed, billAmountMinor: 999 }), /review/i);
   await fence.startStep('WALLET');
