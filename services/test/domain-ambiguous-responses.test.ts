@@ -5,6 +5,9 @@ import { callDomain, callDomainAsync, domainHandlers, trackDomainOperations, Dom
 
 const responses = [
   { status: 409, data: { code: 'PROVIDER_OUTCOME_UNKNOWN', error: 'unconfirmed' } },
+  { status: 409, data: { code: 'SETTLEMENT_STATUS_UNKNOWN', error: 'unconfirmed' } },
+  { status: 409, data: { code: 'OBLIGATION_RECONCILIATION_REQUIRED', error: 'reconcile' } },
+  { status: 409, data: { code: 'SETTLEMENT_NOT_CONFIRMED', error: 'unconfirmed' } },
   { status: 409, data: { success: true, error: 'contradictory' } },
   { status: 409, data: {} },
   { status: 409, data: { code: 'UNCLASSIFIED' } },

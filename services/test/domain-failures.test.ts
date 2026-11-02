@@ -87,14 +87,14 @@ test('P0-12: effect applied then exception yields UNKNOWN; no later effect or un
   assert.equal(balance, Math.round((before - 40) * 100) / 100);
 });
 
-test('P1-02: an uncertain 409 after a wallet effect blocks later effects and a replacement', async t => {
+test('P1-02: an unknown settlement after a wallet effect blocks later effects and a replacement', async t => {
   ensureFunds();
   const sid = 'failure_uncertain_409_session';
   assert.equal((await intent(sid)).status, 200);
   const realWallet = domainHandlers.wallet;
   t.mock.method(domainHandlers, 'wallet', (method, path, query, body) => {
     const result = realWallet(method, path, query, body);
-    return method === 'POST' ? { status: 409, data: { code: 'PROVIDER_OUTCOME_UNKNOWN', error: 'outcome not confirmed' } } : result;
+    return method === 'POST' ? { status: 409, data: { code: 'SETTLEMENT_STATUS_UNKNOWN', error: 'outcome not confirmed' } } : result;
   });
   const before = balance, rides = activeRides.size, orders = activeOrders.size;
   const result = await action(sid);

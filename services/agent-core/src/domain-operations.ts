@@ -1,3 +1,4 @@
+import { isUncertainOutcomeCode } from '../../../packages/backend-kit/src/outcome.ts';
 import { boundedJsonResponse } from '../../../packages/backend-kit/src/bounded-json.ts';
 import { tracedFetch as fetch,inSpan,routeName } from '../../../packages/backend-kit/src/observability.ts';
 import { SERVICE_PORTS } from '../../../packages/backend-kit/src/local-endpoints.ts';
@@ -44,7 +45,7 @@ function definiteRejection(status: number, data: unknown, mutation: boolean): bo
   if (status === 408 || !data || typeof data !== 'object' || Array.isArray(data)) return false;
   const payload = data as Record<string, unknown>;
   if (payload.success === true) return false;
-  if (typeof payload.code === 'string' && (payload.code === 'OUTCOME_UNKNOWN' || payload.code.endsWith('_OUTCOME_UNKNOWN'))) return false;
+  if (isUncertainOutcomeCode(payload.code)) return false;
   return payload.success === false || named(payload.error);
 }
 function confirmedReceipt(service: string, path: string, data: any, body: unknown): boolean {

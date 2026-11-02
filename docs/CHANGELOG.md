@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Preserve unconfirmed settlement outcomes (P1-02, step)
+
+The retained agent and application provider clients now share a conservative rule for codes ending in unknown, not confirmed or reconciliation required: a write remains unknown rather than becoming a definite failure. Tests cover both clients and show an unknown settlement after a wallet effect blocks a replacement. Some pre-effect refusals with these suffixes may also require inspection; this deliberately avoids claiming a completed effect failed. Durable production reconciliation remains separate. Guide: [testing](testing.md).
+
 ## 2 November 2026 — Restrict exposed provider rejection codes (P0-14, step)
 
 The application provider client now exposes and records only codes from a fixed simulator rejection-code catalog; unrecognized values become `PROVIDER_REJECTED`. Known codes needed by callers remain intact, and free-form provider error text remains suppressed. A regression checks both exception and connection-record output. New simulator codes require deliberate catalog review; this does not cover other outbound clients or successful payloads. Guide: [testing](testing.md).

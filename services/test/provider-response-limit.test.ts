@@ -42,6 +42,9 @@ test('contradictory or ambiguous provider write replies remain unknown', async t
     { status: 409, data: { success: true, error: 'contradictory' } },
     { status: 409, data: { code: 'UNCLASSIFIED' } },
     { status: 409, data: { success: false, code: 'PROVIDER_OUTCOME_UNKNOWN', error: 'unconfirmed' } },
+    { status: 409, data: { success: false, code: 'SETTLEMENT_STATUS_UNKNOWN', error: 'unconfirmed' } },
+    { status: 409, data: { success: false, code: 'OBLIGATION_RECONCILIATION_REQUIRED', error: 'reconcile' } },
+    { status: 409, data: { success: false, code: 'SETTLEMENT_NOT_CONFIRMED', error: 'unconfirmed' } },
     { status: 408, data: { success: false, code: 'TIMEOUT', error: 'timed out' } },
     { status: 503, data: { success: false, code: 'UNAVAILABLE', error: 'unavailable' } },
   ];

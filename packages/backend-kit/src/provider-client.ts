@@ -1,3 +1,4 @@
+import { isUncertainOutcomeCode } from './outcome.ts';
 import { PROVIDER_REJECTION_CODES } from './provider-rejection-codes.ts';
 import { boundedJsonResponse } from './bounded-json.ts';
 import { tracedFetch as fetch } from './observability.ts';
@@ -54,7 +55,7 @@ export class ProviderClient {
       return data;
     }
     const upstreamCode = typeof data.code === 'string' ? data.code : '';
-    const unknownCode = upstreamCode === 'OUTCOME_UNKNOWN' || upstreamCode.endsWith('_OUTCOME_UNKNOWN');
+    const unknownCode = isUncertainOutcomeCode(upstreamCode);
     const rejection = response.status >= 400 && response.status < 500 && response.status !== 408 &&
       data.success !== true && !unknownCode && (data.success === false || typeof data.error === 'string' && data.error.length > 0);
     if (!rejection) {
