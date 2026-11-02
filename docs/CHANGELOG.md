@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 - Hold contradictory automation responses (P1-10, step)
+
+The automation gateway treats conflicting credential, challenge and payment replies as uncertain, keeping the original job held without persisting credentials. Guide: [automation worker](development/automation-worker.md).
+
 ## 2 November 2026 - Stop automation worker before new claims (P2-06, step)
 
 The local automation worker now stops before a new claim when shutdown arrives during scheduling or authority reads, finishes already-claimed work and wakes from idle polling. Guide: [automation worker](development/automation-worker.md).

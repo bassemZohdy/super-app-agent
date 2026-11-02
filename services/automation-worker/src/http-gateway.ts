@@ -4,6 +4,7 @@
 import { tracedFetch as fetch } from '../../../packages/backend-kit/src/observability.ts';
 import { ClientCredentials } from '../../../packages/backend-kit/src/oauth.ts';
 import { boundedJsonResponse } from '../../../packages/backend-kit/src/bounded-json.ts';
+import { hasEffectEvidence } from '../../../packages/backend-kit/src/outcome.ts';
 import { AUTOMATION_ORDER_STATES, type ChallengeAnswer, type ExecutedOrder, type ExecutionGateway, type GatewayFailure, type PrepareResult } from './worker.ts';
 
 export type HttpGatewayConfig = { runId: string; paymentsUrl: string; brokerUrl: string; clientSecret: string; clientId?: string };
@@ -45,8 +46,9 @@ export class HttpExecutionGateway implements ExecutionGateway {
     catch { throw failure(502, 'AUTOMATION_RESPONSE_UNCERTAIN', 'The automation response could not be confirmed.'); }
     if (!bodyData || typeof bodyData !== 'object' || Array.isArray(bodyData)) throw failure(502, 'AUTOMATION_RESPONSE_UNCERTAIN', 'The automation response could not be confirmed.');
     const data = bodyData as Record<string, unknown>;
-    if (!response.ok || data.success !== true || Object.hasOwn(data, 'error')) {
-      if (response.status >= 400 && response.status < 500 && data.success === false && typeof data.code === 'string' && REFUSALS.has(data.code)) throw failure(response.status, data.code, 'The automation request was refused.');
+    if (!response.ok || data.success !== true || Object.hasOwn(data, 'error') || Object.hasOwn(data, 'code')) {
+      const contradictory = hasEffectEvidence(data) || ['accessToken', 'expiresAt', 'id', 'orderId', 'runId', 'state', 'amountMinor'].some(key => Object.hasOwn(data, key));
+      if (response.status >= 400 && response.status < 500 && data.success === false && !contradictory && typeof data.code === 'string' && REFUSALS.has(data.code)) throw failure(response.status, data.code, 'The automation request was refused.');
       throw failure(502, 'AUTOMATION_RESPONSE_UNCERTAIN', 'The automation response could not be confirmed.');
     }
     return data;

@@ -26,6 +26,8 @@ test('automation HTTP errors remain sanitized and uncertain credential results a
   const rule = { mandateId: 'mandate_1', policyVersion: 1, occurrenceKey: 'occ_1', target: 'dewa:home' };
   for (const example of [
     { status: 403, body: { success: false, code: 'PRIVATE_TOKEN_MARKER', error: 'private-token-marker' } },
+    { status: 403, body: { success: false, code: 'PERMIT_MANDATE_INACTIVE', accessToken: 'fixture-execution-token', expiresAt: Date.now() + 60000 } },
+    { status: 200, body: { success: true, code: 'PERMIT_MANDATE_INACTIVE', accessToken: 'fixture-execution-token', expiresAt: Date.now() + 60000 } },
     { status: 403, body: { success: false, code: 'PRIVATE_TOKEN_MARKER', error: 'x'.repeat(70000) } },
     { status: 200, body: { success: false, code: 'PERMIT_EXPIRED', error: 'private-token-marker' } },
     { status: 403, body: null },
@@ -41,13 +43,15 @@ test('automation HTTP errors remain sanitized and uncertain credential results a
       const result = await worker.runOnce();
       assert.equal(result?.state, 'HELD');
       assert.equal(result?.reason, 'CREDENTIAL_UNKNOWN');
-      assert.equal(credentialCalls, 1);
-      assert.doesNotMatch(JSON.stringify([store.get(job.id), store.outbox(job.id), store.attempts(job.id)]), /private.token.marker/i);
+      assert.equal(credentialCalls, 1); assert.equal(executeCalls, 0);
+      assert.doesNotMatch(JSON.stringify([store.get(job.id), store.outbox(job.id), store.attempts(job.id)]), /private.token.marker|fixture-execution-token/i);
     } finally { store.close(); }
   }
   phase = 'execute';
   for (const example of [
     { status: 403, body: { success: false, code: 'PRIVATE_TOKEN_MARKER', error: 'private-token-marker' } },
+    { status: 409, body: { success: false, code: 'AUTOMATION_EXECUTION_RELEASED', order: { id: 'order_1', state: 'SETTLED', fundsCaptured: true } } },
+    { status: 200, body: { success: true, code: 'AUTOMATION_EXECUTION_RELEASED', order: { id: 'order_1', state: 'SETTLED', fundsCaptured: true, receipt: { amountMinor: 10000, currency: 'AED', receiptNumber: 'receipt_1' } } } },
     { status: 200, body: { success: true, order: { id: 'order_other', state: 'SETTLED', fundsCaptured: true } } },
     { status: 200, body: { success: true, order: { id: 'order_1', state: 'SETTLED' } } },
     { status: 200, body: { success: true, order: { id: 'order_1', state: 'SETTLED', fundsCaptured: false } } },
@@ -83,6 +87,8 @@ test('automation HTTP errors remain sanitized and uncertain credential results a
   });
   payload = { success: false, code: 'CHALLENGE_PENDING', error: 'private-token-marker' };
   assert.deepEqual(await gateway.resume(runId, 'autoexec_1'), { state: 'PENDING' });
+  payload = { success: false, code: 'CHALLENGE_PENDING', accessToken: 'fixture-execution-token', expiresAt: Date.now() + 60000 };
+  await assert.rejects(gateway.resume(runId, 'autoexec_1'), (error: unknown) => error instanceof Error && (error as { code?: string }).code === 'AUTOMATION_RESPONSE_UNCERTAIN' && !error.message.includes('fixture-execution-token'));
   status = 200;
   for (const invalid of [
     { success: true, accessToken: '', expiresAt: Date.now() + 60000 },
@@ -113,6 +119,7 @@ test('automation preparation is bound to the queued rule, occurrence, version an
   for (const changed of [
     { runId: 'autorn_11111111-1111-4111-8111-111111111111' }, { mandateId: 'mandate_other' }, { occurrenceKey: 'occ_other' },
     { policyVersion: 2 }, { state: 'SETTLED' }, { id: '' }, { orderId: '' }, { amountMinor: 0 }, { currency: 'USD' },
+    { code: 'AUTOMATION_ADMISSION_REJECTED' },
     { skipped: true, reason: 'NO_DUE_INVOICE', mandateId: 'mandate_other' }, { skipped: true, reason: 'NO_DUE_INVOICE' },
   ]) {
     preparation = { ...correct, ...changed }; credentialCalls = 0;
