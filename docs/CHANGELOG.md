@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Validate automation authority views (P1-10, step)
+
+The broker bounds execution-view responses, rejects contradictory envelopes and requires explicit well-typed authority flags before issuing a permit. Guide: [automation worker](development/automation-worker.md).
+
 ## 2 November 2026 — Revalidate authority at the focused tool boundary (P1-02, step)
 
 Consequential focused tools now recheck the same identity and current permission immediately before dispatch, within the tool deadline. A late identity check cannot dispatch after timeout. Guide: [agent flow](agent-flow.md).

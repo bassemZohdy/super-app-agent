@@ -4,6 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { PermitStore, type ExecutionView } from '../delegation/src/permits.ts';
 import { issueExecutionCredential, MintRefused, type AutomationDeps, type Worker } from '../delegation/src/automation.ts';
 import { automationWorkerClient, brokerClient, tokenHash, DelegationError } from '../delegation/src/policy.ts';
+import { readExecutionView } from '../delegation/src/service.ts';
 
 const owner = 'linked-owner';
 const runId = 'autorn_' + '1'.repeat(8) + '-' + '1'.repeat(4) + '-' + '1'.repeat(4) + '-' + '1'.repeat(4) + '-' + '1'.repeat(12);
@@ -27,6 +28,30 @@ function deps(overrides: Partial<AutomationDeps> = {}) {
 }
 const code = (expected: string) => (error: unknown) => error instanceof DelegationError && error.code === expected;
 const ask = (d: AutomationDeps, who: Worker = claims, input: Record<string, unknown> = { runId, executionId: 'autoexec_0001' }) => issueExecutionCredential(d, who, 'Bearer worker', input);
+
+test('provider execution view must be bounded and unambiguously successful before a permit or credential exists', async t => {
+  const previous = process.env.PROVIDER_PAYMENTS_URL;
+  process.env.PROVIDER_PAYMENTS_URL = 'http://127.0.0.1:4107';
+  t.after(() => { if (previous === undefined) delete process.env.PROVIDER_PAYMENTS_URL; else process.env.PROVIDER_PAYMENTS_URL = previous; });
+  let body = '';
+  t.mock.method(globalThis, 'fetch', async () => new Response(body, { status: 200, headers: { 'Content-Type': 'application/json' } }));
+  for (const value of [
+    { success: false, execution: view() }, { execution: view() }, { success: true, execution: null },
+    { success: true, execution: view(), error: 'private-token-marker' },
+    { success: true, execution: view(), padding: 'x'.repeat(70000) },
+  ]) {
+    body = JSON.stringify(value);
+    const { d, calls } = deps({ readView: readExecutionView });
+    try {
+      await assert.rejects(ask(d), (error: unknown) => code('AUTOMATION_EXECUTION_UNAVAILABLE')(error) && !String(error).includes('private-token-marker'));
+      assert.equal(calls.mint, 0); assert.equal(d.permits.forExecution('autoexec_0001'), undefined);
+    } finally { d.permits.db.close(); }
+  }
+  body = JSON.stringify({ success: true, execution: view() });
+  const { d, calls } = deps({ readView: readExecutionView });
+  try { assert.equal((await ask(d)).operation.amountMinor, 15000); assert.equal(calls.mint, 1); }
+  finally { d.permits.db.close(); }
+});
 
 test('AUTO-03 2b-ii: only the execute-scoped automation service account may ask, before any provider read', async () => {
   const { d, calls } = deps();
@@ -55,6 +80,25 @@ test('AUTO-03 2b-ii: a provider answering for another execution, or stale author
   const stale = deps({ readView: async () => view({ mandate: { id: 'm1', state: 'REVOKED', policyVersion: 2, skipNext: false } }) });
   await assert.rejects(ask(stale.d), code('PERMIT_MANDATE_INACTIVE'));
   assert.equal(stale.calls.mint, 0);
+});
+
+test('malformed authority facts cannot be interpreted as permission to issue a credential', async () => {
+  for (const malformed of [
+    view({ expired: undefined as never }), view({ expired: 'false' as never }),
+    view({ mandate: { ...view().mandate, skipNext: undefined as never } }),
+    view({ mandate: { ...view().mandate, skipNext: 'false' as never } }),
+    view({ source: { ...view().source, current: 'true' as never } }),
+    view({ payable: { ...view().payable, current: 'true' as never } }),
+    view({ biller: { id: 'biller_1', current: 'true' as never } }),
+    view({ mandate: { ...view().mandate, policyVersion: 0 } }),
+    view({ source: { ...view().source, version: 0 } }),
+  ]) {
+    const { d, calls } = deps({ readView: async () => malformed });
+    try {
+      await assert.rejects(ask(d), code('PERMIT_VIEW_INVALID'));
+      assert.equal(calls.mint, 0); assert.equal(d.permits.forExecution('autoexec_0001'), undefined);
+    } finally { d.permits.db.close(); }
+  }
 });
 
 test('AUTO-03 2b-ii: lost eligibility or a refused exchange frees the attempt; an unknown exchange does not mint twice', async () => {

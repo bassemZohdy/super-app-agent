@@ -105,6 +105,8 @@ The worker bounds the broker's switch response and requires a successful, well-f
 
 The worker's preparation, credential and execution HTTP responses are bounded. Only documented refusal codes are retained, and provider error text is not used in worker errors or job history. Malformed, oversized, contradictory or unrecognized replies are uncertain: credential or execution uncertainty remains held under the original identity rather than being reported as a definitive refusal.
 
+The broker separately bounds its provider execution-view response and requires an unambiguous success envelope. Before issuing a permit, it validates the current, expired and skip flags as explicit booleans and checks the associated identities and versions. Malformed views issue neither a permit nor a credential.
+
 The execution response must name the prepared order, contain a recognized state and carry an explicit capture flag. A different order, missing flag, settled result without capture or with a failure code, or challenge after capture is held as an unknown outcome. These checks do not independently verify the payment amount or replace provider reconciliation.
 
 Before requesting an execution credential, the HTTP adapter matches the preparation to the queued run, mandate, occurrence and policy version. It also checks the prepared state, identifiers, positive bounded fils amount and AED currency. Skipped preparations must name the same mandate and occurrence. Invalid responses do not issue a credential; preparation retries retain the original request identity. The amount check validates the preparation's shape and does not independently authenticate the provider's quote.

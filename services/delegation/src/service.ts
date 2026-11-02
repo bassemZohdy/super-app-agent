@@ -121,13 +121,20 @@ async function execute(id: string, requestKey: unknown, authorization?: string):
 let permitSingleton: PermitStore | undefined;
 const permitStore = () => permitSingleton ||= new PermitStore(grantStore().db);
 /** The provider read is made with the worker's own token, so the provider authenticates the exact workload. */
-async function readExecutionView(runId: string, executionId: string, authorization: string): Promise<ExecutionView> {
+export async function readExecutionView(runId: string, executionId: string, authorization: string): Promise<ExecutionView> {
   const base = checkedEndpoint(paymentsUrl());
   const response = await fetch(new URL(`/internal/automation-runs/${runId}/execution/${encodeURIComponent(executionId)}`, base), { redirect: 'error', signal: AbortSignal.timeout(5000), headers: { Authorization: authorization } });
-  if (!response.ok) throw new DelegationError(response.status === 404 ? 404 : response.status === 403 ? 403 : 503, 'AUTOMATION_EXECUTION_UNAVAILABLE', 'The prepared execution could not be read; no credential is issued.');
-  const data = await response.json() as { execution?: ExecutionView };
-  if (!data.execution) throw new DelegationError(503, 'AUTOMATION_EXECUTION_UNAVAILABLE', 'The prepared execution could not be read; no credential is issued.');
-  return data.execution;
+  if (!response.ok) {
+    void response.body?.cancel().catch(() => {});
+    throw new DelegationError(response.status === 404 ? 404 : response.status === 403 ? 403 : 503, 'AUTOMATION_EXECUTION_UNAVAILABLE', 'The prepared execution could not be read; no credential is issued.');
+  }
+  let body: unknown;
+  try { body = await boundedJsonResponse(response, 65536); }
+  catch { throw new DelegationError(503, 'AUTOMATION_EXECUTION_UNAVAILABLE', 'The prepared execution could not be read; no credential is issued.'); }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) throw new DelegationError(503, 'AUTOMATION_EXECUTION_UNAVAILABLE', 'The prepared execution could not be read; no credential is issued.');
+  const data = body as Record<string, unknown>;
+  if (data.success !== true || Object.hasOwn(data, 'error') || !data.execution || typeof data.execution !== 'object' || Array.isArray(data.execution)) throw new DelegationError(503, 'AUTOMATION_EXECUTION_UNAVAILABLE', 'The prepared execution could not be read; no credential is issued.');
+  return data.execution as ExecutionView;
 }
 async function mintExecutionToken(permit: Permit) {
   const issuer = process.env.KEYCLOAK_ISSUER;
