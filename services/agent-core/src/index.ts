@@ -16,6 +16,7 @@ import { redisSessions, SessionError } from './session-store.ts';
 import { randomUUID } from 'node:crypto';
 import { trackDomainOperations, executionOutcome, DomainOperationError, callDomainAsync, type Step } from './domain-operations.ts';
 import { withCivicFinalizers } from './civic-finalization.ts';
+import { compareCivicEvidence } from './civic-evidence.ts';
 import { validateRequest } from '../../../packages/protocol-core/src/request-validation.ts';
 import http from 'node:http';
 import { EventJournal, StreamWriter, eventFrame } from './event-stream.ts';
@@ -155,7 +156,11 @@ async function handleGatewayRequest(
     try {
       const store = redisSessions();
       if (!store) throw new Error('Shared storage unavailable');
-      return { status: 200, data: { success: true, ...await store.inspectCivicFence(actor.sub, actor.accountId) } };
+      const status = await store.inspectCivicFence(actor.sub, actor.accountId);
+      const civicEvidence = query.verify === '1' && status.civicReview && status.civicSteps
+        ? await compareCivicEvidence(status.civicReview, status.civicSteps, source => actorContext.run(actor, async () => (await callDomainAsync(source, 'GET', source === 'wallet' ? '/wallet/transactions' : '/utilities/bill')).data))
+        : undefined;
+      return { status: 200, data: { success: true, ...status, ...(civicEvidence ? { civicEvidence } : {}) } };
     } catch { return { status: 503, data: { success: false, code: 'CIVIC_STATUS_UNAVAILABLE', error: 'Shared offline civic status is unavailable.' } }; }
   }
   const paymentAccounts = await handlePaymentAccounts(actor, normMethod, pathname, normMethod==='GET'?query:body);

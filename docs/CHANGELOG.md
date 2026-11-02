@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Compare saved civic references (P1-13, step)
+
+The owner-scoped offline civic status can compare confirmed wallet, fine and utility references with current fixture records. Unknown, missing, duplicate and unavailable evidence stays unverified; toll lookup is explicitly unsupported. Live Redis/HTTP and focused tests cover matching, ambiguous and inaccessible records without clearing the fence. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Preserve confirmed civic receipt references (P1-13, step)
 
 The owner-scoped civic journal retains bounded transaction or receipt references for confirmed wallet, utility, fines and toll steps. Live Redis/HTTP tests verify confirmed references remain available after partial outcomes and failed session saves; unknown steps do not gain a reference. Guide: [integrations](integrations.md).
