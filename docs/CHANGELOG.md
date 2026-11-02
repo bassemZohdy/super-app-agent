@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Verify saved food order evidence (P1-13, step)
+
+Integrated food-order retries verify a digest of the original receipt and hold changed, malformed or older unbound records without creating a replacement. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Qualify concurrent food order identity (P1-13, step)
 
 Competing local application processes now tolerate a bounded SQLite journal initialization race, and a cross-process check verifies one original food order. Guide: [agent flow](agent-flow.md).

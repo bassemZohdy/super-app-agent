@@ -46,6 +46,8 @@ Compatibility food order confirmations require the selected restaurant, exact it
 
 The integrated food application atomically stores each order with an account-scoped operation identity and request fingerprint. Repeating the same identity and terms returns the original snapshot, including after an application restart; changed terms are refused, and missing original evidence remains unconfirmed. This does not by itself reconcile the other effects in a composite journey.
 
+New food-operation records bind the original receipt digest. An altered receipt, malformed operation record or older record without that binding remains unconfirmed and requires inspection; the application does not create a replacement order from it. The digest detects inconsistent local records; it is not a tamper-evident audit archive.
+
 Local application database initialization retries a busy journal-mode transition for up to five seconds. A cross-process check exercises simultaneous first opens and the same food operation against one database; it is not distributed deployment or cross-service recovery evidence.
 
 The local and integrated simulators use different successful ride and food statuses and item shapes; the adapter accepts their documented forms while applying the same selected-resource checks. The integrated food receipt includes the requested delivery address.
