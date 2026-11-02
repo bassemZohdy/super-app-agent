@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 - Describe food order recovery responses (P2-04, step)
+
+The application OpenAPI describes confirmed food orders and original-operation inspection responses with typed order, item, amount and identity fields. Guide: [application APIs](development/application-api.md).
+
 ## 2 November 2026 - Reject superseded automation policies (P1-10, step)
 
 The provider refuses credential views and rejects admission when the current mandate policy version differs from the version saved at preparation. Guide: [automation worker](development/automation-worker.md).

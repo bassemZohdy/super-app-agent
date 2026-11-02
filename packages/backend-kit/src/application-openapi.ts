@@ -47,6 +47,14 @@ const walletTransaction = (type: 'PAYMENT' | 'TOPUP') => ({ type: 'object', requ
 const walletCharge = { type: 'object', required: ['id', 'accountId', 'amountMinor', 'merchant', 'reference', 'source', 'currency', 'status', 'refunded'], properties: { id: { type: 'string', minLength: 1 }, accountId: { type: 'string', minLength: 1 }, amountMinor: { type: 'integer', minimum: 1 }, merchant: { const: 'superapp' }, reference: { type: 'string', minLength: 1 }, source: { const: 'wallet' }, currency: { const: 'AED' }, status: { const: 'CAPTURED' }, refunded: { const: false }, operationId: { type: 'string', minLength: 1 } }, additionalProperties: true };
 const rechargeReceipt = { success: { const: true }, transactionId: { type: 'string', minLength: 1 }, newBalance: money, amountRecharged: money };
 const fineReceipt = { success: { const: true }, receiptNumber: { type: 'string', minLength: 1 }, finesCleared: { type: 'integer', minimum: 0 }, fineIds: { type: 'array', items: { type: 'string', minLength: 1 } }, amountPaid: money, remainingBalance: { type: 'number' } };
+const foodOrder = {
+  type: 'object', required: ['orderId', 'restaurantId', 'restaurantName', 'items', 'deliveryAddress', 'totalAmount', 'status', 'estimatedDeliveryTime', 'timestamp'],
+  properties: {
+    orderId: { type: 'string', minLength: 1 }, restaurantId: { type: 'string', minLength: 1 }, restaurantName: { type: 'string', minLength: 1 },
+    items: { type: 'array', minItems: 1, items: { type: 'object', required: ['id', 'name', 'price'], properties: { id: { type: 'string', minLength: 1 }, name: { type: 'string', minLength: 1 }, price: { type: 'number', minimum: 0 }, description: { type: 'string' }, dietary: { type: 'array', items: { type: 'string' } } }, additionalProperties: true } },
+    deliveryAddress: { type: 'string', minLength: 1 }, totalAmount: money, status: { const: 'CONFIRMED' }, estimatedDeliveryTime: { type: 'string', minLength: 1 }, timestamp: { type: 'integer', minimum: 0 },
+  }, additionalProperties: true,
+};
 const billReceipt = { success: { const: true }, bill: { type: 'object' }, chargedAmount: money, remainingBalance: { type: 'number' }, receipt: { type: 'object', required: ['billId', 'receiptNumber', 'amountPaid', 'currency'], properties: { billId: { type: 'string', minLength: 1 }, receiptNumber: { type: 'string', minLength: 1, maxLength: 200, pattern: '\\S' }, premiseId: { type: 'string' }, amountPaid: { type: 'string', pattern: '^[0-9]+\\.[0-9]{2}$' }, currency: { const: 'AED' } }, additionalProperties: true } };
 const providerBody = (required: string[], properties: Record<string, JsonSchema>) =>
   ({ type: 'object', required, properties, additionalProperties: false }) as JsonSchema;
@@ -80,8 +88,8 @@ export const APPLICATION_OPERATIONS: ApplicationOperation[] = [
     response: ENVELOPE('Payment receipt.', ['bill', 'receipt', 'chargedAmount'], billReceipt), errors: { '404': 'Bill not found.', ...PAYMENT_ERRORS } },
   { service: 'service-food', method: 'GET', path: '/utilities/eco-advice', operationId: 'getEcoAdvice', summary: 'Get utility eco advice', response: ENVELOPE('Advice for the account premise.', ['premiseId', 'advice']) },
   { service: 'service-food', method: 'POST', path: '/orders/create', operationId: 'createFoodOrder', summary: 'Create a food order', bodyRequired: true,
-    response: ENVELOPE('Confirmed order.', ['order']), errors: { '404': 'Restaurant or menu item not found.' } },
-  { service: 'service-food', method: 'GET', path: '/orders/operations/{operationId}', operationId: 'inspectFoodOperation', summary: 'Inspect the original food operation', response: ENVELOPE('Original confirmed order.', ['operationId', 'order']), errors: { '404': 'Operation not found for this account; absence does not establish non-application.', '503': 'Original order evidence is unconfirmed, or a provider or eligibility service is unavailable.' } },
+    response: ENVELOPE('Confirmed order.', ['order'], { success: { const: true }, order: foodOrder }), errors: { '404': 'Restaurant or menu item not found.' } },
+  { service: 'service-food', method: 'GET', path: '/orders/operations/{operationId}', operationId: 'inspectFoodOperation', summary: 'Inspect the original food operation', response: ENVELOPE('Original confirmed order.', ['operationId', 'order'], { success: { const: true }, operationId: { type: 'string', minLength: 1, maxLength: 200, pattern: '^[A-Za-z0-9_.:-]+$' }, order: foodOrder }), errors: { '404': 'Operation not found for this account; absence does not establish non-application.', '503': 'Original order evidence is unconfirmed, or a provider or eligibility service is unavailable.' } },
   { service: 'service-food', method: 'GET', path: '/orders/track/{orderId}', operationId: 'trackFoodOrder', summary: 'Track a food order', response: ENVELOPE('Order status.', ['order']), errors: { '404': 'Order not found for this account.' } },
 
   // service-wallet (payments gateway, fines, checkout)

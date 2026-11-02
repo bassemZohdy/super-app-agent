@@ -78,6 +78,7 @@ The contract is `packages/backend-kit/openapi/application-apis.openapi.json` (Op
 
 - Validated routes take their request schema from `requestSchema` in [request-validation.ts](../../packages/protocol-core/src/request-validation.ts), so the request contract cannot drift from the validator.
 - Every operation declares `bearerAuth` and lists `X-Account-Id` and `X-Request-Id` headers. Each operation's `servers` entry points at its service port on `localhost`.
+- Food order creation and original-operation inspection describe the confirmed order identity, items, total, status and delivery details. The inspection response also names the original operation identity. These schemas describe the response shape; they do not replace the server’s stored-evidence and ownership checks.
 - Integrated wallet payment and top-up, fine-payment, utility and telecom bill-payment, and toll and prepaid recharge receipts specify field types. Bill receipts require a nonblank reference; the schema alone does not establish that a payment was verified or that transaction and charge values match the request.
 
 ### What the contract test enforces

@@ -8,6 +8,8 @@ import { actorFor } from '../../packages/backend-kit/src/context.ts';
 import { createApplicationServer, integratedRequest } from '../../packages/backend-kit/src/application.ts';
 import { AccountDatabase } from '../provider-simulator/src/database.ts';
 import { restaurants } from '../service-food/src/index.ts';
+import { buildApplicationOpenApi } from '../../packages/backend-kit/src/application-openapi.ts';
+import { Ajv } from 'ajv';
 
 test('integrated food order retries retain the original order across application restart', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'food-idempotency-')), previous = process.env.APP_DATA_DIR;
@@ -24,6 +26,24 @@ test('integrated food order retries retain the original order across application
   assert.equal(first.status, 200); assert.deepEqual(replay.data, first.data);
   const inspect = (who = actor, operationId = actor.requestId) => integratedRequest('service-food', who, 'GET', `/orders/operations/${encodeURIComponent(operationId)}`, {}, {}, legacy);
   const inspected = await inspect(); assert.equal(inspected.status, 200); assert.deepEqual(inspected.data.order, first.data.order);
+  const document = buildApplicationOpenApi(), ajv = new Ajv({ strict: false });
+  const responseSchema = (path: string, method: 'get' | 'post') => {
+    const operation = document.paths[path][method] as { responses: { '200': { content: { 'application/json': { schema: object } } } } };
+    return ajv.compile(operation.responses['200'].content['application/json'].schema);
+  };
+  const createSchema = responseSchema('/orders/create', 'post'), inspectSchema = responseSchema('/orders/operations/{operationId}', 'get');
+  assert.equal(createSchema(first.data), true, 'the generated contract accepts the real created order');
+  assert.equal(inspectSchema(inspected.data), true, 'the generated contract accepts the real recovery response');
+  for (const invalid of [
+    { ...first.data, order: { ...first.data.order, orderId: '' } },
+    { ...first.data, order: { ...first.data.order, items: 'item_diavola' } },
+    { ...first.data, order: { ...first.data.order, items: [{ ...first.data.order.items[0], price: '18' }] } },
+    { ...first.data, order: { ...first.data.order, totalAmount: '20.99' } },
+    { ...first.data, order: { ...first.data.order, status: 'PENDING' } },
+    { ...first.data, success: false },
+  ]) assert.equal(createSchema(invalid), false, 'malformed order evidence must not satisfy the contract');
+  assert.equal(inspectSchema({ ...inspected.data, operationId: '' }), false);
+
   assert.equal((await inspect(other)).status, 404, 'another account cannot inspect the original operation');
   assert.equal((await inspect(actor, 'missing-operation')).status, 404);
   assert.equal((await inspect(actor, '../invalid')).status, 400);
