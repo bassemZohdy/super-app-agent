@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Validate local backend startup (P2-06, step)
+
+The development backend rejects duplicate or invalid ports before opening listeners and waits for all six services before announcing readiness. Process tests verify health endpoints and released ports after stopping. Guide: [local development](development/local-development.md).
+
 ## 2 November 2026 — Protect delegated execution results (P1-02, step)
 
 The broker refuses a provider result that echoes its delegated bearer and redacts sensitive fields before saving or replaying successful results. The original execution remains unknown when a credential is echoed. Guide: [delegation](development/delegation.md).
