@@ -1,0 +1,38 @@
+import { removeTemp } from '../../test/support/temp-cleanup.ts';
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { actorContext, actorFor } from '../../packages/backend-kit/src/context.ts';
+import { integratedRequest } from '../../packages/backend-kit/src/application.ts';
+import { ProviderClient } from '../../packages/backend-kit/src/provider-client.ts';
+import { AccountDatabase } from '../provider-simulator/src/database.ts';
+import { ProviderEngine } from '../provider-simulator/src/engine.ts';
+import { callDomainAsync, trackDomainOperations, type Step } from '../agent-core/src/domain-operations.ts';
+
+test('integrated ride and food responses pass the compatibility adapter with their selected resources', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'integrated-domain-'));
+  const previousDir = process.env.APP_DATA_DIR, previousTransport = process.env.DOMAIN_TRANSPORT;
+  process.env.APP_DATA_DIR = dir; process.env.DOMAIN_TRANSPORT = 'http';
+  const store = new AccountDatabase(':memory:'), actor = actorFor({ sub: 'integrated-receipt-test' }, undefined, 'Bearer test');
+  const engine = new ProviderEngine('rta', store); store.accounts(actor.sub); engine.seed(actor);
+  t.after(() => { store.close(); if (previousDir === undefined) delete process.env.APP_DATA_DIR; else process.env.APP_DATA_DIR = previousDir; if (previousTransport === undefined) delete process.env.DOMAIN_TRANSPORT; else process.env.DOMAIN_TRANSPORT = previousTransport; removeTemp(dir); });
+  t.mock.method(ProviderClient.prototype, 'call', async (_provider, _actor, method, path, body) => store.transaction(() => engine.execute(actor, method, path, body)).data);
+  t.mock.method(globalThis, 'fetch', async (input, init) => {
+    const path = new URL(String(input)).pathname;
+    const service = path.startsWith('/rides/') ? 'service-ride' : 'service-food';
+    const result = await integratedRequest(service, actor, 'POST', path, {}, JSON.parse(String(init?.body)), () => ({ status: 404, data: {} }));
+    return Response.json(result.data, { status: result.status });
+  });
+  const steps: Step[] = [];
+  const run = () => actorContext.run(actor, async () => {
+    const ride = await callDomainAsync('ride', 'POST', '/rides/book', {}, { driverId: 'drv_1', pickup: 'Origin', dropoff: 'Destination' });
+    assert.equal(ride.data.booking.driver.id, 'drv_1');
+    const food = await callDomainAsync('food', 'POST', '/orders/create', {}, { restaurantId: 'rest_1', items: ['item_diavola'], deliveryAddress: 'Address' });
+    assert.equal(food.data.order.restaurantId, 'rest_1');
+    assert.equal(food.data.order.deliveryAddress, 'Address');
+  });
+  await trackDomainOperations(steps, run);
+  assert.deepEqual(steps.map(step => step.state), ['SUCCEEDED', 'SUCCEEDED']);
+});

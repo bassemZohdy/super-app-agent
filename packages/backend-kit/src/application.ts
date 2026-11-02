@@ -26,7 +26,7 @@ type PlannedItem = { provider: string; payableId: string; expectedPayableRevisio
 type RequestBody = {
   billId: string; operationId: string; expectedServiceEpoch: string; expectedPayables: PayableRevision[]; expectedFineAmounts: Array<{ fineId: string; amountMinor: number }>; expectedPayableRevision: string; expectedAmountMinor: number;
   zoneId: string; plateNumber: string; durationHours: number; additionalHours: number; ticketId: string; amount: number;
-  restaurantId: string; items: string[]; referenceId: string; fineIds: string[]; methodId: string; expectedMethodVersion: number;
+  restaurantId: string; items: string[]; deliveryAddress: string; referenceId: string; fineIds: string[]; methodId: string; expectedMethodVersion: number;
   lineId: string; expectedTag: string; targetReference: string; amountMinor: number; expectedTargetVersion: number; contractNumber: string; expectedPremiseId: string; mobility: Record<string, unknown>; ui: Record<string, unknown>;
 };
 type Result = { status: number; data: unknown };
@@ -278,7 +278,7 @@ export async function integratedRequest(service: string, actor: Actor, method: s
         const restaurant = restaurants.find(r => r.id === body.restaurantId);
         const items = body.items.map((id: string) => restaurant?.items.find(item => item.id === id));
         if (!restaurant || items.some((item) => !item)) throw new UpstreamError(404, 'NOT_FOUND', 'Menu item not found.');
-        const order = { orderId: randomUUID(), restaurantId: restaurant.id, restaurantName: restaurant.name, items, totalAmount: items.reduce((sum: number, item) => sum + Math.round(item!.price * 100), 0) / 100, status: 'CONFIRMED', estimatedDeliveryTime: '25 min', timestamp: Date.now() };
+        const order = { orderId: randomUUID(), restaurantId: restaurant.id, restaurantName: restaurant.name, items, deliveryAddress: body.deliveryAddress || '100 Market St, Apt 4B', totalAmount: items.reduce((sum: number, item) => sum + Math.round(item!.price * 100), 0) / 100, status: 'CONFIRMED', estimatedDeliveryTime: '25 min', timestamp: Date.now() };
         db.put(actor.accountId, 'order', order, order.orderId); return successful({ order });
       }
       if (method === 'GET' && path.startsWith('/orders/track/')) { const order = db.get(actor.accountId, 'order', path.split('/').pop()!); if (!order) throw new UpstreamError(404, 'NOT_FOUND', 'Order not found.'); return successful({ order }); }

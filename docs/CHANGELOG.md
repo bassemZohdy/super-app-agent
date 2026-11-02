@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Restore integrated receipt compatibility (P1-13, step)
+
+Compatibility validation accepts the integrated ride and food response shapes, preserves the requested delivery address, and receives the prior parking duration from the integrated provider. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Restrict compatibility domain writes (P1-02, step)
 
 Compatibility domain adapters reject write routes without a specific receipt contract before dispatch, instead of accepting unchecked success responses. Guide: [agent flow](agent-flow.md).

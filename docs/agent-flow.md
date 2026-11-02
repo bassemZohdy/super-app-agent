@@ -34,9 +34,11 @@ Compatibility domain adapters dispatch only the registered write routes with rou
 
 Compatibility wallet payment and top-up confirmations require a settled USD fixture transaction of the expected type, with an exact requested amount and a valid nonnegative balance. An inconsistent receipt leaves the write unknown and stops the rest of a composite checkout.
 
-Compatibility ride booking confirmations require the selected driver, dispatched status and any supplied pickup and destination to match. A mismatched booking is unknown and prevents subsequent checkout effects.
+Compatibility ride booking confirmations require the selected driver, a confirmed or dispatched status and any supplied pickup and destination to match. A mismatched booking is unknown and prevents subsequent checkout effects.
 
 Compatibility food order confirmations require the selected restaurant, exact item quantities, accepted status and any supplied delivery address to match. A mismatched order remains unknown and blocks a replacement checkout.
+
+The local and integrated simulators use different successful ride and food statuses and item shapes; the adapter accepts their documented forms while applying the same selected-resource checks. The integrated food receipt includes the requested delivery address.
 
 Compatibility parking activation confirmations match the selected zone, vehicle and duration; extension confirmations match the ticket and require the reported prior and resulting durations to differ by the requested increment. Both require an active meter with usable display fields. The prior duration is reported by the same fixture and is not independent evidence of the earlier state.
 

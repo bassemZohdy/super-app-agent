@@ -240,8 +240,9 @@ export class ProviderEngine {
         if (meter.durationHours + body.additionalHours > 720) fail(400, 'DURATION_LIMIT', 'Maximum duration is 720 hours.');
         const zone = parkingZones.find(z => z.id === meter.zoneId)!;
         this.proof(proof, 'rta', `parking-extension:${body.reference}`, minor(zone.tariffPerHour) * body.additionalHours, body.paymentId, a);
+        const previousDurationHours = meter.durationHours;
         meter.durationHours += body.additionalHours; meter.totalFee = major(minor(meter.totalFee) + minor(zone.tariffPerHour) * body.additionalHours); meter.expiresAt += body.additionalHours * 3600000;
-        db.put(a, 'parking', meter, meter.ticketId); return ok({ meter });
+        db.put(a, 'parking', meter, meter.ticketId); return ok({ meter, previousDurationHours });
       }
       if (method === 'GET' && path === '/salik') return ok(db.get(a, 'salik')!);
       if (method === 'POST' && path === '/salik/recharges') {

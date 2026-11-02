@@ -6864,11 +6864,17 @@
                     "meter": {
                       "type": "object",
                       "additionalProperties": true
+                    },
+                    "previousDurationHours": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 720
                     }
                   },
                   "required": [
                     "success",
-                    "meter"
+                    "meter",
+                    "previousDurationHours"
                   ],
                   "additionalProperties": false
                 }

@@ -32,6 +32,18 @@ test('move-in providers reject a premise different from the reviewed one', t => 
   }
 });
 
+test('integrated parking extension reports its prior duration for receipt validation', t => {
+  const { engine, store, actor } = seeded(t, 'rta');
+  const zone = engine.execute(actor, 'GET', '/parking/zones', {}).data.zones[0];
+  const meter = { ticketId: 'ticket-1', zoneId: zone.id, durationHours: 2, totalFee: zone.tariffPerHour * 2, expiresAt: Date.now() + 7200000, status: 'ACTIVE' };
+  store.put(actor.accountId, 'parking', meter, meter.ticketId);
+  const body = { additionalHours: 1, paymentId: 'pay-1', reference: 'original' };
+  const proof = { id: body.paymentId, accountId: actor.accountId, currency: 'AED', status: 'CAPTURED', merchant: 'rta', reference: 'parking-extension:original', amountMinor: Math.round(zone.tariffPerHour * 100), refunded: false };
+  const result = store.transaction(() => engine.execute(actor, 'POST', `/parking/sessions/${meter.ticketId}/extensions`, body, proof));
+  assert.equal(result.data.previousDurationHours, 2);
+  assert.equal(result.data.meter.durationHours, 3);
+});
+
 test('all seven checked-in OpenAPI 3.1 contracts are valid and match the runtime', async () => {
   for (const provider of providerIds) {
     const document = JSON.parse(readFileSync(new URL(`../provider-simulator/openapi/${provider}.openapi.json`, import.meta.url), 'utf8'));

@@ -12,6 +12,8 @@ test('food confirmations match the restaurant, item quantities and supplied addr
   const cases = [
     [order, true],
     [{ ...order, items: [{ item: { id: 'pizza' }, quantity: 2 }, salad] }, true],
+    [{ ...order, status: 'CONFIRMED', items: [{ id: 'pizza' }, { id: 'salad' }, { id: 'pizza' }] }, true],
+    [{ ...order, status: 'CONFIRMED', items: [{ id: 'pizza', quantity: 2 }, { id: 'salad' }, { id: 'pizza' }] }, false],
     [{ ...order, restaurantId: 'restaurant-2' }, false],
     [{ ...order, items: [pizza, salad] }, false],
     [{ ...order, items: [pizza, pizza, pizza] }, false],
