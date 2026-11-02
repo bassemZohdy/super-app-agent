@@ -161,3 +161,17 @@ test('AUTO-08: the owner is told once, ahead of a run, and never for a rule that
   await new Scheduler(paused, source([invoice({ state: 'PAUSED' })], { invoices: ['2026-11-15'] })).tick(utc('2026-11-11T20:00:00Z'));
   assert.deepEqual(paused.notices(), [], 'a paused rule announces nothing');
 });
+
+test('invoice scheduling excludes occurrences outside the approved mandate window', async () => {
+  const store = new JobStore(':memory:');
+  const rule = invoice({ startsAt: '2026-11-10T05:00:00.000Z', expiresAt: '2026-11-20T05:00:00.000Z' });
+  const scheduler = new Scheduler(store, source([rule], { invoices: ['2026-11-12', '2026-11-13', '2026-11-22', '2026-11-23'] }));
+  try {
+    assert.equal((await scheduler.nextRun(rule, utc('2026-11-01T00:00:00Z')))?.key, 'INV:2026-11-13');
+    const result = await scheduler.tick(utc('2026-11-19T06:00:00Z'));
+    assert.deepEqual(result.enqueued, ['mandate_inv:INV:2026-11-22']);
+    assert.deepEqual(result.skipped, ['mandate_inv:INV:2026-11-13']);
+    assert.deepEqual(keys(store), ['INV:2026-11-13', 'INV:2026-11-22']);
+    assert.equal(await scheduler.nextRun(rule, utc('2026-11-19T06:00:00Z')), null);
+  } finally { store.close(); }
+});

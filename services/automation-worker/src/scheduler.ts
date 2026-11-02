@@ -52,7 +52,7 @@ export class Scheduler {
       } else if (trigger.type === 'INVOICE_DUE') {
         // One occurrence per due date: invoices sharing a due date are one scheduled run, and the provider picks the invoice at preparation.
         const runs = new Map((await this.source.dueInvoices(rule)).map(i => invoiceRun(i.dueDate, trigger.daysBefore, rule.timezone)).map(o => [o.key, o]));
-        const due = [...runs.values()].filter(o => o.runAtUtc <= now && !handled.has(o.key)).sort((a, b) => a.runAtUtc - b.runAtUtc || a.key.localeCompare(b.key));
+        const due = [...runs.values()].filter(o => o.runAtUtc >= startsAt && o.runAtUtc < expiresAt && o.runAtUtc <= now && !handled.has(o.key)).sort((a, b) => a.runAtUtc - b.runAtUtc || a.key.localeCompare(b.key));
         const newest = due.pop();
         due.forEach(o => skip(o.key));
         if (newest) enqueue(newest.key);
@@ -106,7 +106,7 @@ export class Scheduler {
     }
     if (trigger.type === 'INVOICE_DUE') {
       const upcoming = (await this.source.dueInvoices(rule)).map(i => invoiceRun(i.dueDate, trigger.daysBefore, rule.timezone))
-        .filter(o => o.runAtUtc > now && o.runAtUtc < expiresAt && !handled.has(o.key)).sort((a, b) => a.runAtUtc - b.runAtUtc);
+        .filter(o => o.runAtUtc > now && o.runAtUtc >= startsAt && o.runAtUtc < expiresAt && !handled.has(o.key)).sort((a, b) => a.runAtUtc - b.runAtUtc);
       return upcoming[0] ?? null;
     }
     return null;

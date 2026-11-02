@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Respect invoice mandate windows (P1-10, step)
+
+Invoice-due scheduling and previews exclude occurrences before the mandate starts and at or after its expiry, including during catch-up. Guide: [automation worker](development/automation-worker.md).
+
 ## 2 November 2026 — Validate automation scheduling rules (P1-02, step)
 
 The scheduler validates the complete worker-scoped rule list and rejects duplicate identities or malformed triggers, windows and time zones before processing any rule. Guide: [automation worker](development/automation-worker.md).
