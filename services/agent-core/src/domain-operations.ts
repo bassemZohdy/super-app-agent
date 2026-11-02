@@ -131,7 +131,7 @@ async function callDomainRequest(service: keyof typeof domainHandlers | 'telecom
   const url = new URL(path, base); for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value);
   let result: Result;
   try {
-    const response = await fetch(url, { method, signal: AbortSignal.timeout(60000),
+    const response = await fetch(url, { method, redirect: 'error', signal: AbortSignal.timeout(60000),
       headers: { Authorization: actor.authorization, 'Content-Type': 'application/json', 'X-Account-Id': actor.accountId, 'X-Request-Id': actor.requestId },
       ...(mutation ? { body: JSON.stringify(body) } : {}),
     });

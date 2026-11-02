@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Refuse redirects in authenticated domain calls (P1-02, step)
+
+The retained HTTP domain adapter no longer follows redirects to another route. A redirected read reports the domain unavailable; a redirected mutation remains unknown because the original service may already have acted. A loopback HTTP regression test checks that neither a read nor a write reaches the redirect target. This does not qualify external provider identity or transport security. Guide: [testing](testing.md).
+
 ## 2 November 2026 — Check reviewed amounts on already-paid bills (P1-13, step)
 
 The retained utility and telecom application paths no longer return an already-paid bill as confirmation when its total differs from a supplied reviewed amount. They return `PAYABLE_CHANGED` without opening a new order; matching amounts and legacy requests without a reviewed amount still receive the existing receipt. Tests cover DEWA, du and Etisalat with mocked provider calls. Guide: [testing](testing.md).
