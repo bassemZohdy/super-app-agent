@@ -26,6 +26,9 @@ test('recharge orders and receipts stay bound to the selected target', async t =
     throw new Error('Unexpected provider operation');
   });
   const actor = actorFor({ sub: 'recharge-binding-user' }), legacy = () => ({ status: 404, data: {} });
+  const beforeMismatch = executions;
+  const mismatch = await integratedRequest('service-ride', actor, 'POST', '/mobility/salik/recharge', {}, { amount: 100, expectedTag: 'other-tag' }, legacy);
+  assert.equal(mismatch.status, 409); assert.equal(executions, beforeMismatch);
   for (provider of ['rta', 'du', 'etisalat']) {
     const run = () => provider === 'rta'
       ? integratedRequest('service-ride', actor, 'POST', '/mobility/salik/recharge', {}, { amount: 100 }, legacy)

@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bind civic toll receipts to the reviewed tag (P1-13, step)
+
+Offline composite checkout carries its reviewed toll tag through recharge, rejects a changed target before credit, and treats a mismatched tag or amount in the receipt as unknown. Focused tests and live Redis/HTTP tests cover wrong-target refusals and uncertain receipts after earlier confirmed steps. The application contract passed on a disposable synthetic stack using revision `26560d1` plus this change, Node 24.16.0, Docker 29.9.2 and Compose 5.6.1. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Preserve reviewed civic resources (P1-13, step)
 
 Separate-service composite checkout stores the reviewed bill, fines, toll target and exact amounts in the owner-scoped fence before dispatch. Live Redis and HTTP tests verify the review is present before the wallet call, remains bound after an unknown response, and stays hidden from other accounts. Guide: [integrations](integrations.md).

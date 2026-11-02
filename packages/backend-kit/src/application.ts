@@ -27,7 +27,7 @@ type RequestBody = {
   billId: string; expectedPayables: PayableRevision[]; expectedPayableRevision: string; expectedAmountMinor: number;
   zoneId: string; plateNumber: string; durationHours: number; additionalHours: number; ticketId: string; amount: number;
   restaurantId: string; items: string[]; referenceId: string; fineIds: string[]; methodId: string; expectedMethodVersion: number;
-  lineId: string; targetReference: string; amountMinor: number; expectedTargetVersion: number; mobility: Record<string, unknown>; ui: Record<string, unknown>;
+  lineId: string; expectedTag: string; targetReference: string; amountMinor: number; expectedTargetVersion: number; mobility: Record<string, unknown>; ui: Record<string, unknown>;
 };
 type Result = { status: number; data: unknown };
 function canonicalJson(value: unknown): string {
@@ -172,7 +172,11 @@ export async function integratedRequest(service: string, actor: Actor, method: s
       throw new UpstreamError(503,'PROVIDER_OUTCOME_UNKNOWN','The recharge settlement could not be confirmed. Inspect the original payment order.');
     return {success:true,transactionId:order.paymentId,newBalance:receipt.providerBalanceMinor/100,amountRecharged:receipt.amountMinor/100};
   };
-  const recharge = async (amount: number) => rechargeTarget('rta',(await call('rta','GET','/salik')).tagNumber,Math.round(amount*100));
+  const recharge = async (amount: number, expectedTag?: string) => {
+    const tagNumber = (await call('rta', 'GET', '/salik')).tagNumber;
+    if (expectedTag !== undefined && expectedTag !== tagNumber) throw new UpstreamError(409, 'PAYABLE_CHANGED', 'The reviewed toll tag changed.');
+    return { ...await rechargeTarget('rta', tagNumber, Math.round(amount * 100)), tagId: tagNumber };
+  };
   try {
     if (service === 'service-profile') {
       const profile = { ...structuredClone(currentProfile), userId: actor.sub, username: actor.username, displayName: actor.name, email: '', avatarUrl: '', emiratesId: undefined, uaePassVerified: false, vipTier: 'Standard' as const, residencyStatus: 'Demo resident', smartCityAssets: { vehicles: [{ plate: asset.plate, model: 'Tesla Model Y (EV)', salikTag: asset.salikTag }], premises: [{ premiseId: asset.premiseId, ejariNumber: asset.contractNumber, community: 'Downtown Dubai', unit: actor.accountId === accounts[0].id ? 'Personal home' : 'Household home' }] } };
@@ -204,7 +208,7 @@ export async function integratedRequest(service: string, actor: Actor, method: s
         const payment = await charge('rta', `parking-extension:${actor.requestId}`, zone.tariffPerHour * body.additionalHours);
         return successfulWithoutDuplicate(await call('rta', method, `/parking/sessions/${encodeURIComponent(body.ticketId)}/extensions`, { additionalHours: body.additionalHours, paymentId: payment.charge.id, reference: actor.requestId }));
       }
-      if (method === 'POST' && path === '/mobility/salik/recharge') return successfulWithoutDuplicate(await recharge(body.amount));
+      if (method === 'POST' && path === '/mobility/salik/recharge') return successfulWithoutDuplicate(await recharge(body.amount, body.expectedTag));
       if (method === 'POST' && path === '/mobility/ev/start') return successfulWithoutDuplicate(await call('rta', method, '/ev/sessions', body));
       if (method === 'POST' && path === '/rides/book') return successfulWithoutDuplicate(await call('rta', method, '/rides/bookings', body));
       if (method === 'GET' && path.startsWith('/rides/track/')) return successfulWithoutDuplicate(await call('rta', method, `/rides/bookings/${encodeURIComponent(path.split('/').pop()!)}`));

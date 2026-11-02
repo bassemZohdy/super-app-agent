@@ -97,7 +97,19 @@ function confirmedReceipt(service: string, path: string, data: any, body: unknow
   if (service === 'ride') {
     if (path === '/rides/book') return record(data.booking) && named(data.booking.bookingId) && named(data.booking.status);
     if (path.startsWith('/mobility/parking/')) return record(data.meter) && named(data.meter.ticketId) && finite(data.meter.durationHours) && finite(data.meter.totalFee);
-    if (path === '/mobility/salik/recharge') return named(data.transactionId) && finite(data.newBalance);
+    if (path === '/mobility/salik/recharge') {
+      if (!named(data.transactionId) || !finite(data.newBalance)) return false;
+      if (!record(body)) return true;
+      const request = body as { expectedTag?: unknown; amount?: unknown };
+      if (request.expectedTag === undefined) return true;
+      if (!named(request.expectedTag) || data.tagId !== request.expectedTag || typeof request.amount !== 'number') return false;
+      try {
+        const expected = toMinor(request.amount);
+        return (data.rechargedAmount !== undefined || data.amountRecharged !== undefined) &&
+          (data.rechargedAmount === undefined || toMinor(data.rechargedAmount) === expected) &&
+          (data.amountRecharged === undefined || toMinor(data.amountRecharged) === expected);
+      } catch { return false; }
+    }
   }
   if (service === 'food') {
     if (path === '/orders/create') return record(data.order) && named(data.order.orderId) && finite(data.order.totalAmount);

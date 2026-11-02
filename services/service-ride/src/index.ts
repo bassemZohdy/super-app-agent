@@ -124,6 +124,7 @@ export interface ParkingMeterSession {
 }
 
 export const activeParkingMeters = new Map<string, ParkingMeterSession>();
+const offlineSalikTag = 'SLK-8492019';
 export let salikBalance = 14.0; // Low balance alert triggered if < 20 AED
 
 export interface EVChargerStation {
@@ -300,8 +301,8 @@ function handleRideRequest(
       status: 200,
       data: {
         success: true,
-        tagId: 'SLK-8492019',
-        tagNumber: 'SLK-8492019',
+        tagId: offlineSalikTag,
+        tagNumber: offlineSalikTag,
         accountNumber: 'ACC-DXB-948190',
         plateNumber: 'Dubai B-74892',
         balance: salikBalance,
@@ -313,6 +314,7 @@ function handleRideRequest(
   }
 
   if (normMethod === 'POST' && (pathname === '/mobility/salik/recharge' || pathname === '/salik/recharge')) {
+    if (body.expectedTag !== undefined && body.expectedTag !== offlineSalikTag) return { status: 409, data: { success: false, code: 'PAYABLE_CHANGED', error: 'The reviewed toll tag changed.' } };
     const amount = body.amount;
     const nextBalance = toMinor(salikBalance) + toMinor(amount);
     if (nextBalance > MAX_MONEY * 100) return invalidInput('Toll balance exceeds demo limit');
@@ -323,7 +325,7 @@ function handleRideRequest(
         success: true,
         rechargedAmount: amount,
         newBalance: salikBalance,
-        tagId: 'SLK-8492019',
+        tagId: offlineSalikTag,
         transactionId: `SLK-TX-${Date.now()}`,
         timestamp: new Date().toISOString(),
       },
@@ -335,7 +337,7 @@ function handleRideRequest(
       status: 200,
       data: {
         success: true,
-        tagId: 'SLK-8492019',
+        tagId: offlineSalikTag,
         passings: [
           { id: 'pass_1', gate: 'Al Safa Toll Gate', fee: 4.0, time: 'Today, 08:24 AM', direction: 'Southbound (Jebel Ali)' },
           { id: 'pass_2', gate: 'Al Barsha Toll Gate', fee: 4.0, time: 'Yesterday, 06:15 PM', direction: 'Northbound (Deira)' },
