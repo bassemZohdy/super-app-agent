@@ -16,6 +16,8 @@ A document is accepted only if it is OpenAPI 3.1, every path is a plain path (no
 
 A provider write is treated as definitively refused only when a 4xx response explicitly reports failure with a reviewed rejection code. An unfamiliar, incomplete or contradictory write response remains `PROVIDER_OUTCOME_UNKNOWN`, so callers retain the original operation for reconciliation; provider-supplied text and unrecognized codes are not recorded or exposed.
 
+Even a recognized refusal remains unknown if it indicates that an effect or decision was already applied, captured, paid or dispatched, a payment was already used, or an idempotency key conflicts. Those codes do not establish which operation produced the prior state; inspect the original operation before deciding what happened.
+
 ## Design brief and checklist (QA-10)
 
 *Who and why:* a resident, or someone helping one, who wants to know whether the concierge's services are reachable and what a failed payment or lookup actually called. *Shape:* one region with a heading, one **Check connections** button, a status line, one article per provider (state in words; operations in a disclosure with a captioned table that scrolls inside its own region) and a list of recent calls. *Feedback:* the status line says how many connections have a problem; a call is `OK 200` or `Failed 409 CODE`, never only a color. *Responsive:* the table scrolls in its region; paths wrap in the list; nothing makes the page scroll sideways. *Tokens:* colors come from `theme.css` custom properties only.

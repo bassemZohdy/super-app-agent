@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Reconcile prior provider effects (P1-02, step)
+
+Provider write refusals that indicate a prior payment, capture, decision, dispatch or conflicting operation identity remain unconfirmed until the original effect is inspected. Guide: [connections](development/connections.md).
+
 ## 2 November 2026 — Preserve unknown provider write outcomes (P1-02, step)
 
 The application provider client treats unrecognized or incomplete write refusals as unconfirmed, while retaining reviewed rejection codes and sanitizing provider text. Guide: [connections](development/connections.md).
