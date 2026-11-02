@@ -1,4 +1,5 @@
 import { HttpError } from '../../../../packages/backend-kit/src/http-policy.ts';
+import { isDeepStrictEqual } from 'node:util';
 
 /** A dispatch must name its selected resource; silent demo defaults are removed (P1-13). */
 const explicitSelection = (value: unknown, kind: string): string => {
@@ -553,7 +554,7 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
       const fines = (await executeWalletRequest('GET', '/fines/check')).data as FinesData;
       const salik = (await executeRideRequest('GET', '/mobility/salik/balance')).data as SalikAccount;
       const review = offlineCheckoutReview(bill, fines, salik);
-      if (JSON.stringify(payload.offlineReview) !== JSON.stringify(review)) throw new HttpError(409, 'The checkout changed. Review it again.');
+      if (!isDeepStrictEqual(payload.offlineReview, review)) throw new HttpError(409, 'The checkout changed. Review it again.');
       const fineMinor = review.fines.reduce((sum, fine) => sum + fine.amountMinor, 0);
       const totalMinor = review.billAmountMinor + fineMinor + 10000;
       const wallet = (await executeWalletRequest('GET', '/wallet/balance')).data as WalletBalance;

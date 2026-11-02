@@ -36,6 +36,10 @@ test('offline composite checkout binds current terms, charges each selected amou
   fine.payableAmount = originalAmount;
 
   const fresh = await review('composite_review_2');
+  const originalReview = fresh.payload.offlineReview;
+  fresh.payload.offlineReview = { tagNumber: originalReview.tagNumber,
+    fines: originalReview.fines.map((fine: { fineId: string; amountMinor: number }) => ({ amountMinor: fine.amountMinor, fineId: fine.fineId })),
+    billAmountMinor: originalReview.billAmountMinor, billId: originalReview.billId };
   const expected = activeUtilityBill.totalAmount + policeFines.filter(item => item.status === 'UNPAID').reduce((sum, item) => sum + item.payableAmount, 0) + 100;
   const beforeBalance = balance, beforeToll = salikBalance;
   const paid = await executeCoreRequest('POST', '/api/a2ui/action', {}, fresh);

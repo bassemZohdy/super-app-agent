@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Compare offline checkout reviews by value (P1-13, step)
+
+Equivalent checkout confirmations no longer fail solely because a client reordered JSON object fields. The existing tampering, stale-review, replay and exact-debit tests remain in place. Guide: [grouped checkout](development/checkout-groups.md).
+
 ## 2 November 2026 — Guard browser test-route forwarding (P0-08, step)
 
 Existing explicit browser forwarding checks for local, non-interactive targets and refuses redirects. A source check catches direct route forwarding, and live browser tests verify a redirect never reaches a second server. Node-side traffic and other page-level interception remain outside this guard. Guide: [testing](testing.md).
