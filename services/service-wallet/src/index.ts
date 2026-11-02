@@ -187,6 +187,7 @@ function handleWalletRequest(
         receiptNumber: txId,
         amountPaid: totalDue,
         finesCleared: activeFines.length,
+        fineIds: activeFines.map(f => f.fineId),
         remainingBalance: balance,
         message: 'All traffic fines settled with Dubai Police. Zero black points added.',
       },

@@ -83,7 +83,7 @@ export const APPLICATION_OPERATIONS: ApplicationOperation[] = [
   { service: 'service-wallet', method: 'POST', path: '/wallet/topup', operationId: 'topUpWallet', summary: 'Top up the wallet', bodyRequired: true, response: ok(RAW) },
   { service: 'service-wallet', method: 'POST', path: '/wallet/pay', operationId: 'authorizeWalletPayment', summary: 'Pay from the wallet', bodyRequired: true, response: ok(RAW) },
   { service: 'service-wallet', method: 'POST', path: '/fines/pay', operationId: 'payFines', summary: 'Pay selected traffic fines', bodyRequired: true,
-    response: ENVELOPE('Fines receipt.', ['receiptNumber', 'finesCleared', 'amountPaid', 'remainingBalance']), errors: { '404': 'Unpaid fines not found.', ...PAYMENT_ERRORS } },
+    response: ENVELOPE('Fines receipt.', ['receiptNumber', 'finesCleared', 'fineIds', 'amountPaid', 'remainingBalance']), errors: { '404': 'Unpaid fines not found.', ...PAYMENT_ERRORS } },
   { service: 'service-wallet', method: 'POST', path: '/pay/unified', operationId: 'payUnified', summary: 'Pay multiple agency items in one checkout', bodyRequired: true,
     response: ENVELOPE('Completed checkout group.', ['group', 'govTransactionHash', 'settlementPlatform', 'grandTotal', 'breakdown', 'remainingBalance', 'steps']), errors: PAYMENT_ERRORS },
   { service: 'service-wallet', method: 'POST', path: '/pay/multi-agency', operationId: 'payMultiAgency', summary: 'Alias of unified checkout', bodyRequired: true,

@@ -29,6 +29,14 @@ type RequestBody = {
   lineId: string; amountMinor: number; expectedTargetVersion: number; mobility: Record<string, unknown>; ui: Record<string, unknown>;
 };
 type Result = { status: number; data: unknown };
+function sameFineSelection(value: unknown, ids: string[]): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const selection = value as { kind?: unknown; provider?: unknown; id?: unknown; revision?: unknown; obligationId?: unknown; items?: unknown };
+  if (selection.kind !== 'FINE_SET' || selection.provider !== 'police' || typeof selection.id !== 'string' || !selection.id ||
+    typeof selection.revision !== 'string' || !selection.revision || typeof selection.obligationId !== 'string' || !selection.obligationId || !Array.isArray(selection.items)) return false;
+  const selected: unknown[] = selection.items.map((item: unknown) => item && typeof item === 'object' && !Array.isArray(item) ? (item as { obligationId?: unknown }).obligationId : undefined);
+  return selected.length === ids.length && selected.every(id => typeof id === 'string' && ids.includes(id)) && new Set(selected).size === ids.length;
+}
 type Legacy = (method: string, path: string, query?: Record<string, string>, body?: RequestBody) => Result;
 const clients = new Map<string, ProviderClient>();
 const stores = new Map<string, AccountDatabase>();
@@ -88,14 +96,19 @@ export async function integratedRequest(service: string, actor: Actor, method: s
     const report = await call('police', 'GET', '/fines');
     const fines = fineIds ? report.fines.filter((f: Fine) => fineIds.includes(f.fineId)) : report.fines;
     if (fineIds && fineIds.length !== fines.length) throw new UpstreamError(404, 'NOT_FOUND', 'Unpaid fines not found.');
-    if (!fines.length) return { success: true, amountPaid: 0, finesCleared: 0, receiptNumber: 'NO_FINES', remainingBalance: (await call('payments', 'GET', '/wallet')).balance };
+    if (!fines.length) return { success: true, amountPaid: 0, finesCleared: 0, fineIds: [], receiptNumber: 'NO_FINES', remainingBalance: (await call('payments', 'GET', '/wallet')).balance };
     const ids=fines.map((f:Fine)=>f.fineId).sort();
     const currentItems=fines.map((f:Fine)=>({payableId:f.payableId,expectedRevision:f.payableRevision}));
     if(body.expectedPayables&&(body.expectedPayables.length!==currentItems.length||currentItems.some((i:PayableRevision)=>!body.expectedPayables.some((p:PayableRevision)=>p.payableId===i.payableId&&p.expectedRevision===i.expectedRevision))))throw new UpstreamError(409,'PAYABLE_CHANGED','The selected fine revisions changed. Review them again.');
     const payable=(await call('police','POST','/fine-selections',{items:body.expectedPayables||currentItems},stableKey(`fine-selection:${ids.join(',')}:${JSON.stringify(currentItems)}`))).payable;
+    if(!sameFineSelection(payable,ids)||!Number.isSafeInteger(payable.amountMinor)||payable.amountMinor<0)throw new UpstreamError(503,'PROVIDER_UNAVAILABLE','The selected fines could not be confirmed.');
     if(body.expectedAmountMinor!==undefined&&body.expectedAmountMinor!==payable.amountMinor)throw new UpstreamError(409,'PAYABLE_CHANGED','The reviewed fine amount changed.');
     const order=await executePayable('police',payable);
-    return {success:true,receiptNumber:order.receipt.receiptNumber,finesCleared:ids.length,amountPaid:order.receipt.amountMinor/100,remainingBalance:(await call('payments','GET','/wallet')).balance};
+    const settled=order?.quote?.payable, receipt=order?.receipt;
+    if(!sameFineSelection(settled,ids)||settled.id!==payable.id||settled.revision!==payable.revision||settled.obligationId!==payable.obligationId||settled.amountMinor!==payable.amountMinor||
+      !receipt||typeof receipt.receiptNumber!=='string'||!receipt.receiptNumber||receipt.obligationId!==settled.obligationId||receipt.amountMinor!==payable.amountMinor||receipt.currency!=='AED')
+      throw new UpstreamError(503,'PROVIDER_OUTCOME_UNKNOWN','The fine settlement could not be confirmed. Inspect the original payment order.');
+    return {success:true,receiptNumber:receipt.receiptNumber,finesCleared:ids.length,fineIds:ids,amountPaid:receipt.amountMinor/100,remainingBalance:(await call('payments','GET','/wallet')).balance};
   };
   const rechargeTarget = async (provider:string,reference:string,amountMinor:number,expectedTargetVersion?:number) => {
     const intentId=stableKey(`recharge-intent:${provider}:${actor.requestId}`);let payable;

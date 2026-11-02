@@ -3351,6 +3351,7 @@
                     },
                     "receiptNumber": {},
                     "finesCleared": {},
+                    "fineIds": {},
                     "amountPaid": {},
                     "remainingBalance": {}
                   },
@@ -3358,6 +3359,7 @@
                     "success",
                     "receiptNumber",
                     "finesCleared",
+                    "fineIds",
                     "amountPaid",
                     "remainingBalance"
                   ],

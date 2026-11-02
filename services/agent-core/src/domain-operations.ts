@@ -71,9 +71,11 @@ function confirmedReceipt(service: string, path: string, data: any, body: unknow
     if (path === '/fines/pay') {
       if (!record(body)) return false;
       const request = body as { fineIds?: unknown; expectedAmountMinor?: unknown };
-      if (!Array.isArray(request.fineIds) || request.fineIds.length === 0 ||
-        !request.fineIds.every(named) || new Set(request.fineIds).size !== request.fineIds.length ||
-        !named(data.receiptNumber) || !finite(data.remainingBalance) || data.finesCleared !== request.fineIds.length) return false;
+      const requested = request.fineIds;
+      if (!Array.isArray(requested) || requested.length === 0 || !requested.every(named) || new Set(requested).size !== requested.length ||
+        !named(data.receiptNumber) || !finite(data.remainingBalance) || data.finesCleared !== requested.length ||
+        !Array.isArray(data.fineIds) || data.fineIds.length !== requested.length ||
+        !data.fineIds.every((id: unknown) => named(id) && requested.includes(id)) || new Set(data.fineIds).size !== requested.length) return false;
       let paidMinor: number;
       try { paidMinor = toMinor(data.amountPaid); } catch { return false; }
       return request.expectedAmountMinor === undefined || (typeof request.expectedAmountMinor === 'number' && Number.isSafeInteger(request.expectedAmountMinor) && request.expectedAmountMinor >= 0 && paidMinor === request.expectedAmountMinor);

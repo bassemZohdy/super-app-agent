@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bind compatibility fine receipts to identities (P1-13, step)
+
+The local wallet returns its settled fine IDs; the integrated application checks the provider selection before payment and its frozen settled order and receipt afterward. The compatibility agent requires the returned IDs to match the request, treating a mismatch as unknown. The application OpenAPI is regenerated and tests cover substitution, duplicate IDs and receipt mismatches. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Check compatibility fines receipts (P1-13, step)
 
 Compatibility domain adapters no longer report success when a fines receipt has a different count or reviewed amount, or an invalid amount. Unconfirmed writes remain unknown in both local and authenticated HTTP transports. The legacy receipt does not identify each settled fine. Guide: [integrations](integrations.md).
