@@ -89,7 +89,16 @@ function confirmedReceipt(service: string, path: string, data: any, body: unknow
   }
   if (service === 'food') {
     if (path === '/orders/create') return record(data.order) && named(data.order.orderId) && finite(data.order.totalAmount);
-    if (path === '/utilities/pay') return record(data.receipt) && named(data.receipt.billId) && named(data.receipt.receiptNumber) && named(data.receipt.amountPaid);
+    if (path === '/utilities/pay') {
+      if (!record(body) || !record(data.receipt)) return false;
+      const request = body as { billId?: unknown; expectedAmountMinor?: unknown }, receipt = data.receipt;
+      if (!named(request.billId) || receipt.billId !== request.billId || !named(receipt.receiptNumber) || typeof receipt.amountPaid !== 'string') return false;
+      const amount = /^(0|[1-9]\d*)(?:\.(\d{1,2}))?( AED)?$/.exec(receipt.amountPaid);
+      if (!amount || (amount[3] ? receipt.currency !== undefined && receipt.currency !== 'AED' : receipt.currency !== 'AED')) return false;
+      let paidMinor: number;
+      try { paidMinor = toMinor(Number(amount[1] + (amount[2] ? `.${amount[2]}` : ''))); } catch { return false; }
+      return request.expectedAmountMinor === undefined || (typeof request.expectedAmountMinor === 'number' && Number.isSafeInteger(request.expectedAmountMinor) && request.expectedAmountMinor >= 0 && paidMinor === request.expectedAmountMinor);
+    }
   }
   if (service === 'catalog' && path === '/housing/move-in') return named(data.ejariContract) && named(data.unit) && record(data.residentialParking) && named(data.residentialParking.permitNumber);
   if (service === 'profile' && path === '/profile/preferences') return record(data.preferences) && named(data.promptContext);

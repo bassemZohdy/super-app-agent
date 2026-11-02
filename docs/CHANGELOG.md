@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bind compatibility utility receipts (P1-13, step)
+
+The compatibility agent confirms utility receipts name the selected bill and match the reviewed AED amount before reporting success. Malformed or mismatched receipts leave the write outcome unknown in both local and HTTP transports. Tests exercise both receipt formats and the local utility handler. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Bind compatibility fine receipts to identities (P1-13, step)
 
 The local wallet returns its settled fine IDs; the integrated application checks the provider selection before payment and its frozen settled order and receipt afterward. The compatibility agent requires the returned IDs to match the request, treating a mismatch as unknown. The application OpenAPI is regenerated and tests cover substitution, duplicate IDs and receipt mismatches. Guide: [integrations](integrations.md).

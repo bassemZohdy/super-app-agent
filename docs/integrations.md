@@ -6,6 +6,8 @@ The `Tool<I,O>` interface declares identity, description, protocol, Zod input/ou
 
 For the compatibility fines action, the local wallet returns the IDs it actually settled. The integrated application checks the provider's frozen fine selection before dispatch and checks the settled order and receipt against it afterward; its receipt returns those selected IDs. The agent requires that exact distinct set, the count and, when supplied, the reviewed amount in fils. A mismatched post-dispatch result remains unknown for reconciliation. This relies on the simulator's atomic fine-set settlement and is not independent proof from a real provider.
 
+Compatibility utility receipts must identify the requested bill, report an AED amount and match the reviewed amount when one was supplied. Both the local fixture's suffixed amount and the integrated application's separate currency field are accepted. A mismatched response after dispatch remains unknown for reconciliation.
+
 MCP, A2A, SOAP and controlled browser execution are protocol values at the extension boundary, not implemented transports in this entry point. The existing integrated MCP server remains in its original path. Add a real protocol adapter only for a concrete service, with its own authority, schema, timeout and retry tests.
 
 ## HTTP API
