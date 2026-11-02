@@ -107,11 +107,13 @@ export class ProviderEngine {
     try { saved = typeof record.body === 'string' ? JSON.parse(record.body) : undefined; } catch { /* Hold unreadable evidence. */ }
     const response = saved && typeof saved === 'object' && !Array.isArray(saved) ? saved as { success?: unknown; booking?: unknown } : undefined;
     const booking = response?.booking && typeof response.booking === 'object' && !Array.isArray(response.booking) ? response.booking as { bookingId?: unknown } : undefined;
-    if (typeof record.fingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(record.fingerprint) || record.status !== 200 || response?.success !== true || Object.hasOwn(response, 'error') || typeof booking?.bookingId !== 'string' || !booking.bookingId || !isDeepStrictEqual(db.get(a, 'ride', booking.bookingId), booking)) return fail(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original ride could not be confirmed.');
+    const details = booking as { pickup?: unknown; dropoff?: unknown; status?: unknown; fare?: unknown; driver?: unknown } | undefined;
+    const driver = details?.driver && typeof details.driver === 'object' && !Array.isArray(details.driver) ? details.driver as { id?: unknown } : undefined;
+    const named = (value: unknown) => typeof value === 'string' && value.trim().length > 0;
+    const fare = details?.fare;
+    if (typeof record.fingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(record.fingerprint) || record.status !== 200 || response?.success !== true || Object.hasOwn(response, 'error') || Object.hasOwn(response, 'code') || typeof booking?.bookingId !== 'string' || !named(booking.bookingId) || !named(driver?.id) || !named(details?.pickup) || !named(details?.dropoff) || details?.status !== 'CONFIRMED' || typeof fare !== 'number' || !Number.isFinite(fare) || fare <= 0 || !Number.isSafeInteger(minor(fare)) || Math.abs(fare * 100 - minor(fare)) > 0.0000001 || !isDeepStrictEqual(db.get(a, 'ride', booking.bookingId), booking)) return fail(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original ride could not be confirmed.');
     if (expected) {
-      const driver = booking && typeof booking === 'object' ? (booking as { driver?: unknown }).driver : undefined;
-      const details = booking as { pickup?: unknown; dropoff?: unknown; status?: unknown; fare?: unknown };
-      if (!driver || typeof driver !== 'object' || Array.isArray(driver) || (driver as { id?: unknown }).id !== expected.driverId || details.pickup !== (expected.pickup || 'Current location') || details.dropoff !== (expected.dropoff || 'Downtown') || details.status !== 'CONFIRMED' || typeof details.fare !== 'number' || !Number.isFinite(details.fare) || (expected.expectedFareMinor !== undefined && minor(details.fare) !== expected.expectedFareMinor)) return fail(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original ride could not be confirmed.');
+      if (driver?.id !== expected.driverId || details?.pickup !== (expected.pickup || 'Current location') || details?.dropoff !== (expected.dropoff || 'Downtown') || (expected.expectedFareMinor !== undefined && minor(fare) !== expected.expectedFareMinor)) return fail(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original ride could not be confirmed.');
     }
     return booking;
   }

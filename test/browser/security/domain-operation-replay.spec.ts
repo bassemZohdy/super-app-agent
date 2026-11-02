@@ -337,6 +337,17 @@ test('ride operation replay returns one booking across trace IDs and refuses a c
   expect((await request('trace-restored-booking', 'Downtown Dining')).data.booking?.bookingId).toBe(bookingId);
   const key = providerOperationKey(operation, 'rta', '/rides/bookings');
   const record = store.db.prepare('SELECT fingerprint,status,body FROM idempotency WHERE account_id=? AND key=?').get(residentApi.accountId, key) as { fingerprint: string; status: number; body: string };
+  const malformed = { ...saved, status: 'PENDING' };
+  store.put(residentApi.accountId, 'ride', malformed, bookingId);
+  store.db.prepare('UPDATE idempotency SET body=? WHERE account_id=? AND key=?').run(JSON.stringify({ success: true, booking: malformed }), residentApi.accountId, key);
+  try {
+    expect((await inspect(operation)).status).toBe(503);
+    expect((await request('trace-malformed-replay', 'Downtown Dining')).status).toBe(503);
+    expect((await request('trace-malformed-replacement', 'Downtown Dining', 'replacement-ride')).status).toBe(503);
+  } finally {
+    store.put(residentApi.accountId, 'ride', saved, bookingId);
+    store.db.prepare('UPDATE idempotency SET body=? WHERE account_id=? AND key=?').run(record.body, residentApi.accountId, key);
+  }
   store.db.prepare('UPDATE idempotency SET body=? WHERE account_id=? AND key=?').run('{', residentApi.accountId, key);
   expect((await inspect(operation)).status).toBe(503);
   store.db.prepare('UPDATE idempotency SET body=? WHERE account_id=? AND key=?').run(record.body, residentApi.accountId, key);
