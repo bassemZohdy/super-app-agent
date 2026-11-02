@@ -95,7 +95,8 @@ test('scheduler validates the entire HTTP rule list before acting on any rule', 
   });
   const source = new HttpRuleSource({ runId: 'autorn_00000000-0000-4000-8000-000000000000', paymentsUrl: 'http://127.0.0.1', clientSecret: 'fixture-secret' });
   const invalid = [
-    null, { ...rule, mandateId: '../bad' }, { ...rule, policyVersion: 0 }, { ...rule, state: 'UNKNOWN' },
+    null, { ...rule, mandateId: '../bad' }, { ...rule, policyVersion: 0 }, { ...rule, policyVersion: 1001 }, { ...rule, state: 'UNKNOWN' },
+    { ...rule, executionEnabled: true },
     { ...rule, timezone: 'Invalid/Zone' }, { ...rule, startsAt: '2026-02-30T00:00:00Z' },
     { ...rule, trigger: { type: 'CALENDAR', dayOfMonth: 32, hour: 9, minute: 0, monthEnd: 'LAST_DAY' } },
     { ...rule, trigger: { type: 'INVOICE_DUE', daysBefore: -1 } },
@@ -105,6 +106,9 @@ test('scheduler validates the entire HTTP rule list before acting on any rule', 
     { ...rule, trigger: { type: 'LOW_BALANCE', belowMinor: 1000, reloadMinor: 10001, targetBalanceMinor: 10000 } },
     { ...rule, trigger: { type: 'PARKING_ENDING', minutesBefore: 0 } },
     { ...rule, trigger: { type: 'UNKNOWN' } },
+    { ...rule, trigger: { type: 'NEW_FINE', unexpected: 'value' } },
+    { ...rule, trigger: { type: 'CALENDAR', dayOfMonth: 1, hour: 9, minute: 0, monthEnd: 'SKIP', daysBefore: 2 } },
+    { ...rule, trigger: { ...rule.trigger, unexpected: true } },
   ];
   for (const candidate of invalid) {
     const second = candidate && typeof candidate === 'object' && candidate.mandateId === rule.mandateId ? { ...candidate, mandateId: 'mandate_2' } : candidate;
@@ -120,6 +124,8 @@ test('scheduler validates the entire HTTP rule list before acting on any rule', 
   await assert.rejects(source.rules());
   rules = [rule];
   assert.deepEqual(await source.rules(), [rule]);
+  rules = [{ ...rule, policyVersion: 1000 }];
+  assert.deepEqual(await source.rules(), rules);
   for (const supported of [
     { type: 'CALENDAR', dayOfMonth: 31, hour: 9, minute: 0, monthEnd: 'SKIP' },
     { type: 'INVOICE_DUE', daysBefore: 3 }, { type: 'NEW_FINE' }, { type: 'PARKING_ENDING', minutesBefore: 10 },

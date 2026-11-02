@@ -14,20 +14,21 @@ const date = (value: unknown): value is string => {
   return Number.isFinite(millis) && new Date(millis).toISOString().slice(0, 10) === value;
 };
 const integer = (value: unknown, min: number, max: number): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= min && value <= max;
+const only = (value: Record<string, unknown>, keys: readonly string[]) => Object.keys(value).every(key => keys.includes(key));
 const instant = (value: unknown): value is string => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{3})?Z$/.test(value) && date(value.slice(0, 10)) && Number.isFinite(Date.parse(value));
 const trigger = (value: unknown): boolean => {
   if (!item(value)) return false;
   switch (value.type) {
-    case 'INVOICE_DUE': return integer(value.daysBefore, 0, 14);
-    case 'CALENDAR': return integer(value.dayOfMonth, 1, 31) && integer(value.hour, 0, 23) && integer(value.minute, 0, 59) && (value.monthEnd === 'LAST_DAY' || value.monthEnd === 'SKIP');
-    case 'LOW_BALANCE': return integer(value.belowMinor, 1, MAX_PAYMENT_MINOR) && integer(value.reloadMinor, 1, MAX_PAYMENT_MINOR) && integer(value.targetBalanceMinor, 1, MAX_PAYMENT_MINOR) && value.belowMinor < value.targetBalanceMinor && value.reloadMinor <= value.targetBalanceMinor;
-    case 'NEW_FINE': return true;
-    case 'PARKING_ENDING': return integer(value.minutesBefore, 1, 60);
+    case 'INVOICE_DUE': return only(value, ['type', 'daysBefore']) && integer(value.daysBefore, 0, 14);
+    case 'CALENDAR': return only(value, ['type', 'dayOfMonth', 'hour', 'minute', 'monthEnd']) && integer(value.dayOfMonth, 1, 31) && integer(value.hour, 0, 23) && integer(value.minute, 0, 59) && (value.monthEnd === 'LAST_DAY' || value.monthEnd === 'SKIP');
+    case 'LOW_BALANCE': return only(value, ['type', 'belowMinor', 'reloadMinor', 'targetBalanceMinor']) && integer(value.belowMinor, 1, MAX_PAYMENT_MINOR) && integer(value.reloadMinor, 1, MAX_PAYMENT_MINOR) && integer(value.targetBalanceMinor, 1, MAX_PAYMENT_MINOR) && value.belowMinor < value.targetBalanceMinor && value.reloadMinor <= value.targetBalanceMinor;
+    case 'NEW_FINE': return only(value, ['type']);
+    case 'PARKING_ENDING': return only(value, ['type', 'minutesBefore']) && integer(value.minutesBefore, 1, 60);
     default: return false;
   }
 };
 const scheduledRule = (value: unknown): value is ScheduledRule => {
-  if (!item(value) || !id(value.mandateId, 101) || !integer(value.policyVersion, 1, Number.MAX_SAFE_INTEGER) ||
+  if (!item(value) || !only(value, ['mandateId', 'policyVersion', 'state', 'trigger', 'timezone', 'startsAt', 'expiresAt', 'target']) || !id(value.mandateId, 101) || !integer(value.policyVersion, 1, 1000) ||
       typeof value.state !== 'string' || !['AWAITING_APPROVAL', 'APPROVED', 'PAUSED', 'REVOKED', 'EXPIRED'].includes(value.state) || !id(value.target, 101) ||
       typeof value.timezone !== 'string' || value.timezone.length < 1 || value.timezone.length > 64 ||
       !instant(value.startsAt) || !instant(value.expiresAt) || Date.parse(value.startsAt) >= Date.parse(value.expiresAt) || !trigger(value.trigger)) return false;

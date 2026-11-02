@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 - Bound scheduling rule fields (P1-10, step)
+
+The scheduler rejects unexpected rule and trigger fields and policy versions outside the mandate contract before processing any rule. Guide: [automation worker](development/automation-worker.md).
+
 ## 2 November 2026 - Validate scheduling threshold relationships (P1-10, step)
 
 The scheduler rejects low-balance rules whose threshold or reload conflicts with the target before processing the rule list. The invalid-list test now uses distinct rule IDs so it tests validation independently of duplicate detection. Guide: [automation worker](development/automation-worker.md).
