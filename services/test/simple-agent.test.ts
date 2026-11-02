@@ -23,6 +23,16 @@ test('fixture intent and multi-turn routing; canonical quote produces stable key
   const fines = [{ id: 'fine-2', description: 'b', amountMinor: 200, version: 1 }, { id: 'fine-1', description: 'a', amountMinor: 100, version: 1 }];
   assert.equal(digest(quoteFor(fines)), digest(quoteFor(fines.reverse())));
 });
+test('fixture planner recognizes explicit Arabic fines and renewal requests without inferring negated payment', async () => {
+  const planner = new FixturePlanner();
+  for (const [message, intent] of [
+    ['عرض المخالفات المستحقة', 'list_fines'],
+    ['مراجعة دفع المخالفات المستحقة', 'pay_fines'],
+    ['تجديد تسجيل المركبة', 'renew_registration'],
+    ['لا تدفع المخالفات', 'out_of_scope'],
+    ['عرض المخالفات المستحقة ولا تدفع', 'out_of_scope'],
+  ] as const) assert.equal((await planner.plan([{ role: 'user', content: message }])).intent, intent);
+});
 test('configuration fails closed without authority, model configuration or on production mocks', () => {
   assert.throws(() => config({}));
   assert.throws(() => config({ AGENT_WORKLOAD_KEY: 'x'.repeat(32), AGENT_PLANNER: 'compatible' }));

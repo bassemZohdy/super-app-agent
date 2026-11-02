@@ -18,7 +18,10 @@ test('the React fines sign-in and navigation follow the saved Arabic language', 
   await expect(page.getByRole('button', { name: 'استرداد العملية المحفوظة' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'لنتولَّ أمر مخالفاتك.' })).toBeVisible();
   await expect(page.getByRole('textbox', { name: 'رسالة عن المخالفات' })).toBeVisible();
+  const request = page.waitForRequest(req => req.url().endsWith('/messages') && req.method() === 'POST');
   await page.getByRole('button', { name: 'مراجعة الدفع', exact: true }).click();
+  expect((await request).postDataJSON().message).toBe('مراجعة دفع المخالفات المستحقة');
+  await expect(page.getByText('مراجعة دفع المخالفات المستحقة', { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'راجع قبل الدفع' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'تأكيد الدفع التجريبي' })).toBeVisible();
   await expect(page.getByText('الإجمالي التجريبي:', { exact: false })).toBeVisible();
@@ -95,7 +98,9 @@ test('Arabic fines and renewal reviews retain separate explicit approvals', asyn
   await page.goto(focused.url);
   await page.getByLabel('رمز الوصول', { exact: true }).fill(focused.renewalToken);
   await page.getByRole('button', { name: 'فتح مخالفاتي' }).click();
+  const request = page.waitForRequest(req => req.url().endsWith('/messages') && req.method() === 'POST');
   await page.getByRole('button', { name: 'تجديد تسجيل المركبة' }).click();
+  expect((await request).postDataJSON().message).toBe('تجديد تسجيل المركبة');
   await expect(page.getByRole('button', { name: 'تأكيد الدفع التجريبي', exact: true })).toBeVisible();
   expect(focused.payments()).toBe(0); expect(focused.renewals()).toBe(0);
   const paymentRequest = page.waitForRequest(req => req.url().endsWith('/resume') && req.method() === 'POST');
@@ -111,6 +116,18 @@ test('Arabic fines and renewal reviews retain separate explicit approvals', asyn
   expect((await renewalRequest).postDataJSON().approvalId).not.toBe(paymentApproval);
   await expect.poll(() => focused.renewals()).toBe(1);
   expect(focused.payments()).toBe(1);
+});
+
+test('a typed Arabic request lists fines without making a payment', async ({ page, focused }) => {
+  await page.addInitScript(() => localStorage.setItem('cityside.locale', 'ar'));
+  await page.goto(focused.url);
+  await page.getByLabel('رمز الوصول', { exact: true }).fill(focused.token);
+  await page.getByRole('button', { name: 'فتح مخالفاتي' }).click();
+  await page.getByRole('textbox', { name: 'رسالة عن المخالفات' }).fill('عرض المخالفات المستحقة');
+  await page.getByRole('button', { name: 'إرسال الرسالة' }).click();
+  await expect(page.getByRole('cell', { name: 'fine-1', exact: true })).toBeVisible();
+  await expect(page.getByText('عرض المخالفات المستحقة', { exact: true }).first()).toBeVisible();
+  expect(focused.payments()).toBe(0);
 });
 
 test('retrieve fines, resume the exact review after restart, pay once and reject duplicate/stale/cross-owner approvals', async ({ page, focused }, info) => {

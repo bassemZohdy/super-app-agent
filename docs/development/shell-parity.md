@@ -48,3 +48,5 @@ Name the journey in the matrix with one test per shell that offers it, or move i
 
 The React focused fines sign-in, header, navigation, conversation controls, review headings, confirmation warning, receipt labels, progress and safe error guidance follow the saved English or Arabic language, including page direction. The known focused review totals and decision labels are localized only when their original amount and approval binding match the expected contract. Known fines and vehicle table column headings are localized when the complete expected schema matches; records and amounts are unchanged. Other surface content and assistant messages remain unchanged.
 
+Arabic suggestion buttons submit Arabic text. The deterministic demo planner supports the three exact Arabic list, payment-review and renewal phrases used by those suggestions; it does not claim general Arabic understanding. A review never executes a payment or renewal without its separate approval.
+

@@ -65,6 +65,13 @@ export class CompatiblePlanner implements Planner {
 export class FixturePlanner implements Planner {
   async plan(messages: Array<{ role: 'user' | 'assistant'; content: string }>): Promise<Plan> {
     const text = messages.at(-1)?.content.toLowerCase() || '';
+    // Explicit Arabic demo commands only; additional wording, especially negation, must not imply a payment review.
+    const arabic = new Map<string, Plan['intent']>([
+      ['عرض المخالفات المستحقة', 'list_fines'],
+      ['مراجعة دفع المخالفات المستحقة', 'pay_fines'],
+      ['تجديد تسجيل المركبة', 'renew_registration'],
+    ]).get(text.trim());
+    if (arabic) return { intent: arabic, fineIds: [] };
     const prior = messages.slice(0, -1).some(m => /fine/.test(m.content));
     if (/renew/.test(text) && /(registration|vehicle|car)/.test(text)) return { intent: 'renew_registration', fineIds: [] };
     return { intent: /pay/.test(text) && (/fine/.test(text) || prior) ? 'pay_fines' : /fine/.test(text) ? 'list_fines' : /^(hi|hello)/.test(text) ? 'clarify' : 'out_of_scope', fineIds: [...text.matchAll(/\bfine-\d+\b/g)].map(m => m[0]) };

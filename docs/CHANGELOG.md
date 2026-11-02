@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Support Arabic demo requests (P2-01, step)
+
+React fines suggestions send Arabic requests when Arabic is selected. The deterministic demo planner recognizes the exact supported Arabic list, payment-review and renewal phrases; negated wording does not trigger a payment review. Guide: [shell parity](development/shell-parity.md).
+
 ## 2 November 2026 — Localize React workspace controls (P2-01, step)
 
 The React concierge and focused fines workspaces localize pane labels, controls and resize guidance. Right-to-left pointer and arrow-key resizing follow the visible divider. Guide: [design tokens](development/design-tokens.md).
