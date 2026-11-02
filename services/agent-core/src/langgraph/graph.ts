@@ -8,6 +8,7 @@ const explicitSelection = (value: unknown, kind: string): string => {
 };
 const walletCurrency = () => process.env.PROVIDER_INTEGRATION === 'true' ? 'AED' : 'USD';
 const formatWalletAmount = (amount: number) => `${walletCurrency()} ${amount.toFixed(2)}`;
+const demoFoodAddress = '100 Market St, Apt 4B';
 import { formatStatementAED } from '../../../../packages/protocol-core/src/payment-history.ts';
 import { toMinor, fromMinor } from '../../../../packages/protocol-core/src/request-validation.ts';
 import { handlePaymentSurfaceAction } from '../payment-surfaces.ts';
@@ -801,7 +802,9 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
       const matches = Array.isArray(choices) ? choices.filter(option => option.id === dishId) : [];
       const restaurantId = matches.length === 1 ? matches[0].metadata?.restaurantId : undefined;
       const itemPrice = matches[0]?.metadata?.itemPriceMinor, deliveryFee = matches[0]?.metadata?.deliveryFeeMinor;
-      if (typeof restaurantId !== 'string' || !restaurantId.trim() || typeof itemPrice !== 'number' || !Number.isSafeInteger(itemPrice) || itemPrice <= 0 || typeof deliveryFee !== 'number' || !Number.isSafeInteger(deliveryFee) || deliveryFee < 0 || !Number.isSafeInteger(itemPrice + deliveryFee)) throw new HttpError(409, 'The selected dish or its price is no longer available. Start a new review.');
+      const address = matches[0]?.metadata?.deliveryAddress;
+      const addressText = state.currentSurface?.view.children?.find(node => node.id === 'food_delivery_address' && node.type === 'Text')?.properties?.text;
+      if (typeof restaurantId !== 'string' || !restaurantId.trim() || typeof address !== 'string' || !address.trim() || addressText !== `Delivery address: ${address}` || typeof itemPrice !== 'number' || !Number.isSafeInteger(itemPrice) || itemPrice <= 0 || typeof deliveryFee !== 'number' || !Number.isSafeInteger(deliveryFee) || deliveryFee < 0 || !Number.isSafeInteger(itemPrice + deliveryFee)) throw new HttpError(409, 'The selected dish, address or price is no longer available. Start a new review.');
       onProgress?.('🍕 Creating food order with kitchen...');
       const res = await executeFoodRequest('POST', '/orders/create', {}, {
         restaurantId,
@@ -809,7 +812,7 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
         expectedItemPriceMinor: itemPrice,
         expectedDeliveryFeeMinor: deliveryFee,
         expectedAmountMinor: itemPrice + deliveryFee,
-        deliveryAddress: '100 Market St, Apt 4B',
+        deliveryAddress: address,
       });
 
       const order = res.data.order;
@@ -1094,7 +1097,7 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
           id: item.id,
           title: item.name,
           subtitle: `${r.name} • ${item.description} • Delivery ${formatWalletAmount(deliveryFeeMinor / 100)}`,
-          metadata: { restaurantId: r.id, itemPriceMinor, deliveryFeeMinor },
+          metadata: { restaurantId: r.id, itemPriceMinor, deliveryFeeMinor, deliveryAddress: demoFoodAddress },
           price: formatWalletAmount((itemPriceMinor + deliveryFeeMinor) / 100),
           badge,
           matchesPref,
@@ -1126,6 +1129,11 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
               text: `Personalized for ${profile?.displayName || 'User'} • Filters: ${userDietary.join(', ')}`,
               muted: true,
             },
+          },
+          {
+            type: 'Text',
+            id: 'food_delivery_address',
+            properties: { text: `Delivery address: ${demoFoodAddress}` },
           },
           {
             type: 'ChoiceGroup',

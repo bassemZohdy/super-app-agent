@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Show the food delivery address (P1-13, step)
+
+Standalone food reviews show their fixed demo delivery address and bind orders to it. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Explain changed payment obligations (P1-12, step)
 
 The React payment panel gives localized review guidance for stale obligations while keeping provider rejection text sanitized. Guide: [agent flow](agent-flow.md).

@@ -48,6 +48,8 @@ Each standalone food choice carries its restaurant identity in the approved surf
 
 Standalone food reviews show the total including delivery and retain the separate item and delivery amounts. Order creation checks both components against the review, and the adapter verifies them in the receipt. A changed component requires a new review, even if the total is unchanged.
 
+The standalone demo review displays its fixed synthetic delivery address, and order dispatch uses the address bound to the selected choice and visible review. Older reviews without this binding must be reopened; choosing a different delivery address is not yet supported in this journey.
+
 The integrated food application atomically stores each order with an account-scoped operation identity and request fingerprint. Repeating the same identity and terms returns the original snapshot, including after an application restart; changed terms are refused, and missing original evidence remains unconfirmed. This does not by itself reconcile the other effects in a composite journey.
 
 New food-operation records bind the original receipt digest. An altered receipt, malformed operation record or older record without that binding remains unconfirmed and requires inspection; the application does not create a replacement order from it. The digest detects inconsistent local records; it is not a tamper-evident audit archive.

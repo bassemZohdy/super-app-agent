@@ -28,11 +28,14 @@ test('P1-13: standalone food orders use the restaurant of the selected reviewed 
   const sid = 'food_selected_restaurant';
   assert.equal((await intent(sid, 'Find a restaurant for dinner')).status, 200);
   const surface = getOrCreateSession(sid).currentSurface!;
+  const delivery = surface.view.children!.find(node => node.id === 'food_delivery_address')!.properties!.text as string;
+  assert.equal(delivery, 'Delivery address: 100 Market St, Apt 4B');
   const result = await core('POST', '/api/a2ui/action', {}, { sessionId: sid, surfaceRevision: surface.revision, action: 'order_food', payload: { selectedChoice: 'item_salmon_roll' } });
   assert.equal(result.status, 200);
   const reference = result.data.surface.view.children.find((node: { id: string }) => node.id === 'order_id').properties.value as string;
   assert.equal(activeOrders.get(reference)?.restaurantId, 'rest_2');
   assert.equal(activeOrders.get(reference)?.items[0].item.id, 'item_salmon_roll');
+  assert.equal(activeOrders.get(reference)?.deliveryAddress, delivery.slice('Delivery address: '.length));
 });
 
 test('P1-13: a food review without a restaurant binding cannot dispatch an order', async t => {
