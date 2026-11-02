@@ -274,7 +274,7 @@ async function callDomainRequest(service: keyof typeof domainHandlers | 'telecom
   let result: Result;
   try {
     const response = await fetch(url, { method, redirect: 'error', signal: AbortSignal.timeout(60000),
-      headers: { Authorization: actor.authorization, 'Content-Type': 'application/json', 'X-Account-Id': actor.accountId, 'X-Request-Id': actor.requestId },
+      headers: { Authorization: actor.authorization, 'Content-Type': 'application/json', 'X-Account-Id': actor.accountId, 'X-Request-Id': actor.requestId, 'X-Operation-Id': actor.requestId },
       ...(mutation ? { body: JSON.stringify(body) } : {}),
     });
     result = { status: response.status, data: await boundedJsonResponse(response) };

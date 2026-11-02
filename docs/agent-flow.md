@@ -36,6 +36,8 @@ Compatibility wallet payment and top-up confirmations require a settled transact
 
 For an integrated wallet payment, confirmation also requires the transaction to match a captured, unrefunded wallet charge for the same account, amount, merchant and original request reference.
 
+Authenticated compatibility domain calls carry the original operation identity in a validated operation header, separate from diagnostic tracing headers. Application services use that identity for provider operations, preserving the reference checked by the wallet adapter even when tracing assigns another request ID.
+
 The compatibility ride-and-meal review displays and binds the selected driver, restaurant, item, separate meal price and delivery fee, total and wallet currency. It rechecks the current options before charging, and each service checks its reviewed terms before booking. The three effects remain separate: a later refusal can leave an earlier payment or booking completed and requires reconciliation.
 
 Compatibility ride booking confirmations require the selected driver, a confirmed or dispatched status and any supplied pickup and destination to match. A mismatched booking is unknown and prevents subsequent checkout effects.

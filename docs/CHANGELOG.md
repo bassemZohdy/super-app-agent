@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Preserve domain operation identities across tracing (P1-02, step)
+
+Authenticated domain calls carry their original operation identity independently of diagnostic trace IDs; the application validates it before routing. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Bind wallet transactions to captured charges (P1-02, step)
 
 Integrated wallet payment confirmation now matches the transaction to the captured charge and its account, amount and original reference. Guide: [agent flow](agent-flow.md).

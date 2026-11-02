@@ -471,6 +471,8 @@ export function createApplicationServer(service: string, legacy: Legacy) {
     const send = (status: number, data: unknown) => { res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Request-Id': requestId }); res.end(JSON.stringify(data)); };
     try {
       const release = policy.admit(req.socket.remoteAddress || 'unknown'); res.once('finish', release); res.once('close', release);
+      const operationId = req.headers['x-operation-id'];
+      if (operationId !== undefined && (typeof operationId !== 'string' || !/^[A-Za-z0-9_.:-]{1,200}$/.test(operationId))) return send(400, { success: false, code: 'VALIDATION_ERROR', error: 'Invalid operation identity.' });
       const url = new URL(req.url || '/', 'http://application');
       const query = Object.fromEntries(url.searchParams);
       const integrated = process.env.PROVIDER_INTEGRATION === 'true';
@@ -481,7 +483,7 @@ export function createApplicationServer(service: string, legacy: Legacy) {
         if (!user || !user.realm_access?.roles?.includes('superapp-user') || String(user.preferred_username || '').startsWith('service-account-')) return send(401, { success: false, code: 'UNAUTHENTICATED', error: 'A signed-in user token is required.' });
         const account = req.headers['x-account-id'];
         actor = actorFor({ sub: user.sub, preferred_username: user.preferred_username, name: user.name }, typeof account === 'string' ? account : undefined, req.headers.authorization);
-        actor.requestId = requestId;
+        actor.requestId = operationId || requestId;
       }
       const parsed = await readJsonBody(req);
       // A request body is always a JSON object in every mode; arrays and scalars are rejected before routing.
