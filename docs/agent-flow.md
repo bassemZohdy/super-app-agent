@@ -44,6 +44,8 @@ Compatibility ride booking confirmations require the selected driver, a confirme
 
 Compatibility food order confirmations require the selected restaurant, exact item quantities, accepted status and any supplied delivery address to match. A mismatched order remains unknown and blocks a replacement checkout.
 
+The integrated food application atomically stores each order with an account-scoped operation identity and request fingerprint. Repeating the same identity and terms returns the original snapshot, including after an application restart; changed terms are refused, and missing original evidence remains unconfirmed. This does not by itself reconcile the other effects in a composite journey.
+
 The local and integrated simulators use different successful ride and food statuses and item shapes; the adapter accepts their documented forms while applying the same selected-resource checks. The integrated food receipt includes the requested delivery address.
 
 Compatibility parking activation confirmations match the selected zone, vehicle and duration; extension confirmations match the ticket and require the reported prior and resulting durations to differ by the requested increment. Both require an active meter with usable display fields. The prior duration is reported by the same fixture and is not independent evidence of the earlier state.

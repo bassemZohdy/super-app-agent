@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Preserve integrated food order identities (P1-13, step)
+
+Integrated food orders atomically save an account-scoped operation identity and receipt, return the original on retry and refuse changed terms or missing evidence. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Verify integrated wallet operation replay (P1-02, step)
 
 A local-stack browser qualification checks that different trace IDs preserve one wallet charge and changed terms cannot create a second debit. Guide: [testing](testing.md).

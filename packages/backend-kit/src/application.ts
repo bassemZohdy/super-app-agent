@@ -298,14 +298,26 @@ export async function integratedRequest(service: string, actor: Actor, method: s
       }
       if (method === 'GET' && ['/restaurants/search','/utilities/eco-advice'].includes(path)) return legacy(method, path, query, body);
       if (method === 'POST' && path === '/orders/create') {
-        const restaurant = restaurants.find(r => r.id === body.restaurantId);
-        const items = body.items.map((id: string) => restaurant?.items.find(item => item.id === id));
-        if (!restaurant || items.some((item) => !item)) throw new UpstreamError(404, 'NOT_FOUND', 'Menu item not found.');
-        const totalMinor = items.reduce((sum: number, item) => sum + toMinor(item!.price), 0) + toMinor(restaurant.deliveryFee);
-        if (body.expectedItemPriceMinor !== undefined && (items.length !== 1 || body.expectedItemPriceMinor !== toMinor(items[0]!.price)) || body.expectedDeliveryFeeMinor !== undefined && body.expectedDeliveryFeeMinor !== toMinor(restaurant.deliveryFee)) throw new UpstreamError(409, 'PRICE_CHANGED', 'Order price changed.');
-        if (body.expectedAmountMinor !== undefined && body.expectedAmountMinor !== totalMinor) throw new UpstreamError(409, 'PRICE_CHANGED', 'Order price changed.');
-        const order = { orderId: randomUUID(), restaurantId: restaurant.id, restaurantName: restaurant.name, items, deliveryAddress: body.deliveryAddress || '100 Market St, Apt 4B', totalAmount: totalMinor / 100, status: 'CONFIRMED', estimatedDeliveryTime: '25 min', timestamp: Date.now() };
-        db.put(actor.accountId, 'order', order, order.orderId); return successful({ order });
+        const operation = stableKey(`food-order:${actor.requestId}`), fingerprint = createHash('sha256').update(canonicalJson(body)).digest('hex');
+        return db.transaction(() => {
+          const saved = db.get<{ fingerprint: string; orderId: string }>(actor.accountId, 'food-order-operation', operation);
+          if (saved) {
+            if (saved.fingerprint !== fingerprint) throw new UpstreamError(409, 'IDEMPOTENCY_CONFLICT', 'The original food order has different terms.');
+            const original = db.get<{ orderId: string }>(actor.accountId, 'order', saved.orderId);
+            if (!original || original.orderId !== saved.orderId) throw new UpstreamError(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original food order could not be confirmed.');
+            return successful({ order: original });
+          }
+          const restaurant = restaurants.find(r => r.id === body.restaurantId);
+          const items = body.items.map((id: string) => restaurant?.items.find(item => item.id === id));
+          if (!restaurant || items.some((item) => !item)) throw new UpstreamError(404, 'NOT_FOUND', 'Menu item not found.');
+          const totalMinor = items.reduce((sum: number, item) => sum + toMinor(item!.price), 0) + toMinor(restaurant.deliveryFee);
+          if (body.expectedItemPriceMinor !== undefined && (items.length !== 1 || body.expectedItemPriceMinor !== toMinor(items[0]!.price)) || body.expectedDeliveryFeeMinor !== undefined && body.expectedDeliveryFeeMinor !== toMinor(restaurant.deliveryFee)) throw new UpstreamError(409, 'PRICE_CHANGED', 'Order price changed.');
+          if (body.expectedAmountMinor !== undefined && body.expectedAmountMinor !== totalMinor) throw new UpstreamError(409, 'PRICE_CHANGED', 'Order price changed.');
+          const order = { orderId: randomUUID(), restaurantId: restaurant.id, restaurantName: restaurant.name, items: structuredClone(items), deliveryAddress: body.deliveryAddress || '100 Market St, Apt 4B', totalAmount: totalMinor / 100, status: 'CONFIRMED', estimatedDeliveryTime: '25 min', timestamp: Date.now() };
+          db.put(actor.accountId, 'order', order, order.orderId);
+          db.put(actor.accountId, 'food-order-operation', { fingerprint, orderId: order.orderId }, operation);
+          return successful({ order });
+        });
       }
       if (method === 'GET' && path.startsWith('/orders/track/')) { const order = db.get(actor.accountId, 'order', path.split('/').pop()!); if (!order) throw new UpstreamError(404, 'NOT_FOUND', 'Order not found.'); return successful({ order }); }
     }
