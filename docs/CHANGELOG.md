@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 3 November 2026 - Pin the focused container base image (P2-03, step)
+
+The focused agent Dockerfile pins its Node base by multi-platform image digest, with a regression check for the pin. Guide: [local development](development/local-development.md).
+
 ## 3 November 2026 - Bound Redis session shutdown (P2-06, step)
 
 Session and subscription connections close independently with a bounded fallback; stale unsubscribe callbacks cannot cancel a later subscription after reconnect. Guide: [operations](development/operations.md).
