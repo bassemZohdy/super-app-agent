@@ -9,6 +9,7 @@ import { ProviderClient, UpstreamError } from './provider-client.ts';
 import { actorFor, assetsFor, actorContext, type Actor } from './context.ts';
 import { verifyJwt } from './jwt.ts';
 import { validateRequest } from '../../protocol-core/src/request-validation.ts';
+import type { CheckoutGroupView } from '../../protocol-core/src/payments.ts';
 import { currentProfile, currentPreferences, generatePromptContext } from '../../../services/service-profile/src/index.ts';
 import { restaurants } from '../../../services/service-food/src/index.ts';
 type PayableRevision = { payableId: string; expectedRevision: string };
@@ -19,7 +20,6 @@ type BillingAccount = { status: string; provider: string; reference: string };
 type RechargeTarget = { reference: string; version: number };
 type Zone = { id: string; tariffPerHour: number };
 type Meter = { ticketId: string; zoneId: string; durationHours: number };
-type CheckoutOrder = { id: string; state: string; receipt: unknown; quote: { payable: { provider: string }; totalMinor: number } };
 type PlannedItem = { provider: string; payableId: string; expectedPayableRevision: string };
 // Documentary shape of the JSON request body. Fields are the ones these routes read; runtime is unchanged.
 type RequestBody = {
@@ -245,15 +245,42 @@ export async function integratedRequest(service: string, actor: Actor, method: s
           db.transaction(()=>{intent=db.get(actor.accountId,'checkout-intent',intentId);if(!intent){db.put(actor.accountId,'checkout-intent',planned,intentId);intent=planned;}});
           if(intent.terms!==terms)throw new UpstreamError(409,'CHECKOUT_INTENT_CONFLICT','This request already has different checkout terms.');
         }
-        let group;
-        if(intent.groupId)group=(await call('payments','GET',`/checkout-groups/${intent.groupId}`)).group;
-        else{group=(await call('payments','POST','/checkout-groups',intent.input,stableKey(`unified-group:${intentId}`))).group;db.put(actor.accountId,'checkout-intent',{...intent,groupId:group.id},intentId);}
-        group=(await call('payments','GET',`/checkout-groups/${group.id}`)).group;
-        if(group.state==='AWAITING_APPROVAL')group=(await call('payments','POST',`/checkout-groups/${group.id}/approve`,{expectedVersion:group.version,approvalDigest:group.approvalDigest},stableKey(`unified-approve:${group.id}`))).group;
-        if(group.state!=='COMPLETED')group=(await call('payments','POST',`/checkout-groups/${group.id}/execute`,{expectedVersion:group.version,approvalDigest:group.approvalDigest},`unified-run:${randomUUID()}`)).group;
-        const steps=group.orders.filter((o:CheckoutOrder)=>o.state==='SETTLED').map((o:CheckoutOrder)=>({service:o.quote.payable.provider,orderId:o.id,receipt:o.receipt}));
+        let group: CheckoutGroupView;
+        if(!intent.groupId){
+          group=(await call('payments','POST','/checkout-groups',intent.input,stableKey(`unified-group:${intentId}`))).group;
+          if(typeof group?.id!=='string'||!/^[A-Za-z0-9_-]{1,128}$/.test(group.id))throw new UpstreamError(503,'PROVIDER_OUTCOME_UNKNOWN','The original checkout could not be confirmed.');
+          db.transaction(()=>{const saved=db.get(actor.accountId,'checkout-intent',intentId);if(saved.groupId&&saved.groupId!==group.id)throw new UpstreamError(503,'PROVIDER_OUTCOME_UNKNOWN','The original checkout could not be confirmed.');intent={...saved,groupId:group.id};db.put(actor.accountId,'checkout-intent',intent,intentId);});
+        }
+        const groupId=intent.groupId;
+        if(typeof groupId!=='string'||!/^[A-Za-z0-9_-]{1,128}$/.test(groupId))throw new UpstreamError(503,'PROVIDER_OUTCOME_UNKNOWN','The original checkout could not be confirmed.');
+        group=(await call('payments','GET',`/checkout-groups/${groupId}`)).group;
+        const verifyGroup=()=>{
+          const invalid=()=>{throw new UpstreamError(503,'PROVIDER_OUTCOME_UNKNOWN','The original checkout could not be confirmed. Inspect its original child payments.');};
+          if(!group||group.id!==groupId||group.accountId!==actor.accountId||group.ownerSub!==actor.sub||group.currency!=='AED'||typeof group.approvalDigest!=='string'||!/^[a-f0-9]{64}$/.test(group.approvalDigest)||
+            group.source?.id!==intent.input.methodId||group.source?.accountId!==actor.accountId||group.source?.version!==intent.input.expectedMethodVersion||group.source?.currency!=='AED'||group.source?.status!=='ACTIVE'||group.source?.kind!==(intent.input.methodId==='wallet'?'wallet':'card')||
+            !Array.isArray(group.orders)||!Array.isArray(group.orderIds)||!Array.isArray(group.excluded)||!Array.isArray(intent.input.items)||intent.input.items.length<1||intent.input.items.length>10||group.orders.length<1||group.orders.length>10||group.orders.length!==group.orderIds.length||new Set(group.orderIds).size!==group.orderIds.length)invalid();
+          const represented=new Set<string>(), childIds=new Set<string>();let total=0;
+          for(const child of group.orders){
+            const quote=child?.quote,p=quote?.payable,key=JSON.stringify([p?.provider,p?.id]);
+            const planned=intent.input.items.find((item:PlannedItem)=>item.provider===p?.provider&&item.payableId===p?.id&&item.expectedPayableRevision===p?.revision);
+            if(!planned||represented.has(key)||typeof child.id!=='string'||!/^[A-Za-z0-9_-]{1,128}$/.test(child.id)||childIds.has(child.id)||!group.orderIds.includes(child.id)||child.accountId!==actor.accountId||child.ownerSub!==actor.sub||typeof child.approvalDigest!=='string'||!/^[a-f0-9]{64}$/.test(child.approvalDigest)||canonicalJson(quote.source)!==canonicalJson(group.source)||quote.currency!=='AED'||!Number.isSafeInteger(quote.totalMinor)||quote.totalMinor<0||group.state==='COMPLETED'&&(child.state!=='SETTLED'||child.sourceFinalizationPending))invalid();
+            if(child.state==='SETTLED'&&(!child.receipt||typeof child.paymentId!=='string'||!child.paymentId||child.receipt.receiptNumber!==child.paymentId||typeof p.obligationId!=='string'||!p.obligationId||child.receipt.obligationId!==p.obligationId||child.receipt.amountMinor!==quote.totalMinor||child.receipt.currency!=='AED'||p.kind==='RECHARGE'&&(child.receipt.targetReference!==p.reference||!p.recharge||child.receipt.providerBalanceMinor!==p.recharge.balanceBeforeMinor+quote.totalMinor)))invalid();
+            represented.add(key);childIds.add(child.id);total+=quote.totalMinor;
+          }
+          for(const excluded of group.excluded){const key=JSON.stringify([excluded?.provider,excluded?.payableId]);if(excluded?.reason!=='ALREADY_PAID'||represented.has(key)||!intent.input.items.some((item:PlannedItem)=>item.provider===excluded.provider&&item.payableId===excluded.payableId))invalid();represented.add(key);}
+          if(represented.size!==intent.input.items.length||!Number.isSafeInteger(total)||total!==group.totalMinor)invalid();
+          const projection={id:group.id,accountId:group.accountId,ownerSub:group.ownerSub,source:group.source,currency:group.currency,totalMinor:group.totalMinor,approvalDigest:group.approvalDigest,orderIds:group.orderIds,excluded:group.excluded,orders:group.orders.map((child:{id:string;approvalDigest:string;quote:unknown})=>({id:child.id,approvalDigest:child.approvalDigest,quote:child.quote}))};
+          const binding=createHash('sha256').update(canonicalJson(projection)).digest('hex');
+          db.transaction(()=>{const saved=db.get<{binding:string}>(actor.accountId,'checkout-group-binding',groupId);if(saved&&saved.binding!==binding)invalid();if(!saved)db.put(actor.accountId,'checkout-group-binding',{binding},groupId);});
+        };
+        verifyGroup();
+        if(group.state==='AWAITING_APPROVAL')group=(await call('payments','POST',`/checkout-groups/${groupId}/approve`,{expectedVersion:group.version,approvalDigest:group.approvalDigest},stableKey(`unified-approve:${groupId}`))).group;
+        verifyGroup();
+        if(group.state!=='COMPLETED')group=(await call('payments','POST',`/checkout-groups/${groupId}/execute`,{expectedVersion:group.version,approvalDigest:group.approvalDigest},`unified-run:${randomUUID()}`)).group;
+        verifyGroup();
+        const steps=group.orders.filter(o=>o.state==='SETTLED').map(o=>({service:o.quote.payable.provider,orderId:o.id,receipt:o.receipt}));
         if(group.state!=='COMPLETED')return {status:group.state==='RECONCILIATION_REQUIRED'?502:409,data:{success:false,code:`CHECKOUT_${group.state}`,error:'Checkout stopped. Inspect its original child payments and continue this group after resolving the affected line.',group,steps}};
-        const paid=(provider:string)=>group.orders.filter((o:CheckoutOrder)=>o.quote.payable.provider===provider).reduce((sum:number,o:CheckoutOrder)=>sum+o.quote.totalMinor,0)/100;
+        const paid=(provider:string)=>group.orders.filter(o=>o.quote.payable.provider===provider).reduce((sum,o)=>sum+o.quote.totalMinor,0)/100;
         return successful({group,govTransactionHash:group.id,settlementPlatform:'Demo payment gateway',grandTotal:group.totalMinor/100,breakdown:{utilities:paid('dewa'),fines:paid('police'),salik:paid('rta')},remainingBalance:(await call('payments','GET','/wallet')).balance,steps});
       }
     }

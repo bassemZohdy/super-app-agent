@@ -16,6 +16,8 @@ For compatibility bill, fine and recharge orders, each payment transition also c
 
 The compatibility application stores the first observed complete quote's hash and approval digest per order, account and application service in its SQLite store before advancing. It compares later responses and requests against that binding; equivalent JSON object key order is accepted. The binding survives reopening the local store, but does not authenticate the initial provider quote, coordinate separate service stores or establish replicated production durability.
 
+The compatibility grouped checkout verifies its original group and owner, selected source, saved item set, child quote identities and total before approval or execution. It stores a hash of those frozen group terms across requests, and checks each settled child receipt before reporting completion. Inconsistent groups remain unknown for inspection. The first observed quote still depends on the configured simulator; production quote authentication remains separate.
+
 MCP, A2A, SOAP and controlled browser execution are protocol values at the extension boundary, not implemented transports in this entry point. The existing integrated MCP server remains in its original path. Add a real protocol adapter only for a concrete service, with its own authority, schema, timeout and retry tests.
 
 ## HTTP API

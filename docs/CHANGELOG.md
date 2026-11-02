@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bind grouped checkout to its plan (P0-04, step)
+
+Compatibility grouped checkout verifies its saved item set, owner, source, child quotes and totals before approval or execution, retains a local group binding across requests, and checks settled child receipts. Inconsistent results remain unknown. Tests cover substituted groups, changed terms after reopening, wrong receipts and original-child recovery. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Retain compatibility quote bindings (P0-04, step)
 
 Compatibility payments atomically store a hash of the first observed order quote and its approval digest before advancing, then reject changed terms on later requests. A reopened application store test covers changed quotes, changed digests and original-order recovery. This local binding does not authenticate the initial provider quote or establish replicated durability. Guide: [integrations](integrations.md).
