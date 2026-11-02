@@ -796,10 +796,15 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
         },
       };
     } else if (action === 'order_food') {
+      const dishId = explicitSelection(payload.selectedChoice, 'dish');
+      const choices = state.currentSurface?.view.children?.find(node => node.id === 'food_choices' && node.type === 'ChoiceGroup')?.properties?.options;
+      const matches = Array.isArray(choices) ? choices.filter(option => option.id === dishId) : [];
+      const restaurantId = matches.length === 1 ? matches[0].metadata?.restaurantId : undefined;
+      if (typeof restaurantId !== 'string' || !restaurantId.trim()) throw new HttpError(409, 'The selected dish is no longer available. Start a new review.');
       onProgress?.('🍕 Creating food order with kitchen...');
       const res = await executeFoodRequest('POST', '/orders/create', {}, {
-        restaurantId: 'rest_1',
-        items: [explicitSelection(payload.selectedChoice, 'dish')],
+        restaurantId,
+        items: [dishId],
         deliveryAddress: '100 Market St, Apt 4B',
       });
 
@@ -1083,6 +1088,7 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
           id: item.id,
           title: item.name,
           subtitle: `${r.name} • ${item.description}`,
+          metadata: { restaurantId: r.id },
           price: `$${item.price.toFixed(2)}`,
           badge,
           matchesPref,

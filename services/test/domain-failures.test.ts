@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { executeCoreRequest as core, getOrCreateSession, sseClients, server } from '../agent-core/src/index.ts';
 import { domainHandlers, callDomain, trackDomainOperations, type Step } from '../agent-core/src/domain-operations.ts';
 import { executeWalletRequest as wallet, balance, transactions, policeFines } from '../service-wallet/src/index.ts';
-import { activeOrders, executeFoodRequest as food } from '../service-food/src/index.ts';
+import { activeOrders, executeFoodRequest as food, restaurants } from '../service-food/src/index.ts';
 import { activeRides, activeParkingMeters, executeRideRequest as ride } from '../service-ride/src/index.ts';
 import { readEventStream } from '../../packages/protocol-core/src/sse-client.ts';
 
@@ -17,6 +17,41 @@ const action = (sid: string, action = 'confirm_composite_checkout') => {
   return core('POST', '/api/a2ui/action', {}, { sessionId: sid, surfaceRevision: getOrCreateSession(sid).currentSurface?.revision, action, payload: originalBindings.get(key) || binding });
 };
 function ensureFunds() { if (balance < 50) assert.equal(wallet('POST', '/wallet/topup', {}, { amount: 100 }).status, 200); }
+
+test('P1-13: standalone food orders use the restaurant of the selected reviewed dish', async t => {
+  const realFood = domainHandlers.food;
+  t.mock.method(domainHandlers, 'food', (method, path, query, body) => {
+    const result = realFood(method, path, query, body);
+    return method === 'GET' && path === '/restaurants/search'
+      ? { ...result, data: { ...result.data, restaurants: [...result.data.restaurants, restaurants[1]] } } : result;
+  });
+  const sid = 'food_selected_restaurant';
+  assert.equal((await intent(sid, 'Find a restaurant for dinner')).status, 200);
+  const surface = getOrCreateSession(sid).currentSurface!;
+  const result = await core('POST', '/api/a2ui/action', {}, { sessionId: sid, surfaceRevision: surface.revision, action: 'order_food', payload: { selectedChoice: 'item_salmon_roll' } });
+  assert.equal(result.status, 200);
+  const reference = result.data.surface.view.children.find((node: { id: string }) => node.id === 'order_id').properties.value as string;
+  assert.equal(activeOrders.get(reference)?.restaurantId, 'rest_2');
+  assert.equal(activeOrders.get(reference)?.items[0].item.id, 'item_salmon_roll');
+});
+
+test('P1-13: a food review without a restaurant binding cannot dispatch an order', async t => {
+  const realFood = domainHandlers.food;
+  t.mock.method(domainHandlers, 'food', (method, path, query, body) => {
+    const result = realFood(method, path, query, body);
+    return method === 'GET' && path === '/restaurants/search'
+      ? { ...result, data: { ...result.data, restaurants: result.data.restaurants.map((restaurant: { id: string }) => ({ ...restaurant, id: '' })) } } : result;
+  });
+  const sid = 'food_missing_restaurant_binding';
+  assert.equal((await intent(sid, 'Find a restaurant for dinner')).status, 200);
+  const surface = getOrCreateSession(sid).currentSurface!;
+  const choices = surface.view.children!.find(node => node.id === 'food_choices')!.properties!.options as Array<{ id: string; metadata?: { restaurantId: string } }>;
+  const choice = choices[0];
+  const before = activeOrders.size;
+  const result = await core('POST', '/api/a2ui/action', {}, { sessionId: sid, surfaceRevision: surface.revision, action: 'order_food', payload: { selectedChoice: choice.id } });
+  assert.equal(result.status, 409);
+  assert.equal(activeOrders.size, before);
+});
 
 test('P1-13: composite checkout charges the reviewed total and books the reviewed ride and meal', async () => {
   ensureFunds();

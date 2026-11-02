@@ -44,6 +44,8 @@ Compatibility ride booking confirmations require the selected driver, a confirme
 
 Compatibility food order confirmations require the selected restaurant, exact item quantities, accepted status and any supplied delivery address to match. A mismatched order remains unknown and blocks a replacement checkout.
 
+Each standalone food choice carries its restaurant identity in the approved surface. Dispatch uses that reviewed binding and refuses an older or incomplete review without it; the food service still checks that the selected dish belongs to that restaurant.
+
 The integrated food application atomically stores each order with an account-scoped operation identity and request fingerprint. Repeating the same identity and terms returns the original snapshot, including after an application restart; changed terms are refused, and missing original evidence remains unconfirmed. This does not by itself reconcile the other effects in a composite journey.
 
 New food-operation records bind the original receipt digest. An altered receipt, malformed operation record or older record without that binding remains unconfirmed and requires inspection; the application does not create a replacement order from it. The digest detects inconsistent local records; it is not a tamper-evident audit archive.

@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bind selected dishes to restaurants (P1-13, step)
+
+Standalone food orders use the selected dish's restaurant from the approved review and refuse reviews without that binding. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Show confirmed composite estimates (P1-13, step)
 
 Composite checkout displays ride and meal receipt estimates and the selected restaurant instead of fixed delivery details. Guide: [agent flow](agent-flow.md).
