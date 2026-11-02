@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bind integrated fine settlement to the account plate (P1-13, step)
+
+Standalone and manual grouped fine settlement refuse provider fines or selection quotes for a different plate before creating payment. Wrong-plate tests and the valid grouped checkout and application contract writes passed; live checks used revision `b151013` plus this change, Node 24.16.0, Docker 29.9.2 and Compose 5.6.1 on a disposable synthetic stack. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Scope fine lookups to the selected plate (P1-13, step)
 
 Offline and integrated fine lookups now filter by the selected or default plate and calculate exact totals; integrated lookups refuse a different account plate before provider access. Authenticated checks of both routes passed on an isolated synthetic stack using revision `2e547fa` plus this change, Node 24.16.0, Docker 29.9.2 and Compose 5.6.1. Guide: [integrations](integrations.md) · [testing](testing.md).

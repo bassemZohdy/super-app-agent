@@ -16,7 +16,7 @@ type PayableRevision = { payableId: string; expectedRevision: string };
 type ReviewedGroupPayable = PayableRevision & { provider: 'dewa' | 'police' };
 type Payable = { id: string; kind: string; provider: string; status: string; reference: string; revision: string; obligationId: string; amountMinor: number; currency: string };
 type Bill = { billId: string; status: string; totalAmount: number; receiptNumber: string; expiresAt?: string; premiseId?: string };
-type Fine = { fineId: string; payableId: string; payableRevision: string };
+type Fine = { fineId: string; plateNumber: string; payableId: string; payableRevision: string };
 type BillingAccount = { status: string; provider: string; reference: string };
 type RechargeTarget = { reference: string; version: number };
 type Zone = { id: string; tariffPerHour: number };
@@ -120,14 +120,16 @@ export async function integratedRequest(service: string, actor: Actor, method: s
   };
   const settleFines = async (fineIds?: string[]) => {
     const report = await call('police', 'GET', '/fines');
+    if (!Array.isArray(report.fines)) throw new UpstreamError(503, 'PROVIDER_UNAVAILABLE', 'The selected fines could not be confirmed.');
     const fines = fineIds ? report.fines.filter((f: Fine) => fineIds.includes(f.fineId)) : report.fines;
     if (fineIds && fineIds.length !== fines.length) throw new UpstreamError(404, 'NOT_FOUND', 'Unpaid fines not found.');
+    if (fines.some((fine: Fine) => !fine || fine.plateNumber !== asset.plate)) throw new UpstreamError(404, 'NOT_FOUND', 'Unpaid fines not found for the account plate.');
     if (!fines.length) return { success: true, amountPaid: 0, finesCleared: 0, fineIds: [], receiptNumber: 'NO_FINES', remainingBalance: (await call('payments', 'GET', '/wallet')).balance };
     const ids=fines.map((f:Fine)=>f.fineId).sort();
     const currentItems=fines.map((f:Fine)=>({payableId:f.payableId,expectedRevision:f.payableRevision}));
     if(body.expectedPayables&&(body.expectedPayables.length!==currentItems.length||currentItems.some((i:PayableRevision)=>!body.expectedPayables.some((p:PayableRevision)=>p.payableId===i.payableId&&p.expectedRevision===i.expectedRevision))))throw new UpstreamError(409,'PAYABLE_CHANGED','The selected fine revisions changed. Review them again.');
     const payable=(await call('police','POST','/fine-selections',{items:body.expectedPayables||currentItems},stableKey(`fine-selection:${ids.join(',')}:${JSON.stringify(currentItems)}`))).payable;
-    if(!sameFineSelection(payable,ids)||!Number.isSafeInteger(payable.amountMinor)||payable.amountMinor<0)throw new UpstreamError(503,'PROVIDER_UNAVAILABLE','The selected fines could not be confirmed.');
+    if(!sameFineSelection(payable,ids)||payable.reference!==asset.plate||!Number.isSafeInteger(payable.amountMinor)||payable.amountMinor<0)throw new UpstreamError(503,'PROVIDER_UNAVAILABLE','The selected fines could not be confirmed.');
     if(body.expectedAmountMinor!==undefined&&body.expectedAmountMinor!==payable.amountMinor)throw new UpstreamError(409,'PAYABLE_CHANGED','The reviewed fine amount changed.');
     const sameOrder=(value:unknown)=>{
       if(!value||typeof value!=='object'||Array.isArray(value))return false;
@@ -258,8 +260,8 @@ export async function integratedRequest(service: string, actor: Actor, method: s
           const bills=(await call('dewa','GET','/payables')).payables, availableFines=(await call('police','GET','/payables')).payables;
           if(!Array.isArray(bills)||!Array.isArray(availableFines))throw new UpstreamError(503,'PROVIDER_UNAVAILABLE','The reviewed payables could not be read.');
           const fines:Payable[]=[];
-          for(const item of selected){const candidates=(item.provider==='dewa'?bills:availableFines).filter((p:Payable)=>p.id===item.payableId&&p.provider===item.provider);const p=candidates[0];if(candidates.length!==1||!p||p.kind!==(item.provider==='dewa'?'BILL':'FINE')||p.status!=='UNPAID'||p.revision!==item.expectedRevision)throw new UpstreamError(409,'PAYABLE_CHANGED','A selected payable changed. Review current terms again.');if(item.provider==='dewa')items.push({provider:p.provider,payableId:p.id,expectedPayableRevision:p.revision});else fines.push(p);}
-          if(fines.length){const p=(await call('police','POST','/fine-selections',{items:fines.map((p:Payable)=>({payableId:p.id,expectedRevision:p.revision}))},stableKey(`unified-fines:${intentId}`))).payable;const ids=fines.map(f=>f.obligationId);if(!ids.every(id=>typeof id==='string'&&!!id)||!sameFineSelection(p,ids)||!Number.isSafeInteger(p.amountMinor)||p.amountMinor!==fines.reduce((sum,f)=>sum+f.amountMinor,0))throw new UpstreamError(503,'PROVIDER_UNAVAILABLE','The selected fines could not be confirmed.');items.push({provider:p.provider,payableId:p.id,expectedPayableRevision:p.revision});}
+          for(const item of selected){const candidates=(item.provider==='dewa'?bills:availableFines).filter((p:Payable)=>p.id===item.payableId&&p.provider===item.provider);const p=candidates[0];if(candidates.length!==1||!p||p.kind!==(item.provider==='dewa'?'BILL':'FINE')||p.status!=='UNPAID'||p.revision!==item.expectedRevision||item.provider==='police'&&p.reference!==asset.plate)throw new UpstreamError(409,'PAYABLE_CHANGED','A selected payable changed. Review current terms again.');if(item.provider==='dewa')items.push({provider:p.provider,payableId:p.id,expectedPayableRevision:p.revision});else fines.push(p);}
+          if(fines.length){const p=(await call('police','POST','/fine-selections',{items:fines.map((p:Payable)=>({payableId:p.id,expectedRevision:p.revision}))},stableKey(`unified-fines:${intentId}`))).payable;const ids=fines.map(f=>f.obligationId);if(!ids.every(id=>typeof id==='string'&&!!id)||!sameFineSelection(p,ids)||p.reference!==asset.plate||!Number.isSafeInteger(p.amountMinor)||p.amountMinor!==fines.reduce((sum,f)=>sum+f.amountMinor,0))throw new UpstreamError(503,'PROVIDER_UNAVAILABLE','The selected fines could not be confirmed.');items.push({provider:p.provider,payableId:p.id,expectedPayableRevision:p.revision});}
           let rechargeQuote;
           try{rechargeQuote=(await call('rta','GET',`/recharge-intents/${intentId}`)).payable;}catch(e){if(!(e instanceof UpstreamError)||e.status!==404)throw e;}
           if(!rechargeQuote){

@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { integratedRequest } from '../../packages/backend-kit/src/application.ts';
 import { ProviderClient, UpstreamError } from '../../packages/backend-kit/src/provider-client.ts';
-import { actorFor } from '../../packages/backend-kit/src/context.ts';
+import { actorFor, assetsFor } from '../../packages/backend-kit/src/context.ts';
 import { validateRequest } from '../../packages/protocol-core/src/request-validation.ts';
 import { executeWalletRequest } from '../service-wallet/src/index.ts';
 
@@ -19,11 +19,12 @@ test('manual grouped checkout plans only the explicitly reviewed bills and fines
   const recharge={id:'rta:recharge:one',provider:'rta',kind:'RECHARGE',status:'UNPAID',currency:'AED',reference:'tag',revision,amountMinor:10000,recharge:{kind:'TOLL',targetVersion:1,balanceBeforeMinor:0}};
   let fineSelection:string[]=[],groupItems:string[]=[],quoteCalls=0,groupCalls=0;
   t.mock.method(ProviderClient.prototype,'call',async(provider,_actor,_method,path,body)=>{
-    if(path==='/payables')return{payables:provider==='dewa'?bills:fines};
-    if(path==='/fine-selections'){fineSelection=body.items.map((i:{payableId:string})=>i.payableId);return{payable:selectedFine};}
+    const plate=assetsFor(_actor.accountId).plate, scopedFines=fines.map(f=>({...f,reference:plate})), scopedSelection={...selectedFine,reference:plate};
+    if(path==='/payables')return{payables:provider==='dewa'?bills:scopedFines};
+    if(path==='/fine-selections'){fineSelection=body.items.map((i:{payableId:string})=>i.payableId);return{payable:scopedSelection};}
     if(path.startsWith('/recharge-intents/'))return{payable:recharge};
-    if(path.startsWith('/payables/')){const id=decodeURIComponent(path.slice('/payables/'.length));return{payable:[...bills,...fines,selectedFine,recharge].find(p=>p.id===id)};}
-    if(path==='/billing-accounts')return{billingAccounts:[{provider:'dewa',reference:'premise',status:'ACTIVE'},{provider:'police',reference:'plate',status:'ACTIVE'},{provider:'rta',reference:'tag',status:'ACTIVE'}]};
+    if(path.startsWith('/payables/')){const id=decodeURIComponent(path.slice('/payables/'.length));return{payable:[...bills,...scopedFines,scopedSelection,recharge].find(p=>p.id===id)};}
+    if(path==='/billing-accounts')return{billingAccounts:[{provider:'dewa',reference:'premise',status:'ACTIVE'},{provider:'police',reference:plate,status:'ACTIVE'},{provider:'rta',reference:'tag',status:'ACTIVE'}]};
     if(path==='/checkout-groups'){groupCalls++;groupItems=body.items.map((i:{payableId:string})=>i.payableId);throw new UpstreamError(503,'PROVIDER_OUTCOME_UNKNOWN','Stopped before payment.');}
     if(path==='/recharge-quotes'){quoteCalls++;throw new Error('Unexpected quote');}
     throw new Error('Unexpected operation');
