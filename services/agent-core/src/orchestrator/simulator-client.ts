@@ -9,11 +9,14 @@ export async function simulatorRequest(base: URL, workloadKey: string, path: str
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
   if (!response.ok) {
-    if (response.status === 409 && reasons.length) {
+    if (response.status === 409 || response.status === 403) {
       const reason = await boundedJson(response).then(value => (value as { code?: unknown })?.code, () => undefined);
-      if (typeof reason === 'string' && reasons.includes(reason)) throw new AgentError(reason, 409);
+      if (response.status === 409 && typeof reason === 'string' && reasons.includes(reason)) throw new AgentError(reason, 409);
+      if (response.status === 403 && typeof reason === 'string' && ['PERMISSION_DENIED', 'WORKLOAD_REQUIRED', 'CONSENT_REQUIRED_OR_EXPIRED', 'ORIGIN_NOT_ALLOWED'].includes(reason)) throw new AgentError('PROVIDER_DENIED', 403);
+      // An unrecognized refusal cannot prove that a write did not commit.
+      throw new AgentError('PROVIDER_FAILURE', 502);
     }
-    throw new AgentError(response.status === 409 ? 'QUOTE_STALE' : response.status === 403 ? 'PROVIDER_DENIED' : 'PROVIDER_FAILURE', response.status);
+    throw new AgentError('PROVIDER_FAILURE', response.status);
   }
   return boundedJson(response);
 }

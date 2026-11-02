@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Preserve focused renewal outcomes on unrecognized refusals (P1-02, step)
+
+The focused agent no longer assumes every simulator 403 is a denial or every 409 a stale quote. Only named simulator refusal codes receive those classifications; unrecognized responses remain unknown so the original operation must be recovered. A renewal journey test commits the simulated effect before substituting an unrecognized 403 or 409, then verifies that replacement is blocked and recovery returns the original renewal. Existing consent and stale-quote refusals remain covered. Guide: [testing](testing.md).
+
 ## 2 November 2026 — Preserve unconfirmed settlement outcomes (P1-02, step)
 
 The retained agent and application provider clients now share a conservative rule for codes ending in unknown, not confirmed or reconciliation required: a write remains unknown rather than becoming a definite failure. Tests cover both clients and show an unknown settlement after a wallet effect blocks a replacement. Some pre-effect refusals with these suffixes may also require inspection; this deliberately avoids claiming a completed effect failed. Durable production reconciliation remains separate. Guide: [testing](testing.md).

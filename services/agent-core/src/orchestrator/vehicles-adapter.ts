@@ -2,7 +2,7 @@ import { z } from 'zod/v4';
 import { RenewalQuote, RenewalReceipt, Vehicle, type Tool } from './contracts.ts';
 import { simulatorRequest } from './simulator-client.ts';
 
-/** The reasons a renewal may be refused with 409; anything else stays a generic stale quote. */
+/** The reasons a renewal may be refused with 409; any other conflict remains unconfirmed. */
 const REASONS = ['FINES_OUTSTANDING', 'QUOTE_STALE'] as const;
 
 export class VehiclesAdapter {

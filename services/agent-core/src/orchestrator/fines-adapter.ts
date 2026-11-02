@@ -10,7 +10,7 @@ export class FinesAdapter {
     this.list = { id: 'fines.list', description: 'Retrieve this resident’s outstanding simulated government fines', protocol: 'rest', input: z.object({}).strict(), output: z.array(Fine).max(100), permission: 'fines:read', consequential: false, timeoutMs,
       invoke: async (_input, ctx, signal) => z.array(Fine).max(100).parse(await request('simulator/v1/fines', ctx, signal)) };
     this.pay = { id: 'fines.pay', description: 'Pay an exact reviewed set of simulated fines after confirmation', protocol: 'rest', input: z.object({ quote: Quote, consentId: z.string().uuid() }).strict(), output: Receipt, permission: 'fines:pay', consequential: true, timeoutMs,
-      invoke: async (input, ctx, signal, key) => Receipt.parse(await request('simulator/v1/payments', ctx, signal, input, key)) };
+      invoke: async (input, ctx, signal, key) => Receipt.parse(await simulatorRequest(base, workloadKey, 'simulator/v1/payments', ctx, signal, { body: input, key, reasons: ['QUOTE_STALE'] })) };
   }
 }
 

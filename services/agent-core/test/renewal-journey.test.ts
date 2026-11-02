@@ -153,6 +153,37 @@ test('renewal journey: a lost renewal response is an unknown outcome that recove
   } finally { await h.close(); rmSync(dir, { recursive: true, force: true }); }
 });
 
+for (const status of [403, 409]) test(`renewal journey: unrecognized ${status} after commit stays unknown and recovers the original renewal`, async t => {
+  const { h, say, decide, payFinesDirectly, root } = await journey();
+  try {
+    payFinesDirectly();
+    const review = await say('renew my vehicle');
+    const originalFetch = globalThis.fetch;
+    let intercepted = false;
+    const mock = t.mock.method(globalThis, 'fetch', async (input: string | URL | Request, init?: RequestInit) => {
+      const url = new URL(input instanceof Request ? input.url : String(input));
+      if (!intercepted && url.pathname === '/simulator/v1/renewals' && init?.method === 'POST') {
+        intercepted = true;
+        const actual = await originalFetch(input, init);
+        assert.equal(actual.status, 200);
+        return Response.json({ code: 'UNEXPECTED_RESPONSE' }, { status });
+      }
+      return originalFetch(input, init);
+    });
+    const result = await decide(review.data.renewalApproval.id, 'approve');
+    mock.mock.restore();
+    assert.equal(intercepted, true);
+    assert.equal(result.data.status, 'unknown');
+    assert.match(result.data.reply, /never create a replacement renewal/);
+    assert.equal(count(h, 'sa_sim_renewals'), 1);
+    assert.equal((await say('renew my vehicle')).status, 409);
+    const recovered = await h.req(`${root}/recover`, {});
+    assert.equal(recovered.data.status, 'complete');
+    assert.equal(recovered.data.renewal.idempotencyKey, review.data.renewalApproval.key);
+    assert.equal(count(h, 'sa_sim_renewals'), 1);
+  } finally { await h.close(); }
+});
+
 test('renewal journey: the surface shows the vehicle and the fee, binds its buttons to the renewal approval and drops the paid fines', async () => {
   const { h, say, decide } = await journey();
   try {

@@ -61,3 +61,18 @@ test('an unexpected simulator reply is a safe provider failure, not a renewal', 
     assert.equal((h.store.db.prepare('SELECT count(*) AS n FROM sa_sim_renewals').get() as { n: number }).n, 0);
   } finally { await h.close(); }
 });
+
+
+test('the fines adapter preserves an explicit stale-quote refusal', async () => {
+  const { h, ctx, principal } = await setup();
+  try {
+    const quote = quoteFor(h.store.fines('alice'));
+    const key = digest({ subject: 'alice', operation: 'fines.pay.v1', quote }), consentId = randomUUID();
+    h.store.consent(consentId, principal, key, quote, Date.now() + 60000);
+    const changed = { ...h.store.fines('alice')[0], amountMinor: 1 };
+    h.store.db.prepare('UPDATE sa_sim_fines SET fine=? WHERE subject=? AND id=?').run(JSON.stringify(changed), 'alice', changed.id);
+    await assert.rejects(invokeTool(h.tools.pay, { quote, consentId }, ctx, key),
+      (error: AgentError) => error.code === 'QUOTE_STALE' && error.status === 409);
+    assert.equal((h.store.db.prepare('SELECT count(*) AS n FROM sa_sim_payments').get() as { n: number }).n, 0);
+  } finally { await h.close(); }
+});
