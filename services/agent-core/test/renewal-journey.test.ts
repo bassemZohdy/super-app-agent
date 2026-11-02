@@ -101,6 +101,24 @@ test('a vehicle reference embedded in a longer ID cannot select the default vehi
   } finally { await h.close(); }
 });
 
+test('duplicate vehicle IDs from a provider cannot start a fines payment or renewal', async () => {
+  const { h, say } = await journey();
+  try {
+    const original = h.vehicles.list.invoke, vehicle = h.store.vehicles('alice')[0];
+    for (const second of [vehicle, { ...vehicle, renewalFeeMinor: vehicle.renewalFeeMinor + 1 }]) {
+      h.vehicles.list.invoke = async () => [vehicle, second];
+      const result = await say('renew my car registration');
+      assert.equal(result.data.status, 'service_unavailable');
+      assert.equal(result.data.approval, null);
+      assert.equal(result.data.renewalApproval, null);
+    }
+    assert.equal(count(h, 'sa_sim_payments'), 0);
+    assert.equal(count(h, 'sa_sim_renewals'), 0);
+    h.vehicles.list.invoke = original;
+    assert.equal((await say('renew my car registration')).data.status, 'awaiting_approval');
+  } finally { await h.close(); }
+});
+
 test('renewal journey: fines first, then a second approval, each with exactly one effect', async () => {
   const { h, say, decide, root } = await journey();
   try {

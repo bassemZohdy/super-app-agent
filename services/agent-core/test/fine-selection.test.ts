@@ -49,6 +49,28 @@ test('an unavailable named fine is rejected instead of paying other fines', asyn
   } finally { await h.close(); }
 });
 
+test('duplicate fine IDs from a provider are unavailable for both listing and payment', async () => {
+  const h = await harness();
+  try {
+    const root = `/api/agent/threads/${await h.thread()}`;
+    const initial = await h.req(`${root}/messages`, { message: 'show fines' });
+    assert.equal(initial.data.fines.length, 2);
+    const original = h.tools.list.invoke, fine = h.store.fines('alice')[0];
+    for (const second of [fine, { ...fine, amountMinor: fine.amountMinor + 1 }]) {
+      h.tools.list.invoke = async () => [fine, second];
+      for (const message of ['show fines', 'pay fines']) {
+        const result = await h.req(`${root}/messages`, { message });
+        assert.equal(result.data.status, 'service_unavailable');
+        assert.deepEqual(result.data.fines, []);
+        assert.equal(result.data.approval, null);
+      }
+    }
+    assert.equal((h.store.db.prepare('SELECT count(*) AS n FROM sa_sim_payments').get() as { n: number }).n, 0);
+    h.tools.list.invoke = original;
+    assert.equal((await h.req(`${root}/messages`, { message: 'show fines' })).data.fines.length, 2);
+  } finally { await h.close(); }
+});
+
 test('a fine reference ending in a hyphen is not shortened to another fine', async () => {
   const h = await harness();
   try {

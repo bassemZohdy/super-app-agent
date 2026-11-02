@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Reject duplicate focused resource IDs (P1-02, step)
+
+Focused fine and vehicle tool outputs require unique IDs. Duplicate records make the read unavailable and cannot start payment or renewal review. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Review named fine batches in Arabic (P1-16, step)
 
 The deterministic demo planner recognizes a precise Arabic command naming multiple fines. Selected batches still require separate payment confirmation before a renewal can be reviewed. Guide: [shell parity](development/shell-parity.md).

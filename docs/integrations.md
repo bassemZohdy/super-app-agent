@@ -152,6 +152,8 @@ The compatible planner reads `OPENROUTER_API_KEY` only for the exact HTTPS OpenR
 
 `npm run agent:verify:model` makes real, synthetic English/Arabic list/pay/clarification/out-of-scope and follow-up calls. Its declared smoke threshold is every expected intent correct within fifteen seconds per call. It stops on an unavailable or invalid provider response, prints no credentials/raw response, and cannot substitute mocked inference for a pass. A smoke pass alone is not a broad model-quality evaluation.
 
+Focused fine and vehicle tool outputs require unique resource IDs, even when duplicated records are otherwise identical. A duplicate makes the corresponding read unavailable; it cannot be displayed as a valid list or used to prepare a payment or renewal review.
+
 Compatible planners reject provider-reported truncation, filtering and tool-call finish reasons, even if the JSON parses. Reported completion-token use must be a non-negative safe integer within the requested allowance. Servers that omit these optional metadata fields still undergo strict plan, content-size and response-byte validation. The same request deadline covers headers and body consumption; errors remain sanitized and never select a fixture fallback.
 
 `npm run agent:qualify:model` performs broader versioned English/Arabic intent, exact-selection and latency evaluation, then checks the live planner against exact approvals in disposable simulator state. It requires the selected real compatible planner and refuses to qualify incomplete or unavailable runs. [Qualification scope and artifacts](testing.md#selected-planner-qualification).
