@@ -105,6 +105,8 @@ The worker bounds the broker's switch response and requires a successful, well-f
 
 The worker's preparation, credential and execution HTTP responses are bounded. Only documented refusal codes are retained, and provider error text is not used in worker errors or job history. Malformed, oversized, contradictory or unrecognized replies are uncertain: credential or execution uncertainty remains held under the original identity rather than being reported as a definitive refusal.
 
+Success responses carrying an error and skips that also contain preparation facts are rejected as contradictory. A credential must be nonempty, bounded, free of whitespace and have more than five seconds of confirmed lifetime; the same checks apply to a resumed challenge. An unusable credential is held as uncertain and is never presented to the execution route.
+
 The broker separately bounds its provider execution-view response and requires an unambiguous success envelope. Before issuing a permit, it validates the current, expired and skip flags as explicit booleans and checks the associated identities and versions. Malformed views issue neither a permit nor a credential.
 
 Each automation permit is bound to the mandate's owner and membership eligibility version. When eligibility enforcement is enabled, the broker checks that version before and after minting, and again at provider admission and session use; revoking and restoring membership cannot revive the old authority. If eligibility changes after a token is minted, its fingerprint remains bound and no replacement token is issued. Older permits without an eligibility version cannot be used and require inspection. The legacy mandate version defaults to `1:1`, as in the provider's existing preparation check.

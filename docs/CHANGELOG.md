@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Reject contradictory automation replies (P1-02, step)
+
+The worker rejects success responses that also report errors, contradictory preparation skips, and empty, oversized or expired credentials before dispatch or challenge resumption. Guide: [automation worker](development/automation-worker.md).
+
 ## 2 November 2026 — Preserve settled-payment uncertainty (P1-13, step)
 
 After integrated bill and fine settlement, an unavailable or malformed wallet balance produces an unknown outcome rather than a refusal that could invite a replacement payment. Guide: [integrations](integrations.md).

@@ -14,6 +14,9 @@ function endpoint(raw: string) {
   return url;
 }
 const failure = (status: number | undefined, code: string, message: string) => Object.assign(new Error(message), { status, code }) as GatewayFailure;
+const usableCredential = (data: Record<string, unknown>): data is Record<string, unknown> & { accessToken: string; expiresAt: number } =>
+  typeof data.accessToken === 'string' && data.accessToken.length > 0 && data.accessToken.length <= 16384 && !/\s/.test(data.accessToken) &&
+  typeof data.expiresAt === 'number' && Number.isSafeInteger(data.expiresAt) && data.expiresAt > Date.now() + 5000;
 // Only documented codes are retained; arbitrary provider text must not enter job history.
 const REFUSALS = new Set([
   'AUTOMATION_COOLDOWN', 'AUTOMATION_ADMISSION_REJECTED', 'AUTOMATION_ALREADY_DISPATCHED', 'AUTOMATION_EXECUTION_RELEASED', 'AUTOMATION_OWNER_MISMATCH',
@@ -41,7 +44,7 @@ export class HttpExecutionGateway implements ExecutionGateway {
     catch { throw failure(502, 'AUTOMATION_RESPONSE_UNCERTAIN', 'The automation response could not be confirmed.'); }
     if (!bodyData || typeof bodyData !== 'object' || Array.isArray(bodyData)) throw failure(502, 'AUTOMATION_RESPONSE_UNCERTAIN', 'The automation response could not be confirmed.');
     const data = bodyData as Record<string, unknown>;
-    if (!response.ok || data.success !== true) {
+    if (!response.ok || data.success !== true || Object.hasOwn(data, 'error')) {
       if (response.status >= 400 && response.status < 500 && data.success === false && typeof data.code === 'string' && REFUSALS.has(data.code)) throw failure(response.status, data.code, 'The automation request was refused.');
       throw failure(502, 'AUTOMATION_RESPONSE_UNCERTAIN', 'The automation response could not be confirmed.');
     }
@@ -52,22 +55,25 @@ export class HttpExecutionGateway implements ExecutionGateway {
   async prepare(input: { mandateId: string; policyVersion: number; occurrenceKey: string; requestKey: string }): Promise<PrepareResult> {
     const data = await this.call(this.config.paymentsUrl, this.run('/prepare'), await this.credentials.token(), { mandateId: input.mandateId, occurrenceKey: input.occurrenceKey, requestKey: input.requestKey });
     if (data.mandateId !== input.mandateId || data.occurrenceKey !== input.occurrenceKey) throw failure(502, 'PREPARATION_INVALID', 'The preparation response was incomplete.');
-    if (data.skipped === true && typeof data.reason === 'string') return { skipped: true, reason: data.reason };
+    if (data.skipped === true) {
+      if (typeof data.reason !== 'string' || ['id', 'orderId', 'runId', 'policyVersion', 'state', 'amountMinor', 'currency'].some(key => Object.hasOwn(data, key))) throw failure(502, 'PREPARATION_INVALID', 'The preparation response was incomplete.');
+      return { skipped: true, reason: data.reason };
+    }
     if (data.runId !== this.config.runId || data.policyVersion !== input.policyVersion || data.state !== 'PREPARED' || typeof data.id !== 'string' || !/^autoexec_[A-Za-z0-9_-]{1,100}$/.test(data.id) || typeof data.orderId !== 'string' || !/^(?:order|funding)_[A-Za-z0-9_-]{1,100}$/.test(data.orderId) || typeof data.amountMinor !== 'number' || !Number.isSafeInteger(data.amountMinor) || data.amountMinor <= 0 || data.amountMinor > 100000000 || data.currency !== 'AED') throw failure(502, 'PREPARATION_INVALID', 'The preparation response was incomplete.');
     return { id: data.id, runId: this.config.runId, orderId: data.orderId, amountMinor: data.amountMinor };
   }
   async credential(runId: string, executionId: string) {
     const data = await this.call(this.config.brokerUrl, `/api/delegation/automation/executions/${encodeURIComponent(executionId)}/credential`, await this.credentials.token(), { runId });
-    if (typeof data.accessToken !== 'string' || typeof data.expiresAt !== 'number' || !Number.isFinite(data.expiresAt)) throw failure(502, 'CREDENTIAL_INVALID', 'The credential response was incomplete.');
-    return { accessToken: data.accessToken as string, expiresAt: Number(data.expiresAt) };
+    if (!usableCredential(data)) throw failure(502, 'CREDENTIAL_INVALID', 'The credential response was incomplete.');
+    return { accessToken: data.accessToken, expiresAt: data.expiresAt };
   }
   /** One poll for the owner's answer. The broker refuses a pending or rejected answer before it issues anything. */
   async resume(runId: string, executionId: string): Promise<ChallengeAnswer> {
     if (runId !== this.config.runId) throw failure(400, 'RUN_MISMATCH', 'The job belongs to another run.');
     try {
       const data = await this.call(this.config.brokerUrl, `/api/delegation/automation/executions/${encodeURIComponent(executionId)}/resume-credential`, await this.credentials.token(), { runId });
-      if (typeof data.accessToken !== 'string' || typeof data.expiresAt !== 'number' || !Number.isFinite(data.expiresAt)) throw failure(502, 'CREDENTIAL_INVALID', 'The credential response was incomplete.');
-      return { state: 'APPROVED', accessToken: data.accessToken as string, expiresAt: Number(data.expiresAt) };
+      if (!usableCredential(data)) throw failure(502, 'CREDENTIAL_INVALID', 'The credential response was incomplete.');
+      return { state: 'APPROVED', accessToken: data.accessToken, expiresAt: data.expiresAt };
     } catch (e) {
       const code = (e as GatewayFailure).code;
       if (code === 'CHALLENGE_PENDING') return { state: 'PENDING' };

@@ -29,6 +29,9 @@ test('automation HTTP errors remain sanitized and uncertain credential results a
     { status: 403, body: { success: false, code: 'PRIVATE_TOKEN_MARKER', error: 'x'.repeat(70000) } },
     { status: 200, body: { success: false, code: 'PERMIT_EXPIRED', error: 'private-token-marker' } },
     { status: 403, body: null },
+    ...['', ' ', 'x'.repeat(17000)].map(accessToken => ({ status: 200, body: { success: true, accessToken, expiresAt: Date.now() + 60000 } })),
+    { status: 200, body: { success: true, accessToken: 'fixture-execution-token', expiresAt: Date.now() + 60000, error: 'private-token-marker' } },
+    { status: 200, body: { success: true, accessToken: 'fixture-execution-token', expiresAt: Date.now() - 1 } },
   ]) {
     status = example.status; payload = example.body; credentialCalls = 0;
     const store = new JobStore(':memory:');
@@ -50,6 +53,7 @@ test('automation HTTP errors remain sanitized and uncertain credential results a
     { status: 200, body: { success: true, order: { id: 'order_1', state: 'SETTLED', fundsCaptured: false } } },
     { status: 200, body: { success: true, order: { id: 'order_1', state: 'REQUIRES_ACTION', fundsCaptured: true } } },
     { status: 200, body: { success: true, order: { id: 'order_1', state: 'FAILED', fundsCaptured: false, failureCode: 'private-token-marker' } } },
+    { status: 200, body: { success: true, error: 'private-token-marker', order: { id: 'order_1', state: 'SETTLED', fundsCaptured: true, receipt: { amountMinor: 10000, currency: 'AED', receiptNumber: 'receipt_1' } } } },
     ...[undefined, { amountMinor: 9999, currency: 'AED', receiptNumber: 'receipt_1' }, { amountMinor: 10000, currency: 'USD', receiptNumber: 'receipt_1' }, { amountMinor: 10000, currency: 'AED', receiptNumber: '' }].map(receipt => ({ status: 200, body: { success: true, order: { id: 'order_1', state: 'SETTLED', fundsCaptured: true, receipt } } })),
   ]) {
     status = example.status; payload = example.body; executeCalls = 0;
@@ -79,6 +83,14 @@ test('automation HTTP errors remain sanitized and uncertain credential results a
   });
   payload = { success: false, code: 'CHALLENGE_PENDING', error: 'private-token-marker' };
   assert.deepEqual(await gateway.resume(runId, 'autoexec_1'), { state: 'PENDING' });
+  status = 200;
+  for (const invalid of [
+    { success: true, accessToken: '', expiresAt: Date.now() + 60000 },
+    { success: true, accessToken: 'fixture-execution-token', expiresAt: Date.now() - 1 },
+    { success: true, accessToken: 'fixture-execution-token', expiresAt: Date.now() + 60000, error: 'private-token-marker' },
+  ]) { payload = invalid; await assert.rejects(gateway.resume(runId, 'autoexec_1')); }
+  payload = { success: true, accessToken: 'fixture-execution-token', expiresAt: Date.now() + 60000 };
+  assert.equal((await gateway.resume(runId, 'autoexec_1')).state, 'APPROVED');
 });
 
 test('automation preparation is bound to the queued rule, occurrence, version and run before credential issuance', async t => {
@@ -101,7 +113,7 @@ test('automation preparation is bound to the queued rule, occurrence, version an
   for (const changed of [
     { runId: 'autorn_11111111-1111-4111-8111-111111111111' }, { mandateId: 'mandate_other' }, { occurrenceKey: 'occ_other' },
     { policyVersion: 2 }, { state: 'SETTLED' }, { id: '' }, { orderId: '' }, { amountMinor: 0 }, { currency: 'USD' },
-    { skipped: true, reason: 'NO_DUE_INVOICE', mandateId: 'mandate_other' },
+    { skipped: true, reason: 'NO_DUE_INVOICE', mandateId: 'mandate_other' }, { skipped: true, reason: 'NO_DUE_INVOICE' },
   ]) {
     preparation = { ...correct, ...changed }; credentialCalls = 0;
     const store = new JobStore(':memory:');
