@@ -16,6 +16,9 @@ export function providerOperationKey(operationId: string, provider: string, path
   const derived = `${operationId}:${provider}:${path}`;
   return derived.length <= 200 ? derived : `sha256:${createHash('sha256').update(derived).digest('hex')}`;
 }
+export function walletChargeKey(accountId: string, merchant: string, reference: string): string {
+  return createHash('sha256').update(`${accountId}:charge:${merchant}:${reference}`).digest('hex');
+}
 export class ProviderClient {
   readonly credentials: ClientCredentials;
   constructor(clientId: string, secret: string) { this.credentials = new ClientCredentials(clientId, secret); }

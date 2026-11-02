@@ -221,7 +221,7 @@ export function createProviderServer(provider: ProviderId, path: string, options
         catch { throw new ApiError(403, 'DELEGATION_DENIED', 'The current grant does not permit this exact operation.'); }
       }
       if(body&&typeof body==='object'&&'automationExecutionId' in body&&!delegated)throw new ApiError(403,'AUTOMATION_CREDENTIAL_REQUIRED','Only a broker-issued per-execution credential may name an automatic execution.');
-      if(!claimant)engine.seed(actor);
+      if(!claimant && !(provider === 'payments' && req.method === 'GET' && /^\/wallet\/operations\/[^/]+$/.test(operationPath)))engine.seed(actor);
       const rawKey=req.headers['idempotency-key'];
       const key=claimant&&typeof rawKey==='string'?`claim:${claimant}:${rawKey}`:rawKey;
       const fingerprint = createHash('sha256').update(JSON.stringify([req.method, operationPath, canonical(body),...(claimant?[claimant]:[])])).digest('hex');

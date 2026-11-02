@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Inspect original wallet operations (P1-13, step)
+
+The integrated wallet service offers account-scoped inspection of an original superapp payment against its charge, transaction and finalized debit journal. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Inspect original ride operations (P1-13, step)
 
 The integrated ride service offers account-scoped, read-only inspection of a saved operation and its matching booking. Guide: [agent flow](agent-flow.md).

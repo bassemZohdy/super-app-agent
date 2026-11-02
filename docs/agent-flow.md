@@ -60,6 +60,8 @@ An authenticated account can inspect `GET /orders/operations/{operationId}` for 
 
 The integrated ride service also provides `GET /rides/operations/{operationId}` for an account-owned operation. It compares the provider's saved operation response with the stored booking and does not dispatch a ride. A missing operation does not establish non-application; malformed, missing or inconsistent booking evidence remains unconfirmed. This comparison checks consistency of local records, not an independent audit archive.
 
+The integrated wallet service provides `GET /wallet/operations/{operationId}` to inspect an original superapp wallet charge using its payment reference. For a payment without an explicit `referenceId`, that reference is the original operation identity. The lookup verifies the saved response, account-scoped charge and transaction, and balanced finalized debit journal entry; it returns no historical balance. A missing record does not prove non-application, and unreadable, missing, refunded or inconsistent evidence remains unconfirmed. Inspection does not dispatch a payment or create a wallet journal entry.
+
 Local application database initialization retries a busy journal-mode transition for up to five seconds. A cross-process check exercises simultaneous first opens and the same food operation against one database; it is not distributed deployment or cross-service recovery evidence.
 
 The local and integrated simulators use different successful ride and food statuses and item shapes; the adapter accepts their documented forms while applying the same selected-resource checks. The integrated food receipt includes the requested delivery address.

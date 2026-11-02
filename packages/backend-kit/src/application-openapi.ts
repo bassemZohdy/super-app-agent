@@ -84,6 +84,7 @@ export const APPLICATION_OPERATIONS: ApplicationOperation[] = [
 
   // service-wallet (payments gateway, fines, checkout)
   { service: 'service-wallet', method: 'GET', path: '/wallet/balance', operationId: 'getWalletBalance', summary: 'Get wallet balance', response: ok(RAW) },
+  { service: 'service-wallet', method: 'GET', path: '/wallet/operations/{operationId}', operationId: 'inspectWalletOperation', summary: 'Inspect the original wallet operation', response: ENVELOPE('Original verified wallet payment.', ['operationId', 'charge', 'transaction']), errors: { '404': 'Operation not found for this account; absence does not establish non-application.', '503': 'Original payment evidence is unconfirmed, or a provider or eligibility service is unavailable.' } },
   { service: 'service-wallet', method: 'GET', path: '/wallet/transactions', operationId: 'getWalletTransactions', summary: 'List wallet transactions', response: ok(RAW) },
   { service: 'service-wallet', method: 'GET', path: '/fines/check', operationId: 'checkFines', summary: 'Check traffic fines',
     response: ENVELOPE('Fines report for the account plate.', ['plateNumber', 'earlyDiscountAED', 'discountLabel']), errors: { '404': 'The selected plate is not available in this account.' } },

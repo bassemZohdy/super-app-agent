@@ -189,6 +189,7 @@ export const operations: Record<ProviderId, Operation[]> = {
     op('POST', '/topups', 'topUpWallet', { transaction: opaque, newBalance: { type: 'number' } }, 'Compatibility top-up: a flag resolves to one persisted finite demo card. Disabled/removed/exhausted cards cannot be replaced implicitly; saved-card funding reviews are the new interactive API.', object({ amountMinor: money, source: { enum: ['demo_approved', 'demo_declined'] } })),
     op('POST', '/charges', 'createCharge', { charge: opaque, transaction: opaque, remainingBalance: { type: 'number' } }, 'Capture or decline a simulated payment. Amounts use integer AED fils. Never submit card details.', object({ amountMinor: money, merchant: { enum: ['rta', 'dewa', 'police', 'etisalat', 'du', 'superapp'] }, reference: text, source: { enum: ['wallet', 'demo_approved', 'demo_declined'] } })),
     op('GET', '/charges/{chargeId}', 'getCharge', { charge: opaque }, 'Look up an account-owned captured or declined charge.'),
+    op('GET', '/wallet/operations/{operationId}', 'inspectWalletOperation', { operationId: text, charge: opaque, transaction: opaque }, 'Inspect the original account-owned wallet payment by application operation identity without dispatching a payment.'),
     op('POST', '/charges/{chargeId}/refunds', 'refundCharge', { refund: opaque, remainingBalance: { type: 'number' } }, 'Refund a captured charge at most once.', object({ reason: text })),
   ],
 };

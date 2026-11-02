@@ -153,6 +153,7 @@ route('service-food', 'GET', '/utilities/payment-epoch', object());
 route('service-food', 'GET', '/utilities/payment-operations/{operationId}', object({ operationId: id }, ['operationId']));
 route('service-food', 'GET', '/utilities/eco-advice', object(), ['/eco-advice'], 'utilities_getEcoAdvice');
 route('service-wallet', 'GET', '/wallet/balance', object(), [], 'wallet_getBalance');
+route('service-wallet', 'GET', '/wallet/operations/{operationId}', object({ operationId: { type: 'string', minLength: 1, maxLength: 200, pattern: '^[A-Za-z0-9_.:-]+$' } }, ['operationId']));
 route('service-wallet', 'GET', '/wallet/transactions', object(), [], 'wallet_getTransactions');
 route('service-wallet', 'POST', '/wallet/pay', object({ amount: moneySchema, purpose: text(), referenceId: id, currency: currency('USD') }, ['amount', 'purpose']), [], 'wallet_authorizePayment');
 route('service-wallet', 'POST', '/wallet/topup', object({ amount: moneySchema, source: text(), currency: currency('USD') }, ['amount']), [], 'wallet_topup');
