@@ -10,6 +10,8 @@ The compatibility composite summary must agree with its distinct fine IDs, count
 
 Within one agent process, offline composite checkout and the agent's standalone fine and utility actions share a guard; an overlapping action must wait and review again. The guard is released on success or failure. It does not coordinate separate processes or direct service calls, and it is not a durable distributed lock.
 
+If the offline wallet response is inconsistent after debit, or the utility step refuses after that debit, the action stops and the current session requires reconciliation. These fixture tests do not establish a durable recovery record or a fence against replacement in another session; do not treat a fresh session as recovery of the original checkout.
+
 ## Use the React demo
 
 1. Open **Payment accounts**, link the billers and save a synthetic card if desired.

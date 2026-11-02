@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Exercise offline composite failure outcomes (P1-13, step)
+
+Test an inconsistent wallet response after debit and a refused utility settlement after debit. Both stop later steps and fence the current session for reconciliation. Cross-session and durable recovery remain open. Guide: [grouped checkout](development/checkout-groups.md).
+
 ## 2 November 2026 — Coordinate offline civic actions (P1-13, step)
 
 The agent's offline composite checkout and standalone fine and utility actions now share one process-local guard. A regression interleaves these actions and checks that the reviewed checkout settles once. Direct service calls and cross-process coordination remain open. Guide: [grouped checkout](development/checkout-groups.md).
