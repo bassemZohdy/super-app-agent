@@ -85,6 +85,8 @@ Execution results for the implementation milestone belong in the dated [evidence
 
 The same suite signs tokens with separate 1,024-bit and 2,048-bit RSA keys from one mocked key set, requiring rejection of the weak key and acceptance of the valid one.
 
+`services/test/oauth-redirect.test.ts` runs two loopback servers and verifies that common token-endpoint redirects are rejected without contacting the second server. A direct token response remains accepted; this does not test production egress policy.
+
 `services/agent-core/test/thread-expiry-recovery.test.ts` expires conversations after a simulated effect and lost response, reopens SQLite and verifies that only the owner’s linked unresolved conversation is extended. It also covers saved legacy approvals and refusal to guess when the evidence is absent.
 
 `services/agent-core/test/cross-thread-recovery.test.ts` covers pending and unknown writes across conversations, same and different quotes, renewal, read-only access, subject isolation, reopening SQLite, and unambiguous or ambiguous legacy ownership. This is local single-process evidence, not distributed failover proof.

@@ -19,7 +19,7 @@ export class ClientCredentials {
     const url = process.env.KEYCLOAK_TOKEN_URL || `${process.env.KEYCLOAK_ISSUER}/protocol/openid-connect/token`;
     if (process.env.NODE_ENV === 'production' && new URL(url).protocol !== 'https:') throw new Error('HTTPS required');
     const response = await fetch(url, {
-      method: 'POST', signal: AbortSignal.timeout(5000),
+      method: 'POST', redirect: 'error', signal: AbortSignal.timeout(5000),
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({ grant_type: 'client_credentials', client_id: this.clientId, client_secret: this.secret, ...(this.scope ? { scope: this.scope } : {}) }),
     });

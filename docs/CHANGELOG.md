@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Refuse service-token redirects (P0-14, step)
+
+The shared service-credential client refuses redirects from the configured token endpoint rather than forwarding its request elsewhere. Loopback tests cover common redirect statuses and confirm that another server receives no request, while direct token issuance still succeeds. Production egress policy and credential lifecycle remain separate. Guide: [security](security.md).
+
 ## 2 November 2026 — Sanitize focused write failure codes (P0-14, step)
 
 Focused payment and renewal failures now expose only a fixed set of known codes; other tool errors become fixed unknown-outcome codes before the response or checkpoint is written. Tests inject synthetic sensitive text into each error, inspect stored rows and verify replacement remains blocked. This does not complete production data protection or audit controls. Guide: [security](security.md).
