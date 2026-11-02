@@ -73,6 +73,8 @@ An automatic and a manual payment of one fine cannot both proceed: a manual revi
 
 A `PARKING_EXTENSION` rule binds one session (ticket, plate and zone) with a maximum number of hours, an end time and the usual cost, count and cooldown caps. When the session is within the rule's minutes of ending, the scheduler announces one occurrence per session expiry (`PARK:<ticket>:<expiry>`); extending moves the expiry, so the next extension is a new occurrence and not a repeat. Everything is judged on the current session at preparation:
 
+The next-run preview uses the later of the mandate's start and the session's ending-window opening. That instant must precede both the mandate expiry and the session expiry; the session itself may end after the mandate expires.
+
 - the session must exist, be running and unexpired, and match the bound plate and zone; a departed session (`SESSION_ENDED`), an expired one (`SESSION_EXPIRED`, never revived), a missing one (`SESSION_NOT_FOUND`) or another plate or zone (`SESSION_MISMATCH`) is skipped, so a session is never created or inferred;
 - one more hour must stay within the rule's maximum hours (`MAXIMUM_DURATION_REACHED`) and end time (`END_TIME_REACHED`), which bounds any overnight stay; those two ask the owner to decide;
 - the hour is priced by the zone's tariff and must fit the per-payment cap.

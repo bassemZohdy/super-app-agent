@@ -175,3 +175,24 @@ test('invoice scheduling excludes occurrences outside the approved mandate windo
     assert.equal(await scheduler.nextRun(rule, utc('2026-11-19T06:00:00Z')), null);
   } finally { store.close(); }
 });
+
+test('parking previews use the first runnable time inside the mandate window', async () => {
+  const store = new JobStore(':memory:');
+  const start = utc('2026-11-01T10:00:00Z'), end = utc('2026-11-01T11:00:00Z');
+  const rule = calendar({ mandateId: 'mandate_park', startsAt: new Date(start).toISOString(), expiresAt: new Date(end).toISOString(), trigger: { type: 'PARKING_ENDING', minutesBefore: 30 } });
+  let sessionEnd = end + 10 * 60_000;
+  const read: RuleSource = { ...source([rule]), parkingSession: async () => ({ ticketId: 'ticket_1', status: 'ACTIVE', expiresAt: sessionEnd }) };
+  const scheduler = new Scheduler(store, read);
+  try {
+    const upcoming = await scheduler.nextRun(rule, start);
+    assert.deepEqual(upcoming, { key: `PARK:ticket_1:${sessionEnd}`, runAtUtc: end - 20 * 60_000 });
+    assert.deepEqual((await scheduler.tick(upcoming!.runAtUtc)).enqueued, [`mandate_park:PARK:ticket_1:${sessionEnd}`]);
+    sessionEnd = start + 10 * 60_000;
+    assert.deepEqual(await scheduler.nextRun(rule, start - HOUR), { key: `PARK:ticket_1:${sessionEnd}`, runAtUtc: start });
+    assert.deepEqual((await scheduler.tick(start)).enqueued, [`mandate_park:PARK:ticket_1:${sessionEnd}`]);
+    sessionEnd = start;
+    assert.equal(await scheduler.nextRun(rule, start - HOUR), null);
+    sessionEnd = end + 30 * 60_000;
+    assert.equal(await scheduler.nextRun(rule, start), null, 'a trigger at mandate expiry is outside the window');
+  } finally { store.close(); }
+});

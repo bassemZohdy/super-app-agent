@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Align parking schedule previews (P1-10, step)
+
+Parking previews use the first eligible instant within the mandate window and require the session still to be active at that instant. Guide: [automation worker](development/automation-worker.md).
+
 ## 2 November 2026 — Respect invoice mandate windows (P1-10, step)
 
 Invoice-due scheduling and previews exclude occurrences before the mandate starts and at or after its expiry, including during catch-up. Guide: [automation worker](development/automation-worker.md).

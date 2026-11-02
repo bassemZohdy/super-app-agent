@@ -101,8 +101,8 @@ export class Scheduler {
     if (trigger.type === 'PARKING_ENDING') {
       const session = this.source.parkingSession ? await this.source.parkingSession(rule) : null;
       if (!session || session.status !== 'ACTIVE') return null;
-      const runAtUtc = session.expiresAt - trigger.minutesBefore * 60_000, key = `PARK:${session.ticketId}:${session.expiresAt}`;
-      return runAtUtc > now && session.expiresAt < expiresAt && !handled.has(key) ? { key, runAtUtc } : null;
+      const runAtUtc = Math.max(startsAt, session.expiresAt - trigger.minutesBefore * 60_000), key = `PARK:${session.ticketId}:${session.expiresAt}`;
+      return runAtUtc > now && runAtUtc < expiresAt && runAtUtc < session.expiresAt && !handled.has(key) ? { key, runAtUtc } : null;
     }
     if (trigger.type === 'INVOICE_DUE') {
       const upcoming = (await this.source.dueInvoices(rule)).map(i => invoiceRun(i.dueDate, trigger.daysBefore, rule.timezone))
