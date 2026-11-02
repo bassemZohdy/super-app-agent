@@ -97,7 +97,7 @@ async function execute(id: string, requestKey: unknown, authorization?: string):
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Invalid provider response');
     if (JSON.stringify(parsed).includes(bearer.slice(7))) throw new Error('Provider echoed a credential');
     const result = parsed as { success?: boolean };
-    let success = response.ok && result.success === true && !Object.hasOwn(result, 'error');
+    let success = response.ok && result.success === true && !Object.hasOwn(result, 'error') && !Object.hasOwn(result, 'code');
     if (success && g.method === 'POST' && g.provider === 'payments' && g.path === '/topups') {
       const data = result as { transaction?: { id?: unknown; type?: unknown; status?: unknown; currency?: unknown; amount?: unknown }; newBalance?: unknown };
       const tx = data.transaction;
@@ -137,7 +137,7 @@ export async function readExecutionView(runId: string, executionId: string, auth
   catch { throw new DelegationError(503, 'AUTOMATION_EXECUTION_UNAVAILABLE', 'The prepared execution could not be read; no credential is issued.'); }
   if (!body || typeof body !== 'object' || Array.isArray(body)) throw new DelegationError(503, 'AUTOMATION_EXECUTION_UNAVAILABLE', 'The prepared execution could not be read; no credential is issued.');
   const data = body as Record<string, unknown>;
-  if (data.success !== true || Object.hasOwn(data, 'error') || !data.execution || typeof data.execution !== 'object' || Array.isArray(data.execution)) throw new DelegationError(503, 'AUTOMATION_EXECUTION_UNAVAILABLE', 'The prepared execution could not be read; no credential is issued.');
+  if (data.success !== true || Object.hasOwn(data, 'error') || Object.hasOwn(data, 'code') || !data.execution || typeof data.execution !== 'object' || Array.isArray(data.execution)) throw new DelegationError(503, 'AUTOMATION_EXECUTION_UNAVAILABLE', 'The prepared execution could not be read; no credential is issued.');
   return data.execution as ExecutionView;
 }
 async function mintExecutionToken(permit: Permit) {

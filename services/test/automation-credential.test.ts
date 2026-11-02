@@ -68,6 +68,7 @@ test('provider execution view must be bounded and unambiguously successful befor
   for (const value of [
     { success: false, execution: view() }, { execution: view() }, { success: true, execution: null },
     { success: true, execution: view(), error: 'private-token-marker' },
+    { success: true, execution: view(), code: 'EXECUTION_UNAVAILABLE' },
     { success: true, execution: view(), padding: 'x'.repeat(70000) },
   ]) {
     body = JSON.stringify(value);

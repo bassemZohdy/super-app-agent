@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 - Reject contradictory broker evidence (P1-10, step)
+
+The delegation broker rejects provider success responses that also contain a code before issuing automation credentials or confirming delegated operations. Guide: [delegation](development/delegation.md).
+
 ## 2 November 2026 - Reject contradictory automation reads (P1-10, step)
 
 Scheduling and original-preparation inspection reject success responses that also contain an error code. Invalid rule and balance replies cannot enqueue work or change threshold history. Guide: [automation worker](development/automation-worker.md).

@@ -88,6 +88,7 @@ test('delegated credit verifies the approved amount and receipt before completio
     { success: true, transaction: { ...receipt, id: '' }, newBalance: 1501 },
     { success: true, transaction: receipt, newBalance: -1 },
     { success: true, transaction: receipt, newBalance: 1501, error: 'contradictory reply' },
+    { success: true, transaction: receipt, newBalance: 1501, code: 'PAYMENT_UNAVAILABLE' },
     { success: true },
   ];
   for (const [index, reply] of replies.entries()) {
