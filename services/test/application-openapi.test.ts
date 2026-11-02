@@ -67,7 +67,7 @@ test('integrated payment receipt contracts describe types and reject malformed s
   const bill = check('/utilities/pay');
   const billReceipt = { success: true, bill: { billId: 'bill-1' }, chargedAmount: 45, receipt: { billId: 'bill-1', receiptNumber: 'r1', amountPaid: '45.00', currency: 'AED' } };
   assert.equal(bill(billReceipt), true);
-  for (const invalid of [{ ...billReceipt, chargedAmount: '45' }, { ...billReceipt, receipt: { ...billReceipt.receipt, currency: 'USD' } }, { ...billReceipt, receipt: { ...billReceipt.receipt, amountPaid: '45 AED' } }]) assert.equal(bill(invalid), false);
+  for (const invalid of [{ ...billReceipt, chargedAmount: '45' }, { ...billReceipt, receipt: { ...billReceipt.receipt, currency: 'USD' } }, { ...billReceipt, receipt: { ...billReceipt.receipt, amountPaid: '45 AED' } }, { ...billReceipt, receipt: { ...billReceipt.receipt, receiptNumber: '' } }, { ...billReceipt, receipt: { ...billReceipt.receipt, receiptNumber: undefined } }]) assert.equal(bill(invalid), false);
   for (const path of ['/mobility/salik/recharge', '/telecom/{provider}/prepaid/recharges']) {
     const recharge = check(path), receipt = { success: true, transactionId: 'tx-1', newBalance: 20, amountRecharged: 10 };
     assert.equal(recharge(receipt), true);

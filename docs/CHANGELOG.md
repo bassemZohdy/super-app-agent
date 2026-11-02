@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Verify previously paid bill evidence (P1-13, step)
+
+Integrated utility and telecom bill responses require a usable original receipt reference and valid exact-fils amount before reporting an already-paid bill. Invalid evidence remains unconfirmed without another payment. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Type application payment receipt contracts (P2-04, step)
 
 Application OpenAPI now describes the types of fine, utility and telecom bill, and toll and prepaid recharge receipt fields, with checks against mapped application responses. Guide: [application API](development/application-api.md).

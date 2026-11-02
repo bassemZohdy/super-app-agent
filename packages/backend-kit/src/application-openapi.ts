@@ -45,7 +45,7 @@ const ENVELOPE = (description: string, keys: string[], properties?: Record<strin
 const money = { type: 'number', minimum: 0 };
 const rechargeReceipt = { success: { const: true }, transactionId: { type: 'string', minLength: 1 }, newBalance: money, amountRecharged: money };
 const fineReceipt = { success: { const: true }, receiptNumber: { type: 'string', minLength: 1 }, finesCleared: { type: 'integer', minimum: 0 }, fineIds: { type: 'array', items: { type: 'string', minLength: 1 } }, amountPaid: money, remainingBalance: { type: 'number' } };
-const billReceipt = { success: { const: true }, bill: { type: 'object' }, chargedAmount: money, remainingBalance: { type: 'number' }, receipt: { type: 'object', required: ['billId', 'amountPaid', 'currency'], properties: { billId: { type: 'string', minLength: 1 }, receiptNumber: { type: 'string' }, premiseId: { type: 'string' }, amountPaid: { type: 'string', pattern: '^[0-9]+\\.[0-9]{2}$' }, currency: { const: 'AED' } }, additionalProperties: true } };
+const billReceipt = { success: { const: true }, bill: { type: 'object' }, chargedAmount: money, remainingBalance: { type: 'number' }, receipt: { type: 'object', required: ['billId', 'receiptNumber', 'amountPaid', 'currency'], properties: { billId: { type: 'string', minLength: 1 }, receiptNumber: { type: 'string', minLength: 1, maxLength: 200, pattern: '\\S' }, premiseId: { type: 'string' }, amountPaid: { type: 'string', pattern: '^[0-9]+\\.[0-9]{2}$' }, currency: { const: 'AED' } }, additionalProperties: true } };
 const providerBody = (required: string[], properties: Record<string, JsonSchema>) =>
   ({ type: 'object', required, properties, additionalProperties: false }) as JsonSchema;
 const TELECOM_PROVIDER = ['etisalat', 'du'];

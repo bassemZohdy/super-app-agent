@@ -103,7 +103,12 @@ export async function integratedRequest(service: string, actor: Actor, method: s
     const bill: Bill | undefined = bills.find((b: Bill) => (billId === undefined || b?.billId === billId) && (provider !== 'dewa' || ownedUtility(b)));
     if (!bill) throw new UpstreamError(404, 'NOT_FOUND', 'Bill not found.');
     if (bill.status === 'PAID') {
-      if (body.expectedAmountMinor !== undefined && body.expectedAmountMinor !== Math.round(bill.totalAmount * 100))
+      let paidAmountMinor: number;
+      try { paidAmountMinor = toMinor(bill.totalAmount); }
+      catch { throw new UpstreamError(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The existing bill payment could not be confirmed. Inspect the original payment.'); }
+      if (typeof bill.billId !== 'string' || !bill.billId.trim() || typeof bill.receiptNumber !== 'string' || !bill.receiptNumber.trim() || bill.receiptNumber.length > 200)
+        throw new UpstreamError(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The existing bill payment could not be confirmed. Inspect the original payment.');
+      if (body.expectedAmountMinor !== undefined && body.expectedAmountMinor !== paidAmountMinor)
         throw new UpstreamError(409, 'PAYABLE_CHANGED', 'The reviewed bill changed. Review its current terms again.');
       return { success: true, bill, chargedAmount: 0, receipt: { billId: bill.billId, ...(bill.premiseId ? { premiseId: bill.premiseId } : {}), receiptNumber: bill.receiptNumber, amountPaid: bill.totalAmount.toFixed(2), currency: 'AED' } };
     }
@@ -116,7 +121,7 @@ export async function integratedRequest(service: string, actor: Actor, method: s
       return !!quoted&&quoted.kind==='BILL'&&quoted.provider===provider&&quoted.id===payable.id&&quoted.revision===payable.revision&&quoted.obligationId===bill.billId&&quoted.reference===payable.reference&&quoted.amountMinor===payable.amountMinor&&order.quote?.totalMinor===payable.amountMinor;
     };
     const order=await executePayable(provider,payable,sameOrder);
-    if(!order.receipt||typeof order.receipt.receiptNumber!=='string'||!order.receipt.receiptNumber||order.receipt.obligationId!==bill.billId||order.receipt.amountMinor!==payable.amountMinor||order.receipt.currency!=='AED')throw new UpstreamError(503,'PROVIDER_OUTCOME_UNKNOWN','The bill settlement could not be confirmed. Inspect the original payment order.');
+    if(!order.receipt||typeof order.receipt.receiptNumber!=='string'||!order.receipt.receiptNumber.trim()||order.receipt.receiptNumber.length>200||order.receipt.obligationId!==bill.billId||order.receipt.amountMinor!==payable.amountMinor||order.receipt.currency!=='AED')throw new UpstreamError(503,'PROVIDER_OUTCOME_UNKNOWN','The bill settlement could not be confirmed. Inspect the original payment order.');
     const paid=(await call(provider,'GET','/bills')).bills.find((b:Bill)=>b.billId===bill.billId),wallet=await call('payments','GET','/wallet');
     return {success:true,bill:paid,receipt:{billId:bill.billId,receiptNumber:order.receipt.receiptNumber,amountPaid:(order.receipt.amountMinor/100).toFixed(2),currency:'AED',...(bill.premiseId?{premiseId:bill.premiseId}:{})},chargedAmount:order.quote.totalMinor/100,remainingBalance:wallet.balance};
   };

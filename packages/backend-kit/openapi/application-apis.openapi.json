@@ -2100,6 +2100,7 @@
                       "type": "object",
                       "required": [
                         "billId",
+                        "receiptNumber",
                         "amountPaid",
                         "currency"
                       ],
@@ -2109,7 +2110,10 @@
                           "minLength": 1
                         },
                         "receiptNumber": {
-                          "type": "string"
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200,
+                          "pattern": "\\S"
                         },
                         "premiseId": {
                           "type": "string"
@@ -6620,6 +6624,7 @@
                       "type": "object",
                       "required": [
                         "billId",
+                        "receiptNumber",
                         "amountPaid",
                         "currency"
                       ],
@@ -6629,7 +6634,10 @@
                           "minLength": 1
                         },
                         "receiptNumber": {
-                          "type": "string"
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200,
+                          "pattern": "\\S"
                         },
                         "premiseId": {
                           "type": "string"

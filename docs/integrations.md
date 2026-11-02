@@ -10,6 +10,8 @@ For the compatibility fines action, the local wallet returns the IDs it actually
 
 Compatibility utility receipts must identify the requested bill, report an AED amount and match the reviewed amount when one was supplied. Both the local fixture's suffixed amount and the integrated application's separate currency field are accepted. A mismatched response after dispatch remains unknown for reconciliation.
 
+For an already-paid integrated utility or telecom bill, the application requires a nonblank, bounded original receipt reference and a valid amount in exact fils before returning a successful receipt. Missing or malformed evidence is unconfirmed and never starts a replacement payment. A supplied reviewed amount must still match.
+
 Integrated utility and telecom payments additionally compare each returned order's frozen payable and total with the selected bill before approval and execution, and verify the settled receipt's bill, amount and currency. An inconsistent original order or receipt remains unknown for inspection rather than reporting payment success.
 
 Integrated toll and prepaid recharges bind the saved quote and each payment order to the requested provider, target, version, balance and amount. The settled receipt must confirm that target and expected credited balance. Recovery uses the original quote and order; a mismatch is left unknown for inspection.

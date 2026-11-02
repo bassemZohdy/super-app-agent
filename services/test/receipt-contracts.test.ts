@@ -29,7 +29,7 @@ test('integrated receipt mappings preserve utility premise, owned fine plate/dis
   const mappingOrder=()=>({id:'mapping-order',ownerSub:actor.sub,accountId:actor.accountId,state:orderState,version:orderState==='AWAITING_APPROVAL'?1:2,approvalDigest:'a'.repeat(64),fundsCaptured:orderState==='SETTLED',quote:{currency:'AED',source:{id:'wallet',kind:'wallet',accountId:actor.accountId,version:1},totalMinor:42040,payable},receipt:{receiptNumber:'receipt_contract_capture',obligationId:bill.billId,amountMinor:42040,currency:'AED'}});
   t.mock.method(ProviderClient.prototype, 'call', async (provider, _actor, method, route) => {
     if (provider === 'police' && method === 'GET') return { fines: [{ plateNumber: assetsFor(actor.accountId).plate, originalAmount: 450, discountAmount: 30, payableAmount: 420 }], count: 1, totalOriginal: 450, totalDiscount: 30, totalPayable: 420 };
-    if (provider === 'dewa' && method === 'GET' && route === '/bills') return { bills: [{ ...bill, status }] };
+    if (provider === 'dewa' && method === 'GET' && route === '/bills') return { bills: [{ ...bill, status, ...(status === 'PAID' ? { receiptNumber: 'receipt_contract_capture' } : {}) }] };
     if(provider==='dewa'&&route==='/payables')return{payables:[payable]};
     if(provider==='payments'&&route==='/billing-accounts')return{billingAccounts:[{status:'ACTIVE',provider:'dewa',reference:asset.utilityAccount}]};
     if(provider==='payments'&&route==='/payment-orders')return{order:mappingOrder()};
@@ -57,6 +57,35 @@ test('integrated receipt mappings preserve utility premise, owned fine plate/dis
   const restaurant = restaurants[0];
   const order = await integratedRequest('service-food', actor, 'POST', '/orders/create', {}, { restaurantId: restaurant.id, items: [restaurant.items[0].id] }, legacy);
   assert.equal(order.status, 200); assert.equal(order.data.order.estimatedDeliveryTime, '25 min');
+});
+
+test('already-paid utility and telecom bills require a usable original receipt and exact amount without creating another payment', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'cityside-paid-bill-')), previous = process.env.APP_DATA_DIR;
+  process.env.APP_DATA_DIR = dir;
+  t.after(() => { if (previous === undefined) delete process.env.APP_DATA_DIR; else process.env.APP_DATA_DIR = previous; removeTemp(dir); });
+  const actor = actorFor({ sub: 'paid-bill-evidence' }), asset = assetsFor(actor.accountId), legacy = () => ({ status: 404, data: {} });
+  let receipt: unknown = 'paid-123', amount: unknown = 45, writes = 0;
+  t.mock.method(ProviderClient.prototype, 'call', async (_provider, _actor, method, route) => {
+    if (method !== 'GET') writes++;
+    if (method === 'GET' && route === '/bills') return { bills: [{ billId: 'bill123', status: 'PAID', totalAmount: amount, receiptNumber: receipt, accountNumber: asset.utilityAccount }] };
+    throw new Error('Unexpected provider operation');
+  });
+  for (const provider of ['dewa', 'du', 'etisalat']) {
+    const pay = () => provider === 'dewa'
+      ? integratedRequest('service-food', actor, 'POST', '/utilities/pay', {}, { billId: 'bill123', expectedAmountMinor: 4500 }, legacy)
+      : integratedRequest('service-telecom', actor, 'POST', `/telecom/${provider}/bills/bill123/payments`, {}, { expectedAmountMinor: 4500 }, legacy);
+    for (const invalid of [undefined, '', '   ', 123]) {
+      receipt = invalid; amount = 45;
+      const result = await pay(); assert.equal(result.status, 503); assert.equal(result.data.code, 'PROVIDER_OUTCOME_UNKNOWN');
+    }
+    receipt = 'paid-123';
+    for (const invalid of [NaN, -45, 45.001, '45']) {
+      amount = invalid;
+      const result = await pay(); assert.equal(result.status, 503); assert.equal(result.data.code, 'PROVIDER_OUTCOME_UNKNOWN');
+    }
+    amount = 45; const result = await pay(); assert.equal(result.status, 200); assert.equal(result.data.receipt.receiptNumber, 'paid-123'); assert.equal(result.data.chargedAmount, 0);
+  }
+  assert.equal(writes, 0);
 });
 
 
