@@ -76,3 +76,21 @@ test('configured online token checks reject revoked tokens without exposing intr
   active = false;
   await assert.rejects(() => verifyJwt(mint(), 'agent-core'));
 });
+
+for (const stage of ['keys', 'introspection'] as const) test(`access tokens that expire during ${stage} are rejected after verification`, async t => {
+  const { issuer, jwk, mint } = setup(t, `expires-during-${stage}`);
+  if (stage === 'introspection') {
+    const values = { KEYCLOAK_INTROSPECTION_URL: `${issuer}/introspect`, KEYCLOAK_INTROSPECTION_CLIENT_ID: 'verifier', KEYCLOAK_INTROSPECTION_CLIENT_SECRET: 'test-secret' };
+    for (const [key, value] of Object.entries(values)) { const previous = process.env[key]; process.env[key] = value; t.after(() => { if (previous === undefined) delete process.env[key]; else process.env[key] = previous; }); }
+  }
+  let now = Date.now();
+  t.mock.method(Date, 'now', () => now);
+  t.mock.method(globalThis, 'fetch', async (url: string | URL | Request) => {
+    if (String(url).endsWith('/keys')) { if (stage === 'keys') now += 3000; return Response.json({ keys: [jwk] }); }
+    if (stage === 'introspection') now += 3000;
+    return Response.json({ active: true, sub: 'alice' });
+  });
+  const expired = mint({ exp: Math.floor(now / 1000) + 2 });
+  await assert.rejects(() => verifyJwt(expired, 'agent-core'), /expired/i);
+  assert.equal((await verifyJwt(mint(), 'agent-core')).sub, 'alice');
+});

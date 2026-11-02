@@ -132,5 +132,7 @@ export async function verifyJwt(authorization: string | undefined, audience: str
   const key = await signingKey(issuer, url, header.kid);
   if (!verify('RSA-SHA256', Buffer.from(`${parts[0]}.${parts[1]}`), key, Buffer.from(parts[2], 'base64url'))) throw new Error('Invalid bearer signature');
   await checkOnline(token, claims as JwtClaims);
+  // Key retrieval and online introspection can outlast a token that was valid at the start.
+  if (claims.exp <= Math.floor(Date.now() / 1000)) throw new Error('Access token expired');
   return claims as JwtClaims;
 }

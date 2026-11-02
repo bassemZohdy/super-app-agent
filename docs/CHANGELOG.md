@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Recheck token expiry after verification (P0-13, step)
+
+The shared JWT verifier now checks expiry again after signing-key retrieval, signature validation and any online introspection. Tests advance the clock while each identity-provider request is pending and verify that an expired token is rejected while a valid control still succeeds. This does not establish real-provider rotation or revocation behavior. Guide: [security](security.md).
+
 ## 2 November 2026 — Bound concurrent focused HTTP handlers (P0-11, step)
 
 The focused API limits active public request handlers and reserves a separate bounded pool for simulator requests carrying the workload key. Excess requests receive a busy response; slots remain occupied until handler work settles, including after disconnect. Loopback tests cover saturation, a simulated payment through the reserved pool and subsequent slot release. This is not a socket, distributed or proxy quota. Guide: [agent flow](agent-flow.md).
