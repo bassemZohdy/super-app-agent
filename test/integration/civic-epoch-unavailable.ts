@@ -38,3 +38,33 @@ test('unavailable fixture lifetime stops dispatch and preserves any earlier paym
   const status = await store.inspectCivicFence(actor.sub, actor.accountId);
   assert.deepEqual(status.civicSteps?.map(step => [step.name, step.state]), [['WALLET', 'CONFIRMED']]); assert.equal(walletWrites, 1); assert.equal(utilityWrites, 0); assert.ok(balance < before); assert.equal(transactions.length, ledger + 1); assert.equal(await store.client.exists(key), 1);
 });
+
+
+test('a changed fixture lifetime after a debit retains the original civic fence', async t => {
+  process.env.DOMAIN_TRANSPORT = 'http'; process.env.SESSION_STORE = 'redis'; process.env.REDIS_URL = process.env.TEST_REDIS_URL || 'redis://127.0.0.1:6379';
+  const store = new RedisSessionStore(process.env.REDIS_URL), key = 'superapp:offline-civic-fence'; await store.connect(); assert.equal(await store.client.exists(key), 0);
+  let walletWrites = 0, laterWrites = 0;
+  const server = http.createServer(async (req, res) => {
+    const chunks: Buffer[] = []; for await (const chunk of req) chunks.push(Buffer.from(chunk));
+    const path = new URL(req.url!, 'http://localhost').pathname, method = req.method!, body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : {};
+    const handler = path.startsWith('/utilities/') ? domainHandlers.food : path.startsWith('/mobility/') ? domainHandlers.ride : domainHandlers.wallet;
+    const result = handler(method, path, {}, body);
+    if (method === 'POST' && path === '/pay/unified') {
+      walletWrites++; assert.equal(result.status, 200);
+      res.writeHead(409, { 'content-type': 'application/json' }); res.end(JSON.stringify({ success: false, code: 'FIXTURE_EPOCH_CHANGED', error: 'The fixture service lifetime changed.' })); return;
+    }
+    if (method === 'POST') laterWrites++;
+    res.writeHead(result.status, { 'content-type': 'application/json' }); res.end(JSON.stringify(result.data));
+  });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve)); const address = server.address(); assert.ok(address && typeof address !== 'string'); const base = `http://127.0.0.1:${address.port}`;
+  Object.assign(process.env, { SERVICE_WALLET_URL: base, SERVICE_FOOD_URL: base, SERVICE_RIDE_URL: base });
+  t.after(async () => { await new Promise<void>(resolve => server.close(() => resolve())); await store.client.del(key); await store.close(); await redisSessions()?.close(); });
+  assert.equal(executeWalletRequest('POST', '/wallet/topup', {}, { amount: 5000 }).status, 200);
+  const bill = executeFoodRequest('GET', '/utilities/bill').data.bill, fines = executeWalletRequest('GET', '/fines/check').data, salik = executeRideRequest('GET', '/mobility/salik/balance').data;
+  const review = { billId: bill.billId, billAmountMinor: toMinor(bill.totalAmount), fines: fines.fines.map((fine: { fineId: string; payableAmount: number }) => ({ fineId: fine.fineId, amountMinor: toMinor(fine.payableAmount) })).sort((a: { fineId: string }, b: { fineId: string }) => a.fineId.localeCompare(b.fineId)), tagNumber: salik.tagNumber };
+  const actor = actorFor({ sub: 'local-demo-user' }, undefined, 'Bearer test'), before = balance, ledger = transactions.length; actor.requestId = `${randomUUID()}:confirm_smartcity_checkout`;
+  await assert.rejects(actorContext.run(actor, () => SuperAppAgentGraph.resumeWithAction({ sessionId: 'epoch-changed-after-debit', messages: [], activeDomain: 'composite' }, 'confirm_smartcity_checkout', { offlineReview: review })), /did not complete successfully/);
+  const status = await store.inspectCivicFence(actor.sub, actor.accountId);
+  assert.deepEqual(status.civicSteps?.map(step => [step.name, step.state]), [['WALLET', 'UNKNOWN']]);
+  assert.equal(walletWrites, 1); assert.equal(laterWrites, 0); assert.ok(balance < before); assert.equal(transactions.length, ledger + 1); assert.equal(await store.client.exists(key), 1);
+});

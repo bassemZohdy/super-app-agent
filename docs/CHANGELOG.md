@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 - Preserve uncertainty across fixture restarts (P1-02, step)
+
+A changed fixture lifetime is an unknown write outcome rather than a definitive refusal. Civic checkout preserves the original fence when its earlier effect cannot be established. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 - Hold contradictory write refusals (P1-02, step)
 
 Local and HTTP domain adapters retain an unknown outcome when a write refusal also carries recognized transaction or effect evidence. Composite checkout stops and prevents a replacement after an applied debit. Guide: [agent flow](agent-flow.md).

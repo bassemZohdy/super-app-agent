@@ -5,6 +5,7 @@ import { integratedRequest } from '../../packages/backend-kit/src/application.ts
 import { executeFoodRequest, activeUtilityBill } from '../service-food/src/index.ts';
 import { executeWalletRequest, policeFines, balance, transactions } from '../service-wallet/src/index.ts';
 import { executeRideRequest, salikBalance } from '../service-ride/src/index.ts';
+import { callDomain, DomainOperationError, trackDomainOperations, type Step } from '../agent-core/src/domain-operations.ts';
 
 test('offline fixtures reject an operation from a different service lifetime before mutation', async () => {
   const utilityEpoch = executeFoodRequest('GET', '/utilities/payment-epoch').data.serviceEpoch;
@@ -21,6 +22,19 @@ test('offline fixtures reject an operation from a different service lifetime bef
   const wallet = executeWalletRequest('POST', '/pay/unified', {}, { items: [{ agency: 'RTA Salik', purpose: 'Demo toll recharge', amount: 100 }], operationId: 'CIVIC-epoch-w', expectedServiceEpoch: unrelated });
   const toll = executeRideRequest('POST', '/mobility/salik/recharge', {}, { amount: 100, expectedTag: executeRideRequest('GET', '/mobility/salik/balance').data.tagId, operationId: 'CIVIC-epoch-t', expectedServiceEpoch: unrelated });
   for (const result of [utility, fines, toll, wallet]) { assert.equal(result.status, 409); assert.equal(result.data.code, 'FIXTURE_EPOCH_CHANGED'); }
+
+  const mutations = [
+    ['food', '/utilities/pay', { billId: activeUtilityBill.billId, expectedAmountMinor: Math.round(activeUtilityBill.totalAmount * 100), operationId: 'CIVIC-epoch-u', expectedServiceEpoch: unrelated }],
+    ['wallet', '/fines/pay', { fineIds: [fine.fineId], expectedAmountMinor: Math.round(fine.payableAmount * 100), operationId: 'CIVIC-epoch-f', expectedServiceEpoch: unrelated }],
+    ['wallet', '/pay/unified', { items: [{ agency: 'RTA Salik', purpose: 'Demo toll recharge', amount: 100 }], operationId: 'CIVIC-epoch-w', expectedServiceEpoch: unrelated }],
+    ['ride', '/mobility/salik/recharge', { amount: 100, expectedTag: executeRideRequest('GET', '/mobility/salik/balance').data.tagId, operationId: 'CIVIC-epoch-t', expectedServiceEpoch: unrelated }],
+  ] as const;
+  for (const [service, path, body] of mutations) {
+    const steps: Step[] = [];
+    await assert.rejects(trackDomainOperations(steps, async () => callDomain(service, 'POST', path, {}, body)), (error: unknown) => error instanceof DomainOperationError && error.code === 'DOMAIN_OUTCOME_UNKNOWN');
+    assert.equal(steps[0].state, 'UNKNOWN');
+  }
+
   assert.equal(activeUtilityBill.status, 'UNPAID'); assert.equal(fine.status, 'UNPAID'); assert.equal(balance, before); assert.equal(transactions.length, count); assert.equal(salikBalance, tollBefore);
   const actor = actorFor({ sub: 'epoch-mode-test' }), legacy = () => ({ status: 404, data: {} });
   const attempts = [

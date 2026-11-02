@@ -17,6 +17,7 @@ const responses = [
   { status: 403, data: { success: false, code: 'ACCOUNT_RESTRICTED', error: 'restricted' } },
   { status: 403, data: { success: false, code: 'PAYABLE_CHANGED', error: 'forbidden' } },
   { status: 409, data: { success: false, code: 'ELIGIBILITY_CHANGED', error: 'permission changed' } },
+  { status: 409, data: { success: false, code: 'FIXTURE_EPOCH_CHANGED', error: 'service lifetime changed' } },
   { status: 404, data: { success: false, code: 'ACCOUNT_NOT_FOUND', error: 'account unavailable' } },
   { status: 429, data: { success: false, code: 'RATE_LIMITED', error: 'rate limit exceeded' } },
   { status: 408, data: { success: false, error: 'timeout' } },
