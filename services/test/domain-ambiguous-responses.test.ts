@@ -11,6 +11,8 @@ const responses = [
   { status: 409, data: { success: true, error: 'contradictory' } },
   { status: 409, data: {} },
   { status: 409, data: { code: 'UNCLASSIFIED' } },
+  ...['ALREADY_PAID', 'ALREADY_APPLIED', 'ALREADY_CAPTURED', 'ALREADY_DECIDED', 'PAYMENT_ALREADY_USED', 'AUTOMATION_ALREADY_DISPATCHED', 'IDEMPOTENCY_CONFLICT'].map(code => ({ status: 409, data: { success: false, code, error: 'already recorded' } })),
+  { status: 401, data: { success: false, code: 'ACTOR_REQUIRED', error: 'unauthorized' } },
   { status: 408, data: { success: false, error: 'timeout' } },
 ];
 

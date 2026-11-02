@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Preserve uncertain domain write outcomes (P1-02, step)
+
+Local and HTTP domain adapters retain an unknown outcome for authentication failures and responses indicating a prior effect or conflicting operation identity. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Bind legacy settlement proofs (P1-13, step)
 
 Source providers reject payment proof mismatches before creating a claim, and legacy effects recheck the exact payment, account, currency and capture status. Guide: [payment reconciliation](development/payment-reconciliation.md).

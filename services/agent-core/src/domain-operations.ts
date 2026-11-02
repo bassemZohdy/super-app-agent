@@ -1,4 +1,4 @@
-import { isUncertainOutcomeCode } from '../../../packages/backend-kit/src/outcome.ts';
+import { isPriorEffectCode, isUncertainOutcomeCode } from '../../../packages/backend-kit/src/outcome.ts';
 import { boundedJsonResponse } from '../../../packages/backend-kit/src/bounded-json.ts';
 import { tracedFetch as fetch,inSpan,routeName } from '../../../packages/backend-kit/src/observability.ts';
 import { SERVICE_PORTS } from '../../../packages/backend-kit/src/local-endpoints.ts';
@@ -43,10 +43,10 @@ const finite = (value: any) => typeof value === 'number' && Number.isFinite(valu
 function definiteRejection(status: number, data: unknown, mutation: boolean): boolean {
   if (status < 400 || status >= 500) return false;
   if (!mutation) return true;
-  if (status === 408 || !data || typeof data !== 'object' || Array.isArray(data)) return false;
+  if (status === 401 || status === 408 || !data || typeof data !== 'object' || Array.isArray(data)) return false;
   const payload = data as Record<string, unknown>;
   if (payload.success === true) return false;
-  if (isUncertainOutcomeCode(payload.code)) return false;
+  if (isUncertainOutcomeCode(payload.code) || isPriorEffectCode(payload.code)) return false;
   return payload.success === false || named(payload.error);
 }
 function confirmedReceipt(service: string, path: string, data: any, body: unknown): boolean {
