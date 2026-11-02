@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 3 November 2026 - Repair civic toll recovery verification (P2-05, step)
+
+The Redis toll recovery test reads original wallet-operation evidence through the correct domain and route. Guide: [testing](testing.md).
+
 ## 3 November 2026 - Close stream replay subscription gap (P0-02, step)
 
 The compatibility gateway subscribes before replay, buffers overlapping live events and delivers replay before live updates without repeating overlap. Guide: [security](security.md).

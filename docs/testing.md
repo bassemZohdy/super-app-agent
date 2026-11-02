@@ -83,6 +83,8 @@ Execution results for the implementation milestone belong in the dated [evidence
 
 `services/agent-core/test/recovery-rate.test.ts` seeds recovery events and exercises the rate boundary, ordinary and streamed errors, the cross-origin retry header, request-key conflict and replay, resident isolation, SQLite reopen and original-operation recovery after the window. It is not a global flood test.
 
+`test/integration/civic-toll-journal.ts` checks that a mismatched toll receipt remains unconfirmed after earlier effects, and reads the original wallet operation from the wallet service when comparing recovery evidence.
+
 `services/agent-core/test/request-concurrency.test.ts` uses reduced test limits and a controlled authenticator to saturate each focused HTTP pool. It checks busy responses, health access, workload-key separation, a simulator payment under public saturation, slot release and a disconnected request whose authentication remains active. It does not cover pre-header socket floods or distributed capacity.
 
 `services/agent-core/test/tool-deadline.test.ts` checks the deadline against a tool that ignores cancellation and an abort-triggered refusal. It also holds a response after a simulated payment commits, verifies the unknown outcome blocks replacement, then recovers the original key with one effect. It does not prove that noncooperative work is terminated.
