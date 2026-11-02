@@ -28,7 +28,7 @@ const record = (value: unknown): value is Record<string, unknown> => !!value && 
 
 // History can contain many messages and a bounded service panel; keep a byte limit above normal restored conversations.
 const FOCUSED_JSON_LIMIT_BYTES = 4 * 1024 * 1024;
-async function readFocusedJson(response: Response): Promise<unknown> {
+async function readFocusedJson(response: Response, signal: AbortSignal): Promise<unknown> {
   const reader = response.body?.getReader();
   if (!reader) throw new AgentClientError('The fines service returned an invalid response. Inspect the conversation again.');
   const decoder = new TextDecoder('utf-8', { fatal: true });
@@ -44,6 +44,7 @@ async function readFocusedJson(response: Response): Promise<unknown> {
     return JSON.parse(text + decoder.decode());
   } catch {
     void reader.cancel().catch(() => {});
+    signal.throwIfAborted();
     throw new AgentClientError('The fines service returned an invalid response. Inspect the conversation again.');
   } finally { reader.releaseLock(); }
 }
@@ -71,11 +72,14 @@ export class FocusedAgentClient {
   private readonly token: string;
   constructor(token: string) { this.token = token; }
   private async request(path: string, signal: AbortSignal, body?: Record<string, unknown>, id?: string) {
-    return fetch(`/api/agent${path}`, {
+    signal.throwIfAborted();
+    const response = await fetch(`/api/agent${path}`, {
       method: body === undefined ? 'GET' : 'POST', signal, cache: 'no-store', redirect: 'error',
       headers: { Authorization: `Bearer ${this.token}`, Accept: body === undefined ? 'application/json' : 'text/event-stream', ...(body === undefined ? {} : { 'Content-Type': 'application/json', 'Idempotency-Key': id || crypto.randomUUID() }) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
+    if (signal.aborted) { void response.body?.cancel().catch(() => {}); signal.throwIfAborted(); }
+    return response;
   }
   private async requireSuccess(response: Response) {
     if (!response.ok) {
@@ -87,7 +91,8 @@ export class FocusedAgentClient {
   async create(signal: AbortSignal): Promise<string> {
     const response = await this.request('/threads', signal, {});
     await this.requireSuccess(response);
-    const data = await readFocusedJson(response);
+    const data = await readFocusedJson(response, signal);
+    signal.throwIfAborted();
     if (!record(data) || typeof data.threadId !== 'string' || !threadId.test(data.threadId)) throw new AgentClientError('The fines service returned an invalid conversation ID.');
     return data.threadId;
   }
@@ -95,7 +100,9 @@ export class FocusedAgentClient {
     if (!threadId.test(id)) throw new AgentClientError('The saved conversation ID is invalid.');
     const response = await this.request(`/threads/${id}`, signal);
     await this.requireSuccess(response);
-    return result(await readFocusedJson(response), id);
+    const data = await readFocusedJson(response, signal);
+    signal.throwIfAborted();
+    return result(data, id);
   }
   async transition(id: string, action: AgentAction, body: Record<string, unknown>, signal: AbortSignal, progress: (node: string) => void): Promise<AgentResult> {
     if (!threadId.test(id)) throw new AgentClientError('The saved conversation ID is invalid.');
@@ -107,11 +114,13 @@ export class FocusedAgentClient {
     }
     let complete: AgentResult | undefined;
     for await (const frame of readEventStream(response)) {
+      signal.throwIfAborted();
       const data: unknown = JSON.parse(frame.data);
       if (frame.event === 'error') throw new AgentClientError('The request was not confirmed. Inspect or recover this conversation before continuing.');
       if (frame.event === 'progress' && record(data) && typeof data.node === 'string') progress(data.node);
       if (frame.event === 'result') complete = result(data, id);
     }
+    signal.throwIfAborted();
     if (!complete) throw new AgentClientError('The connection ended before confirmation. Inspect or recover this conversation.');
     return complete;
   }

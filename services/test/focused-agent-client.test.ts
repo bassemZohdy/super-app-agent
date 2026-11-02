@@ -110,3 +110,68 @@ test('focused JSON accepts bounded multibyte responses and rejects invalid UTF-8
   try { await assert.rejects(client.inspect(id, signal), error => error instanceof AgentClientError && !error.message.includes('private-upstream-detail')); }
   finally { mock.mock.restore(); }
 });
+
+
+test('focused create and inspection discard responses arriving after cancellation', async t => {
+  const client = new FocusedAgentClient('local-test-value');
+  for (const mode of ['create', 'inspect'] as const) {
+    let release!: (response: Response) => void, calls = 0;
+    const mock = t.mock.method(globalThis, 'fetch', async () => { calls++; return new Promise<Response>(resolve => { release = resolve; }); });
+    const controller = new AbortController();
+    const request = mode === 'create' ? client.create(controller.signal) : client.inspect(id, controller.signal);
+    controller.abort();
+    release(Response.json(mode === 'create' ? { threadId: id } : value));
+    try { await assert.rejects(request, error => error instanceof Error && error.name === 'AbortError'); assert.equal(calls, 1); }
+    finally { mock.mock.restore(); }
+  }
+});
+
+test('focused actions discard progress and results that arrive after cancellation without retry', async t => {
+  const controller = new AbortController(), progress: string[] = [];
+  let send!: (data: Uint8Array) => void, calls = 0;
+  t.mock.method(globalThis, 'fetch', async () => {
+    calls++;
+    return new Response(new ReadableStream<Uint8Array>({ start(stream) { send = data => { stream.enqueue(data); stream.close(); }; } }), { headers: { 'Content-Type': 'text/event-stream' } });
+  });
+  const pending = new FocusedAgentClient('local-test-value').transition(id, 'resume', {}, controller.signal, node => progress.push(node));
+  await new Promise(resolve => setImmediate(resolve));
+  controller.abort();
+  send(new TextEncoder().encode(`event: progress\ndata: {"node":"execute"}\n\nevent: result\ndata: ${JSON.stringify(value)}\n\n`));
+  await assert.rejects(pending, error => error instanceof Error && error.name === 'AbortError');
+  assert.deepEqual(progress, []); assert.equal(calls, 1);
+});
+
+
+test('focused JSON bodies arriving after cancellation are not applied', async t => {
+  const client = new FocusedAgentClient('local-test-value');
+  for (const mode of ['create', 'inspect'] as const) {
+    let send!: (bytes: Uint8Array) => void;
+    const mock = t.mock.method(globalThis, 'fetch', async () => new Response(new ReadableStream<Uint8Array>({ start(stream) { send = bytes => { stream.enqueue(bytes); stream.close(); }; } })));
+    const controller = new AbortController();
+    const request = mode === 'create' ? client.create(controller.signal) : client.inspect(id, controller.signal);
+    await new Promise(resolve => setImmediate(resolve));
+    controller.abort();
+    send(new TextEncoder().encode(JSON.stringify(mode === 'create' ? { threadId: id } : value)));
+    try { await assert.rejects(request, error => error instanceof Error && error.name === 'AbortError'); }
+    finally { mock.mock.restore(); }
+  }
+});
+
+test('a pre-cancelled focused request is never dispatched', async t => {
+  let calls = 0;
+  t.mock.method(globalThis, 'fetch', async () => { calls++; return Response.json({ threadId: id }); });
+  const controller = new AbortController(); controller.abort();
+  await assert.rejects(new FocusedAgentClient('local-test-value').create(controller.signal), error => error instanceof Error && error.name === 'AbortError');
+  assert.equal(calls, 0);
+});
+
+
+test('aborted focused JSON reads report cancellation rather than a stale response error', async t => {
+  let fail!: () => void;
+  t.mock.method(globalThis, 'fetch', async () => new Response(new ReadableStream<Uint8Array>({ start(stream) { fail = () => stream.error(new Error('private upstream failure')); } })));
+  const controller = new AbortController();
+  const request = new FocusedAgentClient('local-test-value').inspect(id, controller.signal);
+  await new Promise(resolve => setImmediate(resolve));
+  controller.abort(); fail();
+  await assert.rejects(request, error => error instanceof Error && error.name === 'AbortError');
+});

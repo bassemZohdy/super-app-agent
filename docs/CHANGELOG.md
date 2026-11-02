@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 3 November 2026 - Fence cancelled focused-client responses (P0-01, step)
+
+The shared focused client discards late creation, inspection, progress and action results after cancellation, and does not dispatch pre-cancelled requests. Guide: [security](security.md).
+
 ## 3 November 2026 - Bound focused browser JSON responses (P0-11, step)
 
 Focused browser conversation creation and inspection limit streamed JSON bytes, reject malformed UTF-8 and cancel oversized responses without waiting for the sender. Guide: [security](security.md).
