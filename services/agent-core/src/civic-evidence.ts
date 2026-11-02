@@ -2,9 +2,9 @@ import { toMinor } from '../../../packages/protocol-core/src/request-validation.
 
 type Name = 'WALLET' | 'UTILITY' | 'FINES' | 'TOLL';
 type Step = { readonly name: Name; readonly state: string; readonly receiptReference?: string };
-type Review = { readonly billId: string; readonly billAmountMinor: number; readonly tagNumber: string; readonly fines: ReadonlyArray<{ readonly amountMinor: number }>; readonly tollAmountMinor: number };
+type Review = { readonly billId: string; readonly billAmountMinor: number; readonly tagNumber: string; readonly fines: ReadonlyArray<{ readonly fineId: string; readonly amountMinor: number }>; readonly tollAmountMinor: number };
 type Assessment = { name: Name; assessment: 'MATCH' | 'UNVERIFIABLE' | 'UNAVAILABLE' };
-type Source = 'wallet' | 'food' | 'ride';
+type Source = 'wallet' | 'food' | 'ride' | 'fine-receipt';
 const isRecord = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 
 /** Compares independent fixture reads without interpreting missing evidence as proof of no effect. */
@@ -35,6 +35,16 @@ export async function compareCivicEvidence(review: Review, steps: readonly Step[
         matched = Number.isSafeInteger(expected) && !!transaction && transaction.type === 'PAYMENT' && transaction.status === 'SETTLED' && transaction.currency === 'AED' && typeof transaction.amount === 'number' && toMinor(transaction.amount) === expected;
       }
     } catch { matched = false; }
+    if (matched && step.name === 'FINES') {
+      const receiptResult = await source('fine-receipt', step.receiptReference);
+      if (receiptResult.unavailable) { evidence.push({ name: step.name, assessment: 'UNAVAILABLE' }); continue; }
+      const body = receiptResult.value, receipt = isRecord(body) && isRecord(body.receipt) ? body.receipt : undefined;
+      const fines = receipt && Array.isArray(receipt.fines) ? receipt.fines : [];
+      const ids = new Set(fines.map((fine: unknown) => isRecord(fine) ? fine.fineId : undefined));
+      matched = !!receipt && receipt.receiptNumber === step.receiptReference && receipt.currency === 'AED' &&
+        fines.length > 0 && fines.length === review.fines.length && ids.size === fines.length && review.fines.every(expected =>
+          fines.some((fine: unknown) => isRecord(fine) && fine.fineId === expected.fineId && fine.amountMinor === expected.amountMinor));
+    }
     evidence.push({ name: step.name, assessment: matched ? 'MATCH' : 'UNVERIFIABLE' });
   }
   return evidence;

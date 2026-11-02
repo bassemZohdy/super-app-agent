@@ -158,7 +158,7 @@ async function handleGatewayRequest(
       if (!store) throw new Error('Shared storage unavailable');
       const status = await store.inspectCivicFence(actor.sub, actor.accountId);
       const civicEvidence = query.verify === '1' && status.civicReview && status.civicSteps
-        ? await compareCivicEvidence(status.civicReview, status.civicSteps, (source, reference) => actorContext.run(actor, async () => (await callDomainAsync(source, 'GET', source === 'wallet' ? '/wallet/transactions' : source === 'food' ? '/utilities/bill' : `/mobility/salik/recharges/${encodeURIComponent(reference || '')}`)).data))
+        ? await compareCivicEvidence(status.civicReview, status.civicSteps, (source, reference) => actorContext.run(actor, async () => (await callDomainAsync(source === 'fine-receipt' ? 'wallet' : source, 'GET', source === 'wallet' ? '/wallet/transactions' : source === 'food' ? '/utilities/bill' : source === 'fine-receipt' ? `/fines/receipts/${encodeURIComponent(reference || '')}` : `/mobility/salik/recharges/${encodeURIComponent(reference || '')}`)).data))
         : undefined;
       return { status: 200, data: { success: true, ...status, ...(civicEvidence ? { civicEvidence } : {}) } };
     } catch { return { status: 503, data: { success: false, code: 'CIVIC_STATUS_UNAVAILABLE', error: 'Shared offline civic status is unavailable.' } }; }

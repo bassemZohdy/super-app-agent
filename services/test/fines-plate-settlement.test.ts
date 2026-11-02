@@ -22,6 +22,7 @@ test('standalone and grouped fine settlement refuse other plates before payment'
     throw new Error('Unexpected provider call');
   });
   const legacy = () => ({ status: 404, data: {} });
+  assert.equal((await integratedRequest('service-wallet', actor, 'GET', '/fines/receipts/unknown', {}, {}, legacy)).status, 404, 'integrated mode must not use the shared offline receipt');
   const standalone = () => integratedRequest('service-wallet', actor, 'POST', '/fines/pay', {}, { fineIds: ['fine-one'], expectedAmountMinor: 100 }, legacy);
   const grouped = () => integratedRequest('service-wallet', actor, 'POST', '/pay/unified', {}, { items: [{ agency: 'Police', purpose: 'Review', amount: 1 }], expectedPayables: [{ provider: 'police', payableId: 'police:fine:one', expectedRevision: revision }] }, legacy);
   for (const [run, refusedStatus] of [[standalone, 404], [grouped, 409]] as const) {

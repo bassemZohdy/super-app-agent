@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Compare the selected fine receipt (P1-13, step)
+
+Offline civic evidence now requires the wallet ledger and a fine receipt to match the reviewed fine IDs and amounts. Live Redis/HTTP and focused tests cover matching receipts, altered selections and unavailable evidence; integrated provider mode does not use the shared fixture lookup. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Compare synthetic toll receipts (P1-13, step)
 
 The offline toll fixture keeps a bounded in-memory recharge history, allowing owner-scoped civic evidence checks to compare the confirmed receipt, reviewed tag and amount. Missing or evicted records remain unverified; integrated provider mode does not fall back to the fixture. Focused and live Redis/HTTP tests cover matching and missing records. Guide: [integrations](integrations.md).

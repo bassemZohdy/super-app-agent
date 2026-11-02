@@ -143,6 +143,13 @@ function handleWalletRequest(
     };
   }
 
+  const fineReceipt = /^\/fines\/receipts\/([^/]+)$/.exec(pathname);
+  if (normMethod === 'GET' && fineReceipt) {
+    const receiptNumber = decodeURIComponent(fineReceipt[1]);
+    const fines = policeFines.filter(fine => fine.status === 'PAID' && fine.receiptNumber === receiptNumber);
+    return { status: 200, data: { success: true, receipt: fines.length ? { receiptNumber, currency: 'AED', fines: fines.map(fine => ({ fineId: fine.fineId, amountMinor: toMinor(fine.payableAmount) })) } : null } };
+  }
+
   if (normMethod === 'POST' && (pathname === '/fines/pay' || pathname === '/fines/settle')) {
     if (body.expectedPayables !== undefined) return invalidInput('Reviewed payable revisions require integrated provider mode');
     const activeFines = policeFines.filter(f => body.fineIds.includes(f.fineId) && f.status === 'UNPAID');
