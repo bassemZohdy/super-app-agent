@@ -40,7 +40,7 @@ export function PaymentAccountsPanel({ gateway, accountId, getToken, onClose, lo
       ...(input ? { body: JSON.stringify({ ...input, accountId }) } : {}),
     });
     const result = await response.json();
-    if (!response.ok || result.success !== true) {if(alive.current&&result.code==='ACCOUNT_RESTRICTED'){setData(undefined);setLifecycle(undefined);setPreview(undefined);}throw new Error(result.error || 'Payment accounts unavailable.');}
+    if (!response.ok || result.success !== true) {if(alive.current&&result.code==='ACCOUNT_RESTRICTED'){setData(undefined);setLifecycle(undefined);setPreview(undefined);}throw new Error(result.code === 'PAYABLE_CHANGED' ? t('payments.payableChanged') : result.error || 'Payment accounts unavailable.');}
     return result;
   }
   async function load(signal = controller.current?.signal, expectedGeneration = generation.current) {

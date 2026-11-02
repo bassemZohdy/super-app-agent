@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Explain changed payment obligations (P1-12, step)
+
+The React payment panel gives localized review guidance for stale obligations while keeping provider rejection text sanitized. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Bind standalone food order prices (P1-13, step)
 
 Food reviews include delivery in the total and bind the separately reviewed item and delivery prices through ordering. Guide: [agent flow](agent-flow.md).
