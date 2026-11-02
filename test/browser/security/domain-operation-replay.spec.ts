@@ -97,6 +97,39 @@ test('wallet operation identity survives different trace IDs and rejects changed
   expect(charges()).toHaveLength(previousCharges + 1);
 });
 
+test('direct wallet replay verifies evidence for any idempotency key', async ({ residentApi, stack }) => {
+  const account = residentApi.accountId, store = stack.stores.get('payments')!;
+  const reference = 'direct-replay-test', key = 'direct-replay-key';
+  const request = async (requestKey = key) => {
+    const response = await fetch(`http://localhost:${stack.corePort + 107}/v1/accounts/${account}/charges`, {
+      method: 'POST', headers: { Authorization: `Bearer ${residentApi.token}`, 'Content-Type': 'application/json', 'Idempotency-Key': requestKey },
+      body: JSON.stringify({ amountMinor: 100, merchant: 'superapp', reference, source: 'wallet' }),
+    });
+    return { status: response.status, data: await response.json() as { charge?: { id: string }; code?: string } };
+  };
+  const first = await request();
+  expect(first.status).toBe(200);
+  const id = first.data.charge!.id;
+  expect((await request()).data.charge?.id).toBe(id);
+  expect((await request('another-direct-key')).status).toBe(503);
+  const charge = store.get<Record<string, unknown>>(account, 'charge', id)!;
+  const transaction = store.get<Record<string, unknown>>(account, 'transaction', id)!;
+  const balance = store.get<{ balanceMinor: number }>(account, 'wallet')!.balanceMinor;
+  try {
+    store.put(account, 'charge', { ...charge, amountMinor: 999 }, id);
+    expect((await request()).status).toBe(503);
+    store.put(account, 'charge', charge, id);
+    store.db.prepare("DELETE FROM resources WHERE account_id=? AND kind='transaction' AND id=?").run(account, id);
+    expect((await request()).status).toBe(503);
+  } finally {
+    store.put(account, 'charge', charge, id);
+    store.put(account, 'transaction', transaction, id);
+  }
+  expect((await request()).data.charge?.id).toBe(id);
+  expect(store.get<{ balanceMinor: number }>(account, 'wallet')!.balanceMinor).toBe(balance);
+  expect((store.list(account, 'charge') as Array<{ id: string }>).filter(item => item.id === id)).toHaveLength(1);
+});
+
 test('food operation replay returns the original order across trace IDs and refuses changed terms', async ({ residentApi, stack }) => {
   const operation = '22222222-2222-4222-8222-222222222222:food_order';
   const request = async (trace: string, items: string[]) => {

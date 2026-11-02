@@ -31,7 +31,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { Ajv } from 'ajv';
 import { verifyJwt } from '../../../packages/backend-kit/src/jwt.ts';
-import { ProviderClient, UpstreamError, walletChargeKey } from '../../../packages/backend-kit/src/provider-client.ts';
+import { ProviderClient, UpstreamError } from '../../../packages/backend-kit/src/provider-client.ts';
 import { authorizeAutomationPermit } from '../../../packages/backend-kit/src/delegation.ts';
 import { readAutomationSession, type AutomationSession } from '../../../packages/backend-kit/src/delegation.ts';
 import { sessionAllows } from './automation-session.ts';
@@ -228,19 +228,24 @@ export function createProviderServer(provider: ProviderId, path: string, options
       const rawKey=req.headers['idempotency-key'];
       const key=claimant&&typeof rawKey==='string'?`claim:${claimant}:${rawKey}`:rawKey;
       const fingerprint = createHash('sha256').update(JSON.stringify([req.method, operationPath, canonical(body),...(claimant?[claimant]:[])])).digest('hex');
-      const replay = (saved: { status: number; body: string }) => {
-        const data = JSON.parse(saved.body);
-        if (provider === 'payments' && operationPath === '/charges' && saved.status === 200 && body.merchant === 'superapp' && body.source === 'wallet' && typeof body.reference === 'string' && key === walletChargeKey(accountId, 'superapp', body.reference)) {
-          try { engine.execute(actor, 'GET', `/wallet/operations/${encodeURIComponent(body.reference)}`, {}); }
+      const replay = (saved: { fingerprint: string; status: number; body: string }) => {
+        if (provider === 'payments' && operationPath === '/charges' && saved.status === 200 && body.merchant === 'superapp' && body.source === 'wallet' && typeof body.reference === 'string') {
+          try { engine.verifyWalletReplay(accountId, body.reference, saved, body.amountMinor); }
           catch { throw new ApiError(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original wallet payment could not be confirmed.'); }
         }
-        return { status: saved.status, data };
+        return { status: saved.status, data: JSON.parse(saved.body) };
       };
       if (req.method === 'POST') {
         if (typeof rawKey !== 'string' || !/^[\x21-\x7e]{1,200}$/.test(rawKey)) throw new ApiError(400, 'IDEMPOTENCY_REQUIRED', 'Provide an Idempotency-Key of 1 to 200 ASCII characters.');
         engine.refunds?.reserveRequest(accountId,key as string,fingerprint);
         const existing = store.db.prepare('SELECT fingerprint,status,body FROM idempotency WHERE account_id=? AND key=?').get(accountId, key as string) as any;
-        if (existing) { if (existing.fingerprint !== fingerprint) throw new ApiError(409, 'IDEMPOTENCY_CONFLICT', 'This key was used with a different request.');if(!claimant){if(body.paymentId&&settlements)await settlements.retryConfirmation(accountId,body.paymentId);return send(replay(existing));} }
+        if (existing) { if (existing.fingerprint !== fingerprint) throw new ApiError(409, 'IDEMPOTENCY_CONFLICT', 'This key was used with a different request.');if(!claimant){if(body.paymentId&&settlements)await settlements.retryConfirmation(accountId,body.paymentId);
+          if(provider==='payments'&&operationPath==='/charges'&&existing.status===200&&body.merchant==='superapp'&&body.source==='wallet') return send(store.transaction(()=>{
+            const current=store.db.prepare('SELECT fingerprint,status,body FROM idempotency WHERE account_id=? AND key=?').get(accountId,key as string) as {fingerprint:string;status:number;body:string}|undefined;
+            if(!current||current.fingerprint!==fingerprint||current.status!==200)throw new ApiError(503,'PROVIDER_OUTCOME_UNKNOWN','The original wallet payment could not be confirmed.');
+            return replay(current);
+          }));
+          return send(replay(existing));} }
       }
       // A delegated write with external payment proof is outside the initial bounded write profile.
       if (delegated && !session && body.paymentId) throw new ApiError(403, 'WRITE_NOT_APPROVED', 'Delegated settlement is not enabled.');

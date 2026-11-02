@@ -58,6 +58,19 @@ export class ProviderEngine {
     return this.store.db.prepare(`SELECT 1 FROM payment_journal_entries j WHERE j.account_id=? AND j.kind='PAYMENT' AND j.reference LIKE 'charge:%'
       AND NOT EXISTS (SELECT 1 FROM resources r WHERE r.account_id=j.account_id AND r.kind='charge' AND r.id=substr(j.reference,8)) LIMIT 1`).get(accountId) !== undefined;
   }
+  verifyWalletReplay(a: string, operationId: string, record: { fingerprint: unknown; status: unknown; body: unknown }, expectedAmountMinor?: number) {
+    const db = this.store;
+    let saved: unknown;
+    try { saved = typeof record.body === 'string' ? JSON.parse(record.body) : undefined; } catch { /* Hold unreadable evidence. */ }
+    const response = saved && typeof saved === 'object' && !Array.isArray(saved) ? saved as { success?: unknown; charge?: unknown; transaction?: unknown } : undefined;
+    const charge = response?.charge && typeof response.charge === 'object' && !Array.isArray(response.charge) ? response.charge as { id?: unknown; accountId?: unknown; amountMinor?: unknown; currency?: unknown; merchant?: unknown; reference?: unknown; source?: unknown; status?: unknown; refunded?: unknown } : undefined;
+    const tx = response?.transaction && typeof response.transaction === 'object' && !Array.isArray(response.transaction) ? response.transaction as { id?: unknown; type?: unknown; amount?: unknown; currency?: unknown; status?: unknown; referenceId?: unknown; purpose?: unknown } : undefined;
+    if (typeof record.fingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(record.fingerprint) || record.status !== 200 || response?.success !== true || Object.hasOwn(response, 'error') || typeof charge?.id !== 'string' || !charge.id || charge.accountId !== a || charge.currency !== 'AED' || charge.merchant !== 'superapp' || charge.reference !== operationId || charge.source !== 'wallet' || charge.status !== 'CAPTURED' || charge.refunded !== false || typeof charge.amountMinor !== 'number' || !Number.isSafeInteger(charge.amountMinor) || charge.amountMinor <= 0 || (expectedAmountMinor !== undefined && charge.amountMinor !== expectedAmountMinor) || tx?.id !== charge.id || tx.type !== 'PAYMENT' || tx.currency !== 'AED' || tx.status !== 'SETTLED' || tx.referenceId !== operationId || tx.purpose !== operationId || tx.amount !== charge.amountMinor / 100 || !isDeepStrictEqual(db.get(a, 'charge', charge.id), charge) || !isDeepStrictEqual(db.get(a, 'transaction', charge.id), tx)) return fail(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original wallet payment could not be confirmed.');
+    const journal = db.db.prepare('SELECT id,kind,wallet_delta,currency,finalized FROM payment_journal_entries WHERE account_id=? AND reference=?').get(a, `charge:${charge.id}`) as { id: string; kind: string; wallet_delta: number; currency: string; finalized: number } | undefined;
+    const postings = journal && db.db.prepare('SELECT ledger_account,amount_minor FROM payment_journal_postings WHERE entry_id=? ORDER BY line').all(journal.id) as Array<{ ledger_account: string; amount_minor: number }> | undefined;
+    if (!journal || journal.kind !== 'PAYMENT' || journal.wallet_delta !== -charge.amountMinor || journal.currency !== 'AED' || journal.finalized !== 1 || !postings || postings.length !== 2 || postings[0].ledger_account !== 'wallet' || postings[0].amount_minor !== -charge.amountMinor || postings[1].ledger_account !== 'merchant-clearing' || postings[1].amount_minor !== charge.amountMinor) return fail(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original wallet payment could not be confirmed.');
+    return { charge, transaction: tx };
+  }
   /** Owner-scoped, read-only forecast of a stored rule. `payables` are the source provider's current obligations, read by the caller. */
   mandatePreview(actor:Actor,mandateId:string,payables:Payable[],now=Date.now()){
     const m=this.mandates!.get(actor,mandateId),policy=m.policy,wanted=policy.sources[0],target=policy.target;
@@ -155,16 +168,7 @@ export class ProviderEngine {
           if (this.hasPriorWalletEvidence(a, operationId)) return fail(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original wallet payment could not be confirmed.');
           return fail(404, 'NOT_FOUND', 'The original wallet operation was not found.');
         }
-        let saved: unknown;
-        try { saved = typeof record.body === 'string' ? JSON.parse(record.body) : undefined; } catch { /* Hold unreadable evidence. */ }
-        const response = saved && typeof saved === 'object' && !Array.isArray(saved) ? saved as { success?: unknown; charge?: unknown; transaction?: unknown } : undefined;
-        const charge = response?.charge && typeof response.charge === 'object' && !Array.isArray(response.charge) ? response.charge as { id?: unknown; accountId?: unknown; amountMinor?: unknown; currency?: unknown; merchant?: unknown; reference?: unknown; source?: unknown; status?: unknown; refunded?: unknown } : undefined;
-        const tx = response?.transaction && typeof response.transaction === 'object' && !Array.isArray(response.transaction) ? response.transaction as { id?: unknown; type?: unknown; amount?: unknown; currency?: unknown; status?: unknown; referenceId?: unknown; purpose?: unknown } : undefined;
-        if (typeof record.fingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(record.fingerprint) || record.status !== 200 || response?.success !== true || Object.hasOwn(response, 'error') || typeof charge?.id !== 'string' || !charge.id || charge.accountId !== a || charge.currency !== 'AED' || charge.merchant !== 'superapp' || charge.reference !== operationId || charge.source !== 'wallet' || charge.status !== 'CAPTURED' || charge.refunded !== false || typeof charge.amountMinor !== 'number' || !Number.isSafeInteger(charge.amountMinor) || charge.amountMinor <= 0 || tx?.id !== charge.id || tx.type !== 'PAYMENT' || tx.currency !== 'AED' || tx.status !== 'SETTLED' || tx.referenceId !== operationId || tx.purpose !== operationId || tx.amount !== charge.amountMinor / 100 || !isDeepStrictEqual(db.get(a, 'charge', charge.id), charge) || !isDeepStrictEqual(db.get(a, 'transaction', charge.id), tx)) return fail(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original wallet payment could not be confirmed.');
-        const journal = db.db.prepare('SELECT id,kind,wallet_delta,currency,finalized FROM payment_journal_entries WHERE account_id=? AND reference=?').get(a, `charge:${charge.id}`) as { id: string; kind: string; wallet_delta: number; currency: string; finalized: number } | undefined;
-        const postings = journal && db.db.prepare('SELECT ledger_account,amount_minor FROM payment_journal_postings WHERE entry_id=? ORDER BY line').all(journal.id) as Array<{ ledger_account: string; amount_minor: number }> | undefined;
-        if (!journal || journal.kind !== 'PAYMENT' || journal.wallet_delta !== -charge.amountMinor || journal.currency !== 'AED' || journal.finalized !== 1 || !postings || postings.length !== 2 || postings[0].ledger_account !== 'wallet' || postings[0].amount_minor !== -charge.amountMinor || postings[1].ledger_account !== 'merchant-clearing' || postings[1].amount_minor !== charge.amountMinor) return fail(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original wallet payment could not be confirmed.');
-        return ok({ operationId, charge, transaction: tx });
+        return ok({ operationId, ...this.verifyWalletReplay(a, operationId, record) });
       }
       if(method==='POST')this.store.eligibility!.require(actor);
       this.orders!.refresh(actor);this.funding!.refresh(actor);this.mandates!.list(actor);

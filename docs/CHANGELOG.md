@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Verify direct wallet replays (P1-13, step)
+
+Direct superapp wallet-payment replays verify their original account-owned payment evidence regardless of idempotency key. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Verify original wallet replays (P1-13, step)
 
 Integrated superapp wallet replays verify their original payment evidence and refuse a replacement when the replay record is missing but payment evidence remains. Guide: [agent flow](agent-flow.md).
