@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Validate grouped-payment response totals (P1-02, step)
+
+The compatibility domain adapter checks grouped-payment responses against requested item amounts in integer fils for both route aliases and both transports. Malformed balances and mismatched or imprecise totals remain unknown after dispatch. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Correct offline composite checkout amounts (P1-13, step)
 
 Bind offline composite confirmation to the reviewed bill, fine IDs and amounts, and toll tag. Recheck current terms and funds before dispatch; charge selected fines once and omit settled obligations. Tests cover stale reviews, replay, wallet totals and a later recharge-only review. The separate fixture operations do not establish atomic settlement. Guide: [grouped checkout](development/checkout-groups.md).

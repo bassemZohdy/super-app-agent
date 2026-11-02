@@ -80,7 +80,19 @@ function confirmedReceipt(service: string, path: string, data: any, body: unknow
       try { paidMinor = toMinor(data.amountPaid); } catch { return false; }
       return request.expectedAmountMinor === undefined || (typeof request.expectedAmountMinor === 'number' && Number.isSafeInteger(request.expectedAmountMinor) && request.expectedAmountMinor >= 0 && paidMinor === request.expectedAmountMinor);
     }
-    if (path === '/pay/unified') return named(data.govTransactionHash) && named(data.settlementPlatform) && finite(data.grandTotal) && finite(data.remainingBalance);
+    if (path === '/pay/unified' || path === '/pay/multi-agency') {
+      if (!named(data.govTransactionHash) || !named(data.settlementPlatform) || !record(body)) return false;
+      const items = (body as { items?: unknown }).items;
+      if (!Array.isArray(items) || items.length === 0) return false;
+      try {
+        const amounts = items.map(item => {
+          if (!record(item)) throw new RangeError('Invalid settlement item');
+          return toMinor(item.amount);
+        });
+        const total = amounts.reduce((sum, amount) => sum + amount, 0);
+        return Number.isSafeInteger(total) && total > 0 && toMinor(data.grandTotal) === total && toMinor(data.remainingBalance) >= 0;
+      } catch { return false; }
+    }
   }
   if (service === 'ride') {
     if (path === '/rides/book') return record(data.booking) && named(data.booking.bookingId) && named(data.booking.status);

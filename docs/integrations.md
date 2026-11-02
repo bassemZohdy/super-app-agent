@@ -20,6 +20,8 @@ The compatibility grouped checkout verifies its original group and owner, select
 
 For the integrated manual grouped-checkout API, the sum of the caller's reviewed item amounts must match the current provider payables before a group is created and the returned group total before it advances. A changed payable or total requires a fresh review. The amount check does not by itself bind each caller-supplied description to a particular provider resource.
 
+The compatibility agent also compares a grouped-payment response's total with its requested item amounts in integer fils, and requires a valid nonnegative wallet balance. A missing, malformed or mismatched response after dispatch remains unknown for reconciliation in both local and HTTP transports; a total match alone does not authenticate a provider receipt.
+
 The integrated manual grouped-checkout API accepts a toll `targetReference` together with its `expectedTargetVersion`; it checks the owned target and returned quote before planning. If omitted, it proceeds only when exactly one target is available. The offline wallet fixture refuses these target-specific fields instead of claiming to settle that target.
 
 Integrated `/pay/unified` and `/pay/multi-agency` callers must also supply `expectedPayables`: the reviewed DEWA bill and police fine payable IDs with their revisions, or an empty array for recharge only. The application selects only those current unpaid payables, rejects duplicates or stale and unknown IDs, and checks any resulting fine selection. The utility bill read exposes its payable ID and revision. The offline fixture rejects this selection field; callers using the integrated API must update requests that omitted it.
