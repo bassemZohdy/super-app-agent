@@ -541,5 +541,5 @@ export function createApplicationServer(service: string, legacy: Legacy) {
       send(result.status, result.data);
     } catch (error) { res.setHeader('Connection', 'close'); send(error instanceof HttpError ? error.status : error instanceof SyntaxError ? 400 : 503, { success: false, code: 'REQUEST_FAILED', error: error instanceof HttpError ? error.message : error instanceof SyntaxError ? 'Invalid JSON body' : 'Request could not be completed.' }); }
   },{ready:()=>{if(typeof legacy!=='function')throw Error('Handler unavailable');if(process.env.PROVIDER_INTEGRATION==='true')storeFor(service).db.prepare('SELECT 1').get();}}));
-  server.once('close',()=>{telemetry.close();stores.get(service)?.close();stores.delete(service);});return server;
+  server.on('close',()=>{telemetry.close();stores.get(service)?.close();stores.delete(service);});return server;
 }

@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Retain original composite attempts (P1-13, step)
+
+Integrated composite checkout saves the reviewed operation in the owned persistent session before dispatch and retains unconfirmed attempts for inspection. Reused application servers also close their database on every stop, allowing isolated recovery tests to clean up. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Inspect original wallet operations (P1-13, step)
 
 The integrated wallet service offers account-scoped inspection of an original superapp payment against its charge, transaction and finalized debit journal. Guide: [agent flow](agent-flow.md).

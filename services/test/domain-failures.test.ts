@@ -102,6 +102,20 @@ test('P1-13: composite checkout charges the reviewed total and books the reviewe
   assert.equal(order?.deliveryAddress, binding.dropoff);
 });
 
+test('P1-13: integrated composite checkout refuses dispatch without persistent session storage', async t => {
+  ensureFunds();
+  const sid = 'composite_needs_persistent_session';
+  assert.equal((await intent(sid)).status, 200);
+  const previous = process.env.PROVIDER_INTEGRATION;
+  process.env.PROVIDER_INTEGRATION = 'true';
+  t.after(() => { if (previous === undefined) delete process.env.PROVIDER_INTEGRATION; else process.env.PROVIDER_INTEGRATION = previous; });
+  const before = { balance, rides: activeRides.size, orders: activeOrders.size };
+  const result = await action(sid);
+  assert.equal(result.status, 503);
+  assert.equal(result.data.code, 'SESSION_STORE_UNAVAILABLE');
+  assert.deepEqual({ balance, rides: activeRides.size, orders: activeOrders.size }, before);
+});
+
 test('P1-13: composite confirmation displays estimates from the booked ride and ordered meal', async t => {
   ensureFunds();
   const sid = 'composite_receipt_estimates';

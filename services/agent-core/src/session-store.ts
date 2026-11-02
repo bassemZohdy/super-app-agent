@@ -332,6 +332,13 @@ export class RedisSessionStore {
         });
         if (saved !== 1) throw new SessionError(503, 'SESSION_LOCK_LOST', 'Session could not be saved. Check operation status before retrying.');
       },
+      remove: async (owner: string) => {
+        const removed = await this.client.eval(`if redis.call('GET',KEYS[2])~=ARGV[1] then return 0 end
+          redis.call('DEL',KEYS[1],KEYS[3]); redis.call('SREM',KEYS[4],KEYS[1]); return 1`, {
+          keys: [this.key(sid), key, `${this.key(sid)}:events`, this.userKey(owner)], arguments: [token],
+        });
+        if (removed !== 1) throw new SessionError(503, 'SESSION_LOCK_LOST', 'Session could not be removed. Check operation status before retrying.');
+      },
       release: async () => { clearInterval(timer); await this.client.eval(`if redis.call('GET',KEYS[1])==ARGV[1] then return redis.call('DEL',KEYS[1]) else return 0 end`, { keys: [key], arguments: [token] }); },
     };
   }
@@ -350,8 +357,8 @@ export class RedisSessionStore {
     return record;
   }
   async remove(sid: string, owner: string) {
-    await this.read(sid, owner); const lock = await this.acquire(sid);
-    try { await this.client.del([this.key(sid), `${this.key(sid)}:events`]); await this.client.sRem(this.userKey(owner), this.key(sid)); }
+    const lock = await this.acquire(sid);
+    try { const record = await this.read(sid, owner); if (record.state.compositeAttempt) throw new SessionError(409, 'RECONCILIATION_REQUIRED', 'The original composite checkout needs reconciliation before this conversation can be deleted.'); await lock.remove(owner); }
     finally { await lock.release(); }
   }
   async publish(sid: string, event: A2UIMessageEnvelope) {

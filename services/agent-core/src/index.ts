@@ -61,7 +61,7 @@ function admitSession(sessionId: string, sub: string): boolean {
 }
 const sessionLimitReply = { success: false, code: 'SESSION_LIMIT_REACHED', error: 'Too many conversations are running. Wait for one to finish.' };
 const eligibilityReader=new EligibilityClient(),accountReader=new ProviderClient('service-wallet',process.env.SERVICE_WALLET_CLIENT_SECRET||'demo-wallet-secret');
-type RequestContext = { session?: SuperAppAgentState; release?: () => void | Promise<void>; save?: () => Promise<void>; assertLease?: () => Promise<void> };
+type RequestContext = { session?: SuperAppAgentState; release?: () => void | Promise<void>; save?: () => Promise<void>; assertLease?: () => Promise<void>; compositeStarted?: boolean };
 
 function commitSurface(session: SuperAppAgentState) {
   const surface = session.currentSurface;
@@ -365,13 +365,13 @@ async function handleGatewayRequest(
       if (normMethod === 'DELETE') { const record = await persistent.read(sid, actor.sub);if(eligibilityEnforced())await eligibilityReader.require({...actor,accountId:record.accountId,eligibilityEpoch:undefined}); await persistent.remove(sid, actor.sub); await discardRuntime(record.state); return { status: 200, data: { success: true } }; }
       const record = await persistent.read(sid, actor.sub);
       if(eligibilityEnforced())await eligibilityReader.require({...actor,accountId:record.accountId,eligibilityEpoch:undefined});
-      return { status: 200, data: { success: true, sessionId: sid, accountId: record.accountId, messages: record.state.messages, surface: record.state.currentSurface, serviceId:record.state.metadata?.manualService, modelPersonalContext: record.state.metadata?.modelPersonalContext !== false, inference: record.state.metadata?.inference, runtime: record.state.metadata?.runtime, approval: record.state.approval, approvalHistory: record.state.approvalHistory } };
+      return { status: 200, data: { success: true, sessionId: sid, accountId: record.accountId, messages: record.state.messages, surface: record.state.currentSurface, serviceId:record.state.metadata?.manualService, modelPersonalContext: record.state.metadata?.modelPersonalContext !== false, inference: record.state.metadata?.inference, runtime: record.state.metadata?.runtime, approval: record.state.approval, approvalHistory: record.state.approvalHistory, ...(record.state.reconciliation ? { reconciliation: record.state.reconciliation, compositeAttempt: record.state.compositeAttempt } : {}) } };
     }
     if (!sessions.has(sid)) return { status: 404, data: { error: 'Session not found' } };
     if (sessionOwners.get(sid) !== actor.sub) return { status: 403, data: { error: 'Session belongs to a different user' } };
     const state = sessions.get(sid)!;
     if(eligibilityEnforced())await eligibilityReader.require({...actor,accountId:state.metadata?.accountId||accountId,eligibilityEpoch:undefined});
-    if (normMethod === 'DELETE') { if (activeTransitions.has(sid)) return { status: 409, data: { error: 'Session busy' } }; await discardRuntime(state); sessions.delete(sid); sessionOwners.delete(sid); sessionLimits.forget(sid); return { status: 200, data: { success: true } }; }
+    if (normMethod === 'DELETE') { if (activeTransitions.has(sid)) return { status: 409, data: { error: 'Session busy' } }; if (state.compositeAttempt) return { status: 409, data: { success: false, code: 'RECONCILIATION_REQUIRED', error: 'The original composite checkout needs reconciliation before this conversation can be deleted.' } }; await discardRuntime(state); sessions.delete(sid); sessionOwners.delete(sid); sessionLimits.forget(sid); return { status: 200, data: { success: true } }; }
     return { status: 200, data: { success: true, sessionId: sid, accountId: state.metadata?.accountId, messages: state.messages, surface: state.currentSurface, serviceId:state.metadata?.manualService, modelPersonalContext: state.metadata?.modelPersonalContext !== false, inference: state.metadata?.inference, runtime: state.metadata?.runtime, approval: state.approval, approvalHistory: state.approvalHistory } };
   }
   // Hold ownership and coordination through persistence and the final event.
@@ -502,6 +502,13 @@ async function handleGatewayRequest(
       })).catch(() => {});
 
     recordApproval(session, 'confirmed', body.action);
+    if (process.env.PROVIDER_INTEGRATION === 'true' && body.action === 'confirm_composite_checkout') {
+      if (!requestContext.save) throw new SessionError(503, 'SESSION_STORE_UNAVAILABLE', 'Persistent session storage is required before composite checkout.');
+      session.compositeAttempt = { operationId: actor.requestId, terms: structuredClone(body.payload || {}) };
+      session.reconciliation = { outcome: 'UNKNOWN', steps: [] };
+      requestContext.compositeStarted = true;
+      await requestContext.save();
+    }
     const updatedState = await actorContext.run(actor, () => executeRuntimeAction(
       session,
       body.action,
@@ -588,6 +595,10 @@ export async function executeGatewayRequest(method: string, pathname: string,
     }
     return { status, data: { success: false, error: message, code, outcome, steps, retry, surface } };
   } finally {
+    if (requestContext.compositeStarted && requestContext.session && (completed || executionOutcome(steps) === 'FAILED')) {
+      delete requestContext.session.compositeAttempt;
+      delete requestContext.session.reconciliation;
+    }
     if (requestContext.session && requestContext.session.messages.length > 100) requestContext.session.messages = requestContext.session.messages.slice(-100);
     try {
       await requestContext.save?.();

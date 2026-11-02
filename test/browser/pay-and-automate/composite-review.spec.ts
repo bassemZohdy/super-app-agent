@@ -26,7 +26,7 @@ test('the reviewed ride and meal total is the amount charged in the integrated w
   expect(mealEstimate?.properties.label).toBeTruthy();
   await expect(resident.getByText(mealEstimate!.properties.label!, { exact: true })).toBeVisible();
   await expect(resident.getByText('25 min', { exact: true })).toBeVisible();
-  const action = result.request().postDataJSON() as { payload: { amountMinor: number; currency: string; driverId: string; dropoff: string; deliveryFeeMinor: number } };
+  const action = result.request().postDataJSON() as { sessionId: string; payload: { amountMinor: number; currency: string; driverId: string; dropoff: string; deliveryFeeMinor: number } };
   expect(action.payload.currency).toBe('AED');
   expect(label).toContain(`AED ${(action.payload.amountMinor / 100).toFixed(2)}`);
   expect(deliveryLabel).toBe(`Delivery: AED ${(action.payload.deliveryFeeMinor / 100).toFixed(2)}`);
@@ -37,4 +37,9 @@ test('the reviewed ride and meal total is the amount charged in the integrated w
   expect(rides.at(-1)?.driver.id).toBe(action.payload.driverId);
   expect(rides.at(-1)?.dropoff).toBe(action.payload.dropoff);
   expect(action.payload.dropoff).toBe('Downtown Dining');
+  const sessionResponse = await fetch(`${stack.coreUrl}/api/sessions/${action.sessionId}`, { headers: { Authorization: `Bearer ${residentApi.token}` } });
+  const session = await sessionResponse.json() as { reconciliation?: unknown; compositeAttempt?: unknown };
+  expect(sessionResponse.status).toBe(200);
+  expect(session.reconciliation).toBeUndefined();
+  expect(session.compositeAttempt).toBeUndefined();
 });
