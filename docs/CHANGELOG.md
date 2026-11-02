@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Preserve unknown provider write outcomes (P1-02, step)
+
+The application provider client treats unrecognized or incomplete write refusals as unconfirmed, while retaining reviewed rejection codes and sanitizing provider text. Guide: [connections](development/connections.md).
+
 ## 2 November 2026 — Explain unconfirmed pause results (P1-12, step)
 
 The React automation panel distinguishes confirmed pauses from unconfirmed or unreadable results and directs the owner to check the current rule state. Guide: [automation worker](development/automation-worker.md).

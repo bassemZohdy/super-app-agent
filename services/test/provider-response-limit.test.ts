@@ -41,6 +41,9 @@ test('contradictory or ambiguous provider write replies remain unknown', async t
     { status: 200, data: { success: false, code: 'DECLINED', error: 'declined' } },
     { status: 409, data: { success: true, error: 'contradictory' } },
     { status: 409, data: { code: 'UNCLASSIFIED' } },
+    { status: 409, data: { success: false, code: 'UNCLASSIFIED', error: 'unclassified' } },
+    { status: 403, data: { success: false, error: 'unclassified' } },
+    { status: 400, data: { code: 'PAYABLE_CHANGED', error: 'changed' } },
     { status: 409, data: { success: false, code: 'PROVIDER_OUTCOME_UNKNOWN', error: 'unconfirmed' } },
     { status: 409, data: { success: false, code: 'SETTLEMENT_STATUS_UNKNOWN', error: 'unconfirmed' } },
     { status: 409, data: { success: false, code: 'OBLIGATION_RECONCILIATION_REQUIRED', error: 'reconcile' } },
@@ -86,12 +89,14 @@ test('unrecognized provider error codes do not escape into errors or connection 
   t.mock.method(globalThis, 'fetch', async () => Response.json({ success: false, code: privateCode, error: 'Rejected' }, { status: 409 }));
   await assert.rejects(client.call('dewa', actor, 'POST', '/payments', {}), (error: unknown) => {
     if (!(error instanceof UpstreamError)) return false;
-    assert.equal(error.status, 409);
-    assert.equal(error.code, 'PROVIDER_REJECTED');
+    assert.equal(error.status, 503);
+    assert.equal(error.code, 'PROVIDER_OUTCOME_UNKNOWN');
     assert.equal(error.message.includes(privateCode), false);
     return true;
   });
-  assert.equal(callsFor(actor.sub)[0].code, 'PROVIDER_REJECTED');
+  assert.equal(callsFor(actor.sub)[0].code, 'PROVIDER_OUTCOME_UNKNOWN');
+  await assert.rejects(client.call('dewa', actor, 'GET', '/payments'), (error: unknown) =>
+    error instanceof UpstreamError && error.status === 409 && error.code === 'PROVIDER_REJECTED' && !error.message.includes(privateCode));
 });
 
 test('known provider rejection codes remain available to callers', async t => {

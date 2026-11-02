@@ -1,4 +1,4 @@
-/** Stable simulator rejection codes safe to expose; unknown provider values map to PROVIDER_REJECTED.
+/** Stable simulator rejection codes safe to expose; unknown reads map to PROVIDER_REJECTED and unknown writes stay unconfirmed.
  * Add a code here only when it is part of the reviewed simulator contract. */
 export const PROVIDER_REJECTION_CODES: ReadonlySet<string> = new Set([
   'ACCOUNT_FORBIDDEN', 'ACCOUNT_NOT_FOUND', 'ACCOUNT_RESTRICTED', 'ACTOR_CHAIN_UNSUPPORTED', 'ACTOR_REQUIRED',

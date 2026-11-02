@@ -57,7 +57,8 @@ export class ProviderClient {
     const upstreamCode = typeof data.code === 'string' ? data.code : '';
     const unknownCode = isUncertainOutcomeCode(upstreamCode);
     const rejection = response.status >= 400 && response.status < 500 && response.status !== 408 &&
-      data.success !== true && !unknownCode && (data.success === false || typeof data.error === 'string' && data.error.length > 0);
+      data.success !== true && !unknownCode && (data.success === false || typeof data.error === 'string' && data.error.length > 0) &&
+      (method !== 'POST' || (data.success === false && PROVIDER_REJECTION_CODES.has(upstreamCode)));
     if (!rejection) {
       const code = method === 'POST' ? 'PROVIDER_OUTCOME_UNKNOWN' : 'PROVIDER_UNAVAILABLE';
       record(503, code);
