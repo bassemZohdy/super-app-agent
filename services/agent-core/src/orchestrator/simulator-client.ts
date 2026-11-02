@@ -16,7 +16,7 @@ export async function simulatorRequest(base: URL, workloadKey: string, path: str
       const parsed = await boundedJson(response).then(value => simulatorRefusal.safeParse(value), () => undefined);
       const reason = parsed?.success ? parsed.data.code : undefined;
       if (response.status === 409 && typeof reason === 'string' && reasons.includes(reason)) throw new AgentError(reason, 409);
-      if (response.status === 403 && typeof reason === 'string' && ['PERMISSION_DENIED', 'WORKLOAD_REQUIRED', 'CONSENT_REQUIRED_OR_EXPIRED', 'ORIGIN_NOT_ALLOWED'].includes(reason)) throw new AgentError('PROVIDER_DENIED', 403);
+      if (!body && response.status === 403 && typeof reason === 'string' && ['PERMISSION_DENIED', 'WORKLOAD_REQUIRED', 'CONSENT_REQUIRED_OR_EXPIRED', 'ORIGIN_NOT_ALLOWED'].includes(reason)) throw new AgentError('PROVIDER_DENIED', 403);
       // An unrecognized refusal cannot prove that a write did not commit.
       throw new AgentError('PROVIDER_FAILURE', 502);
     }

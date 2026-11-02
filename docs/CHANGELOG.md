@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 - Hold focused write authority denials (P1-02, step)
+
+The focused simulator adapter retains an unknown write outcome after an authority denial, preserving the original operation for recovery; read-only denials remain explicit. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 - Verify focused simulator refusals (P1-02, step)
 
 The focused simulator adapter accepts recognized refusals only in the expected bounded error envelope. Contradictory replies retain the original payment or renewal for recovery and block replacements. Guide: [agent flow](agent-flow.md).

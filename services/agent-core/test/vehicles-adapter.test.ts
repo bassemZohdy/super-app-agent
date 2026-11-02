@@ -57,7 +57,7 @@ test('an unexpected simulator reply is a safe provider failure, not a renewal', 
     const key = digest({ subject: 'alice', operation: 'vehicles.renew.v1', quote }), consentId = randomUUID();
     h.store.renewalConsent(consentId, principal, key, quote, Date.now() + 60000);
     // No consent for this id: the simulator answers 403, which must not be reported as a stale quote.
-    await assert.rejects(invokeTool(h.vehicles.renew, { quote, consentId: randomUUID() }, ctx, key), (error: AgentError) => error.code === 'PROVIDER_DENIED');
+    await assert.rejects(invokeTool(h.vehicles.renew, { quote, consentId: randomUUID() }, ctx, key), (error: AgentError) => error.code === 'PROVIDER_FAILURE');
     assert.equal((h.store.db.prepare('SELECT count(*) AS n FROM sa_sim_renewals').get() as { n: number }).n, 0);
   } finally { await h.close(); }
 });

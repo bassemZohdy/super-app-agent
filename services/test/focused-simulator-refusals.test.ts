@@ -12,7 +12,7 @@ test('focused write refusals require the exact simulator error envelope', async 
   for (const [status, code] of [[409, 'QUOTE_STALE'], [403, 'PERMISSION_DENIED']] as const) {
     const correlationId = randomUUID();
     for (const [body, expected] of [
-      [{ code, correlationId }, status === 409 ? code : 'PROVIDER_DENIED'],
+      [{ code, correlationId }, status === 409 ? code : 'PROVIDER_FAILURE'],
       [{ code, correlationId, success: true }, 'PROVIDER_FAILURE'],
       [{ code, correlationId, receipt: { id: 'existing-effect' } }, 'PROVIDER_FAILURE'],
       [{ code, correlationId: 'not-a-uuid' }, 'PROVIDER_FAILURE'],
@@ -23,4 +23,10 @@ test('focused write refusals require the exact simulator error envelope', async 
       finally { mock.mock.restore(); }
     }
   }
+});
+
+
+test('focused reads preserve an explicit simulator authority denial', async t => {
+  t.mock.method(globalThis, 'fetch', async () => Response.json({ code: 'PERMISSION_DENIED', correlationId: randomUUID() }, { status: 403 }));
+  await assert.rejects(simulatorRequest(new URL('http://127.0.0.1/'), 'fixture-key', 'simulator/v1/fines', ctx, new AbortController().signal), (error: unknown) => error instanceof AgentError && error.code === 'PROVIDER_DENIED');
 });
