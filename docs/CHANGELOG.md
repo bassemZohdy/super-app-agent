@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Verify integrated wallet operation replay (P1-02, step)
+
+A local-stack browser qualification checks that different trace IDs preserve one wallet charge and changed terms cannot create a second debit. Guide: [testing](testing.md).
+
 ## 2 November 2026 — Preserve domain operation identities across tracing (P1-02, step)
 
 Authenticated domain calls carry their original operation identity independently of diagnostic trace IDs; the application validates it before routing. Guide: [agent flow](agent-flow.md).

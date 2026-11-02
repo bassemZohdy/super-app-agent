@@ -1,5 +1,7 @@
 # Focused agent verification
 
+`test/browser/security/domain-operation-replay.spec.ts` exercises the integrated wallet application and payment provider on an isolated local stack. It checks that one operation replayed under different trace IDs returns its original charge and that changed terms do not create a second debit.
+
 The payment-state browser check looks for unmasked card-number digit sequences and exercises enabled rule controls by keyboard. It waits for the controls to become available before focusing them so pending requests do not invalidate the keyboard check.
 
 For the compatibility API, `npm run qualify -- run -- npm run demo:verify:group-selection` exercises selected-fine grouped checkout using the synthetic household account on a freshly created isolated qualification stack. It checks refused stale, duplicate, unknown and changed selections, settlement of only the selected fine and toll target, unchanged unrelated resources, and replay without a second debit. The script refuses non-qualification ports; it changes the qualification account and expects its initial fixtures, so use a fresh disposable qualification stack. It does not establish real-provider or production identity behavior.
