@@ -576,3 +576,18 @@ test('AUTO-15: disabling the card after preparation stops the in-flight executio
   assert.equal(x.effects(),0);
   console.log('PASS: a card disabled between preparation and admission stops the execution with nothing moved.');
 });
+
+
+test('a revised and reapproved mandate cannot authorize its earlier prepared execution', t => {
+  const f = fixture(t), mandate = f.mandate();
+  f.bill('policy-change-bill', 150, 1);
+  const execution = prepared(f.prepare(mandate.id, 'occ_policy_change'));
+  const revised = f.payments.mandates!.revise(f.actor, mandate.id, mandate.version, { ...mandate.policy, limits: { ...mandate.policy.limits, perPaymentMinor: 10000 } });
+  const approved = f.payments.mandates!.approve(f.actor, mandate.id, revised.version, revised.approvalDigest);
+  assert.equal(approved.state, 'APPROVED');
+  assert.throws(() => f.db.automationRuns!.readExecution('auto-worker', execution.id), (e: unknown) => (e as { code?: string }).code === 'AUTOMATION_POLICY_CHANGED');
+  assert.throws(() => f.db.automationRuns!.admit(execution.id, f.actor.sub), (e: unknown) => (e as { code?: string }).code === 'AUTOMATION_ADMISSION_REJECTED');
+  assert.equal(f.db.automationRuns!.dispatchState(execution.id), 'REJECTED');
+  assert.equal(f.payments.orders!.get(f.actor, execution.orderId!).state, 'AWAITING_APPROVAL');
+  assert.equal(f.db.automationRuns!.status('automation-operator').reservedMinor, 15000);
+});

@@ -335,7 +335,9 @@ export class AutomationRuns{
   /** The immutable preparation plus current authority freshness, for the credential broker. */
   readExecution(worker:string,executionId:string){
     if(worker!==this.context.workerSub)return deny('AUTOMATION_WORKER_REQUIRED',"Only this run's exact workload identity reads a prepared execution.",403);
-    return this.view(executionId);
+    const {policyCurrent,...view}=this.view(executionId);
+    if(!policyCurrent)return deny('AUTOMATION_POLICY_CHANGED','The mandate policy changed after this execution was prepared.');
+    return view;
   }
   private view(executionId:string){
     if(this.released(executionId))return deny('AUTOMATION_EXECUTION_RELEASED','This execution failed definitively and released its reservation; no credential or admission remains.');
@@ -366,7 +368,7 @@ export class AutomationRuns{
     const order=orderRow?JSON.parse(String(orderRow!.body)) as {state?:string;authorization?:{challengeId?:string}}:undefined;
     const challenged=!!order?.authorization?.challengeId;
     const challenge:'APPROVED'|'PENDING'|'REJECTED'|'NONE'=!challenged?'NONE':order!.state==='AUTHORIZED'?'APPROVED':order!.state==='REQUIRES_ACTION'?'PENDING':order!.state==='FAILED'||order!.state==='CANCELLED'?'REJECTED':'NONE';
-    return {executionId:preparation.id,runId:this.context.runId,accountId:preparation.accountId,ownerSub:String(owner!.owner),eligibilityEpoch:mandate.eligibilityEpoch||'1:1',
+    return {policyCurrent:mandate.policyVersion===preparation.policyVersion,executionId:preparation.id,runId:this.context.runId,accountId:preparation.accountId,ownerSub:String(owner!.owner),eligibilityEpoch:mandate.eligibilityEpoch||'1:1',
       mandate:{id:mandate.id,state:mandate.state,policyVersion:mandate.policyVersion,skipNext:mandate.skipNext===true},
       source:{id:preparation.sourceId,version:preparation.sourceVersion,current:current?.status==='ACTIVE'&&current?.version===source.expectedVersion},
       biller:mandate.policy.target.kind==='BILLER'?{id:mandate.policy.target.billingAccountId,current:biller?.status==='ACTIVE'&&biller?.version===mandate.policy.target.expectedVersion}:undefined,
@@ -486,7 +488,7 @@ export class AutomationRuns{
       const {preparation}=this.target(executionId),prior=this.store.db.prepare('SELECT state FROM automation_dispatch WHERE execution_id=?').get(executionId);
       if(prior)return deny('AUTOMATION_ALREADY_DISPATCHED','This execution was already admitted or closed; recover its original order instead.');
       const v=this.view(executionId);
-      const stale=v.expired?'ADMISSION_EXPIRED':v.mandate.state!=='APPROVED'?'MANDATE_NOT_ACTIVE':v.mandate.skipNext?'SKIP_PENDING':!v.source.current?'SOURCE_CHANGED':v.biller&&!v.biller.current?'BILLER_CHANGED':!v.payable.current?'PAYABLE_CHANGED':undefined;
+      const stale=v.expired?'ADMISSION_EXPIRED':!v.policyCurrent?'POLICY_CHANGED':v.mandate.state!=='APPROVED'?'MANDATE_NOT_ACTIVE':v.mandate.skipNext?'SKIP_PENDING':!v.source.current?'SOURCE_CHANGED':v.biller&&!v.biller.current?'BILLER_CHANGED':!v.payable.current?'PAYABLE_CHANGED':undefined;
       const at=new Date().toISOString();
       this.store.db.prepare('INSERT INTO automation_dispatch VALUES(?,?,?,?,?)').run(executionId,stale?'REJECTED':'ADMITTED',ownerSub,at,stale??null);
       this.store.db.prepare('INSERT INTO automation_audit(body) VALUES(?)').run(JSON.stringify({at,runId:this.context.runId,mandateId:preparation.mandateId,event:stale?'ADMISSION_REJECTED':'ADMITTED',executionId,reason:stale}));

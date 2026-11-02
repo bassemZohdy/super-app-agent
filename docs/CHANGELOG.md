@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 - Reject superseded automation policies (P1-10, step)
+
+The provider refuses credential views and rejects admission when the current mandate policy version differs from the version saved at preparation. Guide: [automation worker](development/automation-worker.md).
+
 ## 2 November 2026 - Bind permit authority across retries (P1-10, step)
 
 Automation permit retries and challenge resumes reject changes to the original mandate, biller or preparation window. Older permits without this binding cannot be retried or resumed. Guide: [automation worker](development/automation-worker.md).
