@@ -32,6 +32,8 @@ test('P1-13: a dispatch without an explicit selected resource fails closed inste
       onEvents:[{event:'onPress',actionType:'AGENT_ACTION_DISPATCH',payload:{action:'activate_parking'}}]},
   ]};
   issueApproval(state);
+  // This artificial review has no corresponding saved graph; start one from it.
+  state.metadata!.runtime=undefined;
   const res=await core('POST','/api/a2ui/action',{},{sessionId,surfaceRevision:state.currentSurface!.revision,action:'activate_parking',payload:{}});
   assert.equal(res.status,409);
   assert.match(res.data.error,/parking zone/);

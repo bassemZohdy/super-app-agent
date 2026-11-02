@@ -6,6 +6,7 @@ import { executeWalletRequest as wallet, balance, transactions, policeFines } fr
 import { activeOrders, executeFoodRequest as food, restaurants } from '../service-food/src/index.ts';
 import { activeRides, activeParkingMeters, drivers, executeRideRequest as ride } from '../service-ride/src/index.ts';
 import { readEventStream } from '../../packages/protocol-core/src/sse-client.ts';
+import { issueApproval } from '../agent-core/src/approvals.ts';
 
 const composite = 'Book a ride downtown and order pizza, pay with my wallet';
 const intent = (sid: string, text = composite) => core('POST', '/api/a2ui/intent', {}, { sessionId: sid, text });
@@ -100,6 +101,34 @@ test('P1-13: standalone food reviews include delivery and reject changed price c
     assert.equal(result.status, 409);
     assert.equal(activeOrders.size, before);
   } finally { item.price = originalPrice; restaurant.deliveryFee = originalFee; }
+});
+
+test('P1-13: an approved review that differs from the saved graph cannot dispatch an order', async () => {
+  for (const field of ['price', 'subtitle'] as const) {
+    const sid = `food_inconsistent_display_${field}`;
+    assert.equal((await intent(sid, 'Find a restaurant for dinner')).status, 200);
+    const state = getOrCreateSession(sid), surface = state.currentSurface!;
+    const choices = surface.view.children!.find(node => node.id === 'food_choices')!.properties!.options as Array<{ id: string; price: string; subtitle: string }>;
+    const choice = choices.find(item => item.id === 'item_diavola')!;
+    if (field === 'price') choice.price = 'USD 1.00';
+    else choice.subtitle = choice.subtitle.replace('Delivery USD 2.99', 'Delivery USD 0.00');
+    issueApproval(state);
+    const before = activeOrders.size;
+    const result = await core('POST', '/api/a2ui/action', {}, { sessionId: sid, surfaceRevision: surface.revision, action: 'order_food', payload: { selectedChoice: choice.id } });
+    assert.equal(result.status, 409, `${field} divergence must fail before order creation`);
+    assert.equal(activeOrders.size, before);
+  }
+});
+
+test('P1-13: a missing saved review cannot dispatch an order', async () => {
+  const sid = 'food_missing_graph_review';
+  assert.equal((await intent(sid, 'Find a restaurant for dinner')).status, 200);
+  const state = getOrCreateSession(sid), surface = state.currentSurface!;
+  state.metadata!.runtime.threadId = 'missing-graph-review';
+  const before = activeOrders.size;
+  const result = await core('POST', '/api/a2ui/action', {}, { sessionId: sid, surfaceRevision: surface.revision, action: 'order_food', payload: { selectedChoice: 'item_diavola' } });
+  assert.equal(result.status, 409);
+  assert.equal(activeOrders.size, before);
 });
 
 test('P1-13: composite checkout charges the reviewed total and books the reviewed ride and meal', async () => {

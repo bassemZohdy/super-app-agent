@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 3 November 2026 - Verify saved compatibility reviews (P1-13, step)
+
+Compatibility actions refuse missing or divergent graph reviews before dispatch, preserving the terms of the approved surface. Guide: [agent flow](agent-flow.md).
+
 ## 3 November 2026 - Bind standalone ride reviews (P1-13, step)
 
 Standalone ride dispatch checks the displayed pickup, destination and selected fare against the reviewed choice before booking. Guide: [agent flow](agent-flow.md).

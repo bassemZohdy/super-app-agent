@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
+import { HttpError } from '../../../../packages/backend-kit/src/http-policy.ts';
 import { BaseCheckpointSaver, Annotation, StateGraph, START, END, MemorySaver, interrupt, Command } from '@langchain/langgraph';
 import { SuperAppAgentGraph } from './graph.ts';
 import type { SuperAppAgentState } from './state.ts';
@@ -47,6 +49,11 @@ export async function executeRuntimeAction(state: SuperAppAgentState, action: st
     if (!id || state.metadata?.runtime?.status !== 'awaiting-approval') {
       id = thread(state);
       await graph().invoke({ session: structuredClone(state), intent: undefined }, options(id));
+    }
+    const snapshot = await graph().getState(options(id));
+    if (!snapshot.next.includes('review') || !state.currentSurface?.view ||
+        !isDeepStrictEqual(snapshot.values.session?.currentSurface?.view, state.currentSurface.view)) {
+      throw new HttpError(409, 'The saved review no longer matches the approved surface. Start a new review.');
     }
     const result = await graph().invoke(new Command({ resume: { action, payload } }), options(id));
     const history = state.approvalHistory;
