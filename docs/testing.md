@@ -61,6 +61,8 @@ Execution results for the implementation milestone belong in the dated [evidence
 
 `services/agent-core/test/thread-quotas.test.ts` exercises resident and global active-conversation limits, concurrent admission, slot release and the slot retained by an expired unresolved conversation. It also checks creation-rate limits across cancellation and SQLite reopen, expiration of rate events, resident isolation and concurrent global admission. It does not test distributed quotas or long-term storage retention.
 
+`services/agent-core/test/slow-upload.test.ts` uses loopback HTTP and a shortened test deadline to check that a continuously trickled JSON body times out, an oversized body receives a 413, neither starts a transition, and a later valid request succeeds. This is not a connection-flood or proxy test.
+
 `services/agent-core/test/thread-expiry-recovery.test.ts` expires conversations after a simulated effect and lost response, reopens SQLite and verifies that only the owner’s linked unresolved conversation is extended. It also covers saved legacy approvals and refusal to guess when the evidence is absent.
 
 `services/agent-core/test/cross-thread-recovery.test.ts` covers pending and unknown writes across conversations, same and different quotes, renewal, read-only access, subject isolation, reopening SQLite, and unambiguous or ambiguous legacy ownership. This is local single-process evidence, not distributed failover proof.

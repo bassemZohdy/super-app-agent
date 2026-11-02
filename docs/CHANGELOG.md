@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bound focused-agent JSON body reads (P0-11, step)
+
+The focused API applies an absolute deadline to JSON body reads after authentication, including uploads that continually trickle bytes. Timed-out and oversized bodies are rejected before a transition and their connections are closed. Loopback tests cover both failures and a subsequent valid request. This does not limit all connections, authentication time or graph execution. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Limit focused-agent conversation creation (P0-11, step)
 
 The local focused agent limits successful conversation creation within a rolling hour per resident and globally, including across cancellation and SQLite reopen. Admission and rate records are transactional, and existing conversations remain accessible. Tests cover rate expiration, isolation, restart and concurrent global admission. This does not provide distributed quotas or historical-record retention. Guide: [agent flow](agent-flow.md).
