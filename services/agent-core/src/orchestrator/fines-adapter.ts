@@ -26,7 +26,20 @@ export async function invokeTool<I, O>(tool: Tool<I, O>, input: I, ctx: Executio
       timer = setTimeout(() => { reject(new AgentError('TOOL_TIMEOUT_OR_INVALID_RESPONSE', 502)); controller.abort(); }, tool.timeoutMs);
       timer.unref();
     });
-    return tool.output.parse(await Promise.race([tool.invoke(tool.input.parse(input), ctx, controller.signal, key), deadline]));
+    const parsed = tool.input.parse(input);
+    const dispatch = async () => {
+      let invocationContext = ctx;
+      if (tool.consequential) {
+        let principal: ExecutionContext['principal'];
+        try { principal = await ctx.revalidate(); } catch { throw new AgentError('AUTHORITY_CHANGED', 403); }
+        if (controller.signal.aborted) throw new AgentError('TOOL_TIMEOUT_OR_INVALID_RESPONSE', 502);
+        if (principal.subject !== ctx.principal.subject || principal.workload !== ctx.principal.workload) throw new AgentError('AUTHORITY_CHANGED', 403);
+        authorize(principal, tool.permission);
+        invocationContext = { ...ctx, principal };
+      }
+      return tool.invoke(parsed, invocationContext, controller.signal, key);
+    };
+    return tool.output.parse(await Promise.race([dispatch(), deadline]));
   } catch (error) {
     if (error instanceof AgentError) throw error;
     throw new AgentError('TOOL_TIMEOUT_OR_INVALID_RESPONSE', 502);

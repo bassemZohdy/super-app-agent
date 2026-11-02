@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Revalidate authority at the focused tool boundary (P1-02, step)
+
+Consequential focused tools now recheck the same identity and current permission immediately before dispatch, within the tool deadline. A late identity check cannot dispatch after timeout. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Verify automation settlement receipts (P1-02, step)
 
 The worker persists the prepared amount and accepts settlement only when the receipt names that exact amount in AED. Older preparations without a stored amount and unverifiable receipts are held for reconciliation. Guide: [automation worker](development/automation-worker.md).

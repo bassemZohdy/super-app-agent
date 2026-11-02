@@ -115,3 +115,37 @@ test('tool timeout and schema failures are safe; consequential calls require key
     await assert.rejects(invokeTool({ ...h.tools.list, invoke: async () => { throw new AgentError('PROVIDER_FAILURE', 503); } }, {}, ctx), /PROVIDER_FAILURE/);
   } finally { await h.close(); }
 });
+
+test('consequential tool boundary revalidates the same identity and permission before dispatch', async () => {
+  const h = await harness();
+  try {
+    const principal = { subject: 'alice', workload: 'super-app-agent', permissions: ['fines:read', 'fines:pay'], expiresAt: Date.now() + 10000 };
+    const ctx: ExecutionContext = { principal, authorization: `Bearer ${h.identities[0].token}`, correlationId: randomUUID(), revalidate: async () => principal };
+    const quote = quoteFor(h.store.fines('alice')), input = { quote, consentId: randomUUID() };
+    let dispatched = 0;
+    const tool = { ...h.tools.pay, invoke: async () => { dispatched++; throw new Error('unexpected dispatch'); } };
+    for (const revalidate of [
+      async () => ({ ...principal, subject: 'other' }),
+      async () => ({ ...principal, workload: 'other' }),
+      async () => ({ ...principal, permissions: ['fines:read'] }),
+      async () => ({ ...principal, expiresAt: Date.now() - 1 }),
+      async () => { throw new Error('private identity server response'); },
+    ]) {
+      await assert.rejects(invokeTool(tool, input, { ...ctx, revalidate }, 'a'.repeat(64)), (error: unknown) => error instanceof AgentError && ['AUTHORITY_CHANGED', 'PERMISSION_DENIED', 'AUTHORITY_EXPIRED'].includes(error.code));
+      assert.equal(dispatched, 0);
+    }
+    let release!: (value: typeof principal) => void;
+    const delayed = new Promise<typeof principal>(resolve => { release = resolve; });
+    await assert.rejects(invokeTool({ ...tool, timeoutMs: 10 }, input, { ...ctx, revalidate: () => delayed }, 'a'.repeat(64)), /TOOL_TIMEOUT_OR_INVALID_RESPONSE/);
+    release(principal);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(dispatched, 0, 'late identity checks cannot dispatch after the deadline');
+    const fresh = { ...principal, expiresAt: principal.expiresAt + 1000 };
+    const valid = { ...h.tools.pay, invoke: async (_input: unknown, actual: ExecutionContext) => {
+      assert.equal(actual.principal, fresh); dispatched++;
+      return { id: randomUUID(), simulated: true as const, quote, idempotencyKey: 'a'.repeat(64) };
+    } };
+    await invokeTool(valid, input, { ...ctx, revalidate: async () => fresh }, 'a'.repeat(64));
+    assert.equal(dispatched, 1);
+  } finally { await h.close(); }
+});
