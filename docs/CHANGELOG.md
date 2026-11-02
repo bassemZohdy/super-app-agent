@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 3 November 2026 - Reject malformed HTTP JSON encoding (P0-11, step)
+
+Focused and shared HTTP JSON readers reject invalid UTF-8 before parsing and dispatch, while preserving valid split multibyte text. Guide: [security](security.md).
+
 ## 3 November 2026 - Verify abandoned-upload capacity (P0-11, step)
 
 A real HTTP regression checks that repeated disconnected uploads release the focused resident request slot without dispatching an action. Guide: [security](security.md).

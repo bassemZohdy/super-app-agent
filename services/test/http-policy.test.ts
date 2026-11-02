@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { request } from 'node:http';
+import { request, createServer } from 'node:http';
 import { once } from 'node:events';
-import { HttpPolicy } from '../../packages/backend-kit/src/http-policy.ts';
+import { HttpPolicy, HttpError, readJsonBody } from '../../packages/backend-kit/src/http-policy.ts';
 import { server } from '../agent-core/src/index.ts';
 
 test('request budgets bound concurrency, rate and new-client cardinality and release only once', t => {
@@ -38,4 +38,27 @@ test('HTTP rejects byte-oversized, malformed and wrong-type bodies, times out sl
   const aborted = request(`${root}/api/a2ui/intent`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': '100' } });
   aborted.on('error', () => {}); aborted.write('{'); aborted.destroy();
   assert.equal((await fetch(`${root}/health`)).status, 200);
+});
+
+
+test('shared JSON body reader rejects malformed UTF-8 and preserves split valid characters', async t => {
+  let accepted = 0;
+  const app = createServer(async (req, res) => {
+    try { const body = await readJsonBody(req); accepted++; res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(body)); }
+    catch (error) { res.writeHead(error instanceof HttpError ? error.status : 500).end(); }
+  });
+  await new Promise<void>(resolve => app.listen(0, '127.0.0.1', resolve));
+  t.after(async () => { app.closeAllConnections(); await new Promise<void>(resolve => app.close(() => resolve())); });
+  const url = `http://127.0.0.1:${(app.address() as { port: number }).port}/`;
+  for (const bytes of [[0xff], [0xc0, 0xaf], [0xe2, 0x82]]) {
+    const invalid = Buffer.concat([Buffer.from('{"name":"'), Buffer.from(bytes), Buffer.from('"}')]);
+    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: invalid });
+    assert.equal(response.status, 400); assert.equal(accepted, 0);
+  }
+  const valid = Buffer.from('{"name":"مرحبا"}');
+  const result = await new Promise<{ status: number; body: string }>((resolve, reject) => {
+    const req = request(url, { method: 'POST', headers: { 'Content-Type': 'application/json' } }, res => { let body = ''; res.setEncoding('utf8'); res.on('data', chunk => { body += chunk; }); res.on('end', () => resolve({ status: res.statusCode!, body })); });
+    req.on('error', reject); for (const byte of valid) req.write(Buffer.from([byte])); req.end();
+  });
+  assert.equal(result.status, 200); assert.deepEqual(JSON.parse(result.body), { name: 'مرحبا' }); assert.equal(accepted, 1);
 });

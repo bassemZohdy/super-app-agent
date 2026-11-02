@@ -15,7 +15,7 @@ async function readBody(req: http.IncomingMessage, timeoutMs: number, ignored = 
       clearTimeout(timer); req.off('data', onData); req.off('end', onEnd);
       if (error) { req.pause(); reject(error); return; }
       if (ignored) { resolve(undefined); return; }
-      try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8'))); }
+      try { resolve(JSON.parse(new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(Buffer.concat(chunks)))); }
       catch { reject(new AgentError('INVALID_JSON')); }
     };
     const onData = (chunk: Buffer) => { bytes += chunk.length; if (bytes > 8192) finish(new AgentError('BODY_TOO_LARGE', 413)); else if (!ignored) chunks.push(chunk); };

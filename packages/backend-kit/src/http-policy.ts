@@ -56,7 +56,7 @@ export function readJsonBody(req: IncomingMessage): Promise<unknown> {
     const cleanup = () => { clearTimeout(timer); req.off('data', data); req.off('end', end); req.off('aborted', aborted); req.off('error', error); };
     const fail = (reason: Error) => { cleanup(); req.once('error', () => {}); req.resume(); reject(reason); };
     const data = (chunk: Buffer) => { bytes += chunk.byteLength; if (bytes > limit) fail(new HttpError(413, 'Request body too large')); else chunks.push(chunk); };
-    const end = () => { cleanup(); try { resolve(bytes ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {}); } catch { reject(new HttpError(400, 'Invalid JSON body')); } };
+    const end = () => { cleanup(); try { resolve(bytes ? JSON.parse(new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(Buffer.concat(chunks))) : {}); } catch { reject(new HttpError(400, 'Invalid JSON body')); } };
     const aborted = () => fail(new HttpError(400, 'Request aborted'));
     const error = () => fail(new HttpError(400, 'Request could not be read'));
     const timer = setTimeout(() => fail(new HttpError(408, 'Request body timed out')), timeout);

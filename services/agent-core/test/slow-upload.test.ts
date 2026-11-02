@@ -80,3 +80,19 @@ test('bodyless actions accept empty bodies and reject oversized ignored bodies b
     assert.equal((await cancelled.json() as { status: string }).status, 'cancelled');
   } finally { await h.close(); }
 });
+
+
+test('malformed UTF-8 in a focused message is rejected before a transition', async () => {
+  const h = await harness();
+  try {
+    const thread = await h.thread();
+    for (const [index, bytes] of [[0xff], [0xc0, 0xaf], [0xe2, 0x82]].entries()) {
+      const body = Buffer.concat([Buffer.from('{"message":"show fines '), Buffer.from(bytes), Buffer.from('"}')]);
+      const response = await fetch(new URL(`/api/agent/threads/${thread}/messages`, h.base), { method: 'POST', headers: { Authorization: `Bearer ${h.identities[0].token}`, 'Content-Type': 'application/json', 'Idempotency-Key': `invalid-utf8-${index}` }, body });
+      assert.equal(response.status, 400); assert.equal((await response.json() as { code: string }).code, 'INVALID_JSON');
+    }
+    assert.equal((h.store.db.prepare('SELECT count(*) AS n FROM sa_requests').get() as { n: number }).n, 0);
+    assert.equal((await h.req(`/api/agent/threads/${thread}`)).data.status, 'new');
+    assert.equal((await h.req(`/api/agent/threads/${thread}/messages`, { message: 'عرض المخالفات المستحقة' })).status, 200);
+  } finally { await h.close(); }
+});
