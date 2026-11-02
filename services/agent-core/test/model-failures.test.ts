@@ -19,6 +19,15 @@ test('compatible planner rejects incomplete or filtered output even when its JSO
   }
 });
 
+test('compatible planner does not send exact vehicle references to the model', async t => {
+  t.mock.method(globalThis, 'fetch', async (_url: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+    assert.doesNotMatch(String(init?.body), /veh-2/i);
+    return Response.json(envelope('{"intent":"renew_registration","fineIds":[]}'));
+  });
+  const plan = await new CompatiblePlanner(new URL('http://localhost:9000/v1/'), 'synthetic').plan([{ role: 'user', content: 'renew registration for veh-2' }], []);
+  assert.equal(plan.intent, 'renew_registration');
+});
+
 test('compatible planner rejects reported completion-token overrun and sends the exact bounded allowance', async t => {
   let calls = 0;
   t.mock.method(globalThis, 'fetch', async (_url: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {

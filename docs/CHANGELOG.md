@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bind focused renewal vehicle selection (P1-13, step)
+
+The focused graph binds an exact `veh-` reference from the current resident request, rejects an unbound planner selection, and asks for clarification when several references are named. The compatible planner no longer receives exact vehicle references. Tests cover invented, mismatched, multiple, unavailable and selected vehicles without executing renewal. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Recheck focused authority after uploads (P0-03, step)
 
 After a request body arrives, the focused API authenticates again, requires the same subject and workload, and checks the current permission before creating a conversation, dispatching a conversation action or executing a simulator write. Loopback tests change expiry, subject and permissions while uploading and verify no affected action occurs. The test authority models changes; production revocation and federation remain separate. Guide: [agent flow](agent-flow.md).

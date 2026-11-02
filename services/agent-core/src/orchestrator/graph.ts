@@ -39,7 +39,12 @@ export function createGraph(planner: Planner, tools: FinesAdapter, vehicles: Veh
       authorize(context().principal, 'fines:read');
       try {
         const plan = Plan.parse(await planner.plan(state.messages, [tools.list, tools.pay, vehicles.list, vehicles.renew].map(({ id, description }) => ({ id, description }))));
-        return { plan, pending: null, decision: null, receipt: null, vehicles: [], renewalPending: null, renewalDecision: null, renewal: null, status: 'planned' };
+        const userMessage = [...state.messages].reverse().find(message => message.role === 'user')?.content || '';
+        const selected = [...new Set((userMessage.match(/\bveh-[a-z0-9_-]+\b/gi) || []).map(id => id.replace(/^veh-/i, 'veh-')))];
+        if (plan.intent === 'renew_registration' && selected.length > 1) return { plan: { intent: 'clarify' as const, fineIds: [] }, pending: null, decision: null, receipt: null, vehicles: [], renewalPending: null, renewalDecision: null, renewal: null, status: 'clarify', reply: 'Please name one vehicle to renew and ask again.' };
+        if (plan.vehicleId && !selected.includes(plan.vehicleId)) throw new AgentError('UNBOUND_VEHICLE_SELECTION');
+        const bound = Plan.parse({ ...plan, vehicleId: plan.intent === 'renew_registration' ? selected[0] : undefined });
+        return { plan: bound, pending: null, decision: null, receipt: null, vehicles: [], renewalPending: null, renewalDecision: null, renewal: null, status: 'planned' };
       } catch {
         return { plan: { intent: 'clarify' as const, fineIds: [] }, status: 'model_unavailable', reply: 'The planning provider is unavailable or returned an invalid plan. No operation ran.' };
       }

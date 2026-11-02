@@ -27,6 +27,35 @@ async function journey(options: Parameters<typeof harness>[0] = {}) {
   return { h, alice, id, root, say, decide, payFinesDirectly };
 }
 
+test('renewal never accepts a vehicle invented by a planner', async () => {
+  const { h, say } = await journey({ planner: { async plan() { return { intent: 'renew_registration', fineIds: [], vehicleId: 'veh-1' }; } } });
+  try {
+    const result = await say('renew my registration');
+    assert.equal(result.data.status, 'model_unavailable');
+    assert.equal(result.data.approval, null); assert.equal(result.data.renewalApproval, null);
+    assert.equal((await say('renew registration for veh-2')).data.status, 'model_unavailable');
+    assert.equal(count(h, 'sa_sim_accounts'), 0); assert.equal(count(h, 'sa_sim_renewals'), 0);
+  } finally { await h.close(); }
+});
+
+test('renewal binds a single named vehicle and clarifies multiple named vehicles', async () => {
+  const { h, say, payFinesDirectly } = await journey({ planner: { async plan() { return { intent: 'renew_registration', fineIds: [] }; } } });
+  try {
+    payFinesDirectly();
+    h.store.vehicles('alice');
+    h.store.db.prepare('INSERT INTO sa_sim_vehicles VALUES(?,?,?,NULL)').run('alice', 'veh-2', JSON.stringify({ id: 'veh-2', description: 'Second simulated vehicle', renewalFeeMinor: 50000, version: 1 }));
+    const ambiguous = await say('renew registration for veh-1 and veh-2');
+    assert.equal(ambiguous.data.status, 'clarify'); assert.equal(ambiguous.data.renewalApproval, null);
+    const absent = await say('renew registration for veh-9');
+    assert.equal(absent.data.status, 'clarify'); assert.equal(absent.data.renewalApproval, null);
+    const review = await say('renew registration for veh-2');
+    assert.equal(review.data.status, 'awaiting_approval');
+    assert.equal(review.data.renewalApproval.quote.vehicleId, 'veh-2');
+    assert.equal(review.data.renewalApproval.quote.amountMinor, 50000);
+    assert.equal(count(h, 'sa_sim_renewals'), 0);
+  } finally { await h.close(); }
+});
+
 test('renewal journey: fines first, then a second approval, each with exactly one effect', async () => {
   const { h, say, decide, root } = await journey();
   try {
