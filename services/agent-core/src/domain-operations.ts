@@ -46,15 +46,20 @@ function definiteRejection(status: number, data: unknown, mutation: boolean): bo
   if (typeof payload.code === 'string' && (payload.code === 'OUTCOME_UNKNOWN' || payload.code.endsWith('_OUTCOME_UNKNOWN'))) return false;
   return payload.success === false || named(payload.error);
 }
-function confirmedReceipt(service: string, path: string, data: any): boolean {
+function confirmedReceipt(service: string, path: string, data: any, body: unknown): boolean {
   if (service === 'telecom') {
     const match = /^\/telecom\/(?:etisalat|du)\/bills\/([^/]+)\/payments$/.exec(path);
     if (match) {
       let billId: string;
       try { billId = decodeURIComponent(match[1]); } catch { return false; }
       const receipt = data.receipt;
-      return record(receipt) && named(billId) && receipt.billId === billId && named(receipt.receiptNumber) &&
-        typeof receipt.amountPaid === 'string' && /^(?:0|[1-9]\d*)\.\d{2}$/.test(receipt.amountPaid) && receipt.currency === 'AED';
+      if (!(record(receipt) && named(billId) && receipt.billId === billId && named(receipt.receiptNumber) &&
+        typeof receipt.amountPaid === 'string' && /^(?:0|[1-9]\d*)\.\d{2}$/.test(receipt.amountPaid) && receipt.currency === 'AED')) return false;
+      const expected = body && typeof body === 'object' && !Array.isArray(body)
+        ? (body as Record<string, unknown>).expectedAmountMinor : undefined;
+      if (expected === undefined) return true;
+      if (typeof expected !== 'number' || !Number.isSafeInteger(expected) || expected < 0) return false;
+      return receipt.amountPaid === `${Math.floor(expected / 100)}.${String(expected % 100).padStart(2, '0')}`;
     }
   }
   if (service === 'wallet') {
@@ -90,7 +95,7 @@ export function callDomain(service: keyof typeof domainHandlers, method: string,
   const valid = result && Number.isInteger(result.status) && result.data && typeof result.data === 'object';
   const succeeded = valid && result.status >= 200 && result.status < 300 &&
     result.data.success === true && !Object.hasOwn(result.data, 'error') &&
-    (!mutation || confirmedReceipt(service, path, result.data));
+    (!mutation || confirmedReceipt(service, path, result.data, body));
   if (succeeded) {
     if (step) step.state = 'SUCCEEDED';
     return result;
@@ -136,7 +141,7 @@ async function callDomainRequest(service: keyof typeof domainHandlers | 'telecom
     throw new DomainOperationError(503, mutation ? 'DOMAIN_OUTCOME_UNKNOWN' : 'DOMAIN_UNAVAILABLE', service);
   }
   const succeeded = result.status >= 200 && result.status < 300 && result.data?.success === true && !Object.hasOwn(result.data, 'error') &&
-    (!mutation || confirmedReceipt(service, path, result.data));
+    (!mutation || confirmedReceipt(service, path, result.data, body));
   if (succeeded) { if (step) step.state = 'SUCCEEDED'; return result; }
   const rejected = definiteRejection(result.status, result.data, mutation);
   if (step) step.state = rejected ? 'FAILED' : 'UNKNOWN';

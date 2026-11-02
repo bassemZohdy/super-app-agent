@@ -39,7 +39,7 @@ Container/Compose, Kubernetes/OpenShift, live-provider inference and Angular/Flu
 
 Execution results for the implementation milestone belong in the dated [evidence report](reports/2026-10-26-simple-agent.md).
 
-`services/test/domain-telecom-receipt.test.ts` sends missing, malformed and wrong-bill receipts through the authenticated telecom adapter for both supported providers and verifies they remain unknown; a complete receipt for the selected bill is accepted. This checks the response boundary, not real provider settlement or quote matching.
+`services/test/domain-telecom-receipt.test.ts` sends missing, malformed and wrong-bill receipts through the authenticated telecom adapter for both supported providers and verifies they remain unknown; a complete receipt for the selected bill is accepted. The same test compares receipts with a supplied reviewed amount in exact fils and rejects a one-fil difference and overflow-sized receipt. This checks the response boundary, not real provider settlement.
 
 `services/test/domain-ambiguous-responses.test.ts` exercises local and authenticated HTTP adapters against uncertain, contradictory, empty and timeout mutation responses as well as an explicit rejection. `services/test/domain-failures.test.ts` also proves an uncertain result after a wallet effect stops the composite and blocks replacement pending reconciliation.
 

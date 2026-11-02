@@ -31,3 +31,29 @@ test('telecom payment requires a receipt for the selected bill before success', 
     } finally { fetchMock.mock.restore(); }
   }
 });
+
+
+test('telecom receipt must match the reviewed amount when one was supplied', async t => {
+  const previous = process.env.DOMAIN_TRANSPORT;
+  process.env.DOMAIN_TRANSPORT = 'http';
+  t.after(() => { if (previous === undefined) delete process.env.DOMAIN_TRANSPORT; else process.env.DOMAIN_TRANSPORT = previous; });
+  for (const sample of [
+    { amount: '45.00', expected: 4500, valid: true },
+    { amount: '45.01', expected: 4500, valid: false },
+    { amount: '45.00', expected: 4501, valid: false },
+    { amount: '90071992547409.92', expected: 9007199254740991, valid: false },
+  ]) {
+    const steps: Step[] = [];
+    const receipt = { billId: 'bill-123', receiptNumber: 'receipt-1', amountPaid: sample.amount, currency: 'AED' };
+    const fetchMock = t.mock.method(globalThis, 'fetch', async () => Response.json({ success: true, receipt }));
+    try {
+      const result = trackDomainOperations(steps, () => actorContext.run(actorFor({ sub: 'test-user' }, 'account', 'Bearer test'),
+        () => callDomainAsync('telecom', 'POST', '/telecom/du/bills/bill-123/payments', {}, { expectedAmountMinor: sample.expected })));
+      if (sample.valid) { await result; assert.equal(steps[0].state, 'SUCCEEDED'); }
+      else {
+        await assert.rejects(result, (error: unknown) => error instanceof DomainOperationError && error.code === 'DOMAIN_OUTCOME_UNKNOWN');
+        assert.equal(steps[0].state, 'UNKNOWN');
+      }
+    } finally { fetchMock.mock.restore(); }
+  }
+});
