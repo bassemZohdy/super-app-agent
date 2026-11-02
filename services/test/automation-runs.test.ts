@@ -591,3 +591,31 @@ test('a revised and reapproved mandate cannot authorize its earlier prepared exe
   assert.equal(f.payments.orders!.get(f.actor, execution.orderId!).state, 'AWAITING_APPROVAL');
   assert.equal(f.db.automationRuns!.status('automation-operator').reservedMinor, 15000);
 });
+
+
+test('a mandate paused after admission cannot start a pending automatic payment', async t => {
+  for (const timing of ['before-retry', 'during-snapshot'] as const) {
+    const f = fixture(t), mandate = f.mandate();
+    f.bill(`pause-after-admission-${timing}`, 150, 1);
+    const first = prepared(f.prepare(mandate.id, `occ_${timing}`)), x = execution(f);
+    const before = f.payments.ledger!.summary(f.actor.accountId).balanceMinor;
+    const real = x.deps.client.call.bind(x.deps.client);
+    let reads = 0;
+    x.deps.client.call = async (...args: Parameters<typeof real>) => {
+      if (args[2] === 'GET' && /\/payables\/[^/]+$/.test(args[3])) {
+        if (++reads === 1) throw new Error('lost snapshot');
+        const result = await real(...args);
+        if (timing === 'during-snapshot') f.payments.mandates!.pause(f.actor, mandate.id, mandate.version);
+        return result;
+      }
+      return real(...args);
+    };
+    await assert.rejects(executeAutomaticOrder(x.deps, owner, first.id), /lost snapshot/);
+    assert.equal(f.db.automationRuns!.dispatchState(first.id), 'ADMITTED');
+    if (timing === 'before-retry') f.payments.mandates!.pause(f.actor, mandate.id, mandate.version);
+    await assert.rejects(executeAutomaticOrder(x.deps, owner, first.id), (e: unknown) => (e as {code?: string}).code === 'AUTOMATION_AUTHORITY_CHANGED');
+    assert.equal(f.payments.orders!.get(f.actor, first.orderId!).state, 'AWAITING_APPROVAL');
+    assert.equal(f.payments.ledger!.summary(f.actor.accountId).balanceMinor, before);
+    assert.equal(x.effects(), 0);
+  }
+});

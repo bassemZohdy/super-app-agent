@@ -105,9 +105,10 @@ export class PaymentOrders {
     });
   }
   /** The only way to decide an automatic order: approve, authorize and begin capture for the stored execution. Callers must hold a consumed permit. */
-  admitAutomatic(actor:Actor,id:string,automation:NonNullable<Review['automation']>,snapshot:Payable):Review{return this.atomic(()=>{
+  admitAutomatic(actor:Actor,id:string,automation:NonNullable<Review['automation']>,snapshot:Payable,requireCurrentAuthority:()=>void):Review{return this.atomic(()=>{
     const order=this.sync(this.owned(actor,id));
     if(!order.automation||order.automation.executionId!==automation.executionId||order.automation.mandateId!==automation.mandateId||order.automation.boundDigest!==automation.boundDigest)return fail('ORDER_AUTOMATIC','This order does not belong to the presented execution.',403);
+    if(order.state==='AWAITING_APPROVAL'||order.state==='AUTHORIZED')requireCurrentAuthority();
     if(order.state==='AWAITING_APPROVAL'){const approved=this.approve(actor,id,{expectedVersion:order.version,approvalDigest:order.approvalDigest},snapshot,true);if(approved.state!=='AUTHORIZED')return approved;}
     const ready=this.owned(actor,id);if(ready.state!=='AUTHORIZED')return ready;
     return this.beginCapture(actor,id,{expectedVersion:ready.version,approvalDigest:ready.approvalDigest},snapshot,true);

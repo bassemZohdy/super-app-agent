@@ -51,7 +51,7 @@ export class WalletFunding {
     this.uses.bind(actor.accountId,{resourceType:'METHOD',resourceId:source.id,resourceVersion:source.version,dependentKind:'ORDER',dependentId:id});this.store.db.prepare('INSERT INTO wallet_funding_orders VALUES(?,?,?,?)').run(id,actor.accountId,o.state,JSON.stringify(o));emitGatewaySnapshot(this.store,'FUNDING',o);return o;
   });}
   private decision(actor:Actor,id:string,input:{expectedVersion:number;approvalDigest:string},automatic=false){const o=this.sync(this.owned(actor,id));if(!!o.automation!==automatic)return fail('ORDER_AUTOMATIC','This reload belongs to an automation mandate and is admitted only by its dedicated execution route.',403);this.store.eligibility!.require(actor,o.eligibilityEpoch||'1:1');if(o.version!==input.expectedVersion||o.approvalDigest!==input.approvalDigest)return fail('APPROVAL_CHANGED','Refresh and approve the exact wallet funding review.');if(!active.includes(o.state))return fail('FUNDING_CLOSED','This funding review is closed.');return o;}
-  approve(actor:Actor,id:string,input:{expectedVersion:number;approvalDigest:string},automatic=false){return this.atomic(()=>{const o=this.decision(actor,id,input,automatic);if(o.state!=='AWAITING_APPROVAL')return fail('ALREADY_DECIDED','This funding review is already approved.');try{
+  approve(actor:Actor,id:string,input:{expectedVersion:number;approvalDigest:string},automatic=false,requireCurrentAuthority?:()=>void){return this.atomic(()=>{const o=this.decision(actor,id,input,automatic);if(o.state!=='AWAITING_APPROVAL')return fail('ALREADY_DECIDED','This funding review is already approved.');requireCurrentAuthority?.();try{
     this.method(actor.accountId,o.quote.source.id,o.quote.source.version);this.capacity(actor.accountId,o.quote.amountMinor);const expiresAt=Math.min(Date.parse(o.expiresAt),this.clock()+120000);
     o.authorization=this.issuer.authorize({accountId:o.accountId,ownerSub:o.ownerSub,orderId:o.id,sourceId:o.quote.source.id,sourceVersion:o.quote.source.version,amountMinor:o.quote.totalMinor,approvalDigest:o.approvalDigest,expiresAt});
     if(o.authorization.state==='DECLINED')return this.close(o,'FAILED',o.authorization.failureCode);
@@ -60,14 +60,15 @@ export class WalletFunding {
   challenge(actor:Actor,id:string,input:{expectedVersion:number;approvalDigest:string;challengeId:string;decision:'APPROVE'|'REJECT'},interactive:boolean){return this.atomic(()=>{const o=this.decision(actor,id,input);this.method(actor.accountId,o.quote.source.id,o.quote.source.version);if(o.state!=='REQUIRES_ACTION')return fail('CHALLENGE_CLOSED','This review has no pending challenge.');o.authorization=this.issuer.challenge(this.binding(o),input.challengeId,input.decision,interactive);if(o.authorization.state==='DECLINED')return this.close(o,'FAILED',o.authorization.failureCode);o.state='AUTHORIZED';return this.save(o);});}
   cancel(actor:Actor,id:string,version:number){return this.atomic(()=>{const o=this.sync(this.owned(actor,id));if(o.automation)return fail('ORDER_AUTOMATIC','Revoke or pause the mandate instead; an automatic reload is not cancelled directly.',403);if(o.version!==version||!active.includes(o.state))return fail('FUNDING_CLOSED','Refresh this current funding review before cancelling.');return this.close(o,'CANCELLED');});}
   /** The response can only be lost after the atomic capture+credit commit; a retry replays the settled order. */
-  execute(actor:Actor,id:string,input:{expectedVersion:number;approvalDigest:string},automatic=false){
-    const result=this.executeCommitted(actor,id,input,automatic);
+  execute(actor:Actor,id:string,input:{expectedVersion:number;approvalDigest:string},automatic=false,requireCurrentAuthority?:()=>void){
+    const result=this.executeCommitted(actor,id,input,automatic,requireCurrentAuthority);
     hitFailpoint('funding.after-commit');
     return result;
   }
-  private executeCommitted(actor:Actor,id:string,input:{expectedVersion:number;approvalDigest:string},automatic=false){return this.atomic(()=>{
+  private executeCommitted(actor:Actor,id:string,input:{expectedVersion:number;approvalDigest:string},automatic=false,requireCurrentAuthority?:()=>void){return this.atomic(()=>{
     const existing=this.owned(actor,id);if(existing.state==='SETTLED'&&existing.approvalDigest===input.approvalDigest)return existing;
     const o=this.decision(actor,id,input,automatic);if(o.state!=='AUTHORIZED'||!o.authorization)return fail('FUNDING_NOT_AUTHORIZED','Authorize this exact card and amount before adding funds.');
+    requireCurrentAuthority?.();
     try{this.method(actor.accountId,o.quote.source.id,o.quote.source.version);this.capacity(actor.accountId,o.quote.amountMinor);o.authorization=this.issuer.capture(this.binding(o));}catch(e){if(e instanceof IssuerError||e instanceof PaymentOrderError||e instanceof PaymentLedgerError)return this.close(o,'FAILED',e.code);throw e;}
     const balance=this.ledger.record(actor.accountId,'TOPUP',`wallet-funding:${id}`,o.quote.amountMinor,'external'),capturedAt=new Date(this.clock()).toISOString();
     o.fundsCaptured=true;o.state='SETTLED';o.receipt={receiptNumber:id,amountMinor:o.quote.amountMinor,feeMinor:o.quote.feeMinor,currency:'AED',balanceMinor:balance.balanceMinor,capturedAt};
@@ -75,13 +76,13 @@ export class WalletFunding {
     return this.save(o);
   });}
   /** The only way to decide an automatic reload: approve, authorize and capture for the stored execution. Callers must hold a consumed permit. */
-  admitAutomatic(actor:Actor,id:string,automation:NonNullable<Order['automation']>):Order{
+  admitAutomatic(actor:Actor,id:string,automation:NonNullable<Order['automation']>,requireCurrentAuthority:()=>void):Order{
     const mine=(o:Order)=>!!o.automation&&o.automation.executionId===automation.executionId&&o.automation.mandateId===automation.mandateId&&o.automation.boundDigest===automation.boundDigest;
     let o=this.atomic(()=>this.sync(this.owned(actor,id)));
     if(!mine(o))return fail('ORDER_AUTOMATIC','This reload does not belong to the presented execution.',403);
-    if(o.state==='AWAITING_APPROVAL')o=this.approve(actor,id,{expectedVersion:o.version,approvalDigest:o.approvalDigest},true);
+    if(o.state==='AWAITING_APPROVAL')o=this.approve(actor,id,{expectedVersion:o.version,approvalDigest:o.approvalDigest},true,requireCurrentAuthority);
     if(o.state!=='AUTHORIZED')return o;
-    return this.execute(actor,id,{expectedVersion:o.version,approvalDigest:o.approvalDigest},true);
+    return this.execute(actor,id,{expectedVersion:o.version,approvalDigest:o.approvalDigest},true,requireCurrentAuthority);
   }
   /** Closes an automatic reload that provably never reached funds, so its reservation can be released. */
   cancelAutomatic(actor:Actor,id:string,automation:NonNullable<Order['automation']>):Order{return this.atomic(()=>{

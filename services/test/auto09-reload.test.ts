@@ -216,3 +216,23 @@ test('AUTO-09: the preview shows the finite reload a rule would make, and why it
   assert.equal(low.source.usable, true);
   assert.equal(f.wallet(), 800, 'previewing a reload moves nothing');
 });
+
+
+test('a paused mandate cannot start a previously admitted wallet reload', async t => {
+  const f = fixture(t), mandate = f.mandate();
+  f.spendTo(800);
+  const execution = prepared(f.prepare(mandate.id, 'occ_pause_after_admission'));
+  const funding = f.payments.funding!, original = funding.admitAutomatic.bind(funding);
+  let lost = true;
+  funding.admitAutomatic = (...args: Parameters<typeof original>) => {
+    if (lost) { lost = false; throw new Error('lost after admission'); }
+    return original(...args);
+  };
+  await assert.rejects(f.run(execution.id), /lost after admission/);
+  assert.equal(f.db.automationRuns!.dispatchState(execution.id), 'ADMITTED');
+  f.payments.mandates!.pause(f.actor, mandate.id, mandate.version);
+  await assert.rejects(f.run(execution.id), (e: unknown) => (e as {code?: string}).code === 'AUTOMATION_AUTHORITY_CHANGED');
+  assert.equal(funding.get(f.actor, execution.orderId!).state, 'AWAITING_APPROVAL');
+  assert.equal(f.wallet(), 800);
+  assert.equal(f.spent(), 0);
+});

@@ -16,7 +16,7 @@ States: `QUEUED → PREPARING → PREPARED → CREDENTIALING → EXECUTING`, the
 
 ## Leases and fencing
 
-The provider compares the current mandate policy version with the version saved at preparation. A revised policy, even if later approved, cannot authorize the old preparation: credential inspection is refused and an already issued permit is rejected at admission. Reservations remain under the original execution for reconciliation. An execution already admitted follows the existing original-order recovery rules.
+The provider compares the current mandate policy version with the version saved at preparation. A revised policy, even if later approved, cannot authorize the old preparation: credential inspection is refused and an already issued permit is rejected at admission. Reservations remain under the original execution for reconciliation. An admitted execution rechecks current authority immediately before authorizing a still-pending payment or wallet reload and before beginning capture. A changed mandate or stale target holds the original reservation; a payment capture already started follows the existing original-order recovery rules.
 
 The broker binds each permit to the original mandate ID and policy version, biller ID, preparation time and admission deadline. Retries, including replacements of closed attempts, and challenge resumes must match those facts. Older saved permits without this binding cannot be retried or resumed; preserve them for inspection and reconciliation. Already bound sessions retain their existing handling.
 

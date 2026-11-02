@@ -481,6 +481,14 @@ export class AutomationRuns{
     const row=this.store.db.prepare('SELECT state FROM automation_dispatch WHERE execution_id=?').get(executionId);
     return row?row.state as 'ADMITTED'|'REJECTED':undefined;
   }
+  private staleAuthority(v:ReturnType<AutomationRuns['view']>){
+    return v.expired?'ADMISSION_EXPIRED':!v.policyCurrent?'POLICY_CHANGED':v.mandate.state!=='APPROVED'?'MANDATE_NOT_ACTIVE':v.mandate.skipNext?'SKIP_PENDING':!v.source.current?'SOURCE_CHANGED':v.biller&&!v.biller.current?'BILLER_CHANGED':!v.payable.current?'PAYABLE_CHANGED':undefined;
+  }
+  /** Recheck before starting a still-unstarted payment, in the order's transaction. */
+  requireCurrentAuthority(executionId:string){
+    const stale=this.staleAuthority(this.view(executionId));
+    if(stale)return deny('AUTOMATION_AUTHORITY_CHANGED',`Current authority no longer allows this execution (${stale}). Its reservation stays held until reconciled.`);
+  }
   /** After the broker consumed the permit: re-read current authority and record the one admission. A stale fact closes it for good. */
   admit(executionId:string,ownerSub:string):AutomationPreparation{
     const outcome=this.store.transaction(()=>{
@@ -488,7 +496,7 @@ export class AutomationRuns{
       const {preparation}=this.target(executionId),prior=this.store.db.prepare('SELECT state FROM automation_dispatch WHERE execution_id=?').get(executionId);
       if(prior)return deny('AUTOMATION_ALREADY_DISPATCHED','This execution was already admitted or closed; recover its original order instead.');
       const v=this.view(executionId);
-      const stale=v.expired?'ADMISSION_EXPIRED':!v.policyCurrent?'POLICY_CHANGED':v.mandate.state!=='APPROVED'?'MANDATE_NOT_ACTIVE':v.mandate.skipNext?'SKIP_PENDING':!v.source.current?'SOURCE_CHANGED':v.biller&&!v.biller.current?'BILLER_CHANGED':!v.payable.current?'PAYABLE_CHANGED':undefined;
+      const stale=this.staleAuthority(v);
       const at=new Date().toISOString();
       this.store.db.prepare('INSERT INTO automation_dispatch VALUES(?,?,?,?,?)').run(executionId,stale?'REJECTED':'ADMITTED',ownerSub,at,stale??null);
       this.store.db.prepare('INSERT INTO automation_audit(body) VALUES(?)').run(JSON.stringify({at,runId:this.context.runId,mandateId:preparation.mandateId,event:stale?'ADMISSION_REJECTED':'ADMITTED',executionId,reason:stale}));

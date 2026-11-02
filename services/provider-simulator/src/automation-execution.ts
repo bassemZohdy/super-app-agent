@@ -41,10 +41,10 @@ async function run(deps:{runs:AutomationRuns;orders:PaymentOrders;funding:Wallet
   const actor:Actor={sub:target.ownerSub,username:target.ownerSub,name:'Automation owner',accountId:preparation.accountId,requestId:`automation:${executionId}`,authorization:caller.authorization};
   const automation={executionId,mandateId:preparation.mandateId,boundDigest:preparation.boundDigest};
   // A wallet reload is local to the gateway: capture and credit share one transaction, so there is no provider chain to drive.
-  if(preparation.kind==='WALLET_RELOAD')return deps.funding.admitAutomatic(actor,target.orderId,automation);
+  if(preparation.kind==='WALLET_RELOAD')return deps.funding.admitAutomatic(actor,target.orderId,automation,()=>deps.runs.requireCurrentAuthority(executionId));
   const order=deps.orders.get(actor,target.orderId);
   const snapshot=(await deps.client.call(order.quote.payable.provider,actor,'GET',`/payables/${encodeURIComponent(order.quote.payable.id)}`)).payable;
-  const decided=deps.orders.admitAutomatic(actor,target.orderId,automation,snapshot);
+  const decided=deps.orders.admitAutomatic(actor,target.orderId,automation,snapshot,()=>deps.runs.requireCurrentAuthority(executionId));
   if(!['CAPTURING','CAPTURED','RECONCILIATION_REQUIRED'].includes(decided.state))return decided;
   return deps.checkout.recover(actor,target.orderId);
 }
