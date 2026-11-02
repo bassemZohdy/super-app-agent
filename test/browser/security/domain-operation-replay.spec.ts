@@ -311,6 +311,7 @@ test('food operation replay returns the original order across trace IDs and refu
     const differentDestination = { ...original, deliveryAddress: 'Different destination' };
     database.put(residentApi.accountId, 'order', differentDestination, orderId);
     database.put(residentApi.accountId, 'food-order-operation', { ...binding, receiptDigest: digest(differentDestination) }, row.id);
+    expect((await inspect(operation)).status).toBe(503);
     expect((await request('trace-different-destination', ['item_diavola'])).status).toBe(503);
   } finally {
     database.put(residentApi.accountId, 'order', original, orderId);

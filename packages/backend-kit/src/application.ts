@@ -74,6 +74,13 @@ function foodReceiptMatchesRequest(value: unknown, request: RequestBody): boolea
       (request.expectedDeliveryFeeMinor === undefined || request.expectedDeliveryFeeMinor === total - itemTotal);
   } catch { return false; }
 }
+type FoodBinding = { fingerprint?: unknown; orderId?: unknown; receiptDigest?: unknown; version?: unknown; request?: unknown };
+function validFoodBinding(binding: FoodBinding, order: unknown): boolean {
+  if (typeof binding.fingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(binding.fingerprint) || typeof binding.receiptDigest !== 'string' || !/^[a-f0-9]{64}$/.test(binding.receiptDigest)) return false;
+  if (binding.version === undefined && !Object.hasOwn(binding, 'request')) return true;
+  if (binding.version !== 2 || !isPlainJsonObject(binding.request) || validateRequest('service-food', 'POST', '/orders/create', {}, binding.request)) return false;
+  return createHash('sha256').update(canonicalJson(binding.request)).digest('hex') === binding.fingerprint && foodReceiptMatchesRequest(order, binding.request as RequestBody);
+}
 function sameFineSelection(value: unknown, ids: string[]): boolean {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const selection = value as { kind?: unknown; provider?: unknown; id?: unknown; reference?: unknown; revision?: unknown; obligationId?: unknown; items?: unknown };
@@ -331,32 +338,34 @@ export async function integratedRequest(service: string, actor: Actor, method: s
           const orders = db.db.prepare("SELECT id,body FROM resources WHERE account_id=? AND kind='order'").all(actor.accountId) as Array<{ id: string; body: string }>;
           if (orders.length) {
             const bindings = db.db.prepare("SELECT body FROM resources WHERE account_id=? AND kind='food-order-operation'").all(actor.accountId) as Array<{ body: string }>;
-            const verified = new Map<string, Set<string>>();
+            const verified = new Map<string, FoodBinding[]>();
             for (const binding of bindings) {
               try {
                 const record: unknown = JSON.parse(binding.body);
                 if (!record || typeof record !== 'object' || Array.isArray(record)) continue;
-                const value = record as { fingerprint?: unknown; orderId?: unknown; receiptDigest?: unknown };
-                if (typeof value.fingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(value.fingerprint) || typeof value.orderId !== 'string' || !/^[a-f0-9-]{36}$/.test(value.orderId) || typeof value.receiptDigest !== 'string' || !/^[a-f0-9]{64}$/.test(value.receiptDigest)) continue;
-                const digests = verified.get(value.orderId) ?? new Set<string>();
-                digests.add(value.receiptDigest); verified.set(value.orderId, digests);
+                const value = record as FoodBinding;
+                if (typeof value.orderId !== 'string' || !/^[a-f0-9-]{36}$/.test(value.orderId)) continue;
+                const candidates = verified.get(value.orderId) ?? [];
+                candidates.push(value); verified.set(value.orderId, candidates);
               } catch { /* Unreadable records cannot establish a binding. */ }
             }
             for (const order of orders) {
               try {
                 const receipt: unknown = JSON.parse(order.body);
-                if (!validFoodReceipt(receipt, order.id) || !verified.get(order.id)?.has(createHash('sha256').update(canonicalJson(receipt)).digest('hex'))) throw new Error('Unverified order');
+                const digest = createHash('sha256').update(canonicalJson(receipt)).digest('hex');
+                const candidates = verified.get(order.id);
+                if (!validFoodReceipt(receipt, order.id) || !candidates?.length || !candidates.every(binding => binding.receiptDigest === digest && validFoodBinding(binding, receipt))) throw new Error('Unverified order');
               } catch { throw new UpstreamError(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original food order could not be confirmed.'); }
             }
           }
           return undefined;
         }
         if (!saved || typeof saved !== 'object' || Array.isArray(saved)) throw new UpstreamError(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original food order could not be confirmed.');
-        const record = saved as { fingerprint?: unknown; orderId?: unknown; receiptDigest?: unknown };
+        const record = saved as FoodBinding;
         if (typeof record.fingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(record.fingerprint) || typeof record.orderId !== 'string' || !/^[a-f0-9-]{36}$/.test(record.orderId) || typeof record.receiptDigest !== 'string' || !/^[a-f0-9]{64}$/.test(record.receiptDigest)) throw new UpstreamError(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original food order could not be confirmed.');
         const order = db.get<{ orderId: string }>(actor.accountId, 'order', record.orderId);
-        if (!validFoodReceipt(order, record.orderId) || createHash('sha256').update(canonicalJson(order)).digest('hex') !== record.receiptDigest) throw new UpstreamError(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original food order could not be confirmed.');
-        return { fingerprint: record.fingerprint, order };
+        if (!validFoodReceipt(order, record.orderId) || createHash('sha256').update(canonicalJson(order)).digest('hex') !== record.receiptDigest || !validFoodBinding(record, order)) throw new UpstreamError(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original food order could not be confirmed.');
+        return { fingerprint: record.fingerprint, order, record };
       };
       const operationPath = /^\/orders\/operations\/([^/]+)$/.exec(path);
       if (method === 'GET' && operationPath) {
@@ -390,12 +399,15 @@ export async function integratedRequest(service: string, actor: Actor, method: s
       }
       if (method === 'GET' && ['/restaurants/search','/utilities/eco-advice'].includes(path)) return legacy(method, path, query, body);
       if (method === 'POST' && path === '/orders/create') {
+        const invalid = validateRequest('service-food', method, path, query, body);
+        if (invalid) return invalid;
         const operation = stableKey(`food-order:${actor.requestId}`), fingerprint = createHash('sha256').update(canonicalJson(body)).digest('hex');
         return db.transaction(() => {
           const saved = readFoodOperation(actor.requestId);
           if (saved) {
             if (saved.fingerprint !== fingerprint) throw new UpstreamError(409, 'IDEMPOTENCY_CONFLICT', 'The original food order has different terms.');
             if (!foodReceiptMatchesRequest(saved.order, body)) throw new UpstreamError(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original food order could not be confirmed.');
+            if (saved.record.version === undefined) db.put(actor.accountId, 'food-order-operation', { ...saved.record, version: 2, request: body }, operation);
             return successful({ order: saved.order });
           }
           const restaurant = restaurants.find(r => r.id === body.restaurantId);
@@ -407,7 +419,7 @@ export async function integratedRequest(service: string, actor: Actor, method: s
           const order = { orderId: randomUUID(), restaurantId: restaurant.id, restaurantName: restaurant.name, items: structuredClone(items), deliveryAddress: body.deliveryAddress || defaultFoodAddress, totalAmount: totalMinor / 100, status: 'CONFIRMED', estimatedDeliveryTime: '25 min', timestamp: Date.now() };
           db.put(actor.accountId, 'order', order, order.orderId);
           const receiptDigest = createHash('sha256').update(canonicalJson(order)).digest('hex');
-          db.put(actor.accountId, 'food-order-operation', { fingerprint, orderId: order.orderId, receiptDigest }, operation);
+          db.put(actor.accountId, 'food-order-operation', { fingerprint, orderId: order.orderId, receiptDigest, version: 2, request: body }, operation);
           return successful({ order });
         });
       }

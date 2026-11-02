@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 3 November 2026 - Persist food inspection request bindings (P1-13, step)
+
+New food-operation records retain validated request terms for receipt inspection; a verified original retry upgrades an older binding without another order. Guide: [agent flow](agent-flow.md).
+
 ## 3 November 2026 - Bind food replay to requested terms (P1-13, step)
 
 An integrated food-order replay is held when its stored receipt disagrees with the original requested resources or supplied prices. Guide: [agent flow](agent-flow.md).

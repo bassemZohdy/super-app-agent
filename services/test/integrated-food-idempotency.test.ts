@@ -70,7 +70,9 @@ test('integrated food order retries retain the original order across application
   assert.equal(inspector.list(actor.accountId, 'order').length, 1, 'changed evidence never creates a replacement order');
   inspector.put(actor.accountId, 'order', original, first.data.order.orderId);
   const row = inspector.db.prepare("SELECT id, body FROM resources WHERE account_id=? AND kind='food-order-operation'").get(actor.accountId) as { id: string; body: string };
-  const saved = JSON.parse(row.body) as { fingerprint: string; orderId: string; receiptDigest?: string };
+  const saved = JSON.parse(row.body) as { fingerprint: string; orderId: string; receiptDigest?: string; version?: number; request?: Record<string, unknown> };
+  assert.equal(saved.version, 2);
+  assert.deepEqual(saved.request, body, 'new order records retain the original request for later inspection');
   const digest = (value: unknown) => createHash('sha256').update(JSON.stringify(value, (_key, item: unknown) => item && typeof item === 'object' && !Array.isArray(item) ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) : item)).digest('hex');
   for (const invalid of [
     { ...original, status: 'PENDING' }, { ...original, deliveryAddress: '' }, { ...original, restaurantId: '' },
@@ -96,9 +98,33 @@ test('integrated food order retries retain the original order across application
     const outcome = await run();
     assert.equal(outcome.status, 503, 'a coherent receipt for different requested terms cannot be replayed');
     assert.equal(outcome.data.code, 'PROVIDER_OUTCOME_UNKNOWN');
+    assert.equal((await inspect()).status, 503, 'inspection checks the persisted original request');
+    assert.equal((await run({ ...actor, requestId: 'new-food-operation' })).status, 503, 'a mismatched binding holds new orders');
     assert.equal(inspector.list(actor.accountId, 'order').length, 1);
   }
   inspector.put(actor.accountId, 'order', original, first.data.order.orderId);
+  inspector.put(actor.accountId, 'food-order-operation', saved, row.id);
+  for (const request of [undefined, null, { ...body, deliveryAddress: 'Different destination' }]) {
+    inspector.put(actor.accountId, 'food-order-operation', { ...saved, request }, row.id);
+    assert.equal((await inspect()).status, 503, 'a versioned binding with a missing or altered request remains unconfirmed');
+    assert.equal((await run()).status, 503);
+  }
+  const { version: _version, request: _request, ...olderBinding } = saved;
+  inspector.put(actor.accountId, 'food-order-operation', { ...saved, request: null }, row.id);
+  inspector.put(actor.accountId, 'food-order-operation', olderBinding, 'duplicate-old-binding');
+  assert.equal((await run({ ...actor, requestId: 'new-food-operation' })).status, 503, 'an older duplicate cannot hide a damaged versioned binding');
+  inspector.db.prepare("DELETE FROM resources WHERE account_id=? AND kind='food-order-operation' AND id='duplicate-old-binding'").run(actor.accountId);
+  const olderMismatch = { ...original, deliveryAddress: 'Different destination' };
+  inspector.put(actor.accountId, 'order', olderMismatch, first.data.order.orderId);
+  inspector.put(actor.accountId, 'food-order-operation', { ...olderBinding, receiptDigest: digest(olderMismatch) }, row.id);
+  assert.equal((await run()).status, 503, 'a mismatched older receipt cannot be upgraded');
+  assert.equal(inspector.get<{ version?: number }>(actor.accountId, 'food-order-operation', row.id)?.version, undefined);
+  inspector.put(actor.accountId, 'order', original, first.data.order.orderId);
+  inspector.put(actor.accountId, 'food-order-operation', olderBinding, row.id);
+  assert.equal((await inspect()).status, 200, 'older records remain inspectable');
+  assert.deepEqual((await run()).data, first.data, 'a matching original retry upgrades the record without a new order');
+  const upgraded = inspector.get<{ version?: number; request?: unknown }>(actor.accountId, 'food-order-operation', row.id);
+  assert.equal(upgraded?.version, 2); assert.deepEqual(upgraded?.request, body);
   inspector.put(actor.accountId, 'food-order-operation', saved, row.id);
   const { receiptDigest: _receiptDigest, ...legacyRecord } = saved;
   inspector.put(actor.accountId, 'food-order-operation', legacyRecord, row.id);
