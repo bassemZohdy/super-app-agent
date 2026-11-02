@@ -46,9 +46,11 @@ export function createServer(service: AgentService, auth: Authenticator, workloa
       if (req.method === 'GET' && path === '/live') return send(200, { live: true });
       if (req.method === 'GET' && path === '/ready') { service.store.ready(); return send(200, { ready: true, dependencies: ['sqlite'], plannerConfigured: true }); }
       const principal = await auth.authenticate(req.headers.authorization);
+      if (res.destroyed) throw new AgentError('CLIENT_DISCONNECTED', 499);
       const ctx: ExecutionContext = { principal, authorization: req.headers.authorization || '', correlationId, revalidate: () => auth.authenticate(req.headers.authorization) };
       const refreshAuthority = async (permission: string) => {
         const current = await ctx.revalidate();
+        if (res.destroyed) throw new AgentError('CLIENT_DISCONNECTED', 499);
         if (current.subject !== principal.subject || current.workload !== principal.workload) throw new AgentError('AUTHORITY_CHANGED', 403);
         authorize(current, permission);
         ctx.principal = current;

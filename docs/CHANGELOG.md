@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Stop disconnected focused requests before dispatch (P0-11, step)
+
+The focused API checks for a disconnected client after initial authentication and after the post-upload authority check, before dispatching work. Loopback tests cover creation, cancellation, message and direct simulator payment; a separate test confirms a payment already committed completes and replays once after client disconnect. This does not cancel authentication or graph work already in progress. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Bind focused fine selection in the graph (P1-13, step)
 
 The focused graph now binds named fines independently of the planner, refuses invented or substituted references and preserves omitted explicit selections in the quote. A supported “pay them” follow-up uses only the immediately preceding user turn, avoiding stale older selections. Tests cover invalid references and verify an approved simulated payment leaves other fines outstanding. Guide: [agent flow](agent-flow.md).

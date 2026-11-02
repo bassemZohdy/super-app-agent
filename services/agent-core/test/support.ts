@@ -41,7 +41,7 @@ export async function harness(options: { planner?: Planner; approvalTtlMs?: numb
   }
   async function thread(token?: string) { const result = await req('/api/agent/threads', {}, { token }); return result.data.threadId as string; }
   async function close() { await new Promise<void>((resolve, reject) => { server.close(error => error ? reject(error) : resolve()); server.closeIdleConnections(); }); saver.db.close(); if (dir) rmSync(dir, { recursive: true, force: true }); }
-  return { base, file, saver, store, tools, vehicles, graph, identities, workloadKey, req, thread, close };
+  return { base, file, saver, store, tools, vehicles, graph, server, identities, workloadKey, req, thread, close };
 }
 
 /** Spawn the real entry point on a temporary SQLite file, so a test can SIGKILL and restart it. */
