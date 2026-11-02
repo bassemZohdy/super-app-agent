@@ -14,7 +14,14 @@ export class ProviderClient {
   constructor(clientId: string, secret: string) { this.credentials = new ClientCredentials(clientId, secret); }
   async call(provider: string, actor: Actor, method: string, path: string, body?: unknown, idempotencyKey?: string): Promise<any> {
     const base = process.env[`PROVIDER_${provider.toUpperCase()}_URL`] || `http://localhost:${ports[provider]}`;
-    const url = new URL(path === '/v1/accounts' ? path : `/v1/accounts/${encodeURIComponent(actor.accountId)}${path}`, base);
+    const bootstrap = path === '/v1/accounts';
+    const accountPrefix = `/v1/accounts/${encodeURIComponent(actor.accountId)}`;
+    const rawPath = path.split('?', 1)[0];
+    if (!path.startsWith('/') || path.startsWith('//') || /[\\#\x00-\x1f\x7f]/.test(path) || /%2f|%5c/i.test(rawPath))
+      throw new UpstreamError(400, 'PROVIDER_PATH_INVALID', 'The provider path is invalid.');
+    const url = new URL(bootstrap ? path : `${accountPrefix}${path}`, base);
+    if (!bootstrap && !url.pathname.startsWith(`${accountPrefix}/`))
+      throw new UpstreamError(400, 'PROVIDER_PATH_INVALID', 'The provider path is invalid.');
     if (process.env.NODE_ENV === 'production' && url.protocol !== 'https:') throw new UpstreamError(503, 'HTTPS_REQUIRED', 'Provider HTTPS is required.');
     const send = async () => fetch(url, {
       method, redirect: 'error', signal: AbortSignal.timeout(8000),

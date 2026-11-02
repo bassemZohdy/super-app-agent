@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Keep provider calls within the selected account (P1-02, step)
+
+The application provider client rejects paths that normalize outside the selected account prefix, including encoded separators and backslashes, before sending a request. The explicit account-list bootstrap route remains available. Tests cover traversal attempts, a normal encoded payable path with query and bootstrap. This confines path construction; provider-side ownership and authorization remain required. Guide: [testing](testing.md).
+
 ## 2 November 2026 — Classify ambiguous application provider replies (P1-02, step)
 
 The application provider client no longer accepts a success response containing an error, or treats a contradictory, timed-out, unclassified or server-error write as a definite rejection. Such writes remain unknown; clear client-error rejections retain their status and code. The regression covers those cases and an explicit rejection. This does not replace durable reconciliation or qualify real providers. Guide: [testing](testing.md).

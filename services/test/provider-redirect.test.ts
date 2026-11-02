@@ -31,3 +31,22 @@ test('provider client does not follow redirects for reads or writes', async t =>
   }
   assert.deepEqual(paths, ['/v1/accounts/test-account/bills', '/v1/accounts/test-account/bills']);
 });
+
+
+test('provider paths cannot escape the selected account', async t => {
+  const actor = actorFor({ sub: 'test-user' }, 'test-account', 'Bearer test');
+  const client = new ProviderClient('test-client', '');
+  const paths: string[] = [];
+  t.mock.method(globalThis, 'fetch', async input => {
+    paths.push(new URL(String(input)).pathname);
+    return Response.json({ success: true });
+  });
+  for (const path of ['/../../other', '/%2e%2e/%2e%2e/other', '/\\..\\..\\other', '/items/%2f..%2fother', 'relative']) {
+    await assert.rejects(client.call('dewa', actor, 'POST', path, {}),
+      (error: unknown) => error instanceof UpstreamError && error.code === 'PROVIDER_PATH_INVALID');
+  }
+  await client.call('dewa', actor, 'GET', '/bills');
+  await client.call('dewa', actor, 'GET', '/payables/dewa%3Abill%3Aone?view=current');
+  await client.call('dewa', actor, 'GET', '/v1/accounts');
+  assert.deepEqual(paths, ['/v1/accounts/test-account/bills', '/v1/accounts/test-account/payables/dewa%3Abill%3Aone', '/v1/accounts']);
+});
