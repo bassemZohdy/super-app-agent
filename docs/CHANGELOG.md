@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Fence browser requests during qualification (P0-08, step)
+
+The browser fixture aborts unhandled HTTP requests to interactive-stack loopback ports when a qualification offset is set, and fails the test. Policy tests cover each configured port and loopback host; page-level forwarding, WebSockets and Node-side requests remain outside this guard. Guide: [testing](testing.md).
+
 ## 2 November 2026 — Fence Angular browser qualification target (P0-08, step)
 
 The Angular browser fixture refuses an isolated qualification run if its compiled gateway is missing, ambiguous or does not match the isolated endpoint. Angular test stubs follow the selected gateway. Guide: [testing](testing.md).

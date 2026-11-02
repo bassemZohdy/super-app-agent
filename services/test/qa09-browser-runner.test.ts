@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { join, resolve } from 'node:path';
 import { artifactRoots } from '../../test/browser/artifact-roots.ts';
-import { isLocalRequest } from '../../test/browser/external-hosts.ts';
+import { isLocalRequest, isInteractiveStackRequest } from '../../test/browser/external-hosts.ts';
+import { PORTS } from '../../scripts/qualification-stack.ts';
 
 test('QA-09: two suites write to disjoint sibling artifact roots so they can run side by side', () => {
   const a = artifactRoots('interactive', '/tmp/e2e'), b = artifactRoots('qualification', '/tmp/e2e');
@@ -30,4 +31,15 @@ test('QA-09: only this machine is reachable from a journey', () => {
     assert.equal(isLocalRequest(new URL(local)), true, local);
   for (const external of ['https://fonts.googleapis.com/css', 'http://example.com/', 'https://cdn.jsdelivr.net/x', 'http://localhost.evil.test/', 'http://127.0.0.1.evil.test/', 'http://192.168.1.10/', 'wss://stream.example/', 'http://0.0.0.0/'])
     assert.equal(isLocalRequest(new URL(external)), false, external);
+});
+
+test('qualification browser requests cannot reach interactive stack ports by default', () => {
+  for (const port of Object.values(PORTS)) for (const host of ['localhost', '127.0.0.1', '[::1]']) {
+    assert.equal(isInteractiveStackRequest(new URL(`http://${host}:${port}/`), 30000), true);
+    assert.equal(isInteractiveStackRequest(new URL(`http://${host}:${port}/`), 0), false);
+  }
+  assert.equal(isInteractiveStackRequest(new URL('http://localhost:34000/'), 30000), false);
+  assert.equal(isInteractiveStackRequest(new URL('http://localhost:14000/'), 30000), false);
+  assert.equal(isInteractiveStackRequest(new URL('ws://localhost:8085/'), 30000), false, 'WebSockets need a separate guard');
+  assert.equal(isInteractiveStackRequest(new URL('https://example.com:4000/'), 30000), false);
 });
