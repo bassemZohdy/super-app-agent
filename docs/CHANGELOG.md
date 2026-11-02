@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Verify original wallet replays (P1-13, step)
+
+Integrated superapp wallet replays verify their original payment evidence and refuse a replacement when the replay record is missing but payment evidence remains. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Hold writes after authority denials (P1-02, step)
 
 Compatibility writes and settlement claims retain unconfirmed outcomes when a current authority denial cannot prove the original effect was absent. Guide: [agent flow](agent-flow.md).

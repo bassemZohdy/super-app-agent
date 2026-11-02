@@ -36,6 +36,8 @@ Compatibility wallet payment and top-up confirmations require a settled transact
 
 For an integrated wallet payment, confirmation also requires the transaction to match a captured, unrefunded wallet charge for the same account, amount, merchant and original request reference.
 
+Canonical integrated superapp wallet-payment replays recheck the saved charge, transaction and balanced journal before returning success. If the replay record is missing, a matching charge or transaction, unreadable evidence, or an orphaned charge journal holds a new debit for inspection; evidence is checked within the account and the provider transaction. This protects the local stored evidence, not against loss or coordinated alteration of all records.
+
 Authenticated compatibility domain calls carry the original operation identity in a validated operation header, separate from diagnostic tracing headers. Application services use that identity for provider operations, preserving the reference checked by the wallet adapter even when tracing assigns another request ID.
 
 Integrated domain writes also carry the checked eligibility version to the application service and onward to the provider. Each boundary validates the version and compares it with current owner and workspace eligibility before admitting the write. The version is a restriction, not a credential or a substitute for authentication. These independent checks do not form an atomic transaction across services.

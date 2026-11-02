@@ -45,6 +45,19 @@ export class ProviderEngine {
   constructor(provider: ProviderId, store: AccountDatabase, options: {businessClock?:()=>number;authorizationClock?:()=>number;issuerScenario?:IssuerScenarioContext;automationRun?:AutomationRunContext;automationIo?:import('./automation-runs.ts').AutomationRunIo} = {}) { this.provider = provider; this.store = store;if(provider==='payments'){if(options.issuerScenario)store.issuerScenarios=new IssuerScenarios(store,options.issuerScenario);else if(hasIssuerScenarioRun(store))throw new Error('An issuer scenario database requires its original isolated run context.');else if(hasAutomationRun(store)&&!options.automationRun)throw new Error('An automation run database requires its original isolated run context.');if(options.issuerScenario)store.scenarioControls=new ScenarioControls(store,store.issuerScenarios!);}if(provider!=='dld')store.events=new PaymentEvents(store,provider); if (provider === 'payments') { store.eligibility=new AccountEligibility(store);this.ledger = new PaymentLedger(store,options.authorizationClock); this.resourceUses = new PaymentResourceUses(store);this.mandates=new PaymentMandates(store,this.resourceUses);
           if(options.automationRun)store.automationRuns=new AutomationRuns(store,options.automationRun,{...options.automationIo!,consumeMandateSkip:(id:string)=>this.mandates!.consumeSkipNext(id),walletBalanceMinor:(accountId:string)=>this.ledger!.summary(accountId).balanceMinor});this.issuer=new PaymentIssuer(store,options.authorizationClock);this.orders=new PaymentOrders(store,this.issuer,this.ledger,this.resourceUses,options.authorizationClock);this.groups=new CheckoutGroups(this.orders);this.claims=new PaymentClaims(store);this.funding=new WalletFunding(store,this.issuer,this.ledger,this.resourceUses,options.authorizationClock);store.automationRuns?.attachOrders(this.orders,this.funding);this.refunds=new PaymentRefunds(this.orders,this.funding,this.claims);this.reconciliation=new PaymentReconciliation(this.orders,this.funding,this.refunds);this.history=new PaymentHistory(store); } if(['dewa','etisalat','du','police'].includes(provider)) {this.payables=new ProviderPayables(store,provider as PayableProvider,options.businessClock);} if(['rta','etisalat','du'].includes(provider))this.recharges=new ProviderRecharges(store,provider as import('../../../packages/protocol-core/src/payments.ts').RechargeProvider,options.businessClock);if(this.payables||this.recharges)this.admissions=new PayableAdmissions(store,{inspect:(a,id,revision)=>this.obligationBook(id).inspect(a,id,revision),applyAdmitted:(a,p,paymentId,at)=>this.obligationBook(p.id).applyAdmitted(a,p,paymentId,at)},options.businessClock);if(provider==='rta')this.parkingExtensions=new ProviderParkingExtensions(store,options.businessClock);this.lifecycle=new LifecycleEvents(store,provider,{payables:this.payables,recharges:this.recharges,clock:options.businessClock});if(this.admissions)this.reversals=new ProviderReversals(store,provider,this.admissions,this.payables,this.recharges); }
   private obligationBook(id:string){if(id.startsWith(`${this.provider}:parking:`)&&this.parkingExtensions)return this.parkingExtensions;if(id.startsWith(`${this.provider}:recharge:`)&&this.recharges)return this.recharges;if(this.payables)return this.payables;return fail(404,'PAYABLE_NOT_FOUND','Payment obligation not found.');}
+  private hasPriorWalletEvidence(accountId: string, reference: string): boolean {
+    const charge = this.store.db.prepare(`SELECT 1 FROM resources WHERE account_id=? AND kind='charge' AND CASE
+      WHEN json_valid(body)=0 THEN 1
+      WHEN json_type(body)<>'object' OR coalesce(json_type(body,'$.merchant'),'')<>'text' OR coalesce(json_type(body,'$.reference'),'')<>'text' THEN 1
+      WHEN json_extract(body,'$.merchant')='superapp' AND json_extract(body,'$.reference')=? THEN 1 ELSE 0 END LIMIT 1`).get(accountId, reference);
+    if (charge) return true;
+    const transaction = this.store.db.prepare(`SELECT 1 FROM resources WHERE account_id=? AND kind='transaction' AND CASE
+      WHEN json_valid(body)=0 THEN 1 WHEN json_type(body)<>'object' THEN 1
+      WHEN json_extract(body,'$.referenceId')=? OR json_extract(body,'$.purpose')=? THEN 1 ELSE 0 END LIMIT 1`).get(accountId, reference, reference);
+    if (transaction) return true;
+    return this.store.db.prepare(`SELECT 1 FROM payment_journal_entries j WHERE j.account_id=? AND j.kind='PAYMENT' AND j.reference LIKE 'charge:%'
+      AND NOT EXISTS (SELECT 1 FROM resources r WHERE r.account_id=j.account_id AND r.kind='charge' AND r.id=substr(j.reference,8)) LIMIT 1`).get(accountId) !== undefined;
+  }
   /** Owner-scoped, read-only forecast of a stored rule. `payables` are the source provider's current obligations, read by the caller. */
   mandatePreview(actor:Actor,mandateId:string,payables:Payable[],now=Date.now()){
     const m=this.mandates!.get(actor,mandateId),policy=m.policy,wanted=policy.sources[0],target=policy.target;
@@ -138,7 +151,10 @@ export class ProviderEngine {
         try { operationId = decodeURIComponent(path.split('/')[3]); } catch { return fail(400, 'VALIDATION_ERROR', 'Invalid operation identity.'); }
         if (!/^[A-Za-z0-9_.:-]{1,200}$/.test(operationId)) return fail(400, 'VALIDATION_ERROR', 'Invalid operation identity.');
         const record = db.db.prepare('SELECT fingerprint,status,body FROM idempotency WHERE account_id=? AND key=?').get(a, walletChargeKey(a, 'superapp', operationId)) as { fingerprint: unknown; status: unknown; body: unknown } | undefined;
-        if (!record) return fail(404, 'NOT_FOUND', 'The original wallet operation was not found.');
+        if (!record) {
+          if (this.hasPriorWalletEvidence(a, operationId)) return fail(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original wallet payment could not be confirmed.');
+          return fail(404, 'NOT_FOUND', 'The original wallet operation was not found.');
+        }
         let saved: unknown;
         try { saved = typeof record.body === 'string' ? JSON.parse(record.body) : undefined; } catch { /* Hold unreadable evidence. */ }
         const response = saved && typeof saved === 'object' && !Array.isArray(saved) ? saved as { success?: unknown; charge?: unknown; transaction?: unknown } : undefined;
@@ -210,6 +226,7 @@ export class ProviderEngine {
       if (method === 'GET' && path.startsWith('/charges/')) { const charge = db.get(a, 'charge', path.split('/')[2]); if (!charge) fail(404, 'NOT_FOUND', 'Payment not found.'); return ok({ charge:{...charge,...(this.claims!.get(a,charge.id)?{settlement:this.claims!.get(a,charge.id)}:{})} }); }
       if (method === 'POST' && path === '/charges') {
         this.store.eligibility!.require(actor);
+        if (body.merchant === 'superapp' && body.source === 'wallet' && this.hasPriorWalletEvidence(a, body.reference)) fail(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original wallet payment could not be confirmed.');
         const id = randomUUID();
         const declined = body.source === 'demo_declined' || (body.source === 'wallet' && wallet.availableMinor < body.amountMinor);
         const charge = { id, accountId: a, amountMinor: body.amountMinor, merchant: body.merchant, reference: body.reference, source: body.source, status: declined ? 'DECLINED' : 'CAPTURED', currency: 'AED', createdAt: now(), refunded: false };

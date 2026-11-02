@@ -39,22 +39,53 @@ test('wallet operation identity survives different trace IDs and rejects changed
   const saved = store.get<Record<string, unknown>>(residentApi.accountId, 'charge', chargeId)!;
   store.put(residentApi.accountId, 'charge', { ...saved, amountMinor: 999 }, chargeId);
   expect((await inspect(operation)).status).toBe(503);
+  expect((await request('trace-changed-charge', 1)).status).toBe(503);
   store.put(residentApi.accountId, 'charge', saved, chargeId);
   const transaction = store.get<Record<string, unknown>>(residentApi.accountId, 'transaction', chargeId)!;
   store.db.prepare("DELETE FROM resources WHERE account_id=? AND kind='transaction' AND id=?").run(residentApi.accountId, chargeId);
   expect((await inspect(operation)).status).toBe(503);
+  expect((await request('trace-missing-transaction', 1)).status).toBe(503);
   store.put(residentApi.accountId, 'transaction', transaction, chargeId);
   const key = walletChargeKey(residentApi.accountId, 'superapp', operation);
-  const record = store.db.prepare('SELECT body FROM idempotency WHERE account_id=? AND key=?').get(residentApi.accountId, key) as { body: string };
+  const record = store.db.prepare('SELECT fingerprint,status,body FROM idempotency WHERE account_id=? AND key=?').get(residentApi.accountId, key) as { fingerprint: string; status: number; body: string };
   store.db.prepare('UPDATE idempotency SET body=? WHERE account_id=? AND key=?').run('{', residentApi.accountId, key);
   expect((await inspect(operation)).status).toBe(503);
   store.db.prepare('UPDATE idempotency SET body=? WHERE account_id=? AND key=?').run(record.body, residentApi.accountId, key);
+  store.db.prepare('DELETE FROM idempotency WHERE account_id=? AND key=?').run(residentApi.accountId, key);
+  try {
+    expect((await inspect(operation)).status).toBe(503);
+    expect((await request('trace-missing-replay', 1)).status).toBe(503);
+    const competing = await Promise.all([request('trace-missing-replay-race-one', 1), request('trace-missing-replay-race-two', 1)]);
+    expect(competing.map(result => result.status)).toEqual([503, 503]);
+    expect(charges()).toHaveLength(previousCharges + 1);
+    expect(await wallet()).toBe(before - 100);
+    const otherAccountPayment = await fetch(`http://localhost:${stack.corePort + 3}/wallet/pay`, {
+      method: 'POST', headers: { Authorization: `Bearer ${residentApi.token}`, 'Content-Type': 'application/json', 'X-Account-Id': other!.id, 'X-Operation-Id': operation }, body: JSON.stringify({ amount: 1, purpose: 'Independent account' }),
+    });
+    expect(otherAccountPayment.status).toBe(200);
+    store.db.prepare("UPDATE resources SET body='{' WHERE account_id=? AND kind='charge' AND id=?").run(residentApi.accountId, chargeId);
+    expect((await request('trace-unreadable-charge', 1)).status).toBe(503);
+    store.put(residentApi.accountId, 'charge', saved, chargeId);
+    store.db.prepare("DELETE FROM resources WHERE account_id=? AND kind='charge' AND id=?").run(residentApi.accountId, chargeId);
+    expect((await inspect(operation)).status).toBe(503);
+    expect((await request('trace-missing-charge-and-replay', 1)).status).toBe(503);
+    store.db.prepare("DELETE FROM resources WHERE account_id=? AND kind='transaction' AND id=?").run(residentApi.accountId, chargeId);
+    expect((await inspect(operation)).status).toBe(503);
+    expect((await request('trace-orphaned-journal', 1)).status).toBe(503);
+    expect(store.get<{ balanceMinor: number }>(residentApi.accountId, 'wallet')!.balanceMinor).toBe(before - 100);
+  } finally {
+    store.put(residentApi.accountId, 'charge', saved, chargeId);
+    store.put(residentApi.accountId, 'transaction', transaction, chargeId);
+    store.db.prepare('INSERT INTO idempotency(account_id,key,fingerprint,status,body) VALUES(?,?,?,?,?)').run(residentApi.accountId, key, record.fingerprint, record.status, record.body);
+  }
+  expect((await request('trace-restored', 1)).data.charge?.id).toBe(chargeId);
   const noJournalId = '00000000-0000-4000-8000-000000000000';
   const fakeCharge = { ...saved, id: noJournalId }, fakeTransaction = { ...transaction, id: noJournalId };
   store.put(residentApi.accountId, 'charge', fakeCharge, noJournalId);
   store.put(residentApi.accountId, 'transaction', fakeTransaction, noJournalId);
   store.db.prepare('UPDATE idempotency SET body=? WHERE account_id=? AND key=?').run(JSON.stringify({ success: true, charge: fakeCharge, transaction: fakeTransaction }), residentApi.accountId, key);
   expect((await inspect(operation)).status).toBe(503);
+  expect((await request('trace-missing-journal', 1)).status).toBe(503);
   store.db.prepare('UPDATE idempotency SET body=? WHERE account_id=? AND key=?').run(record.body, residentApi.accountId, key);
   store.db.prepare("DELETE FROM resources WHERE account_id=? AND id=? AND kind IN ('charge','transaction')").run(residentApi.accountId, noJournalId);
   expect(journal()).toEqual(journalBefore);
