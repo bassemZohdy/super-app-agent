@@ -53,12 +53,17 @@ export class BrowserAuth {
           async finishLogin() {
     const url = new URL(location.href);
     if (!url.searchParams.has('code') && !url.searchParams.has('error')) return;
-    const request = JSON.parse(sessionStorage.getItem(requestKey) || 'null');
+    const savedRequest = sessionStorage.getItem(requestKey);
     const code = url.searchParams.get('code'), state = url.searchParams.get('state');
     for (const key of ['code','state','session_state','iss','error','error_description']) url.searchParams.delete(key);
     history.replaceState(null, '', url.pathname + url.search + url.hash);
     sessionStorage.removeItem(requestKey);
-    if (!request || request.state !== state || Date.now() - request.createdAt > 600000 || !code) throw new Error('Sign-in was cancelled or expired. Try again.');
+    let request                                                                                             = null;
+    try { request = JSON.parse(savedRequest || 'null'); } catch { /* A corrupted request is rejected below. */ }
+    const now = Date.now();
+    if (!request || !state || request.state !== state || !code || typeof request.verifier !== 'string' || !request.verifier ||
+      request.redirectUri !== location.origin + location.pathname || typeof request.createdAt !== 'number' || !Number.isSafeInteger(request.createdAt) ||
+      request.createdAt > now || now - request.createdAt >= 300000) throw new Error('Sign-in was cancelled or expired. Try again.');
     const generation = ++authGeneration; refreshExchange = undefined;
     await this.exchange(new URLSearchParams({ grant_type: 'authorization_code', client_id: this.config.clientId, code, redirect_uri: request.redirectUri, code_verifier: request.verifier }), generation, sessionStorage.getItem(tokenKey));
   }

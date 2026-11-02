@@ -18,6 +18,8 @@ Invalidating its local cache also fences any in-flight token request: its eventu
 
 The shared browser OIDC client and generated Flutter web bridge refuse redirects during authorization-code and refresh exchanges, so those requests are not forwarded to a redirect destination. The retained compatibility shells still store tokens in session storage; moving them to a server-side session remains separate work.
 
+Browser login callback state is consumed once, stripped from the address bar, and accepted only with a complete request for the current redirect URI created within the previous five minutes. Corrupt or future-dated requests are rejected before exchange. This browser-side state is not the server-side state and nonce required for production sessions.
+
 The browser client rejects empty, oversized or non-printable token values and nonpositive, fractional or unsafe token lifetimes. A rejected refresh clears the expired session if it has not been replaced. This validates response shape, not token signatures or subject continuity.
 
 Browser token exchanges count streamed response bytes and reject responses over 64 KiB, even when the sender misstates the content length. Malformed response contents are not included in the resulting error. This bound does not replace production identity or network controls.

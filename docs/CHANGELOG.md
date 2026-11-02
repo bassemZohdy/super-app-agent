@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Tighten browser login request lifetime (P0-01, step)
+
+The shared browser client consumes callback requests once, strips callback parameters even when saved state is corrupt, and rejects incomplete, future-dated or five-minute-old requests before exchange. The generated Flutter bridge and unit and desktop/mobile browser tests cover the change. Production server-side state and nonce remain separate. Guide: [security](security.md).
+
 ## 2 November 2026 — Bound browser token responses (P0-11, step)
 
 The shared browser client limits token-exchange bodies while reading, declines oversized or malformed responses without exposing their contents, and does not wait for cancellation of an oversized stream. The generated Flutter bridge and targeted unit and desktop/mobile browser tests cover the same boundary. Guide: [security](security.md).
