@@ -9,6 +9,7 @@ import { AutomationWorker } from './worker.ts';
 import { HttpExecutionGateway } from './http-gateway.ts';
 import { HttpRuleSource } from './http-rules.ts';
 import { Scheduler } from './scheduler.ts';
+import { runWorkerLoop } from './loop.ts';
 
 export function workerEnabled(env: NodeJS.ProcessEnv = process.env) {
   return env.AUTOMATION_WORKER_ENABLED === 'true' && env.NODE_ENV !== 'production';
@@ -35,16 +36,11 @@ export function createWorkerFromEnv(env: NodeJS.ProcessEnv = process.env) {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const { store, worker, scheduler } = createWorkerFromEnv();
-  let stopping = false;
-  const loop = (async () => {
-    // Finish the step in flight, then stop: leases expire on their own if the process is killed instead.
-    while (!stopping) {
-      // A failed read skips this tick; the next one recomputes the same answer from the recorded occurrences.
-      try { await scheduler?.tick(Date.now()); } catch { /* retried on the next pass */ }
-      if (!await worker.runOnce()) await new Promise(done => setTimeout(done, 2000));
-    }
-  })();
-  const stop = () => { stopping = true; void loop.finally(() => { store.close(); process.exit(0); }); };
-  process.once('SIGTERM', stop); process.once('SIGINT', stop);
+  const stop = new AbortController();
+  process.once('SIGTERM', () => stop.abort()); process.once('SIGINT', () => stop.abort());
+  void runWorkerLoop(worker, scheduler, stop.signal).then(
+    () => { store.close(); },
+    () => { store.close(); console.error('Automation worker stopped after an internal failure.'); process.exitCode = 1; },
+  );
   console.log(scheduler ? 'Automation worker running with scheduling enabled for the local demo.' : 'Automation worker running for the local demo (scheduling is off).');
 }

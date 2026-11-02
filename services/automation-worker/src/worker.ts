@@ -43,8 +43,10 @@ export class AutomationWorker {
   }
 
   /** Claim and run at most one job. Returns the job's state afterwards, or undefined when nothing was runnable. */
-  async runOnce(): Promise<Job | undefined> {
+  async runOnce(signal?: AbortSignal): Promise<Job | undefined> {
+    if (signal?.aborted) return undefined;
     await this.applyDesiredKillSwitch();
+    if (signal?.aborted) return undefined;
     // AUTO-15: an engaged kill switch admits no new step; nothing is claimed, so nothing is prepared, requested or executed.
     if (this.store.killSwitch().engaged) return undefined;
     const claim = this.store.claim(this.opts.workerId, this.opts.leaseMs, this.opts.clock());

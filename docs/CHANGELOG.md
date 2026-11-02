@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 - Stop automation worker before new claims (P2-06, step)
+
+The local automation worker now stops before a new claim when shutdown arrives during scheduling or authority reads, finishes already-claimed work and wakes from idle polling. Guide: [automation worker](development/automation-worker.md).
+
 ## 2 November 2026 - Validate local backend endpoint origins (P2-06, step)
 
 The local runner rejects endpoint URLs incompatible with its plain HTTP listeners before starting services, without printing embedded credentials. Guide: [local development](development/local-development.md).
