@@ -78,3 +78,25 @@ test('a late port conflict exits and releases every earlier listener', { timeout
     await new Promise<void>(resolve => reservations[5].close(() => resolve()));
   }
 });
+
+
+test('the local backend rejects endpoints that cannot describe its plain HTTP listeners', { timeout: 30000 }, async () => {
+  const reservations = Array.from({ length: 6 }, () => createServer());
+  await Promise.all(reservations.map(async server => { server.listen(0, '127.0.0.1'); await once(server, 'listening'); }));
+  const ports = reservations.map(server => { const address = server.address(); assert.ok(address && typeof address !== 'string'); return address.port; });
+  await Promise.all(reservations.map(server => new Promise<void>(resolve => server.close(() => resolve()))));
+  const urls = ports.map(port => `http://127.0.0.1:${port}`);
+  const invalid = [`https://127.0.0.1:${ports[0]}`, `http://user:private-marker@127.0.0.1:${ports[0]}`, `${urls[0]}/nested`, `${urls[0]}?query=1`, `${urls[0]}#fragment`];
+  for (const url of invalid) {
+    const child = spawn(process.execPath, ['--experimental-strip-types', 'scripts/dev-backend.ts'], {
+      env: { ...process.env, DEMO_RIDE_SERVICE_URL: url, DEMO_FOOD_SERVICE_URL: urls[1], DEMO_WALLET_SERVICE_URL: urls[2], DEMO_CATALOG_SERVICE_URL: urls[3], DEMO_PROFILE_SERVICE_URL: urls[4], DEMO_GATEWAY_URL: urls[5], DEMO_AUTH: 'true', PROVIDER_INTEGRATION: 'false', DOMAIN_TRANSPORT: 'local', SESSION_STORE: 'memory', ENABLE_LOCAL_LLM: 'false' },
+      stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true,
+    });
+    let output = ''; child.stdout.setEncoding('utf8').on('data', chunk => { output += chunk; }); child.stderr.setEncoding('utf8').on('data', chunk => { output += chunk; });
+    const closed = once(child, 'close'); let watchdog: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const [code] = await Promise.race([closed, new Promise<never>((_, reject) => { watchdog = setTimeout(() => { child.kill(); reject(new Error('Backend accepted an invalid endpoint')); }, 2500); })]);
+      assert.notEqual(code, 0); assert.match(output, /endpoint.*invalid/i); assert.doesNotMatch(output, /listening on|operational and ready|private-marker/i);
+    } finally { clearTimeout(watchdog); if (child.exitCode === null && child.signalCode === null) { child.kill(); await closed; } }
+  }
+});

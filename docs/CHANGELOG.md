@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 - Validate local backend endpoint origins (P2-06, step)
+
+The local runner rejects endpoint URLs incompatible with its plain HTTP listeners before starting services, without printing embedded credentials. Guide: [local development](development/local-development.md).
+
 ## 2 November 2026 - Verify partial backend startup cleanup (P2-06, step)
 
 A local runner regression check reserves the last service port and verifies that failed startup exits, releases earlier listeners and leaves the conflicting listener untouched. Guide: [local development](development/local-development.md).

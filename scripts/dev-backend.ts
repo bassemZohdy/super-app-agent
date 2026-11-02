@@ -18,8 +18,11 @@ process.env.NODE_ENV = process.env.NODE_ENV || 'development';
 const host = process.env.DEV_BACKEND_HOST || '127.0.0.1';
 /** The port a service endpoint URL names; an endpoint without an explicit port is a mistake worth stopping for. */
 const portOf = (url: string) => {
-  let port: number;
-  try { port = Number(new URL(url).port); } catch { throw new Error('A backend endpoint URL is invalid.'); }
+  let endpoint: URL;
+  try { endpoint = new URL(url); } catch { throw new Error('A backend endpoint URL is invalid.'); }
+  if (endpoint.protocol !== 'http:' || endpoint.username || endpoint.password || endpoint.pathname !== '/' || endpoint.search || endpoint.hash)
+    throw new Error('A backend endpoint URL is invalid: use a plain HTTP origin without credentials, path, query or fragment.');
+  const port = Number(endpoint.port);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Every backend endpoint must name a port.');
   return port;
 };
