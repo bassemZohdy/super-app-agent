@@ -94,6 +94,14 @@ test('changed individual fine amounts refuse continuation without settlement', a
   const oldStatus = await executeGatewayRequest('GET', '/api/civic/reconciliation', {}, {}, headers);
   const oldRetry = await executeGatewayRequest('POST', '/api/civic/reconciliation/retry', {}, { revision: oldStatus.data.revision }, headers);
   assert.equal(oldRetry.status, 409); assert.equal(laterWrites, 1); await check.client.set(key, raw);
+  const walletTx = transactions.at(-1)!, walletAmount = walletTx.amount; walletTx.amount += 1;
+  const changedPrior = await executeGatewayRequest('POST', '/api/civic/reconciliation/retry', {}, { revision: current.data.revision }, headers);
+  walletTx.amount = walletAmount;
+  assert.equal(changedPrior.status, 409); assert.equal(changedPrior.data.code, 'CIVIC_EVIDENCE_INCOMPLETE'); assert.equal(laterWrites, 1);
+  const priorRetry = JSON.parse(raw); priorRetry.steps.at(-1).retryNonce = randomUUID(); await check.client.set(key, JSON.stringify(priorRetry));
+  const invalid = await executeGatewayRequest('GET', '/api/civic/reconciliation', {}, {}, headers);
+  const refusedRebind = await executeGatewayRequest('POST', '/api/civic/reconciliation/retry', {}, { revision: invalid.data.revision }, headers);
+  assert.equal(refusedRebind.status, 409); assert.equal(laterWrites, 1); await check.client.set(key, raw);
   const foreign = await executeGatewayRequest('POST', '/api/civic/reconciliation/retry', {}, { revision: current.data.revision, accountId: accountIdFor(actor.sub, 'household') }, headers);
   assert.equal(foreign.status, 409); assert.equal(laterWrites, 1);
   const attempts = await Promise.all(Array.from({ length: 2 }, () => executeGatewayRequest('POST', '/api/civic/reconciliation/retry', {}, { revision: current.data.revision }, headers)));

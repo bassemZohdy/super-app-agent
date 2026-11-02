@@ -270,8 +270,14 @@ async function handleGatewayRequest(
         return { status: 409, data: { success: false, code: 'CIVIC_REVIEW_CHANGED', error: 'The original checkout cannot continue.' } };
       const evidence = await compareCivicEvidence(status.civicReview, status.civicSteps.slice(0, -1), (source, reference) => actorContext.run(actor, async () => (await callDomainAsync(source === 'fine-receipt' || source === 'wallet-operation' || source === 'fine-operation' ? 'wallet' : source === 'utility-operation' ? 'food' : source === 'toll-operation' ? 'ride' : source, 'GET', source === 'wallet' ? '/wallet/transactions' : source === 'wallet-operation' ? `/wallet/unified-operations/${encodeURIComponent(reference || '')}` : source === 'food' ? '/utilities/bill' : source === 'utility-operation' ? `/utilities/payment-operations/${encodeURIComponent(reference || '')}` : source === 'fine-receipt' ? `/fines/receipts/${encodeURIComponent(reference || '')}` : source === 'fine-operation' ? `/fines/payment-operations/${encodeURIComponent(reference || '')}` : source === 'toll-operation' ? `/mobility/salik/recharge-operations/${encodeURIComponent(reference || '')}` : `/mobility/salik/recharges/${encodeURIComponent(reference || '')}`)).data));
       if (evidence.length !== status.civicSteps.length - 1 || evidence.some(item => item.assessment !== 'MATCH')) return { status: 409, data: { success: false, code: 'CIVIC_EVIDENCE_INCOMPLETE', error: 'The original checkout evidence could not be confirmed.' } };
-      const review = status.civicReview;
-      const started = await store.retryCivicContinuation(actor.sub, actor.accountId, body.revision);
+      const review = status.civicReview, last = status.civicSteps.at(-1)!;
+      let rejectedEpoch: string | undefined;
+      if (last.state === 'REJECTED') {
+        const epochResult = await actorContext.run(actor, () => last.name === 'WALLET' ? callDomainAsync('wallet', 'GET', '/wallet/unified-epoch') : last.name === 'UTILITY' ? callDomainAsync('food', 'GET', '/utilities/payment-epoch') : last.name === 'FINES' ? callDomainAsync('wallet', 'GET', '/fines/payment-epoch') : callDomainAsync('ride', 'GET', '/mobility/salik/recharge-epoch'));
+        if (typeof epochResult.data.serviceEpoch !== 'string' || !/^[0-9a-f-]{36}$/.test(epochResult.data.serviceEpoch)) throw new Error('Fixture lifetime unavailable');
+        rejectedEpoch = epochResult.data.serviceEpoch;
+      }
+      const started = await store.retryCivicContinuation(actor.sub, actor.accountId, body.revision, rejectedEpoch);
       const serviceEpoch = started.serviceEpoch;
       try {
         const result = await actorContext.run(actor, () => started.name === 'WALLET'

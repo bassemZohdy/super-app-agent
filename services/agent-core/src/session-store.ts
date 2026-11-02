@@ -28,7 +28,7 @@ type CivicAction = 'confirm_smartcity_checkout' | 'pay_utilities_bill' | 'pay_de
 type CivicOwner = { subject: string; accountId: string; sessionId: string; action: CivicAction; surfaceRevision?: string };
 export type CivicStepName = 'WALLET' | 'UTILITY' | 'FINES' | 'TOLL';
 type CivicStepState = 'STARTED' | 'CONFIRMED' | 'REJECTED' | 'UNKNOWN';
-type CivicStep = { name: CivicStepName; state: CivicStepState; receiptReference?: string; operationId?: string; serviceEpoch?: string; recoveredFrom?: 'STARTED' | 'UNKNOWN' };
+type CivicStep = { name: CivicStepName; state: CivicStepState; receiptReference?: string; operationId?: string; serviceEpoch?: string; retryNonce?: string; recoveredFrom?: 'STARTED' | 'UNKNOWN' };
 const civicReference = (value: unknown): value is string => typeof value === 'string' && value.length <= 128 && /^[A-Za-z0-9][A-Za-z0-9_.:-]*$/.test(value);
 type CivicReview = { billId: string; billAmountMinor: number; fines: Array<{ fineId: string; amountMinor: number }>; tagNumber: string; tollAmountMinor: number };
 function civicReview(value: unknown): CivicReview | undefined {
@@ -247,7 +247,7 @@ export class RedisSessionStore {
     if (saved !== 1) throw new SessionError(409, 'CIVIC_REVIEW_CHANGED', 'The civic review changed.');
     return { name, operationId, revision: createHash('sha256').update(updated).digest('hex') };
   }
-  async retryCivicContinuation(subject: string, accountId: string, revision: string): Promise<{ name: CivicStepName; operationId: string; serviceEpoch: string; revision: string }> {
+  async retryCivicContinuation(subject: string, accountId: string, revision: string, rejectedEpoch?: string): Promise<{ name: CivicStepName; operationId: string; serviceEpoch: string; revision: string }> {
     await this.connect();
     const key = `${this.prefix}offline-civic-fence`, raw = await this.client.get(key);
     if (!raw || createHash('sha256').update(raw).digest('hex') !== revision) throw new SessionError(409, 'CIVIC_REVIEW_CHANGED', 'The civic review changed.');
@@ -258,8 +258,11 @@ export class RedisSessionStore {
       if (typeof record.version !== 'number' || !Number.isInteger(record.version) || record.version < 20 || record.version > 27 || record.owner !== civicOwnerDigest(subject, accountId) || record.action !== 'confirm_smartcity_checkout' || typeof record.surfaceRevision !== 'string' || !/^[0-9a-f-]{36}$/.test(record.surfaceRevision) || !review || !Array.isArray(steps) || !last || !['STARTED', 'UNKNOWN', 'REJECTED'].includes(last.state) || !last.operationId || !/^CIVIC-[0-9a-f-]{36}$/.test(last.operationId) || !last.serviceEpoch || !/^[0-9a-f-]{36}$/.test(last.serviceEpoch)) throw new Error('context mismatch');
       const expected: CivicStepName[] = ['WALLET', ...(review.billAmountMinor ? ['UTILITY' as const] : []), ...(review.fines.length ? ['FINES' as const] : []), 'TOLL'];
       if (steps.length < 1 || steps.length > expected.length || last.name !== expected[steps.length - 1] || steps.slice(0, -1).some((step, index) => step.name !== expected[index] || step.state !== 'CONFIRMED' || !civicReference(step.receiptReference))) throw new Error('context mismatch');
-      name = last.name; operationId = last.operationId; serviceEpoch = last.serviceEpoch;
-      updated = JSON.stringify({ ...record, steps: [...steps.slice(0, -1), { ...last, state: 'STARTED', retryNonce: randomUUID() }] });
+      if (last.state === 'REJECTED') {
+        if (last.retryNonce !== undefined || !rejectedEpoch || !/^[0-9a-f-]{36}$/.test(rejectedEpoch)) throw new Error('rejected step cannot rebind');
+      } else if (rejectedEpoch !== undefined) throw new Error('uncertain step cannot rebind');
+      name = last.name; operationId = last.operationId; serviceEpoch = rejectedEpoch ?? last.serviceEpoch;
+      updated = JSON.stringify({ ...record, steps: [...steps.slice(0, -1), { ...last, state: 'STARTED', serviceEpoch, ...(serviceEpoch !== last.serviceEpoch ? { previousServiceEpoch: last.serviceEpoch } : {}), retryNonce: randomUUID() }] });
     } catch { throw new SessionError(409, 'CIVIC_REVIEW_CHANGED', 'The original step cannot be retried.'); }
     const saved = await this.client.eval(`if redis.call('GET',KEYS[1])~=ARGV[1] then return 0 end; redis.call('SET',KEYS[1],ARGV[2]); return 1`, { keys: [key], arguments: [raw, updated] });
     if (saved !== 1) throw new SessionError(409, 'CIVIC_REVIEW_CHANGED', 'The civic review changed.');

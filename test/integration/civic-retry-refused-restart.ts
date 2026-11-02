@@ -14,7 +14,7 @@ import { executeFoodRequest } from '../../services/service-food/src/index.ts';
 import { executeRideRequest, salikBalance } from '../../services/service-ride/src/index.ts';
 import { toMinor } from '../../packages/protocol-core/src/request-validation.ts';
 
-test('a restarted fixture cannot turn a rejected original step into a new payment', async t => {
+test('a definitively rejected step can resume after its fixture restarts', async t => {
   process.env.DOMAIN_TRANSPORT = 'http'; process.env.SESSION_STORE = 'redis'; process.env.REDIS_URL = process.env.TEST_REDIS_URL || 'redis://127.0.0.1:6379';
   const store = new RedisSessionStore(process.env.REDIS_URL), key = 'superapp:offline-civic-fence';
   await store.connect(); assert.equal(await store.client.exists(key), 0);
@@ -64,9 +64,14 @@ test('a restarted fixture cannot turn a rejected original step into a new paymen
   const unknown = await executeGatewayRequest('GET', '/api/civic/reconciliation', {}, {}, headers); assert.equal(unknown.data.civicSteps[1].state, 'REJECTED'); const oldEpoch = unknown.data.civicSteps[1].serviceEpoch; assert.match(oldEpoch, /^[0-9a-f-]{36}$/);
   await stopService(); await startService();
   const newEpoch = await (await fetch(`${utilityBase}/utilities/payment-epoch`)).json(); assert.notEqual(newEpoch.serviceEpoch, oldEpoch);
-  const retry = await executeGatewayRequest('POST', '/api/civic/reconciliation/retry', {}, { revision: unknown.data.revision }, headers);
-  assert.equal(retry.status, 503); assert.equal(retry.data.code, 'CIVIC_OUTCOME_UNKNOWN'); assert.equal(lastUtilityStatus, 409); assert.equal(utilityPosts, 2);
+  const attempts = await Promise.all(Array.from({ length: 2 }, () => executeGatewayRequest('POST', '/api/civic/reconciliation/retry', {}, { revision: unknown.data.revision }, headers)));
+  const successful = attempts.filter(result => result.status === 200); assert.equal(successful.length, 1); assert.equal(successful[0].data.step, 'UTILITY'); assert.ok(attempts.every(result => result.status === 200 || result.status === 409));
+  assert.equal(lastUtilityStatus, 200); assert.equal(utilityPosts, 2);
   const current = await executeGatewayRequest('GET', '/api/civic/reconciliation', { verify: '1' }, {}, headers);
-  assert.equal(current.data.civicSteps[1].state, 'UNKNOWN'); assert.equal(current.data.civicEvidence[1].assessment, 'UNVERIFIABLE'); assert.equal(current.data.civicSteps[1].serviceEpoch, oldEpoch);
-  const newBill = await (await fetch(`${utilityBase}/utilities/bill`)).json(); assert.equal(newBill.bill.status, 'UNPAID'); assert.equal(await store.client.exists(key), 1); assert.ok(balance < before); assert.equal(transactions.length, ledger + 1); assert.equal(salikBalance, tollBefore); assert.equal(laterWrites, 0);
+  assert.equal(current.data.civicSteps[1].state, 'CONFIRMED'); assert.equal(current.data.civicEvidence[1].assessment, 'MATCH'); assert.equal(current.data.civicSteps[1].serviceEpoch, newEpoch.serviceEpoch);
+  assert.equal(current.data.civicSteps[1].operationId, unknown.data.civicSteps[1].operationId);
+  const newBill = await (await fetch(`${utilityBase}/utilities/bill`)).json(); assert.equal(newBill.bill.status, 'PAID'); assert.equal(await store.client.exists(key), 1); assert.ok(balance < before); assert.equal(transactions.length, ledger + 1); assert.equal(salikBalance, tollBefore); assert.equal(laterWrites, 0);
+  const fine = await executeGatewayRequest('POST', '/api/civic/reconciliation/continue', {}, { revision: current.data.revision }, headers); assert.equal(fine.status, 200); assert.equal(fine.data.step, 'FINES');
+  const toll = await executeGatewayRequest('POST', '/api/civic/reconciliation/continue', {}, { revision: fine.data.revision }, headers); assert.equal(toll.status, 200); assert.equal(toll.data.step, 'TOLL');
+  const final = await executeGatewayRequest('GET', '/api/civic/reconciliation', { verify: '1' }, {}, headers); assert.ok(final.data.civicEvidence.every((item: { assessment: string }) => item.assessment === 'MATCH')); assert.equal(salikBalance, tollBefore + 100);
 });

@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Recover a refused step after fixture restart (P1-13, step)
+
+A first attempt recorded as refused can be explicitly retried with the same reviewed operation after its fixture restarts. Unknown or previously retried attempts remain bound to their original fixture lifetime. Redis/HTTP tests cover concurrent retries, changed evidence and a second restart during dispatch. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Retry a refused civic step (P1-13, step)
 
 The owner can retry a refused original or continued checkout step using its saved identity and fixture lifetime after prior evidence is rechecked. A failed retry becomes unknown. Redis/HTTP tests cover corrected fine terms, concurrent requests, an original utility refusal and a fixture restart. Guide: [integrations](integrations.md).
