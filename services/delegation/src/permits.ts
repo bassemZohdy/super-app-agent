@@ -40,7 +40,12 @@ export const MAX_PERMIT_ATTEMPTS = 3;
 
 const hex64 = /^[a-f0-9]{64}$/;
 const id = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$/;
-const isoMs = (value: unknown) => typeof value === 'string' ? Date.parse(value) : NaN;
+const isoMs = (value: unknown) => {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)) return NaN;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) && new Date(parsed).toISOString() === value ? parsed : NaN;
+};
+const exactObject = (value: unknown, keys: readonly string[]) => !!value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).every(key => keys.includes(key));
 
 /** The exact operation a provider must present to consume the permit; nothing in it comes from the worker. */
 export function permitOperation(view: Pick<ExecutionView, 'executionId' | 'runId' | 'accountId' | 'boundDigest' | 'source' | 'payable'>) {
@@ -64,13 +69,13 @@ function admission(view: ExecutionView, now: number) {
 
 function checkedView(view: ExecutionView, now: number) {
   const text = (value: unknown, pattern = id) => typeof value === 'string' && pattern.test(value);
-  if (!view || typeof view !== 'object' || !text(view.executionId) || !text(view.runId) || !text(view.accountId) || !text(view.ownerSub) || !text(view.eligibilityEpoch, /^[1-9][0-9]{0,6}:[1-9][0-9]{0,6}$/) ||
-    !view.mandate || !text(view.mandate.id) || typeof view.mandate.state !== 'string' || typeof view.mandate.skipNext !== 'boolean' || !Number.isSafeInteger(view.mandate.policyVersion) || view.mandate.policyVersion < 1 || view.mandate.policyVersion > 1000 ||
-    !view.source || !text(view.source.id) || typeof view.source.current !== 'boolean' || !Number.isSafeInteger(view.source.version) || view.source.version < 1 || view.source.version > 1000000 ||
-    (view.biller !== undefined && (!view.biller || !text(view.biller.id) || typeof view.biller.current !== 'boolean')) ||
-    !view.payable || !text(view.payable.id) || !text(view.payable.revision) || typeof view.payable.current !== 'boolean' || !Number.isSafeInteger(view.payable.amountMinor) || view.payable.amountMinor < 1 || view.payable.amountMinor > MAX_PAYMENT_MINOR ||
+  if (!exactObject(view, ['executionId', 'runId', 'accountId', 'ownerSub', 'eligibilityEpoch', 'mandate', 'source', 'biller', 'payable', 'boundDigest', 'preparedAt', 'admissionExpiresAt', 'expired', 'challenge']) || !text(view.executionId) || !text(view.runId) || !text(view.accountId) || !text(view.ownerSub) || !text(view.eligibilityEpoch, /^[1-9][0-9]{0,6}:[1-9][0-9]{0,6}$/) ||
+    !exactObject(view.mandate, ['id', 'state', 'policyVersion', 'skipNext']) || !text(view.mandate.id) || typeof view.mandate.state !== 'string' || typeof view.mandate.skipNext !== 'boolean' || !Number.isSafeInteger(view.mandate.policyVersion) || view.mandate.policyVersion < 1 || view.mandate.policyVersion > 1000 ||
+    !exactObject(view.source, ['id', 'version', 'current']) || !text(view.source.id) || typeof view.source.current !== 'boolean' || !Number.isSafeInteger(view.source.version) || view.source.version < 1 || view.source.version > 1000000 ||
+    (view.biller !== undefined && (!exactObject(view.biller, ['id', 'current']) || !text(view.biller.id) || typeof view.biller.current !== 'boolean')) ||
+    !exactObject(view.payable, ['id', 'revision', 'amountMinor', 'current']) || !text(view.payable.id) || !text(view.payable.revision) || typeof view.payable.current !== 'boolean' || !Number.isSafeInteger(view.payable.amountMinor) || view.payable.amountMinor < 1 || view.payable.amountMinor > MAX_PAYMENT_MINOR ||
     typeof view.expired !== 'boolean' || (view.challenge !== undefined && !['APPROVED', 'PENDING', 'REJECTED', 'NONE'].includes(view.challenge)) ||
-    !hex64.test(String(view.boundDigest)) || !Number.isFinite(isoMs(view.preparedAt)) || !Number.isFinite(isoMs(view.admissionExpiresAt)) || isoMs(view.preparedAt) > now || isoMs(view.preparedAt) >= isoMs(view.admissionExpiresAt))
+    !text(view.boundDigest, hex64) || !Number.isFinite(isoMs(view.preparedAt)) || !Number.isFinite(isoMs(view.admissionExpiresAt)) || isoMs(view.preparedAt) > now || isoMs(view.preparedAt) >= isoMs(view.admissionExpiresAt))
     deny('PERMIT_VIEW_INVALID', 'The prepared execution view is incomplete or malformed; no credential is issued.');
 }
 

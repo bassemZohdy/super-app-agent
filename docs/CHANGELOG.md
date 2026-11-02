@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 - Validate automation authority views (P1-10, step)
+
+The broker rejects non-string digests, impossible timestamps and unexpected authority fields before issuing an automation permit. Guide: [automation worker](development/automation-worker.md).
+
 ## 2 November 2026 - Bound automation execution views (P1-10, step)
 
 The broker validates payment amounts, mandate and source versions, and preparation time ordering before issuing an automation permit. The local startup check also allows more time for process launch under load. Guide: [automation worker](development/automation-worker.md).
