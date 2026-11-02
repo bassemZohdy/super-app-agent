@@ -14,9 +14,9 @@ test('browser clients reject malformed refresh responses', async ({ page }) => {
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   try {
-    for (const asset of ['/shared.js', '/flutter.js']) for (const valid of [false, true]) {
+    for (const asset of ['/shared.js', '/flutter.js']) for (const scenario of ['invalid', 'oversized', 'valid'] as const) {
       await page.goto(base);
-      await page.route(`${base}/protocol/openid-connect/token`, route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ access_token: valid ? 'valid-access' : '', refresh_token: 'valid-refresh', expires_in: 300 }) }));
+      await page.route(`${base}/protocol/openid-connect/token`, route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ access_token: scenario === 'invalid' ? '' : 'valid-access', refresh_token: 'valid-refresh', expires_in: 300, padding: scenario === 'oversized' ? 'x'.repeat(70000) : '' }) }));
       try {
         const result = await page.evaluate(async ({ base, asset }) => {
           const { BrowserAuth } = await import(asset);
@@ -25,7 +25,7 @@ test('browser clients reject malformed refresh responses', async ({ page }) => {
           try { await auth.token(); return { outcome: 'accepted', signedIn: auth.signedIn }; }
           catch { return { outcome: 'rejected', signedIn: auth.signedIn }; }
         }, { base, asset });
-        expect(result).toEqual(valid ? { outcome: 'accepted', signedIn: true } : { outcome: 'rejected', signedIn: false });
+        expect(result).toEqual(scenario === 'valid' ? { outcome: 'accepted', signedIn: true } : { outcome: 'rejected', signedIn: false });
       } finally { await page.unroute(`${base}/protocol/openid-connect/token`); }
     }
   } finally { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); }

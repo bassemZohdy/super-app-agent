@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bound browser token responses (P0-11, step)
+
+The shared browser client limits token-exchange bodies while reading, declines oversized or malformed responses without exposing their contents, and does not wait for cancellation of an oversized stream. The generated Flutter bridge and targeted unit and desktop/mobile browser tests cover the same boundary. Guide: [security](security.md).
+
 ## 2 November 2026 — Validate browser token responses (P0-01, step)
 
 The shared browser client rejects malformed token values and lifetimes on login and refresh, and clears an unchanged expired session when refresh fails. The Flutter bridge is regenerated; unit and desktop/mobile browser tests cover rejected responses and a valid refresh. Signature validation, subject continuity and server-side sessions remain separate. Guide: [security](security.md).

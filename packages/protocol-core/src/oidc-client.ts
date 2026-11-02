@@ -8,6 +8,27 @@ let authGeneration = 0;
 let refreshExchange: { generation: number; snapshot: string; binding: string; promise: Promise<string> } | undefined;
 const encode = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const validToken = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && value.length <= 16384 && /^[\x21-\x7e]+$/.test(value);
+async function readTokenResponse(response: Response): Promise<{ access_token?: unknown; expires_in?: unknown; refresh_token?: unknown; id_token?: unknown }> {
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error('Invalid sign-in response.');
+  const decoder = new TextDecoder('utf-8', { fatal: true });
+  let text = '', size = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > 65536) throw new Error('Response exceeds limit');
+      text += decoder.decode(value, { stream: true });
+    }
+    const parsed: unknown = JSON.parse(text + decoder.decode());
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Invalid response');
+    return parsed;
+  } catch {
+    void reader.cancel().catch(() => {});
+    throw new Error('Invalid sign-in response.');
+  } finally { reader.releaseLock(); }
+}
 export class BrowserAuth {
   private config: BrowserAuthConfig;
   constructor(config: BrowserAuthConfig) { this.config = config; }
@@ -16,8 +37,8 @@ export class BrowserAuth {
   private async exchange(body: URLSearchParams, generation: number, snapshot: string | null) {
     const response = await fetch(`${this.config.issuer}/protocol/openid-connect/token`, { method: 'POST', redirect: 'error', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body, signal: AbortSignal.timeout(10000) });
     if (!response.ok) throw new Error('Sign-in expired or could not be completed. Sign in again.');
-    const data = await response.json();
-    if (!data || !validToken(data.access_token) || !Number.isSafeInteger(data.expires_in) || data.expires_in <= 0 || !Number.isSafeInteger(Date.now() + data.expires_in * 1000) ||
+    const data = await readTokenResponse(response);
+    if (!validToken(data.access_token) || typeof data.expires_in !== 'number' || !Number.isSafeInteger(data.expires_in) || data.expires_in <= 0 || !Number.isSafeInteger(Date.now() + data.expires_in * 1000) ||
       (data.refresh_token !== undefined && !validToken(data.refresh_token)) || (data.id_token !== undefined && !validToken(data.id_token))) throw new Error('Invalid sign-in response.');
     if (generation !== authGeneration || sessionStorage.getItem(tokenKey) !== snapshot) throw new Error('Sign-in changed. Sign in again.');
     const tokens: Tokens = { access_token: data.access_token, refresh_token: data.refresh_token, id_token: data.id_token, expiresAt: Date.now() + data.expires_in * 1000 };

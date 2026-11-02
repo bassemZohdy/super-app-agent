@@ -20,6 +20,8 @@ The shared browser OIDC client and generated Flutter web bridge refuse redirects
 
 The browser client rejects empty, oversized or non-printable token values and nonpositive, fractional or unsafe token lifetimes. A rejected refresh clears the expired session if it has not been replaced. This validates response shape, not token signatures or subject continuity.
 
+Browser token exchanges count streamed response bytes and reject responses over 64 KiB, even when the sender misstates the content length. Malformed response contents are not included in the resulting error. This bound does not replace production identity or network controls.
+
 Within one loaded browser client module, sign-out invalidates pending login and refresh results and clears pending PKCE state. A response cannot replace or clear a different session written while it was in flight, and instances sharing the same session and configuration coalesce refresh. This does not coordinate separate tabs or separately loaded modules, revoke a token already handed to a caller, or verify refreshed-token subject continuity.
 
 `AGENT_AUTH=test` is a deliberately isolated opaque-token allowlist, loaded from private environment configuration. No missing token, default user or inferred scope is accepted. Unknown/expired identities fail closed; test authentication and fixture planning are refused in `NODE_ENV=production`. The server supplies the workload identity; the client cannot submit a principal. The internal REST simulator also requires the configured workload key, verified user scope and matching consent. This shared test secret is not a production workload attestation scheme.
