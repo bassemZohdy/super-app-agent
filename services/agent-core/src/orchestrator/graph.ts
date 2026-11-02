@@ -29,6 +29,8 @@ const aed = (minor: number) => `AED ${(minor / 100).toFixed(2)}`;
 const paidSentence = (receipt: Receipt | null | undefined) => receipt ? `Simulated fines payment completed: ${aed(receipt.quote.amountMinor)}. ` : '';
 // A refusal here is definitive: the simulator or the authority check said no, so no renewal exists.
 const REFUSED = ['AUTHORITY_EXPIRED', 'PERMISSION_DENIED', 'AUTHORITY_CHANGED', 'CONSENT_REQUIRED_OR_EXPIRED', 'APPROVAL_EXPIRED', 'PROVIDER_DENIED', 'QUOTE_STALE', 'FINES_OUTSTANDING'];
+const SAFE_WRITE_ERRORS = new Set([...REFUSED, 'OTHER_OPERATION_PENDING', 'IDEMPOTENCY_CONFLICT', 'OPERATION_OWNER_AMBIGUOUS', 'RECEIPT_MISMATCH', 'TOOL_TIMEOUT_OR_INVALID_RESPONSE', 'PROVIDER_FAILURE', 'AUTHENTICATION_REQUIRED', 'EMPTY_RESPONSE', 'RESPONSE_TOO_LARGE', 'AUTHORITY_REQUIRED', 'IDEMPOTENCY_KEY_REQUIRED', 'CONSENT_REQUIRED']);
+const safeWriteError = (error: unknown, fallback: string) => error instanceof AgentError && SAFE_WRITE_ERRORS.has(error.code) ? error.code : fallback;
 const RECONCILIATION_REPLY = 'A previous operation is not confirmed. Inspect and recover the original interaction before starting another.';
 
 /** Acyclic, bounded graph. Only list, execute and the renewal nodes invoke business tools. */
@@ -113,7 +115,7 @@ export function createGraph(planner: Planner, tools: FinesAdapter, vehicles: Veh
         await store.finish(pending.key, receipt);
         return { receipt, status: 'complete', reply: `Simulated payment completed: ${aed(receipt.quote.amountMinor)}. No real funds were used.` };
       } catch (error) {
-        const code = error instanceof AgentError ? error.code : 'PAYMENT_OUTCOME_UNKNOWN';
+        const code = safeWriteError(error, 'PAYMENT_OUTCOME_UNKNOWN');
         if (code === 'OTHER_OPERATION_PENDING') return { status: 'reconciliation_required', reply: RECONCILIATION_REPLY };
         if (!hadOperation && REFUSED.includes(code)) {
           store.releaseRefusedOperation(pending.key, context().principal.subject, pending.id);
@@ -168,7 +170,7 @@ export function createGraph(planner: Planner, tools: FinesAdapter, vehicles: Veh
         await store.finish(pending.key, receipt);
         return { renewal: receipt, status: 'complete', reply: `${paid}Simulated registration renewal completed: ${aed(receipt.quote.amountMinor)}. No real funds were used.` };
       } catch (error) {
-        const code = error instanceof AgentError ? error.code : 'RENEWAL_OUTCOME_UNKNOWN';
+        const code = safeWriteError(error, 'RENEWAL_OUTCOME_UNKNOWN');
         if (code === 'OTHER_OPERATION_PENDING') return { status: 'reconciliation_required', reply: `${paid}${RECONCILIATION_REPLY}` };
         if (!hadOperation && REFUSED.includes(code)) {
           store.releaseRefusedOperation(pending.key, context().principal.subject, pending.id);

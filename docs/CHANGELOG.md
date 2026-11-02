@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Sanitize focused write failure codes (P0-14, step)
+
+Focused payment and renewal failures now expose only a fixed set of known codes; other tool errors become fixed unknown-outcome codes before the response or checkpoint is written. Tests inject synthetic sensitive text into each error, inspect stored rows and verify replacement remains blocked. This does not complete production data protection or audit controls. Guide: [security](security.md).
+
 ## 2 November 2026 — Enforce RS256 signing-key minimum (P0-13, step)
 
 The shared verifier rejects RSA signing keys below 2,048 bits before signature verification. A signed-token test places a weak and valid key in the same key set and verifies that only the valid key succeeds. This does not establish real-provider key rotation or federation behavior. Guide: [security](security.md).

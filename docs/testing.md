@@ -79,6 +79,8 @@ Execution results for the implementation milestone belong in the dated [evidence
 
 `services/agent-core/test/tool-deadline.test.ts` checks the deadline against a tool that ignores cancellation and an abort-triggered refusal. It also holds a response after a simulated payment commits, verifies the unknown outcome blocks replacement, then recovers the original key with one effect. It does not prove that noncooperative work is terminated.
 
+`services/agent-core/test/tool-error-redaction.test.ts` injects synthetic sensitive text into unrecognized payment and renewal tool errors, checks replies and SQLite rows for that text, and verifies that the unresolved operation blocks replacement.
+
 `services/test/jwt-lifecycle.test.ts` also advances a controlled clock during signing-key retrieval and online introspection, checking that the shared verifier rejects tokens that expire during either wait and accepts a still-valid control. This does not replace real identity-provider lifecycle testing.
 
 The same suite signs tokens with separate 1,024-bit and 2,048-bit RSA keys from one mocked key set, requiring rejection of the weak key and acceptance of the valid one.
