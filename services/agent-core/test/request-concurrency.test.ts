@@ -130,3 +130,28 @@ test('a disconnected payment retains the resident slot until the original effect
     assert.equal((h.store.db.prepare('SELECT count(*) AS n FROM sa_sim_payments').get() as { n: number }).n, 1);
   } finally { unblock(); await h.close(); }
 });
+
+
+test('repeated disconnected uploads promptly free the resident slot without dispatch', { timeout: 20000 }, async () => {
+  const identity: TestIdentity = { token: randomBytes(32).toString('hex'), subject: 'alice', permissions: ['fines:read'], expiresAt: Date.now() + 600000 };
+  const delegate = new TestAuthenticator([identity], 'super-app-agent');
+  let notify: (() => void) | undefined;
+  const auth: Authenticator = { async authenticate(header) { const principal = await delegate.authenticate(header); notify?.(); return principal; } };
+  const h = await harness({ identities: [identity], authenticator: auth, maxPublicRequests: 2, maxSubjectPublicRequests: 1, bodyTimeoutMs: 10000 });
+  try {
+    const thread = await h.thread();
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const entered = new Promise<void>(resolve => { notify = resolve; });
+      const closed = new Promise<void>(resolve => h.server.once('connection', socket => socket.once('close', () => resolve())));
+      const request = http.request(new URL(`/api/agent/threads/${thread}/messages`, h.base), { method: 'POST', agent: false, headers: { Authorization: `Bearer ${identity.token}`, 'Content-Type': 'application/json', 'Content-Length': '500', 'Idempotency-Key': `aborted-upload-${attempt}` } });
+      request.on('error', () => {}); request.write('{');
+      await entered; notify = undefined; await new Promise<void>(resolve => setTimeout(resolve, 30));
+      request.destroy(); await closed;
+      let status = 429;
+      for (let i = 0; i < 100 && status === 429; i++) { await new Promise<void>(resolve => setTimeout(resolve, 10)); status = (await h.req(`/api/agent/threads/${thread}`)).status; }
+      assert.equal(status, 200, 'an abandoned upload must not hold a slot until the body deadline');
+    }
+    assert.equal((h.store.db.prepare('SELECT count(*) AS n FROM sa_requests').get() as { n: number }).n, 0);
+    assert.equal((await h.req(`/api/agent/threads/${thread}`)).data.status, 'new');
+  } finally { await h.close(); }
+});

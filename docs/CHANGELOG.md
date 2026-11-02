@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 3 November 2026 - Verify abandoned-upload capacity (P0-11, step)
+
+A real HTTP regression checks that repeated disconnected uploads release the focused resident request slot without dispatching an action. Guide: [security](security.md).
+
 ## 3 November 2026 - Bound focused requests per resident (P0-11, step)
 
 The focused server limits concurrent public requests per authenticated resident while preserving separate simulator capacity and holding slots for dispatched work after disconnect. Guide: [security](security.md).
