@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Journal civic payment attempts (P1-13, step)
+
+Separate-service civic actions record each step before dispatch and retain its classified response in the owner-scoped fence. Live Redis and HTTP tests cover a lost wallet response, a refused utility step after debit, and session-save failure. This evidence does not itself reconcile a payment. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Identify the fenced civic journey (P1-13, step)
 
 Shared offline civic fences retain an owner/account-bound session and action, with an authenticated read-only status that hides journey details from other accounts and preserves legacy fences. Live Redis and gateway tests cover ownership, legacy records and session-save failure. Guide: [integrations](integrations.md).

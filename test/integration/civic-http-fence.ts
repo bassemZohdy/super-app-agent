@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 import { SuperAppAgentGraph } from '../../services/agent-core/src/langgraph/graph.ts';
 import { domainHandlers, trackDomainOperations, type Step } from '../../services/agent-core/src/domain-operations.ts';
 import { RedisSessionStore, redisSessions } from '../../services/agent-core/src/session-store.ts';
-import { actorContext, actorFor } from '../../packages/backend-kit/src/context.ts';
+import { actorContext, actorFor, accountIdFor } from '../../packages/backend-kit/src/context.ts';
 import { executeWalletRequest, balance, transactions } from '../../services/service-wallet/src/index.ts';
 import { executeFoodRequest } from '../../services/service-food/src/index.ts';
 import { executeRideRequest } from '../../services/service-ride/src/index.ts';
@@ -18,11 +18,15 @@ test('a lost separate-service wallet response leaves a shared fence for a fresh 
   process.env.REDIS_URL = process.env.TEST_REDIS_URL || 'redis://127.0.0.1:6379';
   const check = new RedisSessionStore(process.env.REDIS_URL), key = 'superapp:offline-civic-fence';
   await check.connect(); assert.equal(await check.client.exists(key), 0, 'test requires an isolated empty fence');
-  let dropped = false, refuseWallet = true;
+  let dropped = false, refuseWallet = true, recordedBeforeDebit = false;
   const server = http.createServer(async (req, res) => {
     const chunks: Buffer[] = []; for await (const chunk of req) chunks.push(Buffer.from(chunk));
     const path = new URL(req.url!, 'http://localhost').pathname, method = req.method!, body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : {};
     if (refuseWallet && method === 'POST' && path === '/pay/unified') { res.writeHead(409, { 'content-type': 'application/json' }); res.end(JSON.stringify({ success: false, error: 'No debit made' })); return; }
+    if (method === 'POST' && path === '/pay/unified') {
+      const snapshot = await check.inspectCivicFence('http-civic-owner', accountIdFor('http-civic-owner'));
+      recordedBeforeDebit = snapshot.civicSteps?.[0]?.state === 'STARTED';
+    }
     const handler = path.startsWith('/utilities/') ? domainHandlers.food : path.startsWith('/mobility/') ? domainHandlers.ride : domainHandlers.wallet;
     const result = handler(method, path, {}, body);
     if (method === 'POST' && path === '/pay/unified') { dropped = true; req.socket.destroy(); return; }
@@ -42,9 +46,10 @@ test('a lost separate-service wallet response leaves a shared fence for a fresh 
   assert.equal(await check.client.exists(key), 0, 'a definite refusal releases the shared fence');
   assert.equal(balance, before); assert.equal(transactions.length, ledger); refuseWallet = false;
   await assert.rejects(actorContext.run(actor, () => trackDomainOperations(steps, () => SuperAppAgentGraph.resumeWithAction({ sessionId: 'civic-http', messages: [], activeDomain: 'composite' }, 'confirm_smartcity_checkout', { offlineReview: review }))), /did not complete successfully/);
-  assert.equal(dropped, true); assert.equal(steps[0].state, 'UNKNOWN'); assert.ok(balance < before); assert.equal(transactions.length, ledger + 1);
+  assert.equal(dropped, true); assert.equal(recordedBeforeDebit, true, 'the attempt is recorded before the wallet is called'); assert.equal(steps[0].state, 'UNKNOWN'); assert.ok(balance < before); assert.equal(transactions.length, ledger + 1);
   assert.equal(await check.client.exists(key), 1); assert.equal(await check.client.ttl(key), -1);
-  const childCode = `import { SuperAppAgentGraph } from './services/agent-core/src/langgraph/graph.ts'; import { redisSessions } from './services/agent-core/src/session-store.ts'; import { actorContext, actorFor } from './packages/backend-kit/src/context.ts'; try { await actorContext.run(actorFor({sub:'other-user'},undefined,'Bearer test'),()=>SuperAppAgentGraph.resumeWithAction({sessionId:'fresh-session',messages:[],activeDomain:'composite'},'confirm_smartcity_checkout',{})); process.exitCode=2; } catch(e) { if(e.code!=='CIVIC_RECONCILIATION_REQUIRED') process.exitCode=3; } finally { await redisSessions()?.close(); }`;
+  assert.deepEqual((await check.inspectCivicFence(actor.sub, actor.accountId)).civicSteps, [{ name: 'WALLET', state: 'UNKNOWN' }]);
+  const childCode = `import { SuperAppAgentGraph } from './services/agent-core/src/langgraph/graph.ts'; import { redisSessions } from './services/agent-core/src/session-store.ts'; import { actorContext, actorFor, accountIdFor } from './packages/backend-kit/src/context.ts'; try { await actorContext.run(actorFor({sub:'other-user'},undefined,'Bearer test'),()=>SuperAppAgentGraph.resumeWithAction({sessionId:'fresh-session',messages:[],activeDomain:'composite'},'confirm_smartcity_checkout',{})); process.exitCode=2; } catch(e) { if(e.code!=='CIVIC_RECONCILIATION_REQUIRED') process.exitCode=3; } finally { await redisSessions()?.close(); }`;
   await execFileAsync(process.execPath, ['--experimental-strip-types', '--input-type=module', '-e', childCode], { cwd: process.cwd(), env: process.env, timeout: 15000 });
   assert.equal(transactions.length, ledger + 1);
 });

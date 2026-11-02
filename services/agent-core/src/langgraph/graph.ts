@@ -11,7 +11,7 @@ import { formatAED } from '../../../../packages/protocol-core/src/payments.ts';
 import { toMinor, fromMinor } from '../../../../packages/protocol-core/src/request-validation.ts';
 import { handlePaymentSurfaceAction } from '../payment-surfaces.ts';
 import { actorContext } from '../../../../packages/backend-kit/src/context.ts';
-import { redisSessions, SessionError } from '../session-store.ts';
+import { redisSessions, SessionError, type RedisSessionStore, type CivicStepName } from '../session-store.ts';
 import { deferCivicRelease } from '../civic-finalization.ts';
 import { manualService } from '../manual-services.ts';
 import { handleConversation, contextualPrompt } from '../conversation.ts';
@@ -371,8 +371,21 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
     if (guardedOfflineCivicAction && offlineCivicReconciliationRequired) throw new HttpError(409, 'An earlier offline civic payment needs reconciliation before another can start.');
     if (guardedOfflineCivicAction && offlineCivicPaymentRunning) throw new HttpError(409, 'Another offline civic payment is in progress. Review it again afterwards.');
     if (guardedOfflineCivicAction) offlineCivicPaymentRunning = true;
-    let sharedFence: { release: () => Promise<void> } | undefined;
+    let sharedFence: Awaited<ReturnType<RedisSessionStore['acquireCivicFence']>> | undefined;
     let externalWriteStarted = false, externalWriteConfirmed = false, retainSharedFence = false;
+    const civicStep = async <T>(name: CivicStepName, dispatch: () => Promise<T>): Promise<T> => {
+      if (sharedFence) await sharedFence.startStep(name);
+      externalWriteStarted = true;
+      let result: T;
+      try { result = await dispatch(); }
+      catch (error) {
+        if (sharedFence) await sharedFence.finishStep(name, error instanceof DomainOperationError && error.code === 'DOMAIN_REJECTED' ? 'REJECTED' : 'UNKNOWN');
+        throw error;
+      }
+      externalWriteConfirmed = true;
+      if (sharedFence) await sharedFence.finishStep(name, 'CONFIRMED');
+      return result;
+    };
     try {
     if (guardedOfflineCivicAction && process.env.DOMAIN_TRANSPORT === 'http') {
       const store = redisSessions();
@@ -484,9 +497,7 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
       };
     } else if (action === 'pay_utilities_bill' || action === 'pay_dewa_bill') {
       onProgress?.('⚡ Settling DEWA electricity & water bill via DubaiPay...');
-      externalWriteStarted = true;
-      const res = await executeFoodRequest('POST', '/utilities/pay', {}, { billId: payload.billId,...(payload.expectedPayableRevision?{expectedPayableRevision:payload.expectedPayableRevision}:{}),...(payload.expectedAmountMinor!==undefined?{expectedAmountMinor:payload.expectedAmountMinor}:{}) });
-      externalWriteConfirmed = true;
+      const res = await civicStep('UTILITY', () => executeFoodRequest('POST', '/utilities/pay', {}, { billId: payload.billId,...(payload.expectedPayableRevision?{expectedPayableRevision:payload.expectedPayableRevision}:{}),...(payload.expectedAmountMinor!==undefined?{expectedAmountMinor:payload.expectedAmountMinor}:{}) }));
       const rcpt = res.data.receipt;
 
       state.currentSurface = {
@@ -531,10 +542,7 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
       });
     } else if (action === 'pay_police_fines') {
       onProgress?.('👮 Settling traffic radar fines with Dubai Police HQ...');
-      externalWriteStarted = true;
-      const res = await executeWalletRequest('POST', '/fines/pay', {}, { fineIds: payload.fineIds,...(payload.expectedPayables?{expectedPayables:payload.expectedPayables}:{}),...(payload.expectedAmountMinor!==undefined?{expectedAmountMinor:payload.expectedAmountMinor}:{}) });
-
-      externalWriteConfirmed = true;
+      const res = await civicStep('FINES', () => executeWalletRequest('POST', '/fines/pay', {}, { fineIds: payload.fineIds,...(payload.expectedPayables?{expectedPayables:payload.expectedPayables}:{}),...(payload.expectedAmountMinor!==undefined?{expectedAmountMinor:payload.expectedAmountMinor}:{}) }));
       state.currentSurface = {
         version: '1.0.0',
         sessionId: state.sessionId,
@@ -590,16 +598,14 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
       if (toMinor(wallet.balance) < totalMinor) throw new HttpError(400, 'Insufficient wallet balance for this checkout.');
       let walletConfirmed = false;
       try {
-      externalWriteStarted = true;
-      const res = await executeWalletRequest('POST', '/pay/unified', {}, { items: [
+      const res = await civicStep('WALLET', () => executeWalletRequest('POST', '/pay/unified', {}, { items: [
         ...(review.billAmountMinor ? [{ agency: 'DEWA', purpose: 'Demo utility settlement', amount: fromMinor(review.billAmountMinor) }] : []),
         { agency: 'RTA Salik', purpose: 'Demo toll recharge', amount: 100 },
-      ] });
+      ] }));
       walletConfirmed = true;
-      externalWriteConfirmed = true;
-      if (review.billAmountMinor) await executeFoodRequest('POST', '/utilities/pay', {}, { billId: review.billId, expectedAmountMinor: review.billAmountMinor });
-      if (review.fines.length) await executeWalletRequest('POST', '/fines/pay', {}, { fineIds: review.fines.map(fine => fine.fineId), expectedAmountMinor: fineMinor });
-      await executeRideRequest('POST', '/mobility/salik/recharge', {}, { amount: 100 });
+      if (review.billAmountMinor) await civicStep('UTILITY', () => executeFoodRequest('POST', '/utilities/pay', {}, { billId: review.billId, expectedAmountMinor: review.billAmountMinor }));
+      if (review.fines.length) await civicStep('FINES', () => executeWalletRequest('POST', '/fines/pay', {}, { fineIds: review.fines.map(fine => fine.fineId), expectedAmountMinor: fineMinor }));
+      await civicStep('TOLL', () => executeRideRequest('POST', '/mobility/salik/recharge', {}, { amount: 100 }));
 
       state.currentSurface = {
         version: '1.0.0',

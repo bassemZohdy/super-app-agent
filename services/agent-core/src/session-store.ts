@@ -25,6 +25,11 @@ const claimScript = `local existing=redis.call('GET',KEYS[1]); if existing then
  redis.call('SET',KEYS[1],ARGV[3],'EX',ARGV[4]); redis.call('SADD',KEYS[2],KEYS[1]); redis.call('EXPIRE',KEYS[2],ARGV[4]); return {'OK',ARGV[3]}`;
 type CivicAction = 'confirm_smartcity_checkout' | 'pay_utilities_bill' | 'pay_dewa_bill' | 'pay_police_fines';
 type CivicOwner = { subject: string; accountId: string; sessionId: string; action: CivicAction };
+export type CivicStepName = 'WALLET' | 'UTILITY' | 'FINES' | 'TOLL';
+type CivicStepState = 'STARTED' | 'CONFIRMED' | 'REJECTED' | 'UNKNOWN';
+type CivicStep = { name: CivicStepName; state: CivicStepState };
+const civicStepNames: ReadonlySet<string> = new Set(['WALLET', 'UTILITY', 'FINES', 'TOLL']);
+const civicStepStates: ReadonlySet<string> = new Set(['STARTED', 'CONFIRMED', 'REJECTED', 'UNKNOWN']);
 const civicOwnerDigest = (subject: string, accountId: string) => createHash('sha256').update(JSON.stringify([subject, accountId])).digest('hex');
 const civicActions: ReadonlySet<string> = new Set(['confirm_smartcity_checkout', 'pay_utilities_bill', 'pay_dewa_bill', 'pay_police_fines']);
 export class RedisSessionStore {
@@ -61,24 +66,47 @@ export class RedisSessionStore {
   async acquireCivicFence(owner: CivicOwner) {
     if (!owner.subject || !owner.accountId || !/^[a-zA-Z0-9_-]{8,128}$/.test(owner.sessionId) || !civicActions.has(owner.action)) throw new SessionError(400, 'CIVIC_CONTEXT_INVALID', 'The civic payment context is invalid.');
     await this.connect();
-    const key = `${this.prefix}offline-civic-fence`, token = JSON.stringify({ version: 1, nonce: randomUUID(), owner: civicOwnerDigest(owner.subject, owner.accountId), sessionId: owner.sessionId, action: owner.action });
-    if (await this.client.set(key, token, { NX: true }) !== 'OK')
+    const key = `${this.prefix}offline-civic-fence`;
+    const record = { version: 2, nonce: randomUUID(), owner: civicOwnerDigest(owner.subject, owner.accountId), sessionId: owner.sessionId, action: owner.action, steps: [] as CivicStep[] };
+    let current = JSON.stringify(record);
+    if (await this.client.set(key, current, { NX: true }) !== 'OK')
       throw new SessionError(409, 'CIVIC_RECONCILIATION_REQUIRED', 'An offline civic payment is in progress or needs reconciliation.');
-    return { release: async () => {
+    const save = async (steps: CivicStep[]) => {
+      const next = JSON.stringify({ ...record, steps });
       await this.connect();
-      await this.client.eval(`if redis.call('GET',KEYS[1])==ARGV[1] then return redis.call('DEL',KEYS[1]) else return 0 end`, { keys: [key], arguments: [token] });
-    } };
+      const saved = await this.client.eval(`if redis.call('GET',KEYS[1])==ARGV[1] then redis.call('SET',KEYS[1],ARGV[2]); return 1 else return 0 end`, { keys: [key], arguments: [current, next] });
+      if (saved !== 1) throw new SessionError(503, 'CIVIC_FENCE_LOST', 'Civic payment coordination was lost.');
+      current = next; record.steps = steps;
+    };
+    return {
+      startStep: async (name: CivicStepName) => {
+        if (!civicStepNames.has(name) || record.steps.length >= 4 || record.steps.some(step => step.name === name || step.state !== 'CONFIRMED')) throw new SessionError(409, 'CIVIC_STEP_INVALID', 'The civic payment step cannot be started.');
+        await save([...record.steps, { name, state: 'STARTED' }]);
+      },
+      finishStep: async (name: CivicStepName, state: Exclude<CivicStepState, 'STARTED'>) => {
+        const last = record.steps.at(-1);
+        if (!last || last.name !== name || last.state !== 'STARTED' || !['CONFIRMED', 'REJECTED', 'UNKNOWN'].includes(state)) throw new SessionError(409, 'CIVIC_STEP_INVALID', 'The civic payment step cannot be finished.');
+        await save([...record.steps.slice(0, -1), { name, state }]);
+      },
+      release: async () => {
+        await this.connect();
+        await this.client.eval(`if redis.call('GET',KEYS[1])==ARGV[1] then return redis.call('DEL',KEYS[1]) else return 0 end`, { keys: [key], arguments: [current] });
+      },
+    };
   }
-  async inspectCivicFence(subject: string, accountId: string): Promise<{ status: 'CLEAR' | 'BLOCKED'; sessionId?: string; action?: CivicAction }> {
+  async inspectCivicFence(subject: string, accountId: string): Promise<{ status: 'CLEAR' | 'BLOCKED'; sessionId?: string; action?: CivicAction; civicSteps?: CivicStep[] }> {
     await this.connect();
     const raw = await this.client.get(`${this.prefix}offline-civic-fence`);
     if (raw === null) return { status: 'CLEAR' };
     try {
-      const record = JSON.parse(raw) as { version?: unknown; owner?: unknown; sessionId?: unknown; action?: unknown };
-      if (record && record.version === 1 && record.owner === civicOwnerDigest(subject, accountId) &&
+      const record = JSON.parse(raw) as { version?: unknown; owner?: unknown; sessionId?: unknown; action?: unknown; steps?: unknown };
+      if (record && (record.version === 1 || record.version === 2) && record.owner === civicOwnerDigest(subject, accountId) &&
           typeof record.sessionId === 'string' && /^[a-zA-Z0-9_-]{8,128}$/.test(record.sessionId) &&
-          typeof record.action === 'string' && civicActions.has(record.action))
-        return { status: 'BLOCKED', sessionId: record.sessionId, action: record.action as CivicAction };
+          typeof record.action === 'string' && civicActions.has(record.action)) {
+        if (record.version === 1) return { status: 'BLOCKED', sessionId: record.sessionId, action: record.action as CivicAction };
+        if (Array.isArray(record.steps) && record.steps.length <= 4 && record.steps.every((step: unknown) => !!step && typeof step === 'object' && civicStepNames.has((step as CivicStep).name) && civicStepStates.has((step as CivicStep).state)))
+          return { status: 'BLOCKED', sessionId: record.sessionId, action: record.action as CivicAction, civicSteps: record.steps.map((step: CivicStep) => ({ name: step.name, state: step.state })) };
+      }
     } catch { /* A legacy or unreadable fence stays blocked without exposing its contents. */ }
     return { status: 'BLOCKED' };
   }
