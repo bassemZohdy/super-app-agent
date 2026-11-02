@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { executeGatewayRequest } from '../../services/agent-core/src/index.ts';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { SuperAppAgentGraph } from '../../services/agent-core/src/langgraph/graph.ts';
@@ -22,7 +23,7 @@ test('a lost utility response can be observed by its saved operation identity', 
     const path = new URL(req.url!, 'http://localhost').pathname, method = req.method!, body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : {};
     if (method === 'POST' && ['/fines/pay', '/mobility/salik/recharge'].includes(path)) laterWrites++;
     if (method === 'POST' && path === '/utilities/pay') {
-      const snapshot = await check.inspectCivicFence('partial-civic-owner', accountIdFor('partial-civic-owner'));
+      const snapshot = await check.inspectCivicFence('local-demo-user', accountIdFor('local-demo-user'));
       recordedBeforeUtility = snapshot.civicSteps?.[1]?.state === 'STARTED' && snapshot.civicSteps[1].operationId === body.operationId && typeof body.operationId === 'string';
     }
     const handler = path.startsWith('/utilities/') ? domainHandlers.food : path.startsWith('/mobility/') ? domainHandlers.ride : domainHandlers.wallet;
@@ -38,7 +39,7 @@ test('a lost utility response can be observed by its saved operation identity', 
   assert.equal(executeWalletRequest('POST', '/wallet/topup', {}, { amount: 5000 }).status, 200);
   const bill = executeFoodRequest('GET', '/utilities/bill').data.bill, fines = executeWalletRequest('GET', '/fines/check').data, salik = executeRideRequest('GET', '/mobility/salik/balance').data;
   const review = { billId: bill.billId, billAmountMinor: toMinor(bill.totalAmount), fines: fines.fines.map((fine: { fineId: string; payableAmount: number }) => ({ fineId: fine.fineId, amountMinor: toMinor(fine.payableAmount) })).sort((a: { fineId: string }, b: { fineId: string }) => a.fineId.localeCompare(b.fineId)), tagNumber: salik.tagNumber };
-  const actor = actorFor({ sub: 'partial-civic-owner' }, undefined, 'Bearer test'), before = balance, ledger = transactions.length, tollBefore = salikBalance;
+  const actor = actorFor({ sub: 'local-demo-user' }, undefined, 'Bearer test'), before = balance, ledger = transactions.length, tollBefore = salikBalance;
   await assert.rejects(actorContext.run(actor, () => SuperAppAgentGraph.resumeWithAction({ sessionId: 'civic-partial', messages: [], activeDomain: 'composite' }, 'confirm_smartcity_checkout', { offlineReview: review })), /did not complete successfully/);
   assert.equal(recordedBeforeUtility, true); assert.ok(balance < before); assert.equal(transactions.length, ledger + 1); assert.equal(activeUtilityBill.status, 'PAID'); assert.equal(salikBalance, tollBefore); assert.equal(laterWrites, 0);
   const saved = await check.inspectCivicFence(actor.sub, actor.accountId);
@@ -47,6 +48,25 @@ test('a lost utility response can be observed by its saved operation identity', 
   assert.ok(saved.civicReview && saved.civicSteps);
   const evidence = await compareCivicEvidence(saved.civicReview, saved.civicSteps, (source, ref) => actorContext.run(actor, async () => (await callDomainAsync(source === 'fine-receipt' || source === 'wallet-operation' ? 'wallet' : source === 'utility-operation' ? 'food' : source, 'GET', source === 'wallet' ? '/wallet/transactions' : source === 'wallet-operation' ? `/wallet/unified-operations/${ref}` : source === 'food' ? '/utilities/bill' : source === 'utility-operation' ? `/utilities/payment-operations/${ref}` : source === 'fine-receipt' ? `/fines/receipts/${ref}` : `/mobility/salik/recharges/${ref}`)).data));
   assert.deepEqual(evidence, [{ name: 'WALLET', assessment: 'MATCH' }, { name: 'UTILITY', assessment: 'OBSERVED', observedReceiptReference: activeUtilityBill.receiptNumber }]);
+  const headers = { authorization: 'Bearer demo-local' };
+  const status = await executeGatewayRequest('GET', '/api/civic/reconciliation', { verify: '1' }, {}, headers);
+  assert.equal(status.data.civicEvidence[1].assessment, 'OBSERVED');
+  const oldAmount = activeUtilityBill.totalAmount; activeUtilityBill.totalAmount += 1;
+  const mismatch = await executeGatewayRequest('POST', '/api/civic/reconciliation/observe-utility', {}, { revision: status.data.revision }, headers);
+  activeUtilityBill.totalAmount = oldAmount;
+  assert.equal(mismatch.status, 409);
+  const wrongAccount = await executeGatewayRequest('POST', '/api/civic/reconciliation/observe-utility', {}, { revision: status.data.revision, accountId: accountIdFor(actor.sub, 'household') }, headers);
+  assert.equal(wrongAccount.status, 409);
+  const results = await Promise.all(Array.from({ length: 2 }, () => executeGatewayRequest('POST', '/api/civic/reconciliation/observe-utility', {}, { revision: status.data.revision }, headers)));
+  assert.equal(results.filter(result => result.data.observation === 'RECORDED').length, 1);
+  assert.ok(results.every(result => result.status === 200 || result.status === 409));
+  const repeated = await executeGatewayRequest('POST', '/api/civic/reconciliation/observe-utility', {}, { revision: status.data.revision }, headers);
+  assert.equal(repeated.data.observation, 'ALREADY_RECORDED');
+  const after = await check.inspectCivicFence(actor.sub, actor.accountId);
+  assert.equal(after.civicSteps?.[1].state, 'CONFIRMED'); assert.equal(after.civicSteps?.[1].recoveredFrom, 'UNKNOWN');
+  assert.equal(after.civicSteps?.[1].receiptReference, activeUtilityBill.receiptNumber);
+  const resolution = await executeGatewayRequest('POST', '/api/civic/reconciliation/resolve', {}, { revision: after.revision }, headers);
+  assert.equal(resolution.status, 409); assert.equal(laterWrites, 0); assert.equal(transactions.length, ledger + 1);
   const replay = executeFoodRequest('POST', '/utilities/pay', {}, { billId: review.billId, expectedAmountMinor: review.billAmountMinor, operationId: saved.civicSteps[1].operationId });
   assert.equal(replay.status, 200); assert.equal(replay.data.receipt.receiptNumber, activeUtilityBill.receiptNumber); assert.equal(transactions.length, ledger + 1);
 });

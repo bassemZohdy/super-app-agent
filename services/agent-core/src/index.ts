@@ -183,6 +183,25 @@ async function handleGatewayRequest(
       return { status: 503, data: { success: false, code: 'CIVIC_STATUS_UNAVAILABLE', error: 'Shared offline civic status is unavailable.' } };
     }
   }
+  if (normMethod === 'POST' && pathname === '/api/civic/reconciliation/observe-utility') {
+    if (process.env.PROVIDER_INTEGRATION === 'true' || process.env.DOMAIN_TRANSPORT !== 'http') return { status: 503, data: { success: false, code: 'CIVIC_STATUS_UNAVAILABLE', error: 'Shared offline civic status is unavailable in this mode.' } };
+    try {
+      const store = redisSessions();
+      if (!store) throw new Error('Shared storage unavailable');
+      const status = await store.inspectCivicFence(actor.sub, actor.accountId);
+      if (status.utilityObservedFromRevision === body.revision) return { status: 200, data: { success: true, observation: 'ALREADY_RECORDED', revision: status.revision } };
+      if (status.revision !== body.revision || status.action !== 'confirm_smartcity_checkout' || !status.civicReview || !status.civicSteps || status.civicSteps.length !== 2 || status.civicSteps[0].name !== 'WALLET' || status.civicSteps[0].state !== 'CONFIRMED' || status.civicSteps[1].name !== 'UTILITY' || !['STARTED', 'UNKNOWN'].includes(status.civicSteps[1].state))
+        return { status: 409, data: { success: false, code: 'CIVIC_REVIEW_CHANGED', error: 'The original utility observation is not available.' } };
+      const evidence = await compareCivicEvidence(status.civicReview, status.civicSteps, (source, reference) => actorContext.run(actor, async () => (await callDomainAsync(source === 'fine-receipt' || source === 'wallet-operation' ? 'wallet' : source === 'utility-operation' ? 'food' : source, 'GET', source === 'wallet' ? '/wallet/transactions' : source === 'wallet-operation' ? `/wallet/unified-operations/${encodeURIComponent(reference || '')}` : source === 'food' ? '/utilities/bill' : source === 'utility-operation' ? `/utilities/payment-operations/${encodeURIComponent(reference || '')}` : source === 'fine-receipt' ? `/fines/receipts/${encodeURIComponent(reference || '')}` : `/mobility/salik/recharges/${encodeURIComponent(reference || '')}`)).data));
+      const observation = evidence[1];
+      if (evidence.length !== 2 || evidence[0].assessment !== 'MATCH' || observation.assessment !== 'OBSERVED' || !observation.observedReceiptReference) return { status: 409, data: { success: false, code: 'CIVIC_EVIDENCE_INCOMPLETE', error: 'The original utility outcome could not be confirmed.' } };
+      const revision = await store.observeCivicUtility(actor.sub, actor.accountId, body.revision, observation.observedReceiptReference);
+      return { status: 200, data: { success: true, observation: 'RECORDED', revision } };
+    } catch (error) {
+      if (error instanceof SessionError && error.status === 409) return { status: 409, data: { success: false, code: error.code, error: error.message } };
+      return { status: 503, data: { success: false, code: 'CIVIC_STATUS_UNAVAILABLE', error: 'Shared offline civic status is unavailable.' } };
+    }
+  }
   if (normMethod === 'POST' && pathname === '/api/civic/reconciliation/resolve') {
     if (process.env.PROVIDER_INTEGRATION === 'true' || process.env.DOMAIN_TRANSPORT !== 'http') return { status: 503, data: { success: false, code: 'CIVIC_STATUS_UNAVAILABLE', error: 'Shared offline civic status is unavailable in this mode.' } };
     try {

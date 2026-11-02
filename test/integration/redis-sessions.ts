@@ -106,3 +106,26 @@ test('older wallet-only journals remain observable after utility identities are 
   const updated = await store.inspectCivicFence(owner.subject, owner.accountId);
   assert.equal(updated.civicSteps?.[0].state, 'CONFIRMED'); assert.equal(updated.civicSteps?.[0].recoveredFrom, 'UNKNOWN');
 });
+
+test('utility observation preserves an earlier recovered wallet journal', async t => {
+  const prefix = `cityside-civic-v11-test:${randomUUID()}:`, url = process.env.TEST_REDIS_URL || 'redis://127.0.0.1:6379';
+  const store = new RedisSessionStore(url, 60, prefix), key = `${prefix}offline-civic-fence`;
+  t.after(async () => { await store.connect(); await store.client.del(key); await store.close(); });
+  const owner = { subject: 'owner', accountId: 'account', sessionId: 'both_recovered_session', action: 'confirm_smartcity_checkout' as const };
+  const fence = await store.acquireCivicFence(owner);
+  await fence.bindReview({ billId: 'B1', billAmountMinor: 0, fines: [], tagNumber: 'T1', tollAmountMinor: 10000 });
+  const walletOperation = await fence.startStep('WALLET'); await fence.finishStep('WALLET', 'UNKNOWN');
+  const original = await store.inspectCivicFence(owner.subject, owner.accountId); assert.ok(original.revision);
+  await store.observeCivicWallet(owner.subject, owner.accountId, original.revision, 'W1');
+  const raw = await store.client.get(key); assert.ok(raw);
+  const utilityOperation = `CIVIC-${randomUUID()}`;
+  const record = JSON.parse(raw); record.steps.push({ name: 'UTILITY', state: 'UNKNOWN', operationId: utilityOperation });
+  await store.client.set(key, JSON.stringify(record));
+  const before = await store.inspectCivicFence(owner.subject, owner.accountId); assert.ok(before.revision);
+  await store.observeCivicUtility(owner.subject, owner.accountId, before.revision, 'U1');
+  const after = await store.inspectCivicFence(owner.subject, owner.accountId);
+  assert.equal(after.observedFromRevision, original.revision); assert.equal(after.utilityObservedFromRevision, before.revision);
+  assert.equal(after.civicSteps?.[0].operationId, walletOperation); assert.equal(after.civicSteps?.[0].recoveredFrom, 'UNKNOWN');
+  assert.equal(after.civicSteps?.[1].operationId, utilityOperation); assert.equal(after.civicSteps?.[1].recoveredFrom, 'UNKNOWN');
+  assert.deepEqual(await store.inspectCivicFence(owner.subject, 'another-account'), { status: 'BLOCKED' });
+});
