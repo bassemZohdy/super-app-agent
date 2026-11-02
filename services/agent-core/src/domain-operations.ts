@@ -106,7 +106,13 @@ function confirmedReceipt(service: string, path: string, data: any, body: unknow
     }
   }
   if (service === 'ride') {
-    if (path === '/rides/book') return record(data.booking) && named(data.booking.bookingId) && named(data.booking.status);
+    if (path === '/rides/book') {
+      if (!record(body) || !record(data.booking) || !record(data.booking.driver)) return false;
+      const request = body as { driverId?: unknown; pickup?: unknown; dropoff?: unknown }, booking = data.booking;
+      return named(request.driverId) && booking.driver.id === request.driverId && named(booking.bookingId) && booking.status === 'DISPATCHED' &&
+        (request.pickup === undefined || (named(request.pickup) && booking.pickup === request.pickup)) &&
+        (request.dropoff === undefined || (named(request.dropoff) && booking.dropoff === request.dropoff));
+    }
     if (path.startsWith('/mobility/parking/')) return record(data.meter) && named(data.meter.ticketId) && finite(data.meter.durationHours) && finite(data.meter.totalFee);
     if (path === '/mobility/salik/recharge') {
       if (!named(data.transactionId) || !finite(data.newBalance)) return false;

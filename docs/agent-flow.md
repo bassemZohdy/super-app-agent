@@ -32,6 +32,8 @@ For compatibility domain writes, both local and HTTP adapters treat authenticati
 
 Compatibility wallet payment and top-up confirmations require a settled USD fixture transaction of the expected type, with an exact requested amount and a valid nonnegative balance. An inconsistent receipt leaves the write unknown and stops the rest of a composite checkout.
 
+Compatibility ride booking confirmations require the selected driver, dispatched status and any supplied pickup and destination to match. A mismatched booking is unknown and prevents subsequent checkout effects.
+
 Before dispatching any consequential tool, the wrapper independently revalidates the caller, requires the same subject and workload, and checks the current tool permission. This second check is within the tool deadline; if it finishes after the deadline, the tool is not dispatched. Identity-check failures do not expose provider text. Read-only tools use the already authenticated request context.
 
 Fine references are bound at the graph boundary from the resident's current message, independently of which planner is used. For supported “pay them” or “pay it” follow-ups, only the immediately preceding user turn supplies a selection; an intervening user request does not revive an older one. The graph rejects planner-invented references, preserves named ones if the planner omits them, and refuses a payment review if a selected fine is unavailable. Without a selection, the ordinary payment review includes the outstanding fines.

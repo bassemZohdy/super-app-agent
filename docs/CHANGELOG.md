@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Verify compatibility ride booking receipts (P1-13, step)
+
+Ride confirmations now match the selected driver and supplied route, retaining inconsistent responses as unknown and stopping composite checkout. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Verify compatibility wallet transaction receipts (P1-13, step)
 
 Wallet payment and top-up confirmations now match the requested amount and require a settled transaction of the correct type and fixture currency. Inconsistent responses remain unknown. Guide: [agent flow](agent-flow.md).
