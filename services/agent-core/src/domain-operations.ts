@@ -66,8 +66,16 @@ function confirmedReceipt(service: string, path: string, data: any, body: unknow
     }
   }
   if (service === 'wallet') {
-    if (path === '/wallet/pay') return record(data.transaction) && named(data.transaction.id) && finite(data.remainingBalance);
-    if (path === '/wallet/topup') return record(data.transaction) && named(data.transaction.id) && finite(data.newBalance);
+    if (path === '/wallet/pay' || path === '/wallet/topup') {
+      if (!record(body) || !record(data.transaction)) return false;
+      const request = body as { amount?: unknown }, tx = data.transaction;
+      if (!named(tx.id) || tx.type !== (path === '/wallet/pay' ? 'PAYMENT' : 'TOPUP') || tx.currency !== 'USD' || tx.status !== 'SETTLED' ||
+        typeof request.amount !== 'number' || typeof tx.amount !== 'number') return false;
+      try {
+        const amount = toMinor(request.amount), balance = toMinor(path === '/wallet/pay' ? data.remainingBalance : data.newBalance);
+        return amount > 0 && toMinor(tx.amount) === amount && balance >= 0;
+      } catch { return false; }
+    }
     if (path === '/fines/pay') {
       if (!record(body)) return false;
       const request = body as { fineIds?: unknown; expectedAmountMinor?: unknown; operationId?: unknown };

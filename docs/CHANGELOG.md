@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Verify compatibility wallet transaction receipts (P1-13, step)
+
+Wallet payment and top-up confirmations now match the requested amount and require a settled transaction of the correct type and fixture currency. Inconsistent responses remain unknown. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Preserve rate-limited domain write outcomes (P1-02, step)
 
 Local and HTTP domain adapters retain rate-limited writes as unknown, preserving reconciliation when the response follows an applied effect. Guide: [agent flow](agent-flow.md).
