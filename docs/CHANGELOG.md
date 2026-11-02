@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Preserve approval permission across service calls (P1-02, step)
+
+Integrated writes carry the checked eligibility version through the application and provider boundaries, where a changed version is refused. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Continue verified composite steps (P1-13, step)
 
 Owners can continue a proven unstarted ride or meal using the original checkout identity after checking prior effects, current prices and permission. Guide: [agent flow](agent-flow.md).

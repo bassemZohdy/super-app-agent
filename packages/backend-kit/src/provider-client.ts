@@ -40,7 +40,7 @@ export class ProviderClient {
       method, redirect: 'error', signal: AbortSignal.timeout(8000),
       headers: { Authorization: actor.authorization || `Bearer ${await this.credentials.token()}`, 'Content-Type': 'application/json',
         ...(!actor.authorization ? { 'X-User-Subject': actor.sub, 'X-User-Name': Buffer.from(actor.name).toString('base64url') } : {}),
-        ...(method === 'POST' ? { 'Idempotency-Key': idempotencyKey || boundedKey } : {}) },
+        ...(method === 'POST' ? { 'Idempotency-Key': idempotencyKey || boundedKey, ...(actor.eligibilityEpoch ? { 'X-Eligibility-Epoch': actor.eligibilityEpoch } : {}) } : {}) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
     const started = Date.now();

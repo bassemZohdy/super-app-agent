@@ -201,6 +201,8 @@ export function createProviderServer(provider: ProviderId, path: string, options
       if(provider==='payments'&&(operationPath==='/payment-lifecycle'||operationPath.startsWith('/payment-history')||operationPath.startsWith('/payment-statement')||operationPath.startsWith('/payment-reconciliation')||operationPath.startsWith('/payment-mandates')||operationPath.startsWith('/payment-orders')||operationPath.startsWith('/wallet-funding-orders')||operationPath.startsWith('/checkout-groups')||operationPath.startsWith('/payment-refunds')||operationPath==='/payment-events')&&!interactive&&!session)throw new ApiError(403,'INTERACTIVE_REVIEW_REQUIRED','Stored authorization reviews require the signed-in owner. Unattended actors cannot approve or answer challenges.');
       if((operationPath.includes('/admissions')||operationPath==='/fine-selections'||operationPath==='/recharge-quotes'||operationPath.startsWith('/payment-reversals/'))&&!interactive&&!session)throw new ApiError(403,'INTERACTIVE_ADMISSION_REQUIRED','Payable admission requires the current signed-in owner.');
       const actor: Actor = { sub: subject, username: subject, name: typeof req.headers['x-user-name'] === 'string' ? Buffer.from(req.headers['x-user-name'], 'base64url').toString('utf8').slice(0, 200) : 'Demo citizen', accountId, requestId: '', authorization: interactive || session ? req.headers.authorization : undefined };
+      const requestedEpoch = req.headers['x-eligibility-epoch'];
+      if (requestedEpoch !== undefined && (typeof requestedEpoch !== 'string' || !/^[1-9][0-9]{0,6}:[1-9][0-9]{0,6}$/.test(requestedEpoch))) throw new ApiError(400, 'VALIDATION_ERROR', 'Invalid eligibility version.');
       if(provider==='payments'&&req.method==='GET'&&operationPath==='/account-eligibility'&&interactive)return send({status:200,data:{success:true,eligibility:store.eligibility!.snapshot(accountId)}});
       // Settlement claim/proof lanes retain original captured identities; they cannot admit a new charge.
       const retainedSettlement=claimant||claims.azp==='provider-settlements'&&provider==='payments'&&req.method==='GET'&&/^\/charges\/[A-Za-z0-9_-]+$/.test(operationPath);
@@ -208,7 +210,8 @@ export function createProviderServer(provider: ProviderId, path: string, options
         let eligibility;
         try{eligibility=provider==='payments'?store.eligibility!.snapshot(accountId):await eligibilityReader.bootstrap({...actor,authorization:interactive?req.headers.authorization:undefined});}
         catch{throw new ApiError(503,'ELIGIBILITY_UNAVAILABLE','Current account eligibility is unavailable; no new authority is admitted.');}
-        if(!eligibility.active||eligibility.ownerSub!==subject)throw new ApiError(403,'ACCOUNT_RESTRICTED','Current owner or workspace membership prevents access. History is retained.');actor.eligibilityEpoch=eligibility.epoch;
+        if(!eligibility.active||eligibility.ownerSub!==subject)throw new ApiError(403,'ACCOUNT_RESTRICTED','Current owner or workspace membership prevents access. History is retained.');
+        if(typeof requestedEpoch==='string'&&requestedEpoch!==eligibility.epoch)throw new ApiError(409,'ELIGIBILITY_CHANGED','Owner or workspace permission changed.');actor.eligibilityEpoch=eligibility.epoch;
       }
       let body: any = {};
       if (req.method === 'POST') {

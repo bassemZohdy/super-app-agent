@@ -62,7 +62,7 @@ export async function integratedRequest(service: string, actor: Actor, method: s
   if (path === '/accounts' && method === 'GET') return eligibilityEnforced()?successful(await clientFor(service).call('payments',actor,'GET','/v1/accounts')):successful({ accounts });
   if (!db.owns(actor.sub, actor.accountId)) return { status: 403, data: { success: false, code: 'ACCOUNT_FORBIDDEN', error: 'This account does not belong to the signed-in user.' } };
   const client = clientFor(service), asset = assetsFor(actor.accountId);
-  if(eligibilityEnforced())try{actor.eligibilityEpoch=(await eligibilityReader.require(actor)).epoch;}catch(e){return {status:e instanceof EligibilityReadError&&e.status===403?403:503,data:{success:false,code:e instanceof EligibilityReadError&&e.status===403?'ACCOUNT_RESTRICTED':'ELIGIBILITY_UNAVAILABLE',error:'Current owner/workspace eligibility does not admit this request. History is retained.'}};}
+  if(eligibilityEnforced())try{actor.eligibilityEpoch=(await eligibilityReader.require(actor)).epoch;}catch(e){return {status:e instanceof EligibilityReadError&&[403,409].includes(e.status)?e.status:503,data:{success:false,code:e instanceof EligibilityReadError&&e.status===403?'ACCOUNT_RESTRICTED':e instanceof EligibilityReadError&&e.status===409?'ELIGIBILITY_CHANGED':'ELIGIBILITY_UNAVAILABLE',error:'Current owner/workspace eligibility does not admit this request. History is retained.'}};}
   const call = (provider: string, verb: string, route: string, data?: unknown, key?: string) => client.call(provider, actor, verb, route, data, key);
   const ownedUtility = (value: unknown): boolean => !!value && typeof value === 'object' && !Array.isArray(value) && (value as Bill).accountNumber === asset.utilityAccount && ((value as Bill).premiseId === undefined || (value as Bill).premiseId === asset.premiseId);
   const stableKey = (value: string) => createHash('sha256').update(`${actor.accountId}:${value}`).digest('hex');
@@ -517,6 +517,8 @@ export function createApplicationServer(service: string, legacy: Legacy) {
       const release = policy.admit(req.socket.remoteAddress || 'unknown'); res.once('finish', release); res.once('close', release);
       const operationId = req.headers['x-operation-id'];
       if (operationId !== undefined && (typeof operationId !== 'string' || !/^[A-Za-z0-9_.:-]{1,200}$/.test(operationId))) return send(400, { success: false, code: 'VALIDATION_ERROR', error: 'Invalid operation identity.' });
+      const eligibilityEpoch = req.headers['x-eligibility-epoch'];
+      if (eligibilityEpoch !== undefined && (typeof eligibilityEpoch !== 'string' || !/^[1-9][0-9]{0,6}:[1-9][0-9]{0,6}$/.test(eligibilityEpoch))) return send(400, { success: false, code: 'VALIDATION_ERROR', error: 'Invalid eligibility version.' });
       const url = new URL(req.url || '/', 'http://application');
       const query = Object.fromEntries(url.searchParams);
       const integrated = process.env.PROVIDER_INTEGRATION === 'true';
@@ -528,6 +530,7 @@ export function createApplicationServer(service: string, legacy: Legacy) {
         const account = req.headers['x-account-id'];
         actor = actorFor({ sub: user.sub, preferred_username: user.preferred_username, name: user.name }, typeof account === 'string' ? account : undefined, req.headers.authorization);
         actor.requestId = operationId || requestId;
+        if (typeof eligibilityEpoch === 'string') actor.eligibilityEpoch = eligibilityEpoch;
       }
       const parsed = await readJsonBody(req);
       // A request body is always a JSON object in every mode; arrays and scalars are rejected before routing.
