@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Preserve long operation identities (P1-02, step)
+
+Provider calls bound long derived idempotency keys deterministically while preserving existing shorter keys. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Bind composite meal delivery (P1-13, step)
 
 Composite checkout sends the meal to the reviewed ride destination and verifies that destination in the food receipt. Guide: [agent flow](agent-flow.md).

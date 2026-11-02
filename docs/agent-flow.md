@@ -52,6 +52,8 @@ The standalone demo review displays its fixed synthetic delivery address, and or
 
 The integrated food application atomically stores each order with an account-scoped operation identity and request fingerprint. Repeating the same identity and terms returns the original snapshot, including after an application restart; changed terms are refused, and missing original evidence remains unconfirmed. This does not by itself reconcile the other effects in a composite journey.
 
+Provider calls preserve existing derived idempotency keys when they fit the provider limit. Longer derived keys use a deterministic SHA-256 digest of the complete operation identity, provider and route, so the supported maximum operation identity remains usable without truncation or a new retry identity.
+
 New food-operation records bind the original receipt digest. An altered receipt, malformed operation record or older record without that binding remains unconfirmed and requires inspection; the application does not create a replacement order from it. The digest detects inconsistent local records; it is not a tamper-evident audit archive.
 
 An authenticated account can inspect `GET /orders/operations/{operationId}` for a verified original food order. This lookup never places an order. A missing operation does not establish that no order was placed, and missing or inconsistent receipt evidence remains unconfirmed.

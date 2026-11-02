@@ -6,6 +6,7 @@ import { PROVIDER_PORTS } from './local-endpoints.ts';
 import { ClientCredentials } from './oauth.ts';
 import type { Actor } from './context.ts';
 import { recordCall } from './connections.ts';
+import { createHash } from 'node:crypto';
 export class UpstreamError extends Error {
   status: number; code: string;
   constructor(status: number, code: string, message: string) { super(message); this.status = status; this.code = code; }
@@ -27,11 +28,13 @@ export class ProviderClient {
     if (!bootstrap && !url.pathname.startsWith(`${accountPrefix}/`))
       throw new UpstreamError(400, 'PROVIDER_PATH_INVALID', 'The provider path is invalid.');
     if (process.env.NODE_ENV === 'production' && url.protocol !== 'https:') throw new UpstreamError(503, 'HTTPS_REQUIRED', 'Provider HTTPS is required.');
+    const derivedKey = `${actor.requestId}:${provider}:${path}`;
+    const boundedKey = derivedKey.length <= 200 ? derivedKey : `sha256:${createHash('sha256').update(derivedKey).digest('hex')}`;
     const send = async () => fetch(url, {
       method, redirect: 'error', signal: AbortSignal.timeout(8000),
       headers: { Authorization: actor.authorization || `Bearer ${await this.credentials.token()}`, 'Content-Type': 'application/json',
         ...(!actor.authorization ? { 'X-User-Subject': actor.sub, 'X-User-Name': Buffer.from(actor.name).toString('base64url') } : {}),
-        ...(method === 'POST' ? { 'Idempotency-Key': idempotencyKey || `${actor.requestId}:${provider}:${path}` } : {}) },
+        ...(method === 'POST' ? { 'Idempotency-Key': idempotencyKey || boundedKey } : {}) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
     const started = Date.now();

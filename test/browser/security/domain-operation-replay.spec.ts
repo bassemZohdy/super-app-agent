@@ -50,3 +50,31 @@ test('food operation replay returns the original order across trace IDs and refu
   expect(changed.status).toBe(409);
   expect(changed.data.code).toBe('IDEMPOTENCY_CONFLICT');
 });
+
+test('ride operation replay returns one booking across trace IDs and refuses a changed destination', async ({ residentApi, stack }) => {
+  const operation = 'r'.repeat(200);
+  const rides = () => stack.stores.get('rta')!.list(residentApi.accountId, 'ride') as Array<{ bookingId: string; dropoff: string }>;
+  const before = rides().length;
+  const request = async (trace: string, dropoff: string, identity = operation) => {
+    const response = await fetch(`http://localhost:${stack.corePort + 1}/rides/book`, {
+      method: 'POST', headers: { Authorization: `Bearer ${residentApi.token}`, 'Content-Type': 'application/json', 'X-Account-Id': residentApi.accountId, 'X-Request-Id': trace, 'X-Operation-Id': identity },
+      body: JSON.stringify({ driverId: 'drv_3', dropoff, expectedFareMinor: 2800 }),
+    });
+    return { status: response.status, data: await response.json() as { booking?: { bookingId: string; dropoff: string }; code?: string } };
+  };
+  const [first, replay] = await Promise.all([request('trace-first', 'Downtown Dining'), request('trace-second', 'Downtown Dining')]);
+  expect(first.status).toBe(200);
+  expect(replay.status).toBe(200);
+  expect(first.data.booking?.bookingId).toEqual(expect.any(String));
+  expect(replay.data.booking).toEqual(first.data.booking);
+  expect(first.data.booking?.dropoff).toBe('Downtown Dining');
+  expect(rides()).toHaveLength(before + 1);
+  const changed = await request('trace-third', 'Other destination');
+  expect(changed.status).toBe(503);
+  expect(changed.data.code).toBe('PROVIDER_OUTCOME_UNKNOWN');
+  expect(rides()).toHaveLength(before + 1);
+  const separate = await request('trace-fourth', 'Downtown Dining', `${'r'.repeat(199)}s`);
+  expect(separate.status).toBe(200);
+  expect(separate.data.booking?.bookingId).not.toBe(first.data.booking?.bookingId);
+  expect(rides()).toHaveLength(before + 2);
+});
