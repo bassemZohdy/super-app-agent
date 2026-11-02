@@ -18,7 +18,7 @@ import { trackDomainOperations, executionOutcome, DomainOperationError, callDoma
 import { withCivicFinalizers } from './civic-finalization.ts';
 import { compareCivicEvidence } from './civic-evidence.ts';
 import { completeCivicSteps } from './civic-resolution.ts';
-import { validateRequest } from '../../../packages/protocol-core/src/request-validation.ts';
+import { validateRequest, fromMinor } from '../../../packages/protocol-core/src/request-validation.ts';
 import http from 'node:http';
 import { EventJournal, StreamWriter, eventFrame } from './event-stream.ts';
 import {
@@ -216,6 +216,39 @@ async function handleGatewayRequest(
       if (evidence.length !== status.civicSteps.length || evidence.slice(0, -1).some(item => item.assessment !== 'MATCH') || observation?.assessment !== 'OBSERVED' || !observation.observedReceiptReference) return { status: 409, data: { success: false, code: 'CIVIC_EVIDENCE_INCOMPLETE', error: 'The original fine outcome could not be confirmed.' } };
       const revision = await store.observeCivicFines(actor.sub, actor.accountId, body.revision, observation.observedReceiptReference);
       return { status: 200, data: { success: true, observation: 'RECORDED', revision } };
+    } catch (error) {
+      if (error instanceof SessionError && error.status === 409) return { status: 409, data: { success: false, code: error.code, error: error.message } };
+      return { status: 503, data: { success: false, code: 'CIVIC_STATUS_UNAVAILABLE', error: 'Shared offline civic status is unavailable.' } };
+    }
+  }
+  if (normMethod === 'POST' && pathname === '/api/civic/reconciliation/continue') {
+    if (process.env.PROVIDER_INTEGRATION === 'true' || process.env.DOMAIN_TRANSPORT !== 'http') return { status: 503, data: { success: false, code: 'CIVIC_STATUS_UNAVAILABLE', error: 'Shared offline civic status is unavailable in this mode.' } };
+    try {
+      const store = redisSessions();
+      if (!store) throw new Error('Shared storage unavailable');
+      const status = await store.inspectCivicFence(actor.sub, actor.accountId);
+      if (status.revision !== body.revision || status.action !== 'confirm_smartcity_checkout' || !status.surfaceRevision || !status.civicReview || !status.civicSteps || !status.civicSteps.length)
+        return { status: 409, data: { success: false, code: 'CIVIC_REVIEW_CHANGED', error: 'The original checkout cannot continue.' } };
+      const evidence = await compareCivicEvidence(status.civicReview, status.civicSteps, (source, reference) => actorContext.run(actor, async () => (await callDomainAsync(source === 'fine-receipt' || source === 'wallet-operation' || source === 'fine-operation' ? 'wallet' : source === 'utility-operation' ? 'food' : source === 'toll-operation' ? 'ride' : source, 'GET', source === 'wallet' ? '/wallet/transactions' : source === 'wallet-operation' ? `/wallet/unified-operations/${encodeURIComponent(reference || '')}` : source === 'food' ? '/utilities/bill' : source === 'utility-operation' ? `/utilities/payment-operations/${encodeURIComponent(reference || '')}` : source === 'fine-receipt' ? `/fines/receipts/${encodeURIComponent(reference || '')}` : source === 'fine-operation' ? `/fines/payment-operations/${encodeURIComponent(reference || '')}` : source === 'toll-operation' ? `/mobility/salik/recharge-operations/${encodeURIComponent(reference || '')}` : `/mobility/salik/recharges/${encodeURIComponent(reference || '')}`)).data));
+      if (evidence.length !== status.civicSteps.length || evidence.some(item => item.assessment !== 'MATCH')) return { status: 409, data: { success: false, code: 'CIVIC_EVIDENCE_INCOMPLETE', error: 'The original checkout evidence could not be confirmed.' } };
+      const started = await store.startCivicContinuation(actor.sub, actor.accountId, body.revision);
+      const review = status.civicReview;
+      try {
+        const result = await actorContext.run(actor, () => started.name === 'UTILITY'
+          ? callDomainAsync('food', 'POST', '/utilities/pay', {}, { billId: review.billId, expectedAmountMinor: review.billAmountMinor, operationId: started.operationId })
+          : started.name === 'FINES'
+            ? callDomainAsync('wallet', 'POST', '/fines/pay', {}, { fineIds: review.fines.map(fine => fine.fineId), expectedFineAmounts: review.fines, expectedAmountMinor: review.fines.reduce((sum, fine) => sum + fine.amountMinor, 0), operationId: started.operationId })
+            : callDomainAsync('ride', 'POST', '/mobility/salik/recharge', {}, { amount: fromMinor(review.tollAmountMinor), expectedTag: review.tagNumber, operationId: started.operationId }));
+        const reference = started.name === 'UTILITY' ? result.data.receipt?.receiptNumber : started.name === 'FINES' ? result.data.receiptNumber : result.data.transactionId;
+        if (typeof reference !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(reference)) throw new Error('Missing receipt');
+        const revision = await store.finishCivicContinuation(actor.sub, actor.accountId, started.revision, started.operationId, 'CONFIRMED', reference);
+        return { status: 200, data: { success: true, step: started.name, revision } };
+      } catch (error) {
+        if (error instanceof SessionError) throw error;
+        const rejected = error instanceof DomainOperationError && error.code === 'DOMAIN_REJECTED';
+        await store.finishCivicContinuation(actor.sub, actor.accountId, started.revision, started.operationId, rejected ? 'REJECTED' : 'UNKNOWN');
+        return { status: rejected ? 409 : 503, data: { success: false, code: rejected ? 'CIVIC_STEP_REJECTED' : 'CIVIC_OUTCOME_UNKNOWN', error: rejected ? 'The original step was rejected.' : 'The original step requires reconciliation.' } };
+      }
     } catch (error) {
       if (error instanceof SessionError && error.status === 409) return { status: 409, data: { success: false, code: error.code, error: error.message } };
       return { status: 503, data: { success: false, code: 'CIVIC_STATUS_UNAVAILABLE', error: 'Shared offline civic status is unavailable.' } };

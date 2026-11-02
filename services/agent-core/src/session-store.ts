@@ -225,6 +225,40 @@ export class RedisSessionStore {
     if (saved !== 1) throw new SessionError(409, 'CIVIC_REVIEW_CHANGED', 'The civic review changed.');
     return createHash('sha256').update(updated).digest('hex');
   }
+  async startCivicContinuation(subject: string, accountId: string, revision: string): Promise<{ name: CivicStepName; operationId: string; revision: string }> {
+    await this.connect();
+    const key = `${this.prefix}offline-civic-fence`, raw = await this.client.get(key);
+    if (!raw || createHash('sha256').update(raw).digest('hex') !== revision) throw new SessionError(409, 'CIVIC_REVIEW_CHANGED', 'The civic review changed.');
+    let updated: string, name: CivicStepName, operationId: string;
+    try {
+      const record = JSON.parse(raw) as { version?: unknown; owner?: unknown; action?: unknown; surfaceRevision?: unknown; review?: unknown; steps?: CivicStep[] };
+      const review = civicReview(record.review), steps = record.steps;
+      if (typeof record.version !== 'number' || !Number.isInteger(record.version) || record.version < 20 || record.version > 27 || record.owner !== civicOwnerDigest(subject, accountId) || record.action !== 'confirm_smartcity_checkout' || typeof record.surfaceRevision !== 'string' || !/^[0-9a-f-]{36}$/.test(record.surfaceRevision) || !review || !Array.isArray(steps)) throw new Error('context mismatch');
+      const expected: CivicStepName[] = ['WALLET', ...(review.billAmountMinor ? ['UTILITY' as const] : []), ...(review.fines.length ? ['FINES' as const] : []), 'TOLL'];
+      if (!steps.length || steps.length >= expected.length || steps.some((step, index) => step.name !== expected[index] || step.state !== 'CONFIRMED' || !civicReference(step.receiptReference))) throw new Error('context mismatch');
+      name = expected[steps.length]; operationId = `CIVIC-${randomUUID()}`;
+      updated = JSON.stringify({ ...record, steps: [...steps, { name, state: 'STARTED', operationId }] });
+    } catch { throw new SessionError(409, 'CIVIC_REVIEW_CHANGED', 'The original checkout cannot continue.'); }
+    const saved = await this.client.eval(`if redis.call('GET',KEYS[1])~=ARGV[1] then return 0 end; redis.call('SET',KEYS[1],ARGV[2]); return 1`, { keys: [key], arguments: [raw, updated] });
+    if (saved !== 1) throw new SessionError(409, 'CIVIC_REVIEW_CHANGED', 'The civic review changed.');
+    return { name, operationId, revision: createHash('sha256').update(updated).digest('hex') };
+  }
+  async finishCivicContinuation(subject: string, accountId: string, revision: string, operationId: string, state: 'CONFIRMED' | 'REJECTED' | 'UNKNOWN', receiptReference?: string): Promise<string> {
+    if (receiptReference !== undefined && (state !== 'CONFIRMED' || !civicReference(receiptReference)) || state === 'CONFIRMED' && !receiptReference) throw new SessionError(409, 'CIVIC_EVIDENCE_INCOMPLETE', 'The continuation receipt is unavailable.');
+    await this.connect();
+    const key = `${this.prefix}offline-civic-fence`, raw = await this.client.get(key);
+    if (!raw || createHash('sha256').update(raw).digest('hex') !== revision) throw new SessionError(409, 'CIVIC_REVIEW_CHANGED', 'The civic review changed.');
+    let updated: string;
+    try {
+      const record = JSON.parse(raw) as { owner?: unknown; action?: unknown; steps?: CivicStep[] };
+      const steps = record.steps, last = Array.isArray(steps) ? steps.at(-1) : undefined;
+      if (record.owner !== civicOwnerDigest(subject, accountId) || record.action !== 'confirm_smartcity_checkout' || !steps || !last || last.state !== 'STARTED' || last.operationId !== operationId) throw new Error('context mismatch');
+      updated = JSON.stringify({ ...record, steps: [...steps.slice(0, -1), { ...last, state, ...(receiptReference ? { receiptReference } : {}) }] });
+    } catch { throw new SessionError(409, 'CIVIC_REVIEW_CHANGED', 'The civic review changed.'); }
+    const saved = await this.client.eval(`if redis.call('GET',KEYS[1])~=ARGV[1] then return 0 end; redis.call('SET',KEYS[1],ARGV[2]); return 1`, { keys: [key], arguments: [raw, updated] });
+    if (saved !== 1) throw new SessionError(409, 'CIVIC_REVIEW_CHANGED', 'The civic review changed.');
+    return createHash('sha256').update(updated).digest('hex');
+  }
   async civicApprovalResolved(subject: string, accountId: string, sessionId: string, surfaceRevision: string): Promise<boolean> {
     await this.connect();
     return await this.client.exists(civicRetiredKey(this.prefix, civicOwnerDigest(subject, accountId), sessionId, surfaceRevision)) === 1;

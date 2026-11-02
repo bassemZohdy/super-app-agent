@@ -165,7 +165,9 @@ function handleWalletRequest(
 
   if (normMethod === 'POST' && (pathname === '/fines/pay' || pathname === '/fines/settle')) {
     if (body.expectedPayables !== undefined) return invalidInput('Reviewed payable revisions require integrated provider mode');
-    const signature = JSON.stringify({ fineIds: [...body.fineIds].sort(), expectedAmountMinor: body.expectedAmountMinor ?? null });
+    const expectedFineAmounts: Array<{ fineId: string; amountMinor: number }> | undefined = body.expectedFineAmounts;
+    if (expectedFineAmounts && (expectedFineAmounts.length !== body.fineIds.length || new Set(expectedFineAmounts.map(fine => fine.fineId)).size !== expectedFineAmounts.length || expectedFineAmounts.some(fine => !body.fineIds.includes(fine.fineId)))) return invalidInput('The reviewed fine selection is invalid');
+    const signature = JSON.stringify({ fineIds: [...body.fineIds].sort(), expectedAmountMinor: body.expectedAmountMinor ?? null, ...(expectedFineAmounts ? { expectedFineAmounts: [...expectedFineAmounts].sort((a, b) => a.fineId.localeCompare(b.fineId)) } : {}) });
     const previous = body.operationId ? offlineFineOperations.get(body.operationId) : undefined;
     if (previous) {
       if (previous.signature !== signature) return { status: 409, data: { success: false, code: 'IDEMPOTENCY_CONFLICT', error: 'This operation already has different terms.' } };
@@ -173,6 +175,7 @@ function handleWalletRequest(
     }
     const activeFines = policeFines.filter(f => body.fineIds.includes(f.fineId) && f.status === 'UNPAID');
     if (activeFines.length !== body.fineIds.length) return { status: 404, data: { error: 'Selected unpaid fine not found' } };
+    if (expectedFineAmounts && activeFines.some(fine => !expectedFineAmounts.some(expected => expected.fineId === fine.fineId && expected.amountMinor === toMinor(fine.payableAmount)))) return { status: 409, data: { success: false, error: 'The reviewed fine amount changed', code: 'PAYABLE_CHANGED' } };
     const dueMinor = activeFines.reduce((acc, f) => acc + toMinor(f.payableAmount), 0);
     if (dueMinor > MAX_MONEY * 100) return invalidInput('Settlement total exceeds demo limit');
     const totalDue = fromMinor(dueMinor);

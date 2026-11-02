@@ -67,6 +67,6 @@ test('a lost fine response is identified by the saved operation and exact indepe
   assert.equal(after.civicSteps?.[2].receiptReference, transactions.at(-1)?.id);
   const resolve = await executeGatewayRequest('POST', '/api/civic/reconciliation/resolve', {}, { revision: after.revision }, headers);
   assert.equal(resolve.status, 409); assert.equal(laterWrites, 0); assert.equal(transactions.length, ledger + 2);
-  const replay = executeWalletRequest('POST', '/fines/pay', {}, { fineIds: review.fines.map(fine => fine.fineId), expectedAmountMinor: review.fines.reduce((sum, fine) => sum + fine.amountMinor, 0), operationId: saved.civicSteps?.[2].operationId });
+  const replay = executeWalletRequest('POST', '/fines/pay', {}, { fineIds: review.fines.map(fine => fine.fineId), expectedAmountMinor: review.fines.reduce((sum, fine) => sum + fine.amountMinor, 0), expectedFineAmounts: review.fines, operationId: saved.civicSteps?.[2].operationId });
   assert.equal(replay.status, 200); assert.equal(replay.data.receiptNumber, transactions.at(-1)?.id); assert.equal(transactions.length, ledger + 2);
 });

@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Continue the original offline checkout (P1-13, step)
+
+The owner can continue a verified partial civic checkout one original step at a time. Each step is journaled before dispatch, fine terms include each reviewed amount, and uncertain outcomes stay fenced for observation. Redis/HTTP tests cover concurrency, changed evidence, refusal, lost responses, in-flight observation and final resolution. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Admit fresh civic checkout after resolution (P1-13, step)
 
 For separate-service offline fixtures, the shared civic fence now governs subsequent actions after explicit resolution. Redis/HTTP tests verify that an unresolved checkout still blocks a new action and a fresh review can complete in the same agent process after resolution. Guide: [integrations](integrations.md).
