@@ -33,6 +33,17 @@ test('access tokens reject wrong type, malformed time claims, oversized headers 
   await assert.rejects(() => verifyJwt(mint({}, 'x'.repeat(1000)), 'agent-core'));
 });
 
+test('RS256 rejects a weak signing key without blocking a valid key from the same set', async t => {
+  const { jwk, mint } = setup(t, 'rsa-key-size');
+  const weak = generateKeyPairSync('rsa', { modulusLength: 1024 });
+  const weakKey = { ...weak.publicKey.export({ format: 'jwk' }), kid: 'weak', use: 'sig', alg: 'RS256' };
+  let calls = 0;
+  t.mock.method(globalThis, 'fetch', async () => { calls++; return Response.json({ keys: [weakKey, jwk] }); });
+  await assert.rejects(() => verifyJwt(mint({}, 'weak', weak.privateKey), 'agent-core'), /RSA key size/i);
+  assert.equal((await verifyJwt(mint(), 'agent-core')).sub, 'alice');
+  assert.equal(calls, 1);
+});
+
 test('JWKS requests deduplicate, unknown keys are throttled and issuer changes isolate caches', async t => {
   const { jwk, mint } = setup(t, 'key-coordination');
   let calls = 0;

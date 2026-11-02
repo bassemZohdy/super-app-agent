@@ -73,7 +73,9 @@ async function signingKey(issuer: string, url: string, kid: string) {
   if (entry.until <= Date.now()) throw new Error('Signing keys unavailable');
   const key = entry.keys.find(key => key.kid === kid);
   if (!key) throw new Error('Signing key unavailable');
-  return createPublicKey({ key, format: 'jwk' });
+  const publicKey = createPublicKey({ key, format: 'jwk' });
+  if (publicKey.asymmetricKeyType !== 'rsa' || (publicKey.asymmetricKeyDetails?.modulusLength ?? 0) < 2048) throw new Error('Invalid RSA key size');
+  return publicKey;
 }
 
 /** How long the online token check may take before the request is refused. A cold local Keycloak answered its first

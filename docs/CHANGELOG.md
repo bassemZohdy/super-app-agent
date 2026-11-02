@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Enforce RS256 signing-key minimum (P0-13, step)
+
+The shared verifier rejects RSA signing keys below 2,048 bits before signature verification. A signed-token test places a weak and valid key in the same key set and verifies that only the valid key succeeds. This does not establish real-provider key rotation or federation behavior. Guide: [security](security.md).
+
 ## 2 November 2026 — Bound focused tool waits (P1-02, step)
 
 The focused invocation wrapper now stops waiting at the configured deadline even if a tool ignores its abort signal. A deadline wins over a simultaneous abort-triggered refusal, so a dispatched write remains unknown rather than being treated as a definitive refusal. Tests cover a noncooperative read and a simulated payment committed before a withheld reply, including replacement blocking and original-key recovery. This cannot forcibly stop noncooperative in-process work. Guide: [agent flow](agent-flow.md).
