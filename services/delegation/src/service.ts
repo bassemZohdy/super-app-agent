@@ -12,6 +12,7 @@ import { assertionTimes, keyMaterial, signedJwt } from './keys.ts';
 import { EligibilityClient,EligibilityReadError,eligibilityEnforced } from '../../../packages/backend-kit/src/eligibility-client.ts';
 import { actorFor } from '../../../packages/backend-kit/src/context.ts';
 import { toMinor } from '../../../packages/protocol-core/src/request-validation.ts';
+import { boundedJsonResponse } from '../../../packages/backend-kit/src/bounded-json.ts';
 const eligibilityReader=new EligibilityClient();
 async function currentEligibility(owner:string,accountId:string,epoch?:string,authorization?:string){
   if(!eligibilityEnforced())return undefined;
@@ -89,7 +90,9 @@ async function execute(id: string, requestKey: unknown, authorization?: string):
     const ports: Record<string, number> = { rta: 4101, dewa: 4102, etisalat: 4103, du: 4104, police: 4105, dld: 4106, payments: 4107 };
     const target = new URL(`/v1/accounts/${encodeURIComponent(g.accountId)}${g.path}`, checkedEndpoint(process.env[`PROVIDER_${g.provider.toUpperCase()}_URL`] || `http://localhost:${ports[g.provider]}`));
     const response = await fetch(target, { method: g.method, redirect: 'error', signal: AbortSignal.timeout(8000), headers: { Authorization: bearer, 'Content-Type': 'application/json', 'Idempotency-Key': `delegation-${job.id}` }, ...(g.method === 'POST' ? { body: JSON.stringify(g.body) } : {}) });
-    const result = await response.json() as { success?: boolean };
+    const parsed = await boundedJsonResponse(response);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Invalid provider response');
+    const result = parsed as { success?: boolean };
     let success = response.ok && result.success === true;
     if (success && g.method === 'POST' && g.provider === 'payments' && g.path === '/topups') {
       const data = result as { transaction?: { id?: unknown; type?: unknown; status?: unknown; currency?: unknown; amount?: unknown }; newBalance?: unknown };

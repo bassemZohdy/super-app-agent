@@ -18,6 +18,8 @@ The user interface presets expire after five minutes. API grants can last 60–3
 
 Before recording a delegated credit as complete, the broker requires a settled AED top-up transaction with a bounded ID, the exact approved amount in fils, and a valid nonnegative balance. A contradictory or mismatched success response is retained as unknown; the same execution key remains subject to reconciliation and cannot create a replacement credit.
 
+Provider execution responses are limited to one MiB of received JSON and must be objects. If a response is oversized, unreadable or malformed, the original operation remains unknown; both a repeat of its execution key and a new operation stay blocked pending reconciliation.
+
 ## Components and identity
 
 | Component | Role |

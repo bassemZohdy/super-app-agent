@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bound delegated provider responses (P1-02, step)
+
+The delegation broker limits provider response bodies and rejects malformed or non-object results. An oversized or unreadable response leaves the original execution unknown and blocks another dispatch. Guide: [delegation](development/delegation.md).
+
 ## 2 November 2026 — Verify delegated credit receipts (P1-02, step)
 
 The delegation broker verifies that a successful synthetic wallet-credit response contains a settled AED top-up for the approved amount and a valid balance. Contradictory or mismatched receipts remain unknown and cannot be repeated blindly. Guide: [delegation](development/delegation.md).

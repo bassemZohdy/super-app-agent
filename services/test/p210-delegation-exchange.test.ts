@@ -101,6 +101,21 @@ test('delegated credit verifies the approved amount and receipt before completio
   topupReply = undefined;
 });
 
+test('an oversized delegated credit response stays unknown without another dispatch', async () => {
+  const owner = await user('alice'), runnerToken = await runner();
+  const body = { ...grantBody(), method: 'POST', path: '/topups', body: { amountMinor: 100, source: 'demo_approved' } };
+  topupReply = { success: true, transaction: { id: 'funding-123', type: 'TOPUP', status: 'SETTLED', currency: 'AED', amount: 1 }, newBalance: 1501, padding: 'x'.repeat(1024 * 1024) };
+  try {
+    const created = await createGrant(owner, body), id = created!.data.grant.id, key = 'oversized-credit-1';
+    const before = seen.length, result = await execute(id, runnerToken, key);
+    assert.equal(result?.status, 503);
+    assert.equal(grantStore().jobs(id, 'alice-sub')[0].state, 'unknown');
+    assert.equal((await execute(id, runnerToken, key))?.data.code, 'RECONCILIATION_REQUIRED');
+    assert.equal((await execute(id, runnerToken, 'replacement-credit-1'))?.data.code, 'RECONCILIATION_REQUIRED');
+    assert.equal(seen.length, before + 1);
+  } finally { topupReply = undefined; }
+});
+
 test('P2-10: an owner grants consent, the runner executes it, and the provider sees exactly the owner as the broker client', async () => {
   const created = await createGrant(await user('alice'));
   assert.equal(created?.status, 201);
