@@ -72,7 +72,7 @@ test('stale cursor and terminal responses are cancelled before reconnect or stop
   const requests: Headers[] = [];
   t.mock.method(globalThis, 'fetch', async (_url, init) => {
     requests.push(new Headers(init?.headers));
-    if (requests.length === 1) return new Response('id: cursor-1\ndata: {"sessionId":"test-session","type":"test"}\n\n', { headers: { 'Content-Type': 'text/event-stream' } });
+    if (requests.length === 1) return new Response('id: cursor-1\ndata: {"id":"event-1","type":"A2UI_STREAM_DELTA","timestamp":1,"data":{"phase":"TOOL_EXECUTION","text":"test"},"sessionId":"test-session"}\n\n', { headers: { 'Content-Type': 'text/event-stream' } });
     return requests.length === 2 ? stale.response : refused.response;
   });
   await within(connectEventStream({ url: 'http://localhost/stream', sessionId: 'test-session', getToken: () => 'test', signal: new AbortController().signal, onMessage: () => {} }));

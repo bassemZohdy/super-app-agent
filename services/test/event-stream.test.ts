@@ -4,11 +4,11 @@ import { EventEmitter } from 'node:events';
 import { generateKeyPairSync, sign } from 'node:crypto';
 import type { ServerResponse } from 'node:http';
 import { EventJournal, StreamWriter } from '../agent-core/src/event-stream.ts';
-import { createA2UIMessage } from '../../packages/protocol-core/src/index.ts';
+import { createA2UIMessage, validateA2UIMessage } from '../../packages/protocol-core/src/index.ts';
 import { readEventStream } from '../../packages/protocol-core/src/sse-client.ts';
 import { server, executeCoreRequest, sseClients } from '../agent-core/src/index.ts';
 
-const message = (sid: string, text: string) => createA2UIMessage('A2UI_STREAM_DELTA', sid, { text });
+const message = (sid: string, text: string) => createA2UIMessage('A2UI_STREAM_DELTA', sid, { phase: 'TOOL_EXECUTION', text });
 
 test('replay is session-bound and bounded by count, TTL, session count and bytes', t => {
   const journal = new EventJournal(2, 1000, 2);
@@ -97,8 +97,12 @@ test('real HTTP stream verifies signed bearer, user ownership, origin, replay an
   const response = await fetch(url, { headers, signal: controller.signal });
   assert.equal(response.status, 200);
   const stream = readEventStream(response);
-  assert.equal(JSON.parse((await stream.next()).value!.data).type, 'A2UI_HANDSHAKE_ACK');
-  assert.equal(JSON.parse((await stream.next()).value!.data).type, 'A2UI_RENDER_SURFACE');
+  const handshake = JSON.parse((await stream.next()).value!.data);
+  const snapshot = JSON.parse((await stream.next()).value!.data);
+  assert.equal(handshake.type, 'A2UI_HANDSHAKE_ACK');
+  assert.equal(snapshot.type, 'A2UI_RENDER_SURFACE');
+  assert.equal(validateA2UIMessage(handshake).success, true, 'the real handshake passes the shared stream contract');
+  assert.equal(validateA2UIMessage(snapshot).success, true, 'the real snapshot passes the shared stream contract');
   await executeCoreRequest('POST', '/api/a2ui/intent', {}, { sessionId: sid, text: 'show my profile' }, headers);
   const first = (await stream.next()).value!;
   assert.ok(first.id);

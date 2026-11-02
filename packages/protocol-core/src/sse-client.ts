@@ -1,4 +1,4 @@
-import type { A2UIMessageEnvelope } from './a2-ui.ts';
+import { validateA2UIMessage, type A2UIMessageEnvelope } from './a2-ui.ts';
 
 export interface StreamEvent { data: string; id?: string; event?: string; invalidId?: boolean }
 
@@ -90,7 +90,7 @@ export async function connectEventStream(options: {
         throw new Error(`Stream unavailable (${response.status})`);
       }
       for await (const event of readEventStream(response)) {
-        let message: A2UIMessageEnvelope;
+        let message: unknown;
         try { message = JSON.parse(event.data); } catch {
           // The stream resumes from the last event handled. An event that cannot be read must still move the cursor past it, or every
           // reconnect would replay the same bad event and nothing after it would ever arrive.
@@ -98,12 +98,13 @@ export async function connectEventStream(options: {
           options.onError?.(new Error('A stream event could not be read and was skipped'));
           continue;
         }
-        if (!message || typeof message !== 'object' || Array.isArray(message) || message.sessionId !== options.sessionId) {
+        const validated = validateA2UIMessage(message);
+        if (!validated.success || !validated.data || validated.data.sessionId !== options.sessionId) {
           advanceCursor(event);
-          options.onError?.(new Error('A stream event for another or invalid session was skipped'));
+          options.onError?.(new Error('An invalid or foreign stream event was skipped'));
           continue;
         }
-        options.onMessage(message);
+        options.onMessage(validated.data);
         advanceCursor(event);
         delay = 500;
       }

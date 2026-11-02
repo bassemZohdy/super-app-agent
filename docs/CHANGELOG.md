@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 3 November 2026 - Validate browser stream envelopes (P1-12, step)
+
+The shared client validates event envelopes before delivering them and skips malformed events without blocking later messages. Guide: [security](security.md).
+
 ## 3 November 2026 - Handle coalesced browser stream events (P1-12, step)
 
 The shared stream parser accepts many small events delivered together while continuing to reject oversized individual frames. Guide: [security](security.md).

@@ -37,8 +37,8 @@ for (const [cursor, validJson] of [['x'.repeat(129), true], ['unicode-\u0645', t
     t.mock.method(globalThis, 'fetch', async (_url, init) => {
       requests.push(new Headers(init?.headers));
       if (requests.length > 1) return new Response('', { status: 401 });
-      const data = validJson ? '{"sessionId":"test-session","type":"test"}' : '{invalid';
-      return new Response(`id: previous-1\ndata: {"sessionId":"test-session","type":"test"}\n\nid: ${cursor}\ndata: ${data}\n\n`, { headers: { 'Content-Type': 'text/event-stream' } });
+      const data = validJson ? '{"id":"event-1","type":"A2UI_STREAM_DELTA","timestamp":1,"data":{"phase":"TOOL_EXECUTION","text":"test"},"sessionId":"test-session"}' : '{invalid';
+      return new Response(`id: previous-1\ndata: {"id":"event-1","type":"A2UI_STREAM_DELTA","timestamp":1,"data":{"phase":"TOOL_EXECUTION","text":"test"},"sessionId":"test-session"}\n\nid: ${cursor}\ndata: ${data}\n\n`, { headers: { 'Content-Type': 'text/event-stream' } });
     });
     const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 3000);
     try { await connectEventStream({ url: 'http://localhost/stream', sessionId: 'test-session', getToken: () => 'test', signal: controller.signal, onMessage: message => delivered.push(message), onError: error => errors.push(error.message) }); }
@@ -56,8 +56,8 @@ test('real HTTP reconnect requests a fresh snapshot after an invalid event ID', 
   const server = http.createServer((request, response) => {
     cursors.push(request.headers['last-event-id'] as string | undefined);
     response.writeHead(200, { 'Content-Type': 'text/event-stream' });
-    if (cursors.length === 1) response.end(`id: good-1\ndata: {"sessionId":"test-session","n":1}\n\nid: ${'x'.repeat(129)}\ndata: {"sessionId":"test-session","n":2}\n\n`);
-    else response.end('data: {"sessionId":"test-session","n":3}\n\n');
+    if (cursors.length === 1) response.end(`id: good-1\ndata: {"id":"event-1","type":"A2UI_STREAM_DELTA","timestamp":1,"data":{"phase":"TOOL_EXECUTION","text":"test"},"sessionId":"test-session","n":1}\n\nid: ${'x'.repeat(129)}\ndata: {"id":"event-1","type":"A2UI_STREAM_DELTA","timestamp":1,"data":{"phase":"TOOL_EXECUTION","text":"test"},"sessionId":"test-session","n":2}\n\n`);
+    else response.end('data: {"id":"event-1","type":"A2UI_STREAM_DELTA","timestamp":1,"data":{"phase":"TOOL_EXECUTION","text":"test"},"sessionId":"test-session","n":3}\n\n');
   });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(() => { server.closeAllConnections(); server.close(); });
@@ -76,7 +76,7 @@ test('a failed handler retains the last successfully handled cursor', async t =>
   t.mock.method(globalThis, 'fetch', async (_url, init) => {
     cursors.push(new Headers(init?.headers).get('Last-Event-ID'));
     if (cursors.length > 1) return new Response('', { status: 401 });
-    return new Response(`id: handled-1\ndata: {"sessionId":"test-session","n":1}\n\nid: ${'x'.repeat(129)}\ndata: {"sessionId":"test-session","n":2}\n\n`, { headers: { 'Content-Type': 'text/event-stream' } });
+    return new Response(`id: handled-1\ndata: {"id":"event-1","type":"A2UI_STREAM_DELTA","timestamp":1,"data":{"phase":"TOOL_EXECUTION","text":"test"},"sessionId":"test-session","n":1}\n\nid: ${'x'.repeat(129)}\ndata: {"id":"event-1","type":"A2UI_STREAM_DELTA","timestamp":1,"data":{"phase":"TOOL_EXECUTION","text":"test"},"sessionId":"test-session","n":2}\n\n`, { headers: { 'Content-Type': 'text/event-stream' } });
   });
   await connectEventStream({ url: 'http://localhost/stream', sessionId: 'test-session', getToken: () => 'test', signal: new AbortController().signal, onMessage: message => {
     if ((message as unknown as { n: number }).n === 2) throw new Error('handler failed');

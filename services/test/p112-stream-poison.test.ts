@@ -7,7 +7,7 @@ import { connectEventStream } from '../../packages/protocol-core/src/sse-client.
 // P1-12: one bad event in a stream must not stop the good ones. The stream resumes from the last event it handled, so an event the
 // client cannot read must still move the cursor past it; otherwise every reconnect replays the same bad event and nothing after it is
 // ever delivered.
-const message = (n: number) => JSON.stringify({ version: '1.0.0', sessionId: 'session_1', n });
+const message = (n: number) => JSON.stringify({ id: 'event', type: 'A2UI_STREAM_DELTA', timestamp: 1, data: { phase: 'TOOL_EXECUTION', text: 'test' }, sessionId: 'session_1', n });
 
 test('P1-12: an unreadable event in the stream is skipped and the events after it are delivered', async t => {
   const resumedFrom: (string | undefined)[] = [];
