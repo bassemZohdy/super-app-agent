@@ -47,6 +47,8 @@ npm run demo:payment-access -- enable-owner ACCOUNT 2 owner_enable_001 'Demo own
 
 Expected version is the **owner** or **membership** version for the selected operation. Stale decisions return 409. Operator decisions atomically update the version and append immutable local before/after audit. An exact request-key replay returns the original decision, which may differ from current state; inspect again to see current eligibility. A changed body/operator/account with the same key conflicts. No monetary action is automatically retried or compensated.
 
+The eligibility reader accepts only the documented success envelope and validated snapshot. Conflicting or unexpected fields make the current authority unavailable; they never grant access.
+
 `ELIGIBILITY_READER_SECRET` belongs to `provider-eligibility` with only `provider:eligibility:read`. `ELIGIBILITY_OPERATOR_SECRET` belongs to `eligibility-operator` with only `provider:eligibility:manage`. Local defaults are public synthetic fixtures. Production cannot use this CLI or these secrets. `ELIGIBILITY_ENFORCEMENT=true` is always set in reference Compose and isolated signed tests; offline fixture tests leave it off. Production API mode also requires enforcement, but the demo delegation service still refuses production activation.
 
 ## Contract and failure behavior

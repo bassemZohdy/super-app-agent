@@ -25,6 +25,11 @@ test('eligibility responses are bounded, contradictory replies fail closed, and 
   });
   body={success:true,eligibility:snapshot,error:'private-response-marker'};
   await assert.rejects(client.require(actor));
+  for (body of [
+    { success: true, eligibility: snapshot, code: 'ACCOUNT_RESTRICTED' },
+    { success: true, eligibility: snapshot, active: false },
+    { success: true, eligibility: snapshot, reason: 'permission revoked' },
+  ]) await assert.rejects(client.require(actor), e => e instanceof EligibilityReadError && e.status === 503);
   body={success:true,eligibility:snapshot,padding:'x'.repeat(70000)};
   await assert.rejects(client.require(actor),e=>e instanceof EligibilityReadError&&e.status===503&&!String(e).includes('private-response-marker'));
   status=401;await assert.rejects(client.require(actor),e=>e instanceof EligibilityReadError&&e.status===503);

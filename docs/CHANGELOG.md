@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 - Reject ambiguous eligibility envelopes (P1-10, step)
+
+The current-eligibility reader rejects conflicting or unexpected response fields before granting access. Guide: [payment lifecycle](development/payment-lifecycle.md).
+
 ## 2 November 2026 - Bound scheduling rule fields (P1-10, step)
 
 The scheduler rejects unexpected rule and trigger fields and policy versions outside the mandate contract before processing any rule. Guide: [automation worker](development/automation-worker.md).
