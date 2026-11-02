@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Guard overlapping offline checkouts (P1-13, step)
+
+Prevent two concurrent sessions in one agent process from executing the shared offline composite checkout at once. A regression confirms that only one reviewed checkout debits the wallet and recharges the tag. Cross-process and other-route coordination remain open. Guide: [grouped checkout](development/checkout-groups.md).
+
 ## 2 November 2026 — Preserve effects across controlled gateway errors (P1-02, step)
 
 When a controlled request, eligibility or session error follows a tracked effect, report the partial or unknown outcome and fence the current session for reconciliation. Tests inject these errors after local simulated effects; real distributed lease-loss recovery remains open. Guide: [integrations](integrations.md).

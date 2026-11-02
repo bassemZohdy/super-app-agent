@@ -4,6 +4,8 @@ PAY-16 adds an owned, durable group of one to ten child payment orders using one
 
 The separate offline legacy composite review binds the displayed bill, current fine IDs and amounts, and toll tag. It refuses a changed review or insufficient simulated wallet funds before dispatch, excludes already-paid obligations, and charges fines only through their own settlement. The utility, fines and recharge remain separate fixture operations: partial execution and cross-service races require reconciliation, and this flow is not equivalent to the durable integrated group.
 
+Within one agent process, only one offline composite checkout may run at a time; another session must wait and review again. The guard is released on success or failure. It does not coordinate separate processes or other manual payment routes, and it is not a durable distributed lock.
+
 ## Use the React demo
 
 1. Open **Payment accounts**, link the billers and save a synthetic card if desired.
