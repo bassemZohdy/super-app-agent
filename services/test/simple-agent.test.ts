@@ -67,6 +67,8 @@ test('OpenAI-compatible planner calls configured HTTP endpoint and validates its
     const planner = new CompatiblePlanner(new URL(`http://127.0.0.1:${(server.address() as { port: number }).port}/v1/`), 'mock-model');
     const plan = await planner.plan([{ role: 'user', content: 'pay fine-1' }], [{ id: 'fines.pay', description: 'Simulated fines' }]);
     assert.deepEqual(plan, { intent: 'pay_fines', fineIds: ['fine-1'] }); assert.equal(called, true);
+    const many = await planner.plan([{ role: 'user', content: `pay ${Array.from({ length: 11 }, (_, index) => `fine-${index + 1}`).join(' ')}` }], []);
+    assert.deepEqual(many, { intent: 'pay_fines', fineIds: [] });
   } finally { await new Promise<void>(resolve => { server.close(() => resolve()); server.closeIdleConnections(); }); }
 });
 test('planner withholds complete embedded fine and vehicle references from the model', async () => {

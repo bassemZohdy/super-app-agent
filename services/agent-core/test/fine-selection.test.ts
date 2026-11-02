@@ -173,3 +173,30 @@ test('a follow-up to an empty list does not include fines that appeared afterwar
     assert.equal((h.store.db.prepare('SELECT count(*) AS n FROM sa_sim_payments').get() as { n: number }).n, 0);
   } finally { await h.close(); }
 });
+
+test('more than ten fines asks for a smaller selection instead of failing or reviewing a subset', async () => {
+  const h = await harness();
+  try {
+    h.store.fines('alice');
+    for (let n = 3; n <= 11; n++) h.store.db.prepare('INSERT INTO sa_sim_fines VALUES(?,?,?,NULL)').run('alice', `fine-${n}`, JSON.stringify({ id: `fine-${n}`, description: 'Additional fine', amountMinor: 10000, version: 1 }));
+    const root = `/api/agent/threads/${await h.thread()}`;
+    const direct = await h.req(`${root}/messages`, { message: 'pay fines' });
+    assert.equal(direct.status, 200);
+    assert.equal(direct.data.status, 'clarify');
+    assert.match(direct.data.reply, /10/);
+    assert.equal(direct.data.approval, null);
+    const tooManyNamed = await h.req(`${root}/messages`, { message: `pay ${Array.from({ length: 11 }, (_, index) => `fine-${index + 1}`).join(' ')}` });
+    assert.equal(tooManyNamed.data.status, 'clarify');
+    assert.equal(tooManyNamed.data.approval, null);
+    const list = await h.req(`${root}/messages`, { message: 'show all fines' });
+    assert.equal(list.data.fines.length, 11);
+    const followup = await h.req(`${root}/messages`, { message: 'pay them' });
+    assert.equal(followup.status, 200);
+    assert.equal(followup.data.status, 'clarify');
+    assert.match(followup.data.reply, /10/);
+    assert.equal(followup.data.approval, null);
+    const selected = await h.req(`${root}/messages`, { message: 'pay fine-1' });
+    assert.deepEqual(selected.data.approval.quote.fineIds, ['fine-1']);
+    assert.equal((h.store.db.prepare('SELECT count(*) AS n FROM sa_sim_payments').get() as { n: number }).n, 0);
+  } finally { await h.close(); }
+});

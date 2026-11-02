@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Annotation, StateGraph, START, END, interrupt, type BaseCheckpointSaver } from '@langchain/langgraph';
-import { AgentError, Plan, Decision, RenewalQuote, context, authorize, digest, quoteFor, type Fine, type Quote, type Receipt, type RenewalReceipt, type Vehicle } from './contracts.ts';
+import { AgentError, Plan, Decision, RenewalQuote, MAX_REVIEW_FINES, context, authorize, digest, quoteFor, type Fine, type Quote, type Receipt, type RenewalReceipt, type Vehicle } from './contracts.ts';
 import type { Planner } from './planner.ts';
 import { FinesAdapter, invokeTool } from './fines-adapter.ts';
 import type { VehiclesAdapter } from './vehicles-adapter.ts';
@@ -51,6 +51,7 @@ export function createGraph(planner: Planner, tools: FinesAdapter, vehicles: Veh
         if (plan.vehicleId && !selected.includes(plan.vehicleId)) throw new AgentError('UNBOUND_VEHICLE_SELECTION');
         const fines = plan.intent === 'pay_fines' && refersToPriorFines ? state.followupFineIds! : selectedFines(state.messages);
         if (plan.fineIds.some(id => !fines.includes(id))) throw new AgentError('UNBOUND_FINE_SELECTION');
+        if (['list_fines', 'pay_fines'].includes(plan.intent) && fines.length > MAX_REVIEW_FINES) return { plan: { intent: 'clarify' as const, fineIds: [] }, status: 'clarify', reply: `Please select up to ${MAX_REVIEW_FINES} fines at a time.` };
         const bound = Plan.parse({ ...plan, fineIds: fines, vehicleId: plan.intent === 'renew_registration' ? selected[0] : undefined });
         return { plan: bound, pending: null, decision: null, receipt: null, vehicles: [], renewalPending: null, renewalDecision: null, renewal: null, status: 'planned' };
       } catch {
@@ -93,6 +94,7 @@ export function createGraph(planner: Planner, tools: FinesAdapter, vehicles: Veh
       const fines = ids.length ? state.fines.filter(f => ids.includes(f.id)) : state.fines;
       if (ids.length && fines.length !== ids.length) return { status: 'invalid_selection', reply: 'One or more requested fines are unavailable. Review outstanding fines again.' };
       if (!fines.length) return { status: 'complete', reply: 'There are no outstanding fines to pay.' };
+      if (fines.length > MAX_REVIEW_FINES) return { status: 'clarify', reply: renewing ? `Please review up to ${MAX_REVIEW_FINES} fines at a time, then request renewal again.` : `Please select up to ${MAX_REVIEW_FINES} fines for each payment review.` };
       const quote = quoteFor(fines);
       const key = digest({ subject: context().principal.subject, operation: 'fines.pay.v1', quote });
       return { pending: { id: randomUUID(), quote, key, expiresAt: Date.now() + approvalTtlMs }, status: 'awaiting_approval', reply: `Review ${quote.fineIds.length} simulated fine(s), total ${aed(quote.amountMinor)}. ${renewing ? 'The registration renewal needs these paid first and asks for its own approval afterwards. ' : ''}Confirm using the approval action.` };

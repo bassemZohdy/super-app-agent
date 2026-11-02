@@ -1,4 +1,4 @@
-import { Plan, AgentError, boundedJson, execution } from './contracts.ts';
+import { Plan, AgentError, MAX_REVIEW_FINES, boundedJson, execution } from './contracts.ts';
 import { acquireModelBudget, boundedMessages } from '../model-budget.ts';
 import { minimiseHistory } from '../model-input.ts';
 import { z } from 'zod/v4';
@@ -56,7 +56,7 @@ export class CompatiblePlanner implements Planner {
       if (!content || content.length > 4000) throw new Error('Invalid plan');
       const plan = Plan.parse(JSON.parse(content));
       if (plan.fineIds.some(id => !selected.includes(id))) throw new Error('Unbound fine selection');
-      return Plan.parse({ ...plan, fineIds: selected });
+      return Plan.parse({ ...plan, fineIds: selected.length > MAX_REVIEW_FINES ? [] : selected });
     } catch { throw new AgentError('MODEL_UNAVAILABLE_OR_INVALID_PLAN', 503); }
     finally { release?.(); }
   }

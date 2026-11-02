@@ -127,6 +127,33 @@ test('renewal journey: fines first, then a second approval, each with exactly on
   } finally { await h.close(); }
 });
 
+test('renewal with more than ten outstanding fines requires separate reviewed batches', async () => {
+  const { h, say, decide } = await journey();
+  try {
+    h.store.fines('alice');
+    for (let n = 3; n <= 11; n++) h.store.db.prepare('INSERT INTO sa_sim_fines VALUES(?,?,?,NULL)').run('alice', `fine-${n}`, JSON.stringify({ id: `fine-${n}`, description: 'Additional fine', amountMinor: 10000, version: 1 }));
+    const result = await say('renew my car registration');
+    assert.equal(result.status, 200);
+    assert.equal(result.data.status, 'clarify');
+    assert.match(result.data.reply, /10/);
+    assert.equal(result.data.approval, null);
+    assert.equal(result.data.renewalApproval, null);
+    assert.equal(count(h, 'sa_sim_payments'), 0);
+    assert.equal(count(h, 'sa_sim_renewals'), 0);
+    const first = await say(`pay ${Array.from({ length: 10 }, (_, index) => `fine-${index + 1}`).join(' ')}`);
+    assert.equal(first.data.approval.quote.fineIds.length, 10);
+    assert.equal((await decide(first.data.approval.id, 'approve')).data.status, 'complete');
+    const second = await say('pay fine-11');
+    assert.deepEqual(second.data.approval.quote.fineIds, ['fine-11']);
+    assert.equal((await decide(second.data.approval.id, 'approve')).data.status, 'complete');
+    const renewal = await say('renew my car registration');
+    assert.equal(renewal.data.status, 'awaiting_approval');
+    assert.equal(renewal.data.renewalApproval.quote.vehicleId, 'veh-1');
+    assert.equal(count(h, 'sa_sim_payments'), 2);
+    assert.equal(count(h, 'sa_sim_renewals'), 0);
+  } finally { await h.close(); }
+});
+
 test('renewal journey: with no fines outstanding it goes straight to the renewal approval', async () => {
   const { h, say, decide, payFinesDirectly } = await journey();
   try {

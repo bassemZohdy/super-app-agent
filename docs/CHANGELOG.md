@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Guide larger fine sets through reviewed batches (P1-13, step)
+
+Payment and renewal requests exceeding the quote limit now ask for batches instead of failing or silently choosing fines. The resident can separately review and confirm each batch before renewal. Guide: [shell parity](development/shell-parity.md).
+
 ## 2 November 2026 — Bind payment follow-ups to the displayed list (P1-13, step)
 
 Supported pronoun payment requests require a successful immediately preceding list and review only its fine IDs, excluding later additions. Empty or missing context asks for clarification. Guide: [shell parity](development/shell-parity.md).

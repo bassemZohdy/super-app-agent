@@ -7,19 +7,20 @@ export class AgentError extends Error {
   constructor(code: string, status = 400) { super(code); this.code = code; this.status = status; }
 }
 export const Id = z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/);
+export const MAX_REVIEW_FINES = 10;
 export const Message = z.string().trim().min(1).max(2000).refine(
   value => !/bearer\s|eyJ[A-Za-z0-9_-]+\.|(?:api[_-]?key|password|secret|token)\s*[:=]/i.test(value),
   'Do not submit credentials in conversation text',
 );
 export const Plan = z.object({
   intent: z.enum(['list_fines', 'pay_fines', 'renew_registration', 'clarify', 'out_of_scope']),
-  fineIds: z.array(Id).max(10).default([]),
+  fineIds: z.array(Id).max(MAX_REVIEW_FINES).default([]),
   vehicleId: Id.optional(),
 }).strict();
 export type Plan = z.infer<typeof Plan>;
 export const Fine = z.object({ id: Id, description: z.string().max(200), amountMinor: z.number().int().positive().max(10000000), version: z.number().int().positive() }).strict();
 export type Fine = z.infer<typeof Fine>;
-export const Quote = z.object({ fineIds: z.array(Id).min(1).max(10), amountMinor: z.number().int().positive().max(100000000), currency: z.literal('AED'), versions: z.array(z.number().int().positive()).max(10) }).strict().refine(q => new Set(q.fineIds).size === q.fineIds.length && q.versions.length === q.fineIds.length, 'Quote must contain unique fines with corresponding versions');
+export const Quote = z.object({ fineIds: z.array(Id).min(1).max(MAX_REVIEW_FINES), amountMinor: z.number().int().positive().max(100000000), currency: z.literal('AED'), versions: z.array(z.number().int().positive()).max(MAX_REVIEW_FINES) }).strict().refine(q => new Set(q.fineIds).size === q.fineIds.length && q.versions.length === q.fineIds.length, 'Quote must contain unique fines with corresponding versions');
 export type Quote = z.infer<typeof Quote>;
 export const Receipt = z.object({ id: z.string().uuid(), simulated: z.literal(true), quote: Quote, idempotencyKey: z.string().length(64) }).strict();
 export type Receipt = z.infer<typeof Receipt>;
