@@ -72,7 +72,11 @@ export async function integratedRequest(service: string, actor: Actor, method: s
     const { bills } = await call(provider, 'GET', '/bills');
     const bill: Bill | undefined = billId ? bills.find((b: Bill) => b.billId === billId) : bills[0];
     if (!bill) throw new UpstreamError(404, 'NOT_FOUND', 'Bill not found.');
-    if (bill.status === 'PAID') return { success: true, bill, chargedAmount: 0, receipt: { billId: bill.billId, ...(bill.premiseId ? { premiseId: bill.premiseId } : {}), receiptNumber: bill.receiptNumber, amountPaid: bill.totalAmount.toFixed(2), currency: 'AED' } };
+    if (bill.status === 'PAID') {
+      if (body.expectedAmountMinor !== undefined && body.expectedAmountMinor !== Math.round(bill.totalAmount * 100))
+        throw new UpstreamError(409, 'PAYABLE_CHANGED', 'The reviewed bill changed. Review its current terms again.');
+      return { success: true, bill, chargedAmount: 0, receipt: { billId: bill.billId, ...(bill.premiseId ? { premiseId: bill.premiseId } : {}), receiptNumber: bill.receiptNumber, amountPaid: bill.totalAmount.toFixed(2), currency: 'AED' } };
+    }
     if (bill.status !== 'UNPAID' || bill.expiresAt && Date.parse(bill.expiresAt) <= Date.now()) throw new UpstreamError(409, 'PAYABLE_UNAVAILABLE', 'This bill is no longer payable.');
     const payable=(await call(provider,'GET','/payables')).payables.find((p:Payable)=>p.obligationId===bill.billId);
     if(!payable||payable.status!=='UNPAID'||payable.amountMinor!==Math.round(bill.totalAmount*100)||body.expectedPayableRevision&&body.expectedPayableRevision!==payable.revision||body.expectedAmountMinor!==undefined&&body.expectedAmountMinor!==payable.amountMinor)throw new UpstreamError(409,'PAYABLE_CHANGED','The reviewed bill changed. Review its current terms again.');

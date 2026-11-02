@@ -36,10 +36,38 @@ test('integrated receipt mappings preserve utility premise, owned fine plate/dis
   const pay = () => integratedRequest('service-food', actor, 'POST', '/utilities/pay', {}, { billId: bill.billId }, legacy);
   const paid = await pay(); assert.equal(paid.status, 200); assert.equal(paid.data.receipt.premiseId, bill.premiseId);
   status = 'PAID'; const replay = await pay(); assert.equal(replay.data.receipt.premiseId, bill.premiseId); assert.equal(captures, 1);
+  const mismatch = await integratedRequest('service-food', actor, 'POST', '/utilities/pay', {}, { billId: bill.billId, expectedAmountMinor: 42041 }, legacy);
+  assert.equal(mismatch.status, 409); assert.equal(mismatch.data.code, 'PAYABLE_CHANGED'); assert.equal(captures, 1);
+  const matching = await integratedRequest('service-food', actor, 'POST', '/utilities/pay', {}, { billId: bill.billId, expectedAmountMinor: 42040 }, legacy);
+  assert.equal(matching.status, 200); assert.equal(captures, 1);
   status = 'CANCELLED'; const withdrawn=await pay();assert.equal(withdrawn.status,409);assert.equal(withdrawn.data.code,'PAYABLE_UNAVAILABLE');assert.equal(captures,1);
   const fines = await integratedRequest('service-wallet', actor, 'GET', '/fines/check', {}, {}, legacy);
   assert.equal(fines.data.plateNumber, assetsFor(actor.accountId).plate); assert.equal(fines.data.earlyDiscountAED, 30);
   const restaurant = restaurants[0];
   const order = await integratedRequest('service-food', actor, 'POST', '/orders/create', {}, { restaurantId: restaurant.id, items: [restaurant.items[0].id] }, legacy);
   assert.equal(order.status, 200); assert.equal(order.data.order.estimatedDeliveryTime, '25 min');
+});
+
+
+test('paid telecom bill refuses a mismatched reviewed amount without creating an order', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'cityside-paid-telecom-'));
+  const previous = process.env.APP_DATA_DIR; process.env.APP_DATA_DIR = dir;
+  t.after(() => { if (previous === undefined) delete process.env.APP_DATA_DIR; else process.env.APP_DATA_DIR = previous; removeTemp(dir); });
+  let writes = 0;
+  t.mock.method(ProviderClient.prototype, 'call', async (provider, _actor, method, route) => {
+    if (method !== 'GET') writes++;
+    if (['du', 'etisalat'].includes(provider) && method === 'GET' && route === '/bills')
+      return { bills: [{ billId: 'bill123', status: 'PAID', totalAmount: 45, receiptNumber: 'paid-123' }] };
+    throw new Error('Unexpected provider operation');
+  });
+  const actor = actorFor({ sub: 'paid-telecom-user' });
+  const legacy = () => ({ status: 404, data: {} });
+  for (const provider of ['du', 'etisalat']) {
+    const pay = (expectedAmountMinor: number) => integratedRequest('service-telecom', actor, 'POST', `/telecom/${provider}/bills/bill123/payments`, {}, { expectedAmountMinor }, legacy);
+    const mismatch = await pay(4501);
+    assert.equal(mismatch.status, 409); assert.equal(mismatch.data.code, 'PAYABLE_CHANGED');
+    const matching = await pay(4500);
+    assert.equal(matching.status, 200); assert.equal(matching.data.receipt.billId, 'bill123');
+  }
+  assert.equal(writes, 0);
 });

@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Check reviewed amounts on already-paid bills (P1-13, step)
+
+The retained utility and telecom application paths no longer return an already-paid bill as confirmation when its total differs from a supplied reviewed amount. They return `PAYABLE_CHANGED` without opening a new order; matching amounts and legacy requests without a reviewed amount still receive the existing receipt. Tests cover DEWA, du and Etisalat with mocked provider calls. Guide: [testing](testing.md).
+
 ## 2 November 2026 — Compare telecom receipts with reviewed amounts (P1-02, step)
 
 When the retained telecom payment request includes a reviewed amount in integer fils, its adapter now requires the returned receipt amount to match exactly before reporting success. An invalid or mismatched amount remains an unknown outcome for reconciliation. Legacy calls without a reviewed amount retain their existing receipt checks; this does not prove provider settlement. Guide: [testing](testing.md).
