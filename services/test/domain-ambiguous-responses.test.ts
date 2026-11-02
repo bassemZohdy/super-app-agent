@@ -9,6 +9,7 @@ const responses = [
   { status: 409, data: { code: 'OBLIGATION_RECONCILIATION_REQUIRED', error: 'reconcile' } },
   { status: 409, data: { code: 'SETTLEMENT_NOT_CONFIRMED', error: 'unconfirmed' } },
   { status: 409, data: { success: true, error: 'contradictory' } },
+  ...['receipt', 'transaction', 'booking', 'order', 'meter', 'govTransactionHash', 'transactionId', 'dewaConnected', 'residentialParking'].map(field => ({ status: 409, data: { success: false, error: 'rejected', [field]: { id: 'existing-effect' } } })),
   { status: 409, data: {} },
   { status: 409, data: { code: 'UNCLASSIFIED' } },
   ...['ALREADY_PAID', 'ALREADY_APPLIED', 'ALREADY_CAPTURED', 'ALREADY_DECIDED', 'PAYMENT_ALREADY_USED', 'AUTOMATION_ALREADY_DISPATCHED', 'IDEMPOTENCY_CONFLICT'].map(code => ({ status: 409, data: { success: false, code, error: 'already recorded' } })),

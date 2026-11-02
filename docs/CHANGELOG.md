@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 - Hold contradictory write refusals (P1-02, step)
+
+Local and HTTP domain adapters retain an unknown outcome when a write refusal also carries recognized transaction or effect evidence. Composite checkout stops and prevents a replacement after an applied debit. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Bind wallet event operation identity (P1-02, step)
 
 Operation-linked wallet capture notifications use a distinct version whose digest includes the original operation identity; unbound earlier notifications remain inspection-only. Guide: [payment events](development/payment-events.md).
