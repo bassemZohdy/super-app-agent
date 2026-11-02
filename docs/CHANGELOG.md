@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Verify integrated parking meter changes (P1-13, step)
+
+Parking activation checks the charged fee, and extension verifies the vehicle, zone, fee and expiry against the meter read before capture. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Preserve integrated parking outcomes after capture (P1-13, step)
 
 Parking activation and extension verify captured payment details before dispatch and keep inconsistent or failed later provider outcomes unconfirmed. Guide: [agent flow](agent-flow.md).

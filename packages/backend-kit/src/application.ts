@@ -20,7 +20,7 @@ type Fine = { fineId: string; plateNumber: string; payableId: string; payableRev
 type BillingAccount = { status: string; provider: string; reference: string };
 type RechargeTarget = { reference: string; version: number };
 type Zone = { id: string; tariffPerHour: number };
-type Meter = { ticketId: string; zoneId: string; durationHours: number };
+type Meter = { ticketId: string; zoneId: string; plateNumber: string; durationHours: number; totalFee: number; expiresAt: number; status: string };
 type PlannedItem = { provider: string; payableId: string; expectedPayableRevision: string };
 // Documentary shape of the JSON request body. Fields are the ones these routes read; runtime is unchanged.
 type RequestBody = {
@@ -245,7 +245,7 @@ export async function integratedRequest(service: string, actor: Actor, method: s
           const paymentId = parkingCapture(payment, reference, toMinor(amount));
           const result = await call('rta', method, '/parking/sessions', { ...body, paymentId, reference: actor.requestId });
           const meter = result?.meter;
-          if (!meter || typeof meter.ticketId !== 'string' || !meter.ticketId.trim() || meter.zoneId !== body.zoneId || meter.plateNumber !== body.plateNumber || meter.durationHours !== body.durationHours || meter.status !== 'ACTIVE') throw new Error('Invalid parking receipt');
+          if (!meter || typeof meter.ticketId !== 'string' || !meter.ticketId.trim() || meter.zoneId !== body.zoneId || meter.plateNumber !== body.plateNumber || meter.durationHours !== body.durationHours || meter.status !== 'ACTIVE' || toMinor(meter.totalFee) !== toMinor(amount)) throw new Error('Invalid parking receipt');
           return successfulWithoutDuplicate(result);
         } catch { throw new UpstreamError(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The parking outcome is unconfirmed. Inspect the original payment and meter.'); }
       }
@@ -254,14 +254,17 @@ export async function integratedRequest(service: string, actor: Actor, method: s
         const meter = meters.find((m: Meter) => m.ticketId === body.ticketId);
         const { zones } = await call('rta', 'GET', '/parking/zones');
         const zone = zones.find((z: Zone) => z.id === meter?.zoneId);
-        if (!meter || !zone || meter.durationHours + body.additionalHours > 720) throw new UpstreamError(400, 'INVALID_PARKING', 'Review the parking duration and selected session.');
-        const reference = `parking-extension:${actor.requestId}`, amount = zone.tariffPerHour * body.additionalHours, previousDurationHours = meter.durationHours;
+        if (!meter || !zone || meter.plateNumber !== asset.plate || meter.status !== 'ACTIVE' || !Number.isSafeInteger(meter.durationHours) || meter.durationHours < 1 || meter.durationHours + body.additionalHours > 720 || !Number.isSafeInteger(meter.expiresAt) || meter.expiresAt < 0 || !Number.isSafeInteger(meter.expiresAt + body.additionalHours * 3600000)) throw new UpstreamError(400, 'INVALID_PARKING', 'Review the parking duration and selected session.');
+        let previousFeeMinor: number;
+        try { previousFeeMinor = toMinor(meter.totalFee); if (previousFeeMinor < 0) throw new Error('Invalid parking fee'); }
+        catch { throw new UpstreamError(400, 'INVALID_PARKING', 'Review the parking duration and selected session.'); }
+        const reference = `parking-extension:${actor.requestId}`, amount = zone.tariffPerHour * body.additionalHours, previousDurationHours = meter.durationHours, previousExpiry = meter.expiresAt;
         const payment = await charge('rta', reference, amount);
         try {
           const paymentId = parkingCapture(payment, reference, toMinor(amount));
           const result = await call('rta', method, `/parking/sessions/${encodeURIComponent(body.ticketId)}/extensions`, { additionalHours: body.additionalHours, paymentId, reference: actor.requestId });
           const updated = result?.meter;
-          if (!updated || updated.ticketId !== body.ticketId || updated.status !== 'ACTIVE' || result.previousDurationHours !== previousDurationHours || updated.durationHours !== previousDurationHours + body.additionalHours) throw new Error('Invalid parking extension receipt');
+          if (!updated || updated.ticketId !== body.ticketId || updated.zoneId !== meter.zoneId || updated.plateNumber !== meter.plateNumber || updated.status !== 'ACTIVE' || result.previousDurationHours !== previousDurationHours || updated.durationHours !== previousDurationHours + body.additionalHours || updated.expiresAt !== previousExpiry + body.additionalHours * 3600000 || toMinor(updated.totalFee) !== previousFeeMinor + toMinor(amount)) throw new Error('Invalid parking extension receipt');
           return successfulWithoutDuplicate(result);
         } catch { throw new UpstreamError(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The parking outcome is unconfirmed. Inspect the original payment and meter.'); }
       }
