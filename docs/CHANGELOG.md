@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 3 November 2026 - Bound focused browser JSON responses (P0-11, step)
+
+Focused browser conversation creation and inspection limit streamed JSON bytes, reject malformed UTF-8 and cancel oversized responses without waiting for the sender. Guide: [security](security.md).
+
 ## 3 November 2026 - Bound browser replay cursors (P0-02, step)
 
 Browser streams discard unsafe event IDs and request a fresh snapshot on reconnect, while retaining the previous cursor if event handling fails. Guide: [security](security.md).

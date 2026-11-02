@@ -76,3 +76,37 @@ test('comparison shells never display malformed fine money from a focused result
     await assert.rejects(client.inspect(id, signal), AgentClientError);
   }
 });
+
+
+test('focused create and inspect bound streamed JSON without trusting content length or waiting for cancellation', async t => {
+  const client = new FocusedAgentClient('local-test-value');
+  for (const mode of ['create', 'inspect'] as const) {
+    let cancelled = false, calls = 0, produced = 0;
+    const mock = t.mock.method(globalThis, 'fetch', async () => {
+      calls++;
+      return new Response(new ReadableStream<Uint8Array>({
+        pull(controller) { if (produced >= 6) return new Promise<void>(() => {}); produced++; controller.enqueue(new Uint8Array(1024 * 1024)); },
+        cancel() { cancelled = true; return new Promise<void>(() => {}); },
+      }), { headers: { 'Content-Length': '1', 'Content-Type': 'application/json' } });
+    });
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const deadline = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('response rejection timed out')), 3000); });
+      const request = mode === 'create' ? client.create(signal) : client.inspect(id, signal);
+      await assert.rejects(Promise.race([request, deadline]), error => error instanceof AgentClientError && !error.message.includes('private-upstream-detail'));
+      assert.equal(cancelled, true); assert.equal(calls, 1); assert.ok(produced <= 6);
+    } finally { clearTimeout(timer); mock.mock.restore(); }
+  }
+});
+
+test('focused JSON accepts bounded multibyte responses and rejects invalid UTF-8 without exposing it', async t => {
+  const client = new FocusedAgentClient('local-test-value');
+  let mock = t.mock.method(globalThis, 'fetch', async () => Response.json({ ...value, padding: '😀'.repeat(500000) }));
+  assert.equal((await client.inspect(id, signal)).threadId, id);
+  mock.mock.restore();
+  const [prefix, suffix] = JSON.stringify({ ...value, reply: 'bad-utf8-marker' }).split('bad-utf8-marker');
+  const bytes = Buffer.concat([Buffer.from(prefix), Buffer.from([255]), Buffer.from(suffix)]);
+  mock = t.mock.method(globalThis, 'fetch', async () => new Response(bytes));
+  try { await assert.rejects(client.inspect(id, signal), error => error instanceof AgentClientError && !error.message.includes('private-upstream-detail')); }
+  finally { mock.mock.restore(); }
+});

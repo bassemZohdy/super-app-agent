@@ -26,6 +26,28 @@ export interface AgentResult {
 const threadId = /^[a-f0-9-]{36}$/;
 const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 
+// History can contain many messages and a bounded service panel; keep a byte limit above normal restored conversations.
+const FOCUSED_JSON_LIMIT_BYTES = 4 * 1024 * 1024;
+async function readFocusedJson(response: Response): Promise<unknown> {
+  const reader = response.body?.getReader();
+  if (!reader) throw new AgentClientError('The fines service returned an invalid response. Inspect the conversation again.');
+  const decoder = new TextDecoder('utf-8', { fatal: true });
+  let text = '', size = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > FOCUSED_JSON_LIMIT_BYTES) throw new Error('Response exceeds limit');
+      text += decoder.decode(value, { stream: true });
+    }
+    return JSON.parse(text + decoder.decode());
+  } catch {
+    void reader.cancel().catch(() => {});
+    throw new AgentClientError('The fines service returned an invalid response. Inspect the conversation again.');
+  } finally { reader.releaseLock(); }
+}
+
 /** Validate the compatibility envelope before allowing its actions into the renderer. */
 function result(value: unknown, expected: string): AgentResult {
   if (!record(value) || value.threadId !== expected || value.uiContract !== 'cityside-compat-v1' || typeof value.status !== 'string' || typeof value.reply !== 'string' || !Array.isArray(value.next) || !value.next.every(n => typeof n === 'string')) throw new AgentClientError('The fines service returned an invalid response. Inspect the conversation again.');
@@ -65,7 +87,7 @@ export class FocusedAgentClient {
   async create(signal: AbortSignal): Promise<string> {
     const response = await this.request('/threads', signal, {});
     await this.requireSuccess(response);
-    const data: unknown = await response.json();
+    const data = await readFocusedJson(response);
     if (!record(data) || typeof data.threadId !== 'string' || !threadId.test(data.threadId)) throw new AgentClientError('The fines service returned an invalid conversation ID.');
     return data.threadId;
   }
@@ -73,7 +95,7 @@ export class FocusedAgentClient {
     if (!threadId.test(id)) throw new AgentClientError('The saved conversation ID is invalid.');
     const response = await this.request(`/threads/${id}`, signal);
     await this.requireSuccess(response);
-    return result(await response.json(), id);
+    return result(await readFocusedJson(response), id);
   }
   async transition(id: string, action: AgentAction, body: Record<string, unknown>, signal: AbortSignal, progress: (node: string) => void): Promise<AgentResult> {
     if (!threadId.test(id)) throw new AgentClientError('The saved conversation ID is invalid.');
