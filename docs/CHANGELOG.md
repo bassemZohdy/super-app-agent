@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Fence qualification WebSockets (P0-08, step)
+
+The browser network fence also closes unhandled WebSockets to interactive-stack ports in qualification. A desktop and mobile browser test verifies HTTP and WebSocket interception against a disposable server and checks an unfenced control can reach it. Page-level forwarding and Node-side requests remain outside this fence. Guide: [testing](testing.md).
+
 ## 2 November 2026 — Fence browser requests during qualification (P0-08, step)
 
 The browser fixture aborts unhandled HTTP requests to interactive-stack loopback ports when a qualification offset is set, and fails the test. Policy tests cover each configured port and loopback host; page-level forwarding, WebSockets and Node-side requests remain outside this guard. Guide: [testing](testing.md).

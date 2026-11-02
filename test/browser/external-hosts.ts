@@ -6,5 +6,5 @@ const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
 const INTERACTIVE_PORTS = new Set(Object.values(PORTS));
 
 export const isLocalRequest = (url: URL) => !['http:', 'https:', 'ws:', 'wss:'].includes(url.protocol) || LOCAL_HOSTS.has(url.hostname);
-export const isInteractiveStackRequest = (url: URL, offset: number) => offset !== 0 &&
-  ['http:', 'https:'].includes(url.protocol) && LOCAL_HOSTS.has(url.hostname) && INTERACTIVE_PORTS.has(Number(url.port));
+export const isInteractiveStackRequest = (url: URL, offset: number, ports: ReadonlySet<number> = INTERACTIVE_PORTS) => offset !== 0 &&
+  ['http:', 'https:', 'ws:', 'wss:'].includes(url.protocol) && LOCAL_HOSTS.has(url.hostname) && ports.has(Number(url.port));

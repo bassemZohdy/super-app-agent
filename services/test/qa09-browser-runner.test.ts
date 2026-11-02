@@ -40,6 +40,6 @@ test('qualification browser requests cannot reach interactive stack ports by def
   }
   assert.equal(isInteractiveStackRequest(new URL('http://localhost:34000/'), 30000), false);
   assert.equal(isInteractiveStackRequest(new URL('http://localhost:14000/'), 30000), false);
-  assert.equal(isInteractiveStackRequest(new URL('ws://localhost:8085/'), 30000), false, 'WebSockets need a separate guard');
+  assert.equal(isInteractiveStackRequest(new URL('ws://localhost:8085/'), 30000), true);
   assert.equal(isInteractiveStackRequest(new URL('https://example.com:4000/'), 30000), false);
 });
