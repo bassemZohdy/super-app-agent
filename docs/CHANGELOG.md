@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 3 November 2026 - Describe wallet recovery evidence (P2-04, step)
+
+The integrated application OpenAPI describes the original wallet operation, captured charge and settled transaction with typed fields, including verified legacy records. Guide: [integrations](integrations.md).
+
 ## 3 November 2026 - Bound oversized response rejection (P0-11, step)
 
 The focused agent rejects oversized simulator and model responses without waiting for stream cancellation, while preserving payment recovery and releasing model concurrency slots. Guide: [security](security.md).

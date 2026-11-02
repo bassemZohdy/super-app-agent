@@ -26,6 +26,8 @@ Integrated utility and telecom payments additionally compare each returned order
 
 Integrated toll and prepaid recharges bind the saved quote and each payment order to the requested provider, target, version, balance and amount. The settled receipt must confirm that target and expected credited balance. Recovery uses the original quote and order; a mismatch is left unknown for inspection.
 
+The integrated application OpenAPI describes the successful `GET /wallet/operations/{operationId}` response, including the captured charge and settled transaction. A verified older record may omit the nested operation ID when its original reference supplies the lookup identity. The schema documents field shapes; the provider separately checks that identities, amounts, stored records and journal entries agree before returning a confirmed result.
+
 For compatibility bill, fine and recharge orders, each payment transition also checks the original order ID, subject, workspace and the requested wallet's account, version and currency. An inconsistent order remains unknown before any further transition. Provider-signed quotes and production delegated consent remain separate requirements.
 
 The compatibility application stores the first observed complete quote's hash and approval digest per order, account and application service in its SQLite store before advancing. It compares later responses and requests against that binding; equivalent JSON object key order is accepted. The binding survives reopening the local store, but does not authenticate the initial provider quote, coordinate separate service stores or establish replicated production durability.
