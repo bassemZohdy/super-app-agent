@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Localize focused recovery outcomes (P2-01, step)
+
+The React focused journey distinguishes known refused and unknown payment or renewal outcomes in Arabic, preserving codes and any completed fines payment. Browser checks simulate an unknown response and recover the original payment without replacement. Guide: [shell parity](development/shell-parity.md).
+
 ## 2 November 2026 — Localize focused renewal summaries (P2-01, step)
 
 The React focused journey translates known renewal review and outcome messages, retaining vehicle, fee and any completed fines payment. Browser checks verify both approval and declining renewal after fines were paid. Guide: [shell parity](development/shell-parity.md).

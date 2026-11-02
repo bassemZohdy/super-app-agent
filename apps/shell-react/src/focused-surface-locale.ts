@@ -41,6 +41,17 @@ export function localizeFocusedReply(text: string, locale: Locale): string {
   }
   const renewalPartial = /^Simulated fines payment completed: (AED \d{1,16}\.\d{2})\. (The registration was not renewed\.|The renewal approval expired and the registration was not renewed\.)$/.exec(text);
   if (renewalPartial) return translate(locale, 'fines.replyFinesPaid', { amount: `\u2068${renewalPartial[1]}\u2069` }) + translate(locale, renewalPartial[2] === 'The registration was not renewed.' ? 'fines.replyRenewDeclined' : 'fines.replyRenewExpired');
+  const paymentRefused = /^Payment not confirmed \(([A-Z0-9_]{1,64})\)\. No payment was made\.$/.exec(text);
+  if (paymentRefused) return translate(locale, 'fines.replyPaymentRefused', { code: `\u2068${paymentRefused[1]}\u2069` });
+  const paymentUnknown = /^Payment not confirmed \(([A-Z0-9_]{1,64})\)\. Inspect this interaction; never create a replacement payment for an unknown outcome\.$/.exec(text);
+  if (paymentUnknown) return translate(locale, 'fines.replyPaymentUnknown', { code: `\u2068${paymentUnknown[1]}\u2069` });
+  const renewalUnknown = /^Renewal not confirmed \(([A-Z0-9_]{1,64})\)\. (The fines payment is complete\. )?Inspect this interaction; never create a replacement renewal for an unknown outcome\.$/.exec(text);
+  if (renewalUnknown) return translate(locale, renewalUnknown[2] ? 'fines.replyRenewUnknownPaid' : 'fines.replyRenewUnknown', { code: `\u2068${renewalUnknown[1]}\u2069` });
+  const renewalRefused = /^(?:Simulated fines payment completed: (AED \d{1,16}\.\d{2})\. )?The registration was not renewed \(([A-Z0-9_]{1,64})\)\. No renewal was made\.$/.exec(text);
+  if (renewalRefused) {
+    const prefix = renewalRefused[1] ? translate(locale, 'fines.replyFinesPaid', { amount: `\u2068${renewalRefused[1]}\u2069` }) : '';
+    return prefix + translate(locale, 'fines.replyRenewRefused', { code: `\u2068${renewalRefused[2]}\u2069` });
+  }
   return text;
 }
 

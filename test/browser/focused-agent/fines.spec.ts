@@ -95,6 +95,27 @@ test('Arabic guidance distinguishes unavailable access from an unconfirmed payme
   expect(focused.payments()).toBe(1);
 });
 
+test('an unknown payment outcome is reported in Arabic and recovered without replacement', async ({ page, focused }) => {
+  await page.addInitScript(() => localStorage.setItem('cityside.locale', 'ar'));
+  await page.goto(focused.url);
+  await page.getByLabel('رمز الوصول', { exact: true }).fill(focused.token);
+  await page.getByRole('button', { name: 'فتح مخالفاتي' }).click();
+  await page.getByRole('button', { name: 'مراجعة الدفع', exact: true }).click();
+  await page.route('**/api/agent/threads/*/resume', async route => {
+    const response = await safeRouteFetch(route), source = await response.text();
+    const body = source.replace(/Simulated payment completed: AED \d+\.\d{2}\. No real funds were used\./g, 'Payment not confirmed (PAYMENT_OUTCOME_UNKNOWN). Inspect this interaction; never create a replacement payment for an unknown outcome.').replace('"status":"complete"', '"status":"unknown"');
+    expect(body).not.toBe(source);
+    await route.fulfill({ response, body });
+  });
+  await page.getByRole('button', { name: 'تأكيد الدفع التجريبي', exact: true }).click();
+  await expect(page.getByText('لا تنشئ دفعة بديلة', { exact: false })).toHaveCount(2);
+  await expect(page.getByRole('textbox', { name: 'رسالة عن المخالفات' })).toBeDisabled();
+  expect(focused.payments()).toBe(1);
+  await page.getByRole('button', { name: 'استرداد العملية المحفوظة' }).click();
+  await expect(page.getByRole('heading', { name: 'إيصالك التجريبي' })).toBeVisible();
+  expect(focused.payments()).toBe(1);
+});
+
 test('Arabic fines and renewal reviews retain separate explicit approvals', async ({ page, focused }) => {
   await page.addInitScript(() => localStorage.setItem('cityside.locale', 'ar'));
   await page.goto(focused.url);

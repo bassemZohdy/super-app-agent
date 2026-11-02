@@ -85,3 +85,16 @@ test('renewal summaries preserve paid fines, exact vehicle and fee, and partial 
   const unknown = `${prefix}The registration was not renewed (UNKNOWN_CODE).`;
   assert.equal(localizeFocusedReply(unknown, 'ar'), unknown);
 });
+
+test('Arabic recovery replies keep refused and unknown outcomes distinct, including paid fines', () => {
+  const refused = localizeFocusedReply('Payment not confirmed (QUOTE_STALE). No payment was made.', 'ar');
+  assert.match(refused, /QUOTE_STALE/); assert.match(refused, /لم يُجرَ أي دفع/);
+  const unknown = localizeFocusedReply('Payment not confirmed (PAYMENT_OUTCOME_UNKNOWN). Inspect this interaction; never create a replacement payment for an unknown outcome.', 'ar');
+  assert.match(unknown, /PAYMENT_OUTCOME_UNKNOWN/); assert.match(unknown, /لا تنشئ دفعة بديلة/); assert.doesNotMatch(unknown, /لم يُجرَ أي دفع/);
+  const renewal = localizeFocusedReply('Renewal not confirmed (RENEWAL_OUTCOME_UNKNOWN). The fines payment is complete. Inspect this interaction; never create a replacement renewal for an unknown outcome.', 'ar');
+  assert.match(renewal, /RENEWAL_OUTCOME_UNKNOWN/); assert.match(renewal, /دفع المخالفات مكتمل/); assert.match(renewal, /لا تنشئ تجديداً بديلاً/);
+  const refusal = localizeFocusedReply('Simulated fines payment completed: AED 150.00. The registration was not renewed (QUOTE_STALE). No renewal was made.', 'ar');
+  assert.match(refusal, /AED 150\.00/); assert.match(refusal, /QUOTE_STALE/); assert.match(refusal, /لم يُجرَ أي تجديد/);
+  const unfamiliar = 'Payment not confirmed (PAYMENT_OUTCOME_UNKNOWN). Inspect this interaction; never create a replacement payment for an unknown outcome. Extra detail.';
+  assert.equal(localizeFocusedReply(unfamiliar, 'ar'), unfamiliar);
+});
