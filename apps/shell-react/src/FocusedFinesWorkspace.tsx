@@ -120,7 +120,7 @@ export default function FocusedFinesWorkspace() {
           <p id="fines-token-help">{t('fines.tokenHelp')}</p>
           <button type="submit" className="login-button" disabled={pending}>{t('fines.open')}</button>
         </form>
-      </section> : <WorkspacePanes revealDetailsKey={active?.id} conversation={<>
+      </section> : <WorkspacePanes locale={locale} revealDetailsKey={active?.id} conversation={<>
         <section className="focused-conversation" aria-labelledby="conversation-heading">
           <h1 id="conversation-heading">{t('fines.chatTitle')}</h1>
           <div className="focused-transcript" aria-live="polite" aria-relevant="additions text">

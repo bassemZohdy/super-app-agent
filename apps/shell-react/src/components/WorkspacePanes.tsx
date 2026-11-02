@@ -1,11 +1,13 @@
 import { Fragment, useEffect, useId, useRef, useState, type ReactNode, type PointerEvent } from 'react';
 import { ArrowLeftRight, GripVertical, Maximize2, Minimize2 } from 'lucide-react';
+import { translate, type Locale } from '../../../../packages/protocol-core/src/i18n.ts';
 import './workspace-panes.css';
 
 type Pane = 'conversation' | 'details';
 
 /** Pane state survives reordering, resizing and changes between continuous/folded displays. */
-export function WorkspacePanes({ conversation, details, revealDetailsKey, chatLayout = false, conversationKey }: { conversation: ReactNode; details: ReactNode; revealDetailsKey?: string; chatLayout?: boolean; conversationKey?: string }) {
+export function WorkspacePanes({ conversation, details, revealDetailsKey, chatLayout = false, conversationKey, locale = 'en' }: { conversation: ReactNode; details: ReactNode; revealDetailsKey?: string; chatLayout?: boolean; conversationKey?: string; locale?: Locale }) {
+  const t = (key: Parameters<typeof translate>[1], values?: Record<string, string | number>) => translate(locale, key, values);
   const [first, setFirst] = useState<Pane>('conversation');
   const [maximized, setMaximized] = useState<Pane | null>(null);
   const [mobilePane, setMobilePane] = useState<Pane>('conversation');
@@ -51,26 +53,26 @@ export function WorkspacePanes({ conversation, details, revealDetailsKey, chatLa
   function move(event: PointerEvent<HTMLDivElement>) {
     if (!event.currentTarget.hasPointerCapture(event.pointerId) || !grid.current) return;
     const box = grid.current.getBoundingClientRect();
-    resize((event.clientX - box.left - 12) / Math.max(1, box.width - 24) * 100);
+    const distance = locale === 'ar' ? box.right - event.clientX : event.clientX - box.left;
+    resize((distance - 12) / Math.max(1, box.width - 24) * 100);
   }
   const order: Pane[] = first === 'conversation' ? ['conversation', 'details'] : ['details', 'conversation'];
   const track = (pane: Pane) => `minmax(0, ${pane === 'conversation' ? split : 100 - split}fr)`;
   return <div className={`workspace-layout${chatLayout ? ' chat-layout' : ''}`}>
-    {chatLayout && <div ref={mobileTabs} className="mobile-pane-tabs" role="group" aria-label="Workspace views">
-      <button type="button" aria-pressed={mobilePane === 'conversation'} onClick={() => { setMaximized(null); setMobilePane('conversation'); }}>Chat</button>
-      <button type="button" aria-pressed={mobilePane === 'details'} onClick={() => { setMaximized(null); setMobilePane('details'); }}>Service details{revealDetailsKey && <span className="details-ready">Updated</span>}</button>
+    {chatLayout && <div ref={mobileTabs} className="mobile-pane-tabs" role="group" aria-label={t('panes.views')}>
+      <button type="button" aria-pressed={mobilePane === 'conversation'} onClick={() => { setMaximized(null); setMobilePane('conversation'); }}>{t('panes.chat')}</button>
+      <button type="button" aria-pressed={mobilePane === 'details'} onClick={() => { setMaximized(null); setMobilePane('details'); }}>{t('panes.details')}{revealDetailsKey && <span className="details-ready">{t('panes.updated')}</span>}</button>
     </div>}
     <div ref={grid} className={`workspace-pane-grid${maximized ? ' has-maximized-pane' : ''}${dragging ? ' is-resizing' : ''}`} style={{ gridTemplateColumns: maximized ? 'minmax(0, 1fr)' : `var(--workspace-grid-template, ${track(order[0])} 24px ${track(order[1])})` }}>
       {order.map((pane, index) => {
-        const name = pane === 'conversation' ? 'conversation' : 'service details';
         const hidden = maximized !== null && maximized !== pane;
-        const sizeLabel = `${maximized === pane ? 'Restore' : 'Maximize'} ${name}${maximized === pane ? ' size' : ''}`;
+        const sizeLabel = t(pane === 'conversation' ? maximized === pane ? 'panes.restoreConversation' : 'panes.maxConversation' : maximized === pane ? 'panes.restoreDetails' : 'panes.maxDetails');
         return <Fragment key={pane}>
-          <section id={`${paneId}-${pane}`} ref={pane === 'details' ? detailsPane : undefined} className={`workspace-pane${chatLayout && mobilePane !== pane ? ' is-mobile-inactive' : ''}`} data-pane={pane} aria-label={`${name} pane`} hidden={hidden}>
+          <section id={`${paneId}-${pane}`} ref={pane === 'details' ? detailsPane : undefined} className={`workspace-pane${chatLayout && mobilePane !== pane ? ' is-mobile-inactive' : ''}`} data-pane={pane} aria-label={t(pane === 'conversation' ? 'panes.conversationRegion' : 'panes.detailsRegion')} hidden={hidden}>
             <header className="workspace-pane-heading">
-              <strong>{pane === 'conversation' ? 'Conversation' : 'Service details'}</strong>
-              <div role="group" aria-label={`${name} controls`}>
-                <button type="button" className={`pane-control pane-icon${pane === 'details' ? ' pane-swap-details' : ''}`} aria-label="Swap panes" title="Swap panes" onClick={() => {
+              <strong>{t(pane === 'conversation' ? 'panes.conversation' : 'panes.details')}</strong>
+              <div role="group" aria-label={t(pane === 'conversation' ? 'panes.conversationControls' : 'panes.detailsControls')}>
+                <button type="button" className={`pane-control pane-icon${pane === 'details' ? ' pane-swap-details' : ''}`} aria-label={t('panes.swap')} title={t('panes.swap')} onClick={() => {
                   setMaximized(null);
                   if (mobileTabs.current && getComputedStyle(mobileTabs.current).display !== 'none') {
                     setMobilePane(pane === 'conversation' ? 'details' : 'conversation');
@@ -85,12 +87,12 @@ export function WorkspacePanes({ conversation, details, revealDetailsKey, chatLa
             </header>
             <div className="workspace-pane-body">{pane === 'conversation' ? conversation : details}</div>
           </section>
-          {index === 0 && !maximized && <div className="pane-divider" role="separator" tabIndex={0} aria-label="Resize conversation and service details" aria-orientation="vertical" aria-controls={`${paneId}-conversation ${paneId}-details`} aria-valuemin={minimum} aria-valuemax={100 - minimum} aria-valuenow={Math.round(leftShare)} aria-valuetext={`${Math.round(split)}% conversation, ${Math.round(100 - split)}% service details`} title="Drag to resize. Double-click or press Enter for 50/50."
+          {index === 0 && !maximized && <div className="pane-divider" role="separator" tabIndex={0} aria-label={t('panes.resize')} aria-orientation="vertical" aria-controls={`${paneId}-conversation ${paneId}-details`} aria-valuemin={minimum} aria-valuemax={100 - minimum} aria-valuenow={Math.round(leftShare)} aria-valuetext={t('panes.split', { conversation: Math.round(split), details: Math.round(100 - split) })} title={t('panes.resizeHelp')}
             onPointerDown={event => { if (event.button !== 0) return; event.preventDefault(); event.currentTarget.focus(); event.currentTarget.setPointerCapture(event.pointerId); setDragging(true); }}
             onPointerMove={move}
             onPointerUp={event => { if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); setDragging(false); }}
             onPointerCancel={() => setDragging(false)} onLostPointerCapture={() => setDragging(false)} onDoubleClick={() => setSplit(50)}
-            onKeyDown={event => { const step = event.shiftKey ? 10 : 5; const value = event.key === 'ArrowLeft' ? leftShare - step : event.key === 'ArrowRight' ? leftShare + step : event.key === 'Home' ? minimum : event.key === 'End' ? 100 - minimum : undefined; if (event.key === 'Enter') { event.preventDefault(); setSplit(50); } else if (value !== undefined) { event.preventDefault(); resize(value); } }}><span aria-hidden="true"><GripVertical size={16} /></span></div>}
+            onKeyDown={event => { const step = (event.shiftKey ? 10 : 5) * (locale === 'ar' ? -1 : 1); const value = event.key === 'ArrowLeft' ? leftShare - step : event.key === 'ArrowRight' ? leftShare + step : event.key === 'Home' ? minimum : event.key === 'End' ? 100 - minimum : undefined; if (event.key === 'Enter') { event.preventDefault(); setSplit(50); } else if (value !== undefined) { event.preventDefault(); resize(value); } }}><span aria-hidden="true"><GripVertical size={16} /></span></div>}
         </Fragment>;
       })}
     </div>

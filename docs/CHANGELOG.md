@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Localize React workspace controls (P2-01, step)
+
+The React concierge and focused fines workspaces localize pane labels, controls and resize guidance. Right-to-left pointer and arrow-key resizing follow the visible divider. Guide: [design tokens](development/design-tokens.md).
+
 ## 2 November 2026 — Localize focused service tables (P2-01, step)
 
 The React focused fines and vehicle tables translate known column headings without changing rows or amounts. The shared renderer aligns tables to reading direction and marks column headers. Guide: [shell parity](development/shell-parity.md).

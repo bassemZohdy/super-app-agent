@@ -51,6 +51,8 @@ Angular and Flutter use the same equal split, bounded resize, swap and maximize/
 
 In a single-pane phone workspace, the swap icon changes the visible view and remains available to switch back; the selected Chat or Service details control is visibly highlighted and exposes its selected state. On a split display the icon continues to exchange pane positions. The React focused fines workspace keeps its stacked phone layout and scrolls to the pane moved to the top. View changes are immediate and do not require animation.
 
+React workspace pane labels, mobile tabs, control names and resize guidance follow the selected English or Arabic language. In right-to-left layout, pointer dragging and physical arrow keys move the divider in the corresponding direction while retaining its existing bounds.
+
 The Flutter workspace divider and pane action buttons use 48px targets derived from the shared spacing scale. The divider exposes increase/decrease semantics, Left/Right steps, Shift for larger steps, Home/End bounds and Enter reset. A 3px focus border uses the theme-appropriate focus token and appears without animation, including when reduced motion is requested. Widget and web checks cover the pane controls; other Flutter panels remain separate.
 
 Flutter web links its generated divider slider to the labeled semantics container with `aria-labelledby`. The link follows label changes and is recreated when layouts rebuild, while any name supplied by the engine takes precedence. Browser checks verify the computed slider name, target size, value and keyboard operation; physical screen-reader testing remains separate.

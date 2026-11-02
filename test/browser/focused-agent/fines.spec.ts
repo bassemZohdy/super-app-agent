@@ -31,6 +31,43 @@ test('the React fines sign-in and navigation follow the saved Arabic language', 
   expect(await controlsBelowTarget(page)).toEqual([]);
 });
 
+test('Arabic pane controls are labelled and resizing follows the pointer and arrow keys', async ({ page, focused }, info) => {
+  await page.addInitScript(() => localStorage.setItem('cityside.locale', 'ar'));
+  await page.goto(focused.url);
+  await page.getByLabel('رمز الوصول', { exact: true }).fill(focused.token);
+  await page.getByRole('button', { name: 'فتح مخالفاتي' }).click();
+  const conversation = page.getByRole('region', { name: 'لوحة المحادثة' });
+  await expect(conversation.getByRole('button', { name: 'تبديل اللوحات' })).toBeVisible();
+  await expect(conversation.getByRole('button', { name: 'تكبير المحادثة' })).toBeVisible();
+  if (info.project.name === 'desktop') {
+    const divider = page.getByRole('separator', { name: 'تغيير حجم المحادثة وتفاصيل الخدمة' });
+    await expect(divider).toBeVisible();
+    const before = await divider.boundingBox(); expect(before).not.toBeNull();
+    await divider.focus(); await page.keyboard.press('ArrowLeft');
+    const after = await divider.boundingBox(); expect(after).not.toBeNull();
+    expect(after!.x).toBeLessThan(before!.x);
+    const target = after!.x - 50;
+    await page.mouse.move(after!.x + after!.width / 2, after!.y + after!.height / 2);
+    await page.mouse.down(); await page.mouse.move(target + after!.width / 2, after!.y + after!.height / 2, { steps: 5 }); await page.mouse.up();
+    const dragged = await divider.boundingBox(); expect(dragged).not.toBeNull();
+    expect(Math.abs(dragged!.x - target)).toBeLessThan(10);
+  }
+});
+
+test('the main concierge shares Arabic pane labels and mobile switching', async ({ page, focused }, info) => {
+  await stubConcierge(page, focused.url);
+  await page.addInitScript(() => localStorage.setItem('cityside.locale', 'ar'));
+  await page.goto(new URL('/', focused.url).href);
+  await expect(page.getByRole('region', { name: 'لوحة المحادثة' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'تكبير المحادثة' })).toBeVisible();
+  if (info.project.name === 'mobile') {
+    const details = page.getByRole('button', { name: 'تفاصيل الخدمة', exact: true });
+    const chat = page.getByRole('button', { name: 'المحادثة', exact: true });
+    await details.click(); await expect(details).toHaveAttribute('aria-pressed', 'true');
+    await chat.click(); await expect(chat).toHaveAttribute('aria-pressed', 'true');
+  }
+});
+
 test('Arabic guidance distinguishes unavailable access from an unconfirmed payment', async ({ page, focused }) => {
   await page.addInitScript(() => localStorage.setItem('cityside.locale', 'ar'));
   await page.goto(focused.url);
