@@ -35,3 +35,20 @@ test('malformed saved terms or operation identity never produce matching evidenc
   }
   assert.equal(calls, 0);
 });
+
+
+test('wallet evidence cannot match when a nested operation identity contradicts the original', async () => {
+  const values = { wallet, ride, food };
+  for (const altered of [
+    { ...wallet, charge: { ...wallet.charge, operationId: 'other-operation' } },
+    { ...wallet, transaction: { ...wallet.transaction, operationId: 'other-operation' } },
+    { ...wallet, charge: { ...wallet.charge, operationId: null } },
+    { ...wallet, transaction: { ...wallet.transaction, operationId: '' } },
+  ]) {
+    const result = await compareCompositeEvidence({ operationId, terms }, accountId, async source => source === 'wallet' ? altered : values[source]);
+    assert.equal(result[0].assessment, 'UNCONFIRMED');
+  }
+  const bound = { ...wallet, charge: { ...wallet.charge, operationId }, transaction: { ...wallet.transaction, operationId } };
+  assert.deepEqual(await compareCompositeEvidence({ operationId, terms }, accountId, async source => source === 'wallet' ? bound : values[source]), expected);
+  assert.deepEqual(await compareCompositeEvidence({ operationId, terms }, accountId, async source => values[source]), expected, 'verified legacy records without nested operation IDs remain usable');
+});

@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 3 November 2026 - Check nested wallet identities in composite recovery (P1-13, step)
+
+Composite recovery holds a checkout when its wallet charge or transaction carries a conflicting operation identity, while allowing verified older evidence without those fields. Guide: [integrations](integrations.md).
+
 ## 3 November 2026 - Describe wallet recovery evidence (P2-04, step)
 
 The integrated application OpenAPI describes the original wallet operation, captured charge and settled transaction with typed fields, including verified legacy records. Guide: [integrations](integrations.md).

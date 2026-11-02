@@ -145,7 +145,7 @@ test('the owner continues only the next unstarted step after matching original e
   const surface = review.data.surface as { revision: string; view: { children: Array<{ onEvents?: Array<{ payload: Record<string, unknown> }> }> } };
   const binding = surface.view.children.flatMap(child => child.onEvents ?? []).find(event => event.payload.action === 'confirm_composite_checkout')!.payload;
   const operationId = `${surface.revision}:confirm_composite_checkout`, original = ProviderClient.prototype.call;
-  let loseWallet = true, loseRide = true, changedFare = false, entered!: () => void, release!: () => void;
+  let loseWallet = true, loseRide = true, changedFare = false, walletMismatches = 0, mismatchedWallet: 'charge' | 'transaction' | undefined, entered!: () => void, release!: () => void;
   const reached = new Promise<void>(resolve => { entered = resolve; });
   const held = new Promise<void>(resolve => { release = resolve; });
   ProviderClient.prototype.call = async function (provider, actor, method, path, body, key) {
@@ -156,6 +156,7 @@ test('the owner continues only the next unstarted step after matching original e
       loseRide = false; await original.call(this, provider, actor, method, path, body, key); entered(); await held; throw new UpstreamError(503, 'PROVIDER_OUTCOME_UNKNOWN', 'Lost ride response');
     }
     const result = await original.call(this, provider, actor, method, path, body, key);
+    if (mismatchedWallet && provider === 'payments' && method === 'GET' && path.startsWith('/wallet/operations/')) { walletMismatches++; return { ...result, [mismatchedWallet]: { ...result[mismatchedWallet], operationId: 'different-operation' } }; }
     if (changedFare && provider === 'rta' && method === 'GET' && path.startsWith('/rides/options')) return { ...result, options: result.options.map((option: { id: string; fare: number }) => option.id === binding.driverId ? { ...option, fare: option.fare + 1 } : option) };
     return result;
   };
@@ -187,6 +188,8 @@ test('the owner continues only the next unstarted step after matching original e
     const payments = stack.stores.get('payments')!, charge = payments.list(residentApi.accountId, 'charge')[0] as { id: string; refunded: boolean };
     payments.put(residentApi.accountId, 'charge', { ...charge, refunded: true }, charge.id);
     try { expect((await continueStep('RIDE')).status).toBe(409); } finally { payments.put(residentApi.accountId, 'charge', charge, charge.id); }
+    for (const part of ['charge', 'transaction'] as const) { mismatchedWallet = part; expect((await continueStep('RIDE')).status).toBe(409); }
+    mismatchedWallet = undefined; expect(walletMismatches).toBe(2);
     changedFare = true; expect((await continueStep('RIDE')).status).toBe(409); changedFare = false;
     const owner = JSON.parse(Buffer.from(residentApi.token.split('.')[1], 'base64url').toString()) as { sub: string };
     const sessionLock = await redisSessions()!.acquire(sessionId);
