@@ -49,6 +49,7 @@ test('automation HTTP errors remain sanitized and uncertain credential results a
     { status: 200, body: { success: true, order: { id: 'order_1', state: 'SETTLED' } } },
     { status: 200, body: { success: true, order: { id: 'order_1', state: 'SETTLED', fundsCaptured: false } } },
     { status: 200, body: { success: true, order: { id: 'order_1', state: 'REQUIRES_ACTION', fundsCaptured: true } } },
+    { status: 200, body: { success: true, order: { id: 'order_1', state: 'FAILED', fundsCaptured: false, failureCode: 'private-token-marker' } } },
   ]) {
     status = example.status; payload = example.body; executeCalls = 0;
     const store = new JobStore(':memory:');
@@ -125,6 +126,15 @@ test('automation preparation is bound to the queued rule, occurrence, version an
     assert.equal(result?.state, 'SKIPPED'); assert.equal(result?.reason, 'NO_DUE_INVOICE');
     assert.equal(credentialCalls, 0);
   } finally { skippedStore.close(); }
+  preparation = { ...preparation, reason: 'private-token-marker' };
+  const unknownStore = new JobStore(':memory:');
+  try {
+    const job = unknownStore.enqueue(rule); credentialCalls = 0;
+    const result = await new AutomationWorker(unknownStore, gateway, { workerId: 'worker-a', sleep: async () => {} }).runOnce();
+    assert.equal(result?.state, 'HELD'); assert.equal(result?.reason, 'PREPARATION_UNKNOWN');
+    assert.equal(credentialCalls, 0);
+    assert.doesNotMatch(JSON.stringify([unknownStore.get(job.id), unknownStore.outbox(job.id), unknownStore.attempts(job.id)]), /private-token-marker/i);
+  } finally { unknownStore.close(); }
 });
 
 test('automation execution HTTP responses require a readable order identity and capture flag', async t => {

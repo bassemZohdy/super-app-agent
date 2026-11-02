@@ -79,6 +79,8 @@ A `SUBSCRIPTION_RENEWAL` rule renews one billing period at a time (`CAL:YYYY-MM`
 - **Review needed:** a skip that only the owner can resolve (an unapproved fine type, a restricted fine, an amount above the cap, a parking session at its maximum hours or end time) is recorded as `REQUIRES_ACTION`.
 - **Everything else:** a skip, a settlement, a held unknown outcome or an ordinary failure records `SKIPPED`, `SETTLED`, `HELD` or `FAILED`.
 
+Only recognized provider skip and order-failure codes are saved in job history. An unfamiliar skip is held as `PREPARATION_UNKNOWN` before a credential is requested; an unfamiliar order failure is held as `OUTCOME_UNKNOWN` for reconciliation. The provider's unrecognized text is not persisted.
+
 An invoice is chosen at preparation: the earliest-due unpaid, unreserved invoice that is within the rule's per-payment cap. An invoice above the cap is skipped, never lowered, and does not hold up a smaller one behind it. Paid and withdrawn invoices are never offered. Wallet, card, DEWA, Etisalat and du invoices follow the same path.
 
 ## Outbox

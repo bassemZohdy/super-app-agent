@@ -27,6 +27,9 @@ export type WorkerOptions = { workerId: string; leaseMs?: number; maxAttempts?: 
 export const OWNER_ACTION_CODES: ReadonlySet<string> = new Set(['CARD_DECLINED', 'CARD_LIMIT_EXCEEDED', 'INSUFFICIENT_AVAILABLE_FUNDS', 'METHOD_EXPIRED', 'METHOD_CHANGED', 'CARD_EXPIRED']);
 /** Skips that mean the owner should look: the rule did not pay, and only a person can decide whether it should. */
 export const REVIEW_SKIP_REASONS: ReadonlySet<string> = new Set(['FINE_TYPE_NOT_APPROVED', 'FINE_REQUIRES_REVIEW', 'OVER_PER_PAYMENT_CAP', 'MAXIMUM_DURATION_REACHED', 'END_TIME_REACHED', 'TARIFF_CHANGED', 'RENEWAL_NOT_INVOICED', 'RENEWAL_REQUIRES_REVIEW', 'RENEWAL_AMBIGUOUS', 'SUBSCRIPTION_NOT_ACTIVE']);
+/** Only known provider reason codes may enter durable job history. Unknown codes require reconciliation. */
+const SKIP_REASONS: ReadonlySet<string> = new Set([...REVIEW_SKIP_REASONS, 'AUTHORITY_CHANGED', 'BALANCE_ABOVE_THRESHOLD', 'CAPABILITY_REVIEW_REQUIRED', 'DENOMINATION_UNAVAILABLE', 'DURATION_LIMIT', 'EXTENSION_CHANGED', 'EXTENSION_IN_PROGRESS', 'EXTENSION_INTENT_CONFLICT', 'EXTENSION_INVALID', 'EXTENSION_SESSION_CHANGED', 'FINE_NOT_FOUND', 'FINE_NOT_PAYABLE', 'INVALID_RECHARGE_TARGET', 'MANDATE_NOT_ACTIVE', 'MANDATE_WINDOW_CLOSED', 'NO_DUE_INVOICE', 'NOTHING_TO_RELOAD', 'OPERATOR_SKIP_NEXT', 'OVER_LIFETIME_BUDGET', 'OVER_PERIOD_BUDGET', 'PAYABLE_CHANGED', 'PAYABLE_NOT_FOUND', 'RECHARGE_BALANCE_LIMIT', 'RECHARGE_DENOMINATION', 'RECHARGE_HISTORY_LIMIT', 'RECHARGE_INTENT_CONFLICT', 'RECHARGE_INTENT_NOT_FOUND', 'RECHARGE_TARGET_CHANGED', 'RECHARGE_TARGET_NOT_FOUND', 'RENEWAL_PERIOD_INVALID', 'RENEWAL_ALREADY_PAID', 'RENEWAL_NOT_PAYABLE', 'SESSION_CHANGED', 'SESSION_ENDED', 'SESSION_EXPIRED', 'SESSION_MISMATCH', 'SESSION_NOT_ENDING', 'SESSION_NOT_FOUND', 'SOURCE_CHANGED', 'SOURCE_EXPIRED', 'SOURCE_NOT_A_CARD', 'TARGET_UNAVAILABLE', 'VERSION_LIMIT', 'WALLET_BALANCE_LIMIT', 'WOULD_EXCEED_TARGET_BALANCE', 'ZONE_TARIFF_UNAVAILABLE']);
+const FAILURE_REASONS: ReadonlySet<string> = new Set([...OWNER_ACTION_CODES, 'APPROVAL_EXPIRED', 'AUTHORIZATION_EXPIRED', 'AUTOMATION_RELEASED', 'CAPTURE_REJECTED', 'CHALLENGE_REJECTED', 'PAYMENT_DECLINED']);
 const transient = (e: unknown) => { const status = (e as GatewayFailure).status; return status === undefined || status >= 500; };
 const codeOf = (e: unknown) => String((e as GatewayFailure).code || 'REJECTED').slice(0, 80);
 
@@ -94,6 +97,11 @@ export class AutomationWorker {
     try {
       const result = await this.gateway.prepare({ mandateId: job.mandateId, policyVersion: job.policyVersion, occurrenceKey: job.occurrenceKey, requestKey: identity.requestKey });
       if ('skipped' in result) {
+        if (!SKIP_REASONS.has(result.reason)) {
+          store.outcome(claim, 'unverified_skip');
+          store.transition(claim, 'HELD', { reason: 'PREPARATION_UNKNOWN' }, { kind: 'HELD', body: { reason: 'PREPARATION_UNKNOWN' } }, this.now());
+          return undefined;
+        }
         store.outcome(claim, `skipped:${result.reason}`);
         store.transition(claim, 'SKIPPED', { reason: result.reason }, { kind: REVIEW_SKIP_REASONS.has(result.reason) ? 'REQUIRES_ACTION' : 'SKIPPED', body: { reason: result.reason } }, this.now());
         return undefined;
@@ -193,7 +201,7 @@ export class AutomationWorker {
       try {
         const order = await this.gateway.execute(runId, executionId, credential.accessToken);
         const expectedOrderId = store.get(claim.job.id)?.orderId;
-        if (!order || !expectedOrderId || order.id !== expectedOrderId || !AUTOMATION_ORDER_STATES.has(order.state) || typeof order.fundsCaptured !== 'boolean' || (order.state === 'SETTLED' && (!order.fundsCaptured || order.failureCode !== undefined)) || (order.state === 'REQUIRES_ACTION' && order.fundsCaptured)) {
+        if (!order || !expectedOrderId || order.id !== expectedOrderId || !AUTOMATION_ORDER_STATES.has(order.state) || typeof order.fundsCaptured !== 'boolean' || (order.failureCode !== undefined && !FAILURE_REASONS.has(order.failureCode)) || (order.state === 'SETTLED' && (!order.fundsCaptured || order.failureCode !== undefined)) || (order.state === 'REQUIRES_ACTION' && order.fundsCaptured)) {
           store.outcome(claim, 'unverified_order');
           store.transition(claim, 'HELD', { reason: 'OUTCOME_UNKNOWN' }, { kind: 'HELD', body: { reason: 'OUTCOME_UNKNOWN', executionId } }, this.now());
           return;

@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Hold unfamiliar automation reasons (P1-02, step)
+
+Automation skips and order failures now accept only recognized reason codes. Unknown values are held for reconciliation without saving provider-supplied text. Guide: [automation worker](development/automation-worker.md).
+
 ## 2 November 2026 — Bind automation preparation to the queued rule (P1-02, step)
 
 Before requesting a credential, the automation HTTP adapter verifies the returned run, mandate, occurrence, policy version, prepared state and bounded amount and currency. Skips must name the same mandate and occurrence. Guide: [automation worker](development/automation-worker.md).
