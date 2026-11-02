@@ -58,3 +58,16 @@ test('fixed safety replies are translated consistently while unfamiliar text rem
   assert.equal(localizeFocusedReply(unknown, 'ar'), unknown);
   assert.equal(localizeFocusedReply(`${reply} Extra detail.`, 'ar'), `${reply} Extra detail.`);
 });
+
+test('templated Arabic replies retain the exact count, amount and renewal warning', () => {
+  const list = 'You have 2 outstanding simulated fine(s). Ask to pay selected fines to review a payment.';
+  const review = 'Review 2 simulated fine(s), total AED 150.00. The registration renewal needs these paid first and asks for its own approval afterwards. Confirm using the approval action.';
+  const paid = 'Simulated payment completed: AED 150.00. No real funds were used.';
+  assert.match(localizeFocusedReply(list, 'ar'), /2/);
+  assert.match(localizeFocusedReply(review, 'ar'), /AED 150\.00/);
+  assert.match(localizeFocusedReply(review, 'ar'), /موافقة منفصلة/);
+  assert.match(localizeFocusedReply(paid, 'ar'), /AED 150\.00/);
+  assert.match(localizeFocusedReply(paid, 'ar'), /لم تُستخدم أموال حقيقية/);
+  assert.equal(localizeFocusedReply(`${paid} Extra detail.`, 'ar'), `${paid} Extra detail.`);
+  assert.equal(localizeFocusedReply('Simulated payment completed: AED 150.00. No real funds were used.', 'en'), paid);
+});

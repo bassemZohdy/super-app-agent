@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Localize focused payment summaries (P2-01, step)
+
+The React fines conversation and service panel translate known list, review and completed-payment templates in Arabic while retaining their exact counts and amounts. The renewal review keeps its separate-approval warning; unfamiliar responses remain unchanged. Guide: [shell parity](development/shell-parity.md).
+
 ## 2 November 2026 — Localize focused safety replies (P2-01, step)
 
 The React fines conversation and service panel translate known fixed safety and availability messages in Arabic. Unknown or detailed responses remain unchanged; browser checks verify rejecting a payment causes no payment. Guide: [shell parity](development/shell-parity.md).

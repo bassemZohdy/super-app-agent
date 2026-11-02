@@ -90,6 +90,8 @@ test('Arabic guidance distinguishes unavailable access from an unconfirmed payme
   expect(focused.payments()).toBe(1);
   await page.getByRole('button', { name: 'استرداد العملية المحفوظة' }).click();
   await expect(page.getByRole('heading', { name: 'إيصالك التجريبي' })).toBeVisible();
+  await expect(page.getByText('اكتمل الدفع التجريبي:', { exact: false })).toHaveCount(2);
+  await expect(page.getByText('لم تُستخدم أموال حقيقية.', { exact: false }).first()).toBeVisible();
   expect(focused.payments()).toBe(1);
 });
 
@@ -101,6 +103,7 @@ test('Arabic fines and renewal reviews retain separate explicit approvals', asyn
   const request = page.waitForRequest(req => req.url().endsWith('/messages') && req.method() === 'POST');
   await page.getByRole('button', { name: 'تجديد تسجيل المركبة' }).click();
   expect((await request).postDataJSON().message).toBe('تجديد تسجيل المركبة');
+  await expect(page.getByText('موافقة منفصلة', { exact: false }).first()).toBeVisible();
   await expect(page.getByRole('button', { name: 'تأكيد الدفع التجريبي', exact: true })).toBeVisible();
   expect(focused.payments()).toBe(0); expect(focused.renewals()).toBe(0);
   const paymentRequest = page.waitForRequest(req => req.url().endsWith('/resume') && req.method() === 'POST');
@@ -126,6 +129,7 @@ test('a typed Arabic request lists fines without making a payment', async ({ pag
   await page.getByRole('textbox', { name: 'رسالة عن المخالفات' }).fill('عرض المخالفات المستحقة');
   await page.getByRole('button', { name: 'إرسال الرسالة' }).click();
   await expect(page.getByRole('cell', { name: 'fine-1', exact: true })).toBeVisible();
+  await expect(page.getByText('من المخالفات التجريبية المستحقة', { exact: false }).first()).toBeVisible();
   await expect(page.getByText('عرض المخالفات المستحقة', { exact: true }).first()).toBeVisible();
   expect(focused.payments()).toBe(0);
 });

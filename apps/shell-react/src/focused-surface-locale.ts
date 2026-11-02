@@ -19,9 +19,17 @@ const replies: Record<string, CatalogKey> = {
   'A previous operation is not confirmed. Inspect and recover the original interaction before starting another.': 'fines.replyReconcile',
 };
 
-/** Exact matches only: never rewrite unknown text, operation identifiers or partial outcomes. */
+/** Match complete known templates only; preserve amounts and never rewrite unfamiliar or partial outcomes. */
 export function localizeFocusedReply(text: string, locale: Locale): string {
-  return locale === 'ar' && Object.prototype.hasOwnProperty.call(replies, text) ? translate(locale, replies[text]) : text;
+  if (locale !== 'ar') return text;
+  if (Object.prototype.hasOwnProperty.call(replies, text)) return translate(locale, replies[text]);
+  const list = /^You have (\d{1,9}) outstanding simulated fine\(s\)\. Ask to pay selected fines to review a payment\.$/.exec(text);
+  if (list) return translate(locale, 'fines.replyListCount', { count: list[1] });
+  const review = /^Review (\d{1,9}) simulated fine\(s\), total (AED \d{1,16}\.\d{2})\. (The registration renewal needs these paid first and asks for its own approval afterwards\. )?Confirm using the approval action\.$/.exec(text);
+  if (review) return translate(locale, review[3] ? 'fines.replyReviewBeforeRenewal' : 'fines.replyReviewTotal', { count: review[1], amount: `\u2068${review[2]}\u2069` });
+  const paid = /^Simulated payment completed: (AED \d{1,16}\.\d{2})\. No real funds were used\.$/.exec(text);
+  if (paid) return translate(locale, 'fines.replyPaidTotal', { amount: `\u2068${paid[1]}\u2069` });
+  return text;
 }
 
 /** Translate only known focused surface labels; never change supplied rows, amounts or actions. */
