@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Keep delegated failures unconfirmed (P1-02, step)
+
+Delegated provider failures now return an unconfirmed outcome even when the HTTP response is successful, and raw failure bodies are not returned or saved. The original execution remains blocked pending reconciliation. Guide: [delegation](development/delegation.md).
+
 ## 2 November 2026 — Bound delegated provider responses (P1-02, step)
 
 The delegation broker limits provider response bodies and rejects malformed or non-object results. An oversized or unreadable response leaves the original execution unknown and blocks another dispatch. Guide: [delegation](development/delegation.md).

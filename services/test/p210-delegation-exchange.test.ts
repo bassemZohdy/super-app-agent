@@ -41,6 +41,7 @@ Object.assign(process.env, { KEYCLOAK_ISSUER: issuer.issuer, KEYCLOAK_JWKS_URL: 
 // A provider that asks the broker, as the real provider does, whether the bearer may do this exact operation.
 const seen: string[] = [];
 let topupReply: Record<string, unknown> | undefined;
+let topupStatus = 200;
 const provider = http.createServer((req, res) => {
   void (async () => {
     const authorization = String(req.headers.authorization || ''), accountId = decodeURIComponent((req.url || '').split('/')[3] || '');
@@ -49,7 +50,7 @@ const provider = http.createServer((req, res) => {
       if (req.method === 'POST') {
         const chunks: Buffer[] = []; for await (const chunk of req) chunks.push(Buffer.from(chunk));
         await delegatedAuthorization(authorization, { provider: 'payments', accountId, method: 'POST', path: '/topups', body: JSON.parse(Buffer.concat(chunks).toString()) });
-        res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(topupReply)); return;
+        res.writeHead(topupStatus, { 'Content-Type': 'application/json' }).end(JSON.stringify(topupReply)); return;
       }
       await delegatedAuthorization(authorization, { provider: 'payments', accountId, method: 'GET', path: '/wallet', body: {} });
       res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ success: true, wallet: { balanceMinor: 150000 } }));
@@ -114,6 +115,26 @@ test('an oversized delegated credit response stays unknown without another dispa
     assert.equal((await execute(id, runnerToken, 'replacement-credit-1'))?.data.code, 'RECONCILIATION_REQUIRED');
     assert.equal(seen.length, before + 1);
   } finally { topupReply = undefined; }
+});
+
+test('delegated provider failures are unknown and never expose the provider response', async () => {
+  const owner = await user('alice'), runnerToken = await runner();
+  const body = { ...grantBody(), method: 'POST', path: '/topups', body: { amountMinor: 100, source: 'demo_approved' } };
+  const marker = 'provider-private-canary';
+  try {
+    for (const [status, reply] of [[200, { success: false }], [403, { success: false }], [500, { success: true }]] as const) {
+      topupStatus = status; topupReply = { ...reply, error: marker, nested: { access_token: marker } };
+      const created = await createGrant(owner, body), id = created!.data.grant.id, key = 'provider-failure-1';
+      const before = seen.length, result = await execute(id, runnerToken, key);
+      assert.equal(result?.status, 503); assert.equal(result?.data.code, 'EXECUTION_OUTCOME_UNKNOWN');
+      const jobs = grantStore().jobs(id, 'alice-sub');
+      assert.equal(jobs[0].state, 'unknown');
+      assert.ok(!JSON.stringify([result, jobs, grantStore().history(id, 'alice-sub')]).includes(marker));
+      assert.equal((await execute(id, runnerToken, key))?.data.code, 'RECONCILIATION_REQUIRED');
+      assert.equal((await execute(id, runnerToken, 'replacement-failure-1'))?.data.code, 'RECONCILIATION_REQUIRED');
+      assert.equal(seen.length, before + 1);
+    }
+  } finally { topupReply = undefined; topupStatus = 200; }
 });
 
 test('P2-10: an owner grants consent, the runner executes it, and the provider sees exactly the owner as the broker client', async () => {

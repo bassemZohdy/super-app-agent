@@ -20,6 +20,8 @@ Before recording a delegated credit as complete, the broker requires a settled A
 
 Provider execution responses are limited to one MiB of received JSON and must be objects. If a response is oversized, unreadable or malformed, the original operation remains unknown; both a repeat of its execution key and a new operation stay blocked pending reconciliation.
 
+The broker reports a provider response that does not confirm success as an unknown execution, even when the HTTP status is successful. It does not persist or expose the provider's failure body; operation history retains a generic outcome code for investigation.
+
 ## Components and identity
 
 | Component | Role |

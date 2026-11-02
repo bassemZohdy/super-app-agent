@@ -93,7 +93,7 @@ async function execute(id: string, requestKey: unknown, authorization?: string):
     const parsed = await boundedJsonResponse(response);
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Invalid provider response');
     const result = parsed as { success?: boolean };
-    let success = response.ok && result.success === true;
+    let success = response.ok && result.success === true && !Object.hasOwn(result, 'error');
     if (success && g.method === 'POST' && g.provider === 'payments' && g.path === '/topups') {
       const data = result as { transaction?: { id?: unknown; type?: unknown; status?: unknown; currency?: unknown; amount?: unknown }; newBalance?: unknown };
       const tx = data.transaction;
@@ -105,9 +105,12 @@ async function execute(id: string, requestKey: unknown, authorization?: string):
         return { status: 503, data: { success: false, operationId: job.id, code: 'EXECUTION_OUTCOME_UNKNOWN', error: 'The provider response could not confirm the approved credit. Inspect the original operation before retrying.' } };
       }
     }
-    store.finish(job, result, success);
-    return { status: success ? 200 : response.status, data: { success, operationId: job.id, result,
-      ...(!success ? { code: 'DELEGATED_PROVIDER_REJECTED', error: 'The provider could not authorize or complete this operation. Inspect its status before retrying.' } : {}) } };
+    if (!success) {
+      store.finish(job, { code: 'EXECUTION_OUTCOME_UNKNOWN' }, false);
+      return { status: 503, data: { success: false, operationId: job.id, code: 'EXECUTION_OUTCOME_UNKNOWN', error: 'The provider could not confirm this operation. Inspect its status before retrying.' } };
+    }
+    store.finish(job, result, true);
+    return { status: 200, data: { success: true, operationId: job.id, result } };
   } catch (e) {
     store.finish(job, { code: e instanceof DelegationError ? e.code : 'EXECUTION_OUTCOME_UNKNOWN' }, false);
     throw e;
