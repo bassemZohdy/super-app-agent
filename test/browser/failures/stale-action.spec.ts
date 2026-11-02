@@ -2,6 +2,7 @@
  *  and my tap does not send a second action (P1-12). The gateway's real STALE_SURFACE answer is replayed to the Angular and React
  *  shells on the phone and desktop projects; the Flutter shell has the same rule in its widget tests. */
 import type { Page } from 'playwright/test';
+import { gatewayUrl } from '../../../scripts/endpoints.ts';
 import { expect as angularExpect, test as angularTest } from '../angular.ts';
 import { expect, test } from '../stack.ts';
 
@@ -22,9 +23,9 @@ async function showDetails(page: Page) {
 angularTest('Angular tells me the screen was replaced, shows the current one and sends one action only', async ({ angular, angularUrl }) => {
   let actions = 0;
   const headers = { 'access-control-allow-origin': angularUrl };
-  await angular.route('http://localhost:4000/api/a2ui/intent', route => route.fulfill({ status: 200, contentType: 'application/json', headers,
+  await angular.route(`${gatewayUrl}/api/a2ui/intent`, route => route.fulfill({ status: 200, contentType: 'application/json', headers,
     body: JSON.stringify({ success: true, surface: surface((route.request().postDataJSON() as { sessionId: string }).sessionId, '00000000-0000-4000-8000-000000000001', 'Review before you continue', true) }) }));
-  await angular.route('http://localhost:4000/api/a2ui/action', route => {
+  await angular.route(`${gatewayUrl}/api/a2ui/action`, route => {
     actions++;
     return route.fulfill({ status: 409, contentType: 'application/json', headers, body: JSON.stringify({ success: false, code: 'STALE_SURFACE', error: REASON,
       retry: { allowed: false, next: 'refresh_surface' }, surface: surface((route.request().postDataJSON() as { sessionId: string }).sessionId, '00000000-0000-4000-8000-000000000002', 'The current surface', false) }) });

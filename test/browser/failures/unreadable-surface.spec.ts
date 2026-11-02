@@ -2,12 +2,13 @@
  *  drawn, and I can carry on (P1-12). The Angular and React shells each get a surface with a revision that is not a revision; neither
  *  may say the gateway was unreachable, and the composer must stay usable. The Flutter shell has the same rule in its widget tests. */
 import { expect as angularExpect, test as angularTest } from '../angular.ts';
+import { gatewayUrl } from '../../../scripts/endpoints.ts';
 import { expect, test } from '../stack.ts';
 
 const unreadable = (sessionId: string) => ({ success: true, surface: { version: '1.0.0', sessionId, revision: 'not-a-revision', view: { type: 'SurfaceCard', id: 'card', children: [] } } });
 
 angularTest('Angular says the gateway answer could not be read, and the composer stays usable', async ({ angular, angularUrl }) => {
-  await angular.route('http://localhost:4000/api/a2ui/intent', route => route.fulfill({
+  await angular.route(`${gatewayUrl}/api/a2ui/intent`, route => route.fulfill({
     status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': angularUrl },
     body: JSON.stringify(unreadable((route.request().postDataJSON() as { sessionId: string }).sessionId)),
   }));

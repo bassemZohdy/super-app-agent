@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Fence Angular browser qualification target (P0-08, step)
+
+The Angular browser fixture refuses an isolated qualification run if its compiled gateway is missing, ambiguous or does not match the isolated endpoint. Angular test stubs follow the selected gateway. Guide: [testing](testing.md).
+
 ## 2 November 2026 — Guard overlapping offline checkouts (P1-13, step)
 
 Prevent two concurrent sessions in one agent process from executing the shared offline composite checkout at once. A regression confirms that only one reviewed checkout debits the wallet and recharges the tag. Cross-process and other-route coordination remain open. Guide: [grouped checkout](development/checkout-groups.md).

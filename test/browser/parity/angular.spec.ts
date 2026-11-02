@@ -1,6 +1,7 @@
 import { mergeTests } from 'playwright/test';
 import { test as angularTest, expect } from '../angular.ts';
 import { test as focusedTest } from '../focused-agent/fixtures.ts';
+import { gatewayUrl } from '../../../scripts/endpoints.ts';
 const test = mergeTests(angularTest, focusedTest);
 
 test('Angular keeps conversation, details and composer clear of book and clamshell hinges', async ({ angular }) => {
@@ -18,7 +19,7 @@ test('Angular keeps conversation, details and composer clear of book and clamshe
 });
 
 test('Angular names the shared provider and preserves drafts through pane controls', async ({ angular }) => {
-  await angular.route('http://localhost:4000/health', route => route.fulfill({ json: { llm: { provider: 'litellm', model: 'glm-5.3', enabled: true, configured: true, ready: true } }, headers: { 'access-control-allow-origin': 'http://localhost:3001' } }));
+  await angular.route(`${gatewayUrl}/health`, route => route.fulfill({ json: { llm: { provider: 'litellm', model: 'glm-5.3', enabled: true, configured: true, ready: true } }, headers: { 'access-control-allow-origin': 'http://localhost:3001' } }));
   await angular.reload(); await expect(angular.getByRole('status').filter({ hasText: 'LiteLLM ready' })).toBeVisible();
   await angular.setViewportSize({ width: 1280, height: 900 });
   const chat = angular.getByRole('region', { name: 'conversation pane', exact: true });

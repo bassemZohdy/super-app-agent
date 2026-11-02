@@ -6,6 +6,8 @@ import http from 'node:http';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import type { Page } from 'playwright/test';
 import { expect, test as base } from './fixtures.ts';
+import { demoPortOffset, gatewayUrl } from '../../scripts/endpoints.ts';
+import { assertAngularQualificationTarget } from '../../scripts/angular-qualification-target.ts';
 
 const ROOT = resolve('apps/shell-angular/dist/browser');
 const TYPES: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.woff2': 'font/woff2' };
@@ -13,6 +15,7 @@ const TYPES: Record<string, string> = { '.html': 'text/html', '.js': 'text/javas
 export const test = base.extend<{ angular: Page }, { angularUrl: string }>({
   angularUrl: [async ({ }, use) => {
     expect(existsSync(join(ROOT, 'index.html')), 'build the Angular shell first: npm run build --workspace=apps/shell-angular').toBe(true);
+    if (demoPortOffset !== 0) assertAngularQualificationTarget(readFileSync(join(ROOT, 'main.js'), 'utf8'), gatewayUrl, demoPortOffset);
     const server = http.createServer((req, res) => {
       const path = normalize(decodeURIComponent(new URL(req.url || '/', 'http://localhost').pathname));
       let file = resolve(ROOT, `.${sep}${path}`);
@@ -28,7 +31,7 @@ export const test = base.extend<{ angular: Page }, { angularUrl: string }>({
    *  page is measured as laid out without depending on Keycloak or the gateway (whose token check can be slow on a cold stack). */
   angular: async ({ page, angularUrl }, use) => {
     const json = (body: unknown) => ({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': angularUrl }, body: JSON.stringify(body) });
-    await page.route('http://localhost:4000/**', route => {
+    await page.route(`${gatewayUrl}/**`, route => {
       const url = new URL(route.request().url());
       if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': angularUrl, 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' } });
       if (url.pathname === '/api/auth/config') return route.fulfill(json({ enabled: false }));
