@@ -1,7 +1,10 @@
 import { validateAGUISurface, type AGUISurfacePayload } from './ag-ui.ts';
 import { readEventStream } from './sse-client.ts';
 
-export class AgentClientError extends Error {}
+export class AgentClientError extends Error {
+  readonly code?: 'ACCESS_UNAVAILABLE';
+  constructor(message: string, code?: 'ACCESS_UNAVAILABLE') { super(message); this.code = code; }
+}
 /** Covers the bounded 60s planner setting plus governed local service calls. */
 export const FOCUSED_REQUEST_TIMEOUT_MS = 75000;
 
@@ -55,7 +58,8 @@ export class FocusedAgentClient {
   private async requireSuccess(response: Response) {
     if (!response.ok) {
       await response.body?.cancel();
-      throw new AgentClientError([401, 403, 404].includes(response.status) ? 'This conversation or access token is unavailable for this account. Sign in with its owner’s token, or start a new conversation.' : 'The request was not confirmed. Inspect or recover this conversation before continuing.');
+      const unavailable = [401, 403, 404].includes(response.status);
+      throw new AgentClientError(unavailable ? 'This conversation or access token is unavailable for this account. Sign in with its owner’s token, or start a new conversation.' : 'The request was not confirmed. Inspect or recover this conversation before continuing.', unavailable ? 'ACCESS_UNAVAILABLE' : undefined);
     }
   }
   async create(signal: AbortSignal): Promise<string> {

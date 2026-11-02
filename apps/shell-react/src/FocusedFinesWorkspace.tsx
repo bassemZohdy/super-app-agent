@@ -4,14 +4,14 @@ import { FocusedAgentClient, FOCUSED_REQUEST_TIMEOUT_MS, AgentClientError, type 
 import { WorkspacePanes } from './components/WorkspacePanes.tsx';
 import { A2UIRenderer } from './components/A2UIRenderer.tsx';
 import { useLocale } from './locale.ts';
-import { formatMoney, formatTime } from '../../../packages/protocol-core/src/i18n.ts';
+import { formatMoney, formatTime, type CatalogKey } from '../../../packages/protocol-core/src/i18n.ts';
 import './focused-fines.css';
 
 const savedThread = 'cityside.fines.thread.v1';
-const progressText: Record<string, string> = {
-  understand: 'Understanding your request…', list: 'Retrieving your fines…', prepare: 'Preparing your payment review…',
-  approval: 'Preparing your confirmation…', execute: 'Confirming your simulated payment…', respond: 'Updating your conversation…',
-  listVehicles: 'Checking your vehicles…', renewPrepare: 'Preparing your renewal review…', renewApproval: 'Preparing your renewal confirmation…', renewExecute: 'Confirming your simulated renewal…',
+const progressText: Record<string, CatalogKey> = {
+  understand: 'fines.progressUnderstand', list: 'fines.progressList', prepare: 'fines.progressPrepare',
+  approval: 'fines.progressApproval', execute: 'fines.progressExecute', respond: 'fines.progressRespond',
+  listVehicles: 'fines.progressVehicles', renewPrepare: 'fines.progressRenewPrepare', renewApproval: 'fines.progressRenewApproval', renewExecute: 'fines.progressRenewExecute',
 };
 const amount = (minor: number) => new Intl.NumberFormat('en-AE', { style: 'currency', currency: 'AED' }).format(minor / 100);
 
@@ -44,13 +44,13 @@ export default function FocusedFinesWorkspace() {
 
   async function run(operation: (signal: AbortSignal) => Promise<void>, mutation = false) {
     if (busy.current) return;
-    busy.current = true; setPending(true); setError(''); setProgress('Connecting to your fines service…');
+    busy.current = true; setPending(true); setError(''); setProgress(t('fines.connecting'));
     const active = new AbortController(); controller.current = active;
     const timeout = setTimeout(() => active.abort(), FOCUSED_REQUEST_TIMEOUT_MS);
     try { await operation(active.signal); }
     catch (failure) {
       if (mutation) setUncertain(true);
-      setError(failure instanceof AgentClientError ? failure.message : 'The connection was interrupted. Inspect or recover the saved conversation before continuing.');
+      setError(locale === 'ar' ? t(failure instanceof AgentClientError && failure.code === 'ACCESS_UNAVAILABLE' ? 'fines.accessUnavailable' : 'fines.unconfirmed') : failure instanceof AgentClientError ? failure.message : 'The connection was interrupted. Inspect or recover the saved conversation before continuing.');
     } finally { clearTimeout(timeout); busy.current = false; setPending(false); setProgress(''); }
   }
   function signIn(form: HTMLFormElement) {
@@ -68,7 +68,7 @@ export default function FocusedFinesWorkspace() {
   function transition(action: AgentAction, body: Record<string, unknown>) {
     if (!client || !data || busy.current) return;
     void run(async signal => {
-      const next = await client.transition(data.threadId, action, body, signal, node => setProgress(progressText[node] || 'Updating your request…'));
+      const next = await client.transition(data.threadId, action, body, signal, node => setProgress(t(progressText[node] || 'fines.progressUpdating')));
       setData(next); setUncertain(false);
       if (action === 'messages') setDraft('');
     }, true);
@@ -79,7 +79,7 @@ export default function FocusedFinesWorkspace() {
   }
   function dispatch(action: string, payload: Record<string, unknown>) {
     if (action !== 'agent.resume' || !active || payload.approvalId !== active.id || !['approve', 'reject', 'cancel'].includes(String(payload.decision))) {
-      setError('This review changed. Inspect the conversation before confirming.'); return;
+      setError(t('fines.reviewChanged')); return;
     }
     if (!uncertain) transition('resume', { approvalId: active.id, decision: payload.decision });
   }

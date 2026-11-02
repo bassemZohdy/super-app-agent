@@ -66,7 +66,7 @@ test('a lost result, stream error or invalid owner/surface is refused with no au
 
 test('HTTP authorization failures discard upstream details', async t => {
   t.mock.method(globalThis, 'fetch', async () => new Response('private-upstream-detail', { status: 403 }));
-  await assert.rejects(new FocusedAgentClient('local-test-value').inspect(id, signal), failure => failure instanceof AgentClientError && !failure.message.includes('private-upstream-detail'));
+  await assert.rejects(new FocusedAgentClient('local-test-value').inspect(id, signal), failure => failure instanceof AgentClientError && failure.code === 'ACCESS_UNAVAILABLE' && !failure.message.includes('private-upstream-detail'));
 });
 
 test('comparison shells never display malformed fine money from a focused result', async t => {

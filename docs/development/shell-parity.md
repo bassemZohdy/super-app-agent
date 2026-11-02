@@ -46,5 +46,5 @@ Every cell of the matrix names a test. Add a row, or write "none yet" in a cell 
 Name the journey in the matrix with one test per shell that offers it, or move it to the React-only table or the gated list with the reason. Run the specs for the shells it touches on both browser projects, and the Flutter widget tests for Flutter, before changing the matrix.
 ## React focused fines language
 
-The React focused fines sign-in, header, navigation, conversation controls, review headings, confirmation warning and receipt labels follow the saved English or Arabic language, including page direction. Provider-rendered surfaces, assistant messages and progress/error text are not covered by this localization slice.
+The React focused fines sign-in, header, navigation, conversation controls, review headings, confirmation warning, receipt labels, progress and safe error guidance follow the saved English or Arabic language, including page direction. Provider-rendered surfaces and assistant messages are not covered by this localization slice.
 

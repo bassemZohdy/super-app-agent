@@ -26,6 +26,28 @@ test('the React fines sign-in and navigation follow the saved Arabic language', 
   expect(await controlsBelowTarget(page)).toEqual([]);
 });
 
+test('Arabic guidance distinguishes unavailable access from an unconfirmed payment', async ({ page, focused }) => {
+  await page.addInitScript(() => localStorage.setItem('cityside.locale', 'ar'));
+  await page.goto(focused.url);
+  await page.route('**/api/agent/threads', route => route.fulfill({ status: 401, contentType: 'application/json', body: '{}' }));
+  await page.getByLabel('رمز الوصول', { exact: true }).fill(focused.token);
+  await page.getByRole('button', { name: 'فتح مخالفاتي' }).click();
+  await expect(page.getByRole('alert')).toContainText('رمز الوصول غير متاح لهذا الحساب');
+  await page.unroute('**/api/agent/threads');
+  await page.getByLabel('رمز الوصول', { exact: true }).fill(focused.token);
+  await page.getByRole('button', { name: 'فتح مخالفاتي' }).click();
+  await page.getByRole('button', { name: 'مراجعة الدفع', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'راجع قبل الدفع' })).toBeVisible();
+  await page.route('**/api/agent/threads/*/resume', async route => { await safeRouteFetch(route); await route.abort('connectionfailed'); });
+  await page.getByRole('button', { name: 'Confirm simulated payment', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('لم تتأكد النتيجة');
+  await expect(page.getByRole('textbox', { name: 'رسالة عن المخالفات' })).toBeDisabled();
+  expect(focused.payments()).toBe(1);
+  await page.getByRole('button', { name: 'استرداد العملية المحفوظة' }).click();
+  await expect(page.getByRole('heading', { name: 'إيصالك التجريبي' })).toBeVisible();
+  expect(focused.payments()).toBe(1);
+});
+
 test('retrieve fines, resume the exact review after restart, pay once and reject duplicate/stale/cross-owner approvals', async ({ page, focused }, info) => {
   await page.goto(focused.url);
   await page.getByLabel('Access token', { exact: true }).fill(focused.token);

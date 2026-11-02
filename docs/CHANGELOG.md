@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Localize fines status and errors (P2-01, step)
+
+The React focused fines workspace presents progress and safe recovery guidance in Arabic, with a separate message for unavailable account access. Browser checks exercise access refusal and recovery after a lost payment response. Guide: [shell parity](development/shell-parity.md).
+
 ## 2 November 2026 — Localize React fines conversation controls (P2-01, step)
 
 The React focused fines workspace translates conversation controls, review headings, confirmation warning and receipt labels, with Arabic-aware receipt amounts and expiry times. Browser checks cover the Arabic review without making a payment. Guide: [shell parity](development/shell-parity.md).
