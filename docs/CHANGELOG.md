@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 3 November 2026 - Bound Redis session shutdown (P2-06, step)
+
+Session and subscription connections close independently with a bounded fallback; stale unsubscribe callbacks cannot cancel a later subscription after reconnect. Guide: [operations](development/operations.md).
+
 ## 2 November 2026 - Continue isolated environment cleanup after errors (P2-06, step)
 
 Isolated test cleanup attempts remaining servers, session connections, databases and temporary data when one cleanup step fails, and preserves startup and cleanup errors together. Guide: [testing](development/testing.md).

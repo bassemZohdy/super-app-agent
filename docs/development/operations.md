@@ -2,6 +2,8 @@
 
 This runbook covers the synthetic, single-writer Docker demo in ADR-0011. It does not qualify production HA, distributed quotas, disaster recovery infrastructure or inference capacity. All commands run from the repository root. Keep deployment/Compose changes and maintenance commands sequential.
 
+The Redis session store closes its main and subscription connections independently. A disconnected connection is destroyed, and a quit that fails or exceeds two seconds is forcibly disconnected and reported without forwarding upstream error text. After a later reconnect, an unsubscribe callback from the old connection cannot cancel a new subscription. This shutdown behavior does not establish Redis persistence or failover guarantees.
+
 ## Enable and inspect
 
 ```bash

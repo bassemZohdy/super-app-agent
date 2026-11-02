@@ -210,3 +210,20 @@ test('toll observation preserves earlier recovered steps and handles optional ob
     const after = await store.inspectCivicFence(owner.subject, owner.accountId); assert.equal(after.civicSteps?.at(-1)?.recoveredFrom, 'STARTED');
   }
 });
+
+
+test('Redis subscriptions can be established again after the store closes', { timeout: 10000 }, async t => {
+  const prefix = `cityside-close-test:${randomUUID()}:`, url = process.env.TEST_REDIS_URL || 'redis://127.0.0.1:6379';
+  const store = new RedisSessionStore(url, 60, prefix), sid = `redis_${randomUUID()}`;
+  t.after(async () => { await store.connect(); const keys = await store.client.keys(`${prefix}*`); if (keys.length) await store.client.del(keys); await store.close(); });
+  const oldOff = await store.subscribe(sid, () => {});
+  await store.close();
+  let resolveEvent!: (id: string) => void;
+  const received = new Promise<string>(resolve => { resolveEvent = resolve; });
+  const off = await store.subscribe(sid, event => resolveEvent(event.id));
+  await oldOff(); // An unsubscribe from the closed generation must not cancel the new one.
+  const event = createA2UIMessage('A2UI_STREAM_DELTA', sid, { text: 'after reconnect' });
+  await store.publish(sid, event);
+  assert.equal(await received, event.id);
+  await off();
+});

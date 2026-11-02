@@ -1,4 +1,5 @@
 import { completeCivicSteps } from './civic-resolution.ts';
+import { closeRedisConnections } from './redis-close.ts';
 import { operationalEvent } from '../../../packages/backend-kit/src/observability.ts';
 import { createClient, type RedisClientType } from 'redis';
 import { createHash, randomUUID } from 'node:crypto';
@@ -482,9 +483,13 @@ export class RedisSessionStore {
       await this.subscriber.subscribe(`${this.key(sid)}:channel`, raw => { try { const event = JSON.parse(raw); for (const fn of this.subscriptions.get(sid) || []) fn(event); } catch {} });
     }
     callbacks.add(callback);
-    return async () => { callbacks!.delete(callback); if (!callbacks!.size) { this.subscriptions.delete(sid); await this.subscriber?.unsubscribe(`${this.key(sid)}:channel`); } };
+    return async () => { if (this.subscriptions.get(sid) !== callbacks) return; callbacks!.delete(callback); if (!callbacks!.size) { this.subscriptions.delete(sid); await this.subscriber?.unsubscribe(`${this.key(sid)}:channel`); } };
   }
-  async close() { if (this.subscriber?.isOpen) await this.subscriber.quit(); if (this.client.isOpen) await this.client.quit(); }
+  async close() {
+    const subscriber = this.subscriber;
+    this.subscriber = undefined; this.subscriptions.clear();
+    await closeRedisConnections([subscriber, this.client]);
+  }
 }
 let store: RedisSessionStore | undefined;
 export function redisSessions() {
