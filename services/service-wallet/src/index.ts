@@ -143,11 +143,15 @@ function handleWalletRequest(
   }
 
   if (normMethod === 'POST' && (pathname === '/fines/pay' || pathname === '/fines/settle')) {
+    if (body.expectedPayables !== undefined) return invalidInput('Reviewed payable revisions require integrated provider mode');
     const activeFines = policeFines.filter(f => body.fineIds.includes(f.fineId) && f.status === 'UNPAID');
     if (activeFines.length !== body.fineIds.length) return { status: 404, data: { error: 'Selected unpaid fine not found' } };
     const dueMinor = activeFines.reduce((acc, f) => acc + toMinor(f.payableAmount), 0);
     if (dueMinor > MAX_MONEY * 100) return invalidInput('Settlement total exceeds demo limit');
     const totalDue = fromMinor(dueMinor);
+    if (body.expectedAmountMinor !== undefined && body.expectedAmountMinor !== dueMinor) {
+      return { status: 409, data: { error: 'The reviewed fine amount changed', code: 'PAYABLE_CHANGED' } };
+    }
 
     if (balance < totalDue) {
       return {

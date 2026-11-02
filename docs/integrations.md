@@ -24,6 +24,8 @@ The integrated manual grouped-checkout API accepts a toll `targetReference` toge
 
 Integrated `/pay/unified` and `/pay/multi-agency` callers must also supply `expectedPayables`: the reviewed DEWA bill and police fine payable IDs with their revisions, or an empty array for recharge only. The application selects only those current unpaid payables, rejects duplicates or stale and unknown IDs, and checks any resulting fine selection. The utility bill read exposes its payable ID and revision. The offline fixture rejects this selection field; callers using the integrated API must update requests that omitted it.
 
+The offline `/fines/pay` and `/fines/settle` fixture checks any supplied `expectedAmountMinor` against the selected unpaid fines before debiting. It rejects `expectedPayables` because this shared in-memory fixture cannot validate provider revisions; revision-bound selections require integrated provider mode.
+
 MCP, A2A, SOAP and controlled browser execution are protocol values at the extension boundary, not implemented transports in this entry point. The existing integrated MCP server remains in its original path. Add a real protocol adapter only for a concrete service, with its own authority, schema, timeout and retry tests.
 
 ## HTTP API

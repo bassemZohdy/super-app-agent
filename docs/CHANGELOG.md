@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Check offline fine review before debit (P1-13, step)
+
+The offline fine-payment aliases reject a changed reviewed amount before settling and refuse provider revisions they cannot validate. Tests cover unchanged state on rejection and an exact-amount payment. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Refuse invented offline checkout funding (P1-13, step)
 
 Reject underfunded legacy unified wallet settlements instead of fabricating a card charge and replacing the wallet balance. Verify both route aliases and the composite action leave fixtures unchanged after refusal. Guide: [grouped checkout](development/checkout-groups.md).
