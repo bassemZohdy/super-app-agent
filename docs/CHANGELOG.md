@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 - Verify partial backend startup cleanup (P2-06, step)
+
+A local runner regression check reserves the last service port and verifies that failed startup exits, releases earlier listeners and leaves the conflicting listener untouched. Guide: [local development](development/local-development.md).
+
 ## 2 November 2026 - Hold focused write authority denials (P1-02, step)
 
 The focused simulator adapter retains an unknown write outcome after an authority denial, preserving the original operation for recovery; read-only denials remain explicit. Guide: [agent flow](agent-flow.md).
