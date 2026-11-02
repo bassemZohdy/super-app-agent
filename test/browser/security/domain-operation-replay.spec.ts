@@ -138,6 +138,49 @@ test('wallet operation identity is independent of an external payment reference'
   expect(inspected.charge.reference).toBe('booking-reference-a');
 });
 
+test('legacy reference-only wallet payments hold ambiguous new operations', async ({ residentApi, stack }) => {
+  const account = residentApi.accountId, store = stack.stores.get('payments')!, legacyReference = 'legacy-booking-reference';
+  const direct = async (reference = legacyReference) => {
+    const response = await fetch(`http://localhost:${stack.corePort + 107}/v1/accounts/${account}/charges`, {
+      method: 'POST', headers: { Authorization: `Bearer ${residentApi.token}`, 'Content-Type': 'application/json', 'Idempotency-Key': walletChargeKey(account, 'superapp', reference) },
+      body: JSON.stringify({ amountMinor: 100, merchant: 'superapp', reference, source: 'wallet' }),
+    });
+    return { status: response.status, data: await response.json() as { charge?: { id: string } } };
+  };
+  const legacy = await direct(); expect(legacy.status).toBe(200);
+  const pay = async (accountId: string, operation: string, referenceId?: string) => {
+    const response = await fetch(`http://localhost:${stack.corePort + 3}/wallet/pay`, {
+      method: 'POST', headers: { Authorization: `Bearer ${residentApi.token}`, 'Content-Type': 'application/json', 'X-Account-Id': accountId, 'X-Operation-Id': operation },
+      body: JSON.stringify({ amount: 1, purpose: 'Booking', ...(referenceId ? { referenceId } : {}) }),
+    });
+    return { status: response.status, data: await response.json() as { charge?: { id: string; operationId?: string } } };
+  };
+  expect((await pay(account, 'original-operation', 'changed-reference')).status).toBe(503);
+  expect((await pay(account, 'another-operation')).status).toBe(503);
+  expect((await direct('another-legacy-reference')).status).toBe(503);
+  const inspect = (identity: string) => fetch(`http://localhost:${stack.corePort + 3}/wallet/operations/${encodeURIComponent(identity)}`, { headers: { Authorization: `Bearer ${residentApi.token}`, 'X-Account-Id': account } });
+  expect((await inspect('original-operation')).status).toBe(503);
+  expect((await inspect(legacyReference)).status).toBe(200);
+  expect(store.list(account, 'charge')).toHaveLength(1);
+  expect((await direct()).data.charge?.id).toBe(legacy.data.charge?.id);
+  const legacyReplay = await pay(account, legacyReference);
+  expect(legacyReplay.status, JSON.stringify(legacyReplay.data)).toBe(200);
+  expect(legacyReplay.data.charge?.id).toBe(legacy.data.charge?.id);
+  const legacyKey = walletChargeKey(account, 'superapp', legacyReference);
+  const record = store.db.prepare('SELECT fingerprint,status,body FROM idempotency WHERE account_id=? AND key=?').get(account, legacyKey) as { fingerprint: string; status: number; body: string };
+  store.db.prepare('DELETE FROM idempotency WHERE account_id=? AND key=?').run(account, legacyKey);
+  try {
+    expect((await direct()).status).toBe(503);
+    expect((await pay(account, legacyReference)).status).toBe(503);
+    expect(store.list(account, 'charge')).toHaveLength(1);
+  } finally { store.db.prepare('INSERT INTO idempotency(account_id,key,fingerprint,status,body) VALUES(?,?,?,?,?)').run(account, legacyKey, record.fingerprint, record.status, record.body); }
+  const claims = JSON.parse(Buffer.from(residentApi.token.split('.')[1], 'base64url').toString()) as { sub: string };
+  const other = store.accounts(claims.sub).find(item => item.id !== account)!;
+  const normal = await pay(other.id, 'new-operation'); expect(normal.status).toBe(200);
+  expect(normal.data.charge?.operationId).toBe('new-operation');
+  expect((await pay(other.id, 'another-new-operation', 'new-booking-reference')).status).toBe(200);
+});
+
 test('direct wallet replay verifies evidence for any idempotency key', async ({ residentApi, stack }) => {
   const account = residentApi.accountId, store = stack.stores.get('payments')!;
   const reference = 'direct-replay-test', key = 'direct-replay-key';

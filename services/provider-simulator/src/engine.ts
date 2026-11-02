@@ -58,6 +58,16 @@ export class ProviderEngine {
     return this.store.db.prepare(`SELECT 1 FROM payment_journal_entries j WHERE j.account_id=? AND j.kind='PAYMENT' AND j.reference LIKE 'charge:%'
       AND NOT EXISTS (SELECT 1 FROM resources r WHERE r.account_id=j.account_id AND r.kind='charge' AND r.id=substr(j.reference,8)) LIMIT 1`).get(accountId) !== undefined;
   }
+  private hasUnboundLegacyWalletEvidence(accountId: string): boolean {
+    return this.store.db.prepare(`SELECT 1 FROM resources WHERE account_id=? AND kind='charge' AND CASE
+      WHEN json_valid(body)=0 THEN 1 WHEN json_type(body)<>'object' THEN 1
+      WHEN coalesce(json_type(body,'$.merchant'),'')<>'text' OR coalesce(json_type(body,'$.reference'),'')<>'text' THEN 1
+      WHEN json_extract(body,'$.merchant')='superapp' AND coalesce(json_type(body,'$.source'),'')<>'text' THEN 1
+      WHEN json_extract(body,'$.merchant')='superapp' AND json_extract(body,'$.source')='wallet'
+        AND (coalesce(json_type(body,'$.operationId'),'')<>'text' OR length(json_extract(body,'$.operationId')) NOT BETWEEN 1 AND 200 OR json_extract(body,'$.operationId') GLOB '*[^A-Za-z0-9_.:-]*')
+        AND coalesce(json_extract(body,'$.status'),'')<>'DECLINED' THEN 1
+      ELSE 0 END LIMIT 1`).get(accountId) !== undefined;
+  }
   verifyWalletReplay(a: string, operationId: string, record: { fingerprint: unknown; status: unknown; body: unknown }, expectedAmountMinor?: number, expectedReference?: string, requireOperationId = false) {
     const db = this.store;
     let saved: unknown;
@@ -192,7 +202,7 @@ export class ProviderEngine {
         if (!/^[A-Za-z0-9_.:-]{1,200}$/.test(operationId)) return fail(400, 'VALIDATION_ERROR', 'Invalid operation identity.');
         const record = db.db.prepare('SELECT fingerprint,status,body FROM idempotency WHERE account_id=? AND key=?').get(a, walletChargeKey(a, 'superapp', operationId)) as { fingerprint: unknown; status: unknown; body: unknown } | undefined;
         if (!record) {
-          if (this.hasPriorWalletEvidence(a, operationId)) return fail(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original wallet payment could not be confirmed.');
+          if (this.hasPriorWalletEvidence(a, operationId) || this.hasUnboundLegacyWalletEvidence(a)) return fail(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original wallet payment could not be confirmed.');
           return fail(404, 'NOT_FOUND', 'The original wallet operation was not found.');
         }
         return ok({ operationId, ...this.verifyWalletReplay(a, operationId, record) });
@@ -258,7 +268,7 @@ export class ProviderEngine {
       if (method === 'POST' && path === '/charges') {
         this.store.eligibility!.require(actor);
         if (body.operationId !== undefined && (body.merchant !== 'superapp' || body.source !== 'wallet')) fail(400, 'VALIDATION_ERROR', 'Operation identity is only supported for superapp wallet payments.');
-        if (body.merchant === 'superapp' && body.source === 'wallet' && (this.hasPriorWalletEvidence(a, body.reference) || body.operationId !== undefined && this.hasPriorWalletEvidence(a, body.operationId))) fail(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original wallet payment could not be confirmed.');
+        if (body.merchant === 'superapp' && body.source === 'wallet' && (this.hasUnboundLegacyWalletEvidence(a) || this.hasPriorWalletEvidence(a, body.reference) || body.operationId !== undefined && this.hasPriorWalletEvidence(a, body.operationId))) fail(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original wallet payment could not be confirmed.');
         const id = randomUUID();
         const declined = body.source === 'demo_declined' || (body.source === 'wallet' && wallet.availableMinor < body.amountMinor);
         const charge = { id, accountId: a, amountMinor: body.amountMinor, merchant: body.merchant, reference: body.reference, ...(body.operationId ? { operationId: body.operationId } : {}), source: body.source, status: declined ? 'DECLINED' : 'CAPTURED', currency: 'AED', createdAt: now(), refunded: false };

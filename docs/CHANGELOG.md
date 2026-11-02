@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Hold ambiguous legacy wallet payments (P1-02, step)
+
+New wallet debits are held when older reference-only captures cannot be bound to their original operation; verified original replays remain available. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Bind external wallet references (P1-02, step)
 
 New integrated wallet payments retain external booking references while binding their retry and inspection to the original operation identity. Guide: [agent flow](agent-flow.md).

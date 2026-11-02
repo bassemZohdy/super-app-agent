@@ -228,9 +228,12 @@ export function createProviderServer(provider: ProviderId, path: string, options
       const rawKey=req.headers['idempotency-key'];
       const key=claimant&&typeof rawKey==='string'?`claim:${claimant}:${rawKey}`:rawKey;
       const fingerprint = createHash('sha256').update(JSON.stringify([req.method, operationPath, canonical(body),...(claimant?[claimant]:[])])).digest('hex');
+      const legacyWalletFingerprint = provider === 'payments' && req.method === 'POST' && operationPath === '/charges' && body.merchant === 'superapp' && body.source === 'wallet' && body.operationId === body.reference
+        ? (() => { const { operationId: _operationId, ...legacyBody } = body; return createHash('sha256').update(JSON.stringify([req.method, operationPath, canonical(legacyBody), ...(claimant ? [claimant] : [])])).digest('hex'); })() : undefined;
+      const matchesFingerprint = (value: unknown) => value === fingerprint || (legacyWalletFingerprint !== undefined && value === legacyWalletFingerprint);
       const replay = (saved: { fingerprint: string; status: number; body: string }) => {
         if (provider === 'payments' && operationPath === '/charges' && saved.status === 200 && body.merchant === 'superapp' && body.source === 'wallet' && typeof body.reference === 'string') {
-          try { engine.verifyWalletReplay(accountId, body.operationId || body.reference, saved, body.amountMinor, body.reference, body.operationId !== undefined); }
+          try { engine.verifyWalletReplay(accountId, body.operationId || body.reference, saved, body.amountMinor, body.reference, body.operationId !== undefined && saved.fingerprint !== legacyWalletFingerprint); }
           catch { throw new ApiError(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original wallet payment could not be confirmed.'); }
         }
         if (provider === 'rta' && operationPath === '/rides/bookings' && saved.status === 200) {
@@ -241,12 +244,13 @@ export function createProviderServer(provider: ProviderId, path: string, options
       };
       if (req.method === 'POST') {
         if (typeof rawKey !== 'string' || !/^[\x21-\x7e]{1,200}$/.test(rawKey)) throw new ApiError(400, 'IDEMPOTENCY_REQUIRED', 'Provide an Idempotency-Key of 1 to 200 ASCII characters.');
-        engine.refunds?.reserveRequest(accountId,key as string,fingerprint);
         const existing = store.db.prepare('SELECT fingerprint,status,body FROM idempotency WHERE account_id=? AND key=?').get(accountId, key as string) as any;
-        if (existing) { if (existing.fingerprint !== fingerprint) throw new ApiError(409, 'IDEMPOTENCY_CONFLICT', 'This key was used with a different request.');if(!claimant){if(body.paymentId&&settlements)await settlements.retryConfirmation(accountId,body.paymentId);
+        if (existing && !matchesFingerprint(existing.fingerprint)) throw new ApiError(409, 'IDEMPOTENCY_CONFLICT', 'This key was used with a different request.');
+        engine.refunds?.reserveRequest(accountId,key as string,existing?.fingerprint ?? fingerprint);
+        if (existing) { if(!claimant){if(body.paymentId&&settlements)await settlements.retryConfirmation(accountId,body.paymentId);
           if(existing.status===200&&((provider==='payments'&&operationPath==='/charges'&&body.merchant==='superapp'&&body.source==='wallet')||(provider==='rta'&&operationPath==='/rides/bookings'))) return send(store.transaction(()=>{
             const current=store.db.prepare('SELECT fingerprint,status,body FROM idempotency WHERE account_id=? AND key=?').get(accountId,key as string) as {fingerprint:string;status:number;body:string}|undefined;
-            if(!current||current.fingerprint!==fingerprint||current.status!==200)throw new ApiError(503,'PROVIDER_OUTCOME_UNKNOWN','The original operation could not be confirmed.');
+            if(!current||!matchesFingerprint(current.fingerprint)||current.status!==200)throw new ApiError(503,'PROVIDER_OUTCOME_UNKNOWN','The original operation could not be confirmed.');
             return replay(current);
           }));
           return send(replay(existing));} }
@@ -326,7 +330,7 @@ export function createProviderServer(provider: ProviderId, path: string, options
         // Re-check after asynchronous proof retrieval; another request may have committed.
         if (req.method === 'POST') {
           const existing = store.db.prepare('SELECT fingerprint,status,body FROM idempotency WHERE account_id=? AND key=?').get(accountId, key as string) as any;
-          if (existing) { if (existing.fingerprint !== fingerprint) throw new ApiError(409, 'IDEMPOTENCY_CONFLICT', 'This key was used with a different request.');if(!claimant)return replay(existing); }
+          if (existing) { if (!matchesFingerprint(existing.fingerprint)) throw new ApiError(409, 'IDEMPOTENCY_CONFLICT', 'This key was used with a different request.');if(!claimant)return replay(existing); }
           if (proof && store.get(accountId, 'used-payment', proof.id)) throw new ApiError(409, 'PAYMENT_ALREADY_USED', 'This payment was already applied.');
         }
         const action=operationPath.split('/')[4],paymentId=operationPath.split('/')[2];

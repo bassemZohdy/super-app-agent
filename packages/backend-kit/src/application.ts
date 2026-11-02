@@ -389,7 +389,7 @@ export async function integratedRequest(service: string, actor: Actor, method: s
         return successful({ ...report, fines, count: fines.length, totalOriginal: original / 100, totalPayable: payable / 100, totalDiscount: discount / 100, plateNumber: asset.plate, earlyDiscountAED: discount / 100, discountLabel: 'Provider-reported discount' });
       }
       if (method === 'POST' && path === '/wallet/topup') return successfulWithoutDuplicate(await call('payments', method, '/topups', { amountMinor: Math.round(body.amount * 100), source: 'demo_approved' }));
-      if (method === 'POST' && path === '/wallet/pay') return successfulWithoutDuplicate(await charge('superapp', body.referenceId || actor.requestId, body.amount, body.referenceId ? actor.requestId : undefined));
+      if (method === 'POST' && path === '/wallet/pay') return successfulWithoutDuplicate(await charge('superapp', body.referenceId || actor.requestId, body.amount, actor.requestId));
       const walletOperation = /^\/wallet\/operations\/([^/]+)$/.exec(path);
       if (method === 'GET' && walletOperation) {
         let operationId: string;
