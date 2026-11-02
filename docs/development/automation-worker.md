@@ -81,6 +81,8 @@ A `SUBSCRIPTION_RENEWAL` rule renews one billing period at a time (`CAL:YYYY-MM`
 
 Only recognized provider skip and order-failure codes are saved in job history. An unfamiliar skip is held as `PREPARATION_UNKNOWN` before a credential is requested; an unfamiliar order failure is held as `OUTCOME_UNKNOWN` for reconciliation. The provider's unrecognized text is not persisted.
 
+The worker stores the prepared amount in integer fils with the job before requesting a credential. It reports settlement only when the matching order has a readable receipt for that exact amount in AED; missing or contradictory receipt evidence holds the original execution as `OUTCOME_UNKNOWN`. A prepared job from an older database without a stored amount is held as `PREPARATION_UNKNOWN` before requesting or resuming a credential.
+
 An invoice is chosen at preparation: the earliest-due unpaid, unreserved invoice that is within the rule's per-payment cap. An invoice above the cap is skipped, never lowered, and does not hold up a smaller one behind it. Paid and withdrawn invoices are never offered. Wallet, card, DEWA, Etisalat and du invoices follow the same path.
 
 ## Outbox

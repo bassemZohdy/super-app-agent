@@ -17,9 +17,9 @@ const cleanup = (dir: string) => { try { removeTemp(dir); } catch { /* Windows m
 function harness(store: JobStore, hooks: { onPrepare?: () => void; onCredential?: () => void } = {}) {
   const calls = { prepare: 0, credential: 0, execute: 0 };
   const g: ExecutionGateway = {
-    prepare: async () => { calls.prepare++; hooks.onPrepare?.(); return { id: 'autoexec_1', runId: 'autorn_1', orderId: 'order_1' }; },
+    prepare: async () => { calls.prepare++; hooks.onPrepare?.(); return { id: 'autoexec_1', runId: 'autorn_1', orderId: 'order_1', amountMinor: 10000 }; },
     credential: async () => { calls.credential++; hooks.onCredential?.(); return { accessToken: 'secret-bearer-do-not-store', expiresAt: Date.now() + 600_000 }; },
-    execute: async (): Promise<ExecutedOrder> => { calls.execute++; return { id: 'order_1', state: 'SETTLED', fundsCaptured: true }; },
+    execute: async (): Promise<ExecutedOrder> => { calls.execute++; return { id: 'order_1', state: 'SETTLED', fundsCaptured: true, receipt: { amountMinor: 10000, currency: 'AED', receiptNumber: 'receipt_1' } }; },
     resume: async () => { throw new Error('not expected'); },
   };
   const w = new AutomationWorker(store, g, { workerId: 'worker-a', clock: () => Date.now(), sleep: async () => {}, retryDelayMs: 1, leaseMs: 30_000 });
@@ -81,9 +81,9 @@ test('AUTO-15 step 3b: a desired kill-switch state from an authority is applied 
   let desired: { engaged: boolean; reason: string; at: number } | undefined | 'FAIL' = { engaged: true, reason: 'authority stop', at: Date.now() - 2000 };
   const calls = { prepare: 0 };
   const g: ExecutionGateway = {
-    prepare: async () => { calls.prepare++; return { id: 'autoexec_1', runId: 'autorn_1', orderId: 'order_1' }; },
+    prepare: async () => { calls.prepare++; return { id: 'autoexec_1', runId: 'autorn_1', orderId: 'order_1', amountMinor: 10000 }; },
     credential: async () => ({ accessToken: 'secret-bearer-do-not-store', expiresAt: Date.now() + 600_000 }),
-    execute: async (): Promise<ExecutedOrder> => ({ id: 'order_1', state: 'SETTLED', fundsCaptured: true }),
+    execute: async (): Promise<ExecutedOrder> => ({ id: 'order_1', state: 'SETTLED', fundsCaptured: true, receipt: { amountMinor: 10000, currency: 'AED', receiptNumber: 'receipt_1' } }),
     resume: async () => { throw new Error('not expected'); },
     killSwitch: async () => { if (desired === 'FAIL') throw new Error('authority unreachable'); return desired; },
   };
@@ -113,9 +113,9 @@ test('AUTO-15 step 3b-i: an older authority engage never undoes a newer local re
   store.enqueue(rule);
   const older = { engaged: true, reason: 'authority stop', at: Date.now() - 60_000 };
   const g: ExecutionGateway = {
-    prepare: async () => ({ id: 'autoexec_1', runId: 'autorn_1', orderId: 'order_1' }),
+    prepare: async () => ({ id: 'autoexec_1', runId: 'autorn_1', orderId: 'order_1', amountMinor: 10000 }),
     credential: async () => ({ accessToken: 'secret-bearer-do-not-store', expiresAt: Date.now() + 600_000 }),
-    execute: async (): Promise<ExecutedOrder> => ({ id: 'order_1', state: 'SETTLED', fundsCaptured: true }),
+    execute: async (): Promise<ExecutedOrder> => ({ id: 'order_1', state: 'SETTLED', fundsCaptured: true, receipt: { amountMinor: 10000, currency: 'AED', receiptNumber: 'receipt_1' } }),
     resume: async () => { throw new Error('not expected'); },
     killSwitch: async () => older,
   };

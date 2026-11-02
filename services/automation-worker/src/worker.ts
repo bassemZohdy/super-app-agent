@@ -7,8 +7,8 @@
 import { CHALLENGE_REASON, JobStore, StaleWorkerError, jobIdentity, type Claim, type Job } from './jobs.ts';
 
 export type GatewayFailure = Error & { status?: number; code?: string };
-export type PrepareResult = { skipped: true; reason: string } | { id: string; runId: string; orderId: string };
-export type ExecutedOrder = { id: string; state: string; fundsCaptured: boolean; failureCode?: string };
+export type PrepareResult = { skipped: true; reason: string } | { id: string; runId: string; orderId: string; amountMinor: number };
+export type ExecutedOrder = { id: string; state: string; fundsCaptured: boolean; failureCode?: string; receipt?: { amountMinor: number; currency: string; receiptNumber: string } };
 export const AUTOMATION_ORDER_STATES: ReadonlySet<string> = new Set(['AWAITING_APPROVAL', 'AUTHORIZATION_PENDING', 'REQUIRES_ACTION', 'AUTHORIZED', 'CAPTURING', 'CAPTURED', 'RECONCILIATION_REQUIRED', 'SETTLED', 'FAILED', 'CANCELLED']);
 /** The owner's answer to a held card challenge, asked for once per poll; APPROVED carries the one new credential. */
 export type ChallengeAnswer = { state: 'PENDING' } | { state: 'REJECTED' } | { state: 'APPROVED'; accessToken: string; expiresAt: number };
@@ -73,6 +73,10 @@ export class AutomationWorker {
       store.transition(claim, 'HELD', { reason: 'CREDENTIAL_LOST_AFTER_RESTART' }, { kind: 'HELD', body: { reason: 'CREDENTIAL_LOST_AFTER_RESTART', executionId: claim.job.executionId } }, this.now());
       return;
     }
+    if ((state === 'PREPARED' || state === 'HELD') && (!Number.isSafeInteger(claim.job.amountMinor) || claim.job.amountMinor! <= 0 || claim.job.amountMinor! > 100000000)) {
+      store.transition(claim, 'HELD', { reason: 'PREPARATION_UNKNOWN' }, { kind: 'HELD', body: { reason: 'PREPARATION_UNKNOWN', executionId: claim.job.executionId } }, this.now());
+      return;
+    }
     // A kill switch engaged between steps stops this job where it stands: no effect has begun, and the job waits untouched.
     if (this.store.killSwitch().engaged) { store.yield(claim, 0, this.now()); return; }
     // Only a job parked on a card challenge is claimed while held; it resumes when the owner has answered.
@@ -106,8 +110,13 @@ export class AutomationWorker {
         store.transition(claim, 'SKIPPED', { reason: result.reason }, { kind: REVIEW_SKIP_REASONS.has(result.reason) ? 'REQUIRES_ACTION' : 'SKIPPED', body: { reason: result.reason } }, this.now());
         return undefined;
       }
+      if (!Number.isSafeInteger(result.amountMinor) || result.amountMinor <= 0 || result.amountMinor > 100000000) {
+        store.outcome(claim, 'unverified_preparation');
+        store.transition(claim, 'HELD', { reason: 'PREPARATION_UNKNOWN' }, { kind: 'HELD', body: { reason: 'PREPARATION_UNKNOWN' } }, this.now());
+        return undefined;
+      }
       store.outcome(claim, 'prepared');
-      return store.transition(claim, 'PREPARED', { runId: result.runId, executionId: result.id, orderId: result.orderId }, { kind: 'PREPARED', body: { executionId: result.id, orderId: result.orderId } }, this.now());
+      return store.transition(claim, 'PREPARED', { runId: result.runId, executionId: result.id, orderId: result.orderId, amountMinor: result.amountMinor }, { kind: 'PREPARED', body: { executionId: result.id, orderId: result.orderId } }, this.now());
     } catch (e) {
       // The mandate's cooldown between preparations is a wait, not a failure: the same occurrence is tried again after it, under the same identity.
       if (codeOf(e) === 'AUTOMATION_COOLDOWN') { store.outcome(claim, 'cooldown'); store.yield(claim, Math.max(this.opts.retryDelayMs, 30_000), this.now()); return undefined; }
@@ -201,7 +210,8 @@ export class AutomationWorker {
       try {
         const order = await this.gateway.execute(runId, executionId, credential.accessToken);
         const expectedOrderId = store.get(claim.job.id)?.orderId;
-        if (!order || !expectedOrderId || order.id !== expectedOrderId || !AUTOMATION_ORDER_STATES.has(order.state) || typeof order.fundsCaptured !== 'boolean' || (order.failureCode !== undefined && !FAILURE_REASONS.has(order.failureCode)) || (order.state === 'SETTLED' && (!order.fundsCaptured || order.failureCode !== undefined)) || (order.state === 'REQUIRES_ACTION' && order.fundsCaptured)) {
+        const expectedAmount = store.get(claim.job.id)?.amountMinor;
+        if (!order || !expectedOrderId || order.id !== expectedOrderId || !AUTOMATION_ORDER_STATES.has(order.state) || typeof order.fundsCaptured !== 'boolean' || (order.failureCode !== undefined && !FAILURE_REASONS.has(order.failureCode)) || (order.state === 'SETTLED' && (!order.fundsCaptured || order.failureCode !== undefined || !Number.isSafeInteger(expectedAmount) || !order.receipt || order.receipt.amountMinor !== expectedAmount || order.receipt.currency !== 'AED' || typeof order.receipt.receiptNumber !== 'string' || !order.receipt.receiptNumber.trim())) || (order.state === 'REQUIRES_ACTION' && order.fundsCaptured)) {
           store.outcome(claim, 'unverified_order');
           store.transition(claim, 'HELD', { reason: 'OUTCOME_UNKNOWN' }, { kind: 'HELD', body: { reason: 'OUTCOME_UNKNOWN', executionId } }, this.now());
           return;

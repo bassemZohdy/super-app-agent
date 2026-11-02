@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Verify automation settlement receipts (P1-02, step)
+
+The worker persists the prepared amount and accepts settlement only when the receipt names that exact amount in AED. Older preparations without a stored amount and unverifiable receipts are held for reconciliation. Guide: [automation worker](development/automation-worker.md).
+
 ## 2 November 2026 — Hold unfamiliar automation reasons (P1-02, step)
 
 Automation skips and order failures now accept only recognized reason codes. Unknown values are held for reconciliation without saving provider-supplied text. Guide: [automation worker](development/automation-worker.md).

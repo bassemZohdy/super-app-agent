@@ -54,7 +54,7 @@ export class HttpExecutionGateway implements ExecutionGateway {
     if (data.mandateId !== input.mandateId || data.occurrenceKey !== input.occurrenceKey) throw failure(502, 'PREPARATION_INVALID', 'The preparation response was incomplete.');
     if (data.skipped === true && typeof data.reason === 'string') return { skipped: true, reason: data.reason };
     if (data.runId !== this.config.runId || data.policyVersion !== input.policyVersion || data.state !== 'PREPARED' || typeof data.id !== 'string' || !/^autoexec_[A-Za-z0-9_-]{1,100}$/.test(data.id) || typeof data.orderId !== 'string' || !/^(?:order|funding)_[A-Za-z0-9_-]{1,100}$/.test(data.orderId) || typeof data.amountMinor !== 'number' || !Number.isSafeInteger(data.amountMinor) || data.amountMinor <= 0 || data.amountMinor > 100000000 || data.currency !== 'AED') throw failure(502, 'PREPARATION_INVALID', 'The preparation response was incomplete.');
-    return { id: data.id, runId: this.config.runId, orderId: data.orderId };
+    return { id: data.id, runId: this.config.runId, orderId: data.orderId, amountMinor: data.amountMinor };
   }
   async credential(runId: string, executionId: string) {
     const data = await this.call(this.config.brokerUrl, `/api/delegation/automation/executions/${encodeURIComponent(executionId)}/credential`, await this.credentials.token(), { runId });
@@ -102,6 +102,8 @@ export class HttpExecutionGateway implements ExecutionGateway {
     if (!data.order || typeof data.order !== 'object' || Array.isArray(data.order)) throw failure(502, 'ORDER_INVALID', 'The execution response was incomplete.');
     const order = data.order as Record<string, unknown>;
     if (typeof order.id !== 'string' || !order.id || order.id.length > 200 || typeof order.state !== 'string' || !AUTOMATION_ORDER_STATES.has(order.state) || typeof order.fundsCaptured !== 'boolean' || (order.failureCode !== undefined && typeof order.failureCode !== 'string')) throw failure(502, 'ORDER_INVALID', 'The execution response was incomplete.');
-    return { id: order.id, state: order.state, fundsCaptured: order.fundsCaptured, failureCode: order.failureCode as string | undefined };
+    const receipt = order.receipt && typeof order.receipt === 'object' && !Array.isArray(order.receipt) ? order.receipt as Record<string, unknown> : undefined;
+    return { id: order.id, state: order.state, fundsCaptured: order.fundsCaptured, failureCode: order.failureCode as string | undefined,
+      receipt: receipt && typeof receipt.amountMinor === 'number' && typeof receipt.currency === 'string' && typeof receipt.receiptNumber === 'string' ? { amountMinor: receipt.amountMinor, currency: receipt.currency, receiptNumber: receipt.receiptNumber } : undefined };
   }
 }

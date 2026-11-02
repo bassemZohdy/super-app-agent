@@ -50,6 +50,7 @@ test('automation HTTP errors remain sanitized and uncertain credential results a
     { status: 200, body: { success: true, order: { id: 'order_1', state: 'SETTLED', fundsCaptured: false } } },
     { status: 200, body: { success: true, order: { id: 'order_1', state: 'REQUIRES_ACTION', fundsCaptured: true } } },
     { status: 200, body: { success: true, order: { id: 'order_1', state: 'FAILED', fundsCaptured: false, failureCode: 'private-token-marker' } } },
+    ...[undefined, { amountMinor: 9999, currency: 'AED', receiptNumber: 'receipt_1' }, { amountMinor: 10000, currency: 'USD', receiptNumber: 'receipt_1' }, { amountMinor: 10000, currency: 'AED', receiptNumber: '' }].map(receipt => ({ status: 200, body: { success: true, order: { id: 'order_1', state: 'SETTLED', fundsCaptured: true, receipt } } })),
   ]) {
     status = example.status; payload = example.body; executeCalls = 0;
     const store = new JobStore(':memory:');
@@ -62,6 +63,12 @@ test('automation HTTP errors remain sanitized and uncertain credential results a
       assert.doesNotMatch(JSON.stringify([store.get(job.id), store.outbox(job.id), store.attempts(job.id)]), /private.token.marker|fixture-execution-token/i);
     } finally { store.close(); }
   }
+  status = 200; payload = { success: true, order: { id: 'order_1', state: 'SETTLED', fundsCaptured: true, receipt: { amountMinor: 10000, currency: 'AED', receiptNumber: 'receipt_1' } } };
+  const settledStore = new JobStore(':memory:');
+  try {
+    settledStore.enqueue(rule);
+    assert.equal((await new AutomationWorker(settledStore, gateway, { workerId: 'worker-a', stepRetries: 1, sleep: async () => {} }).runOnce())?.state, 'SETTLED');
+  } finally { settledStore.close(); }
   phase = 'credential';
   status = 409; payload = { success: false, code: 'PERMIT_ALREADY_ISSUED', error: 'private-token-marker' };
   await assert.rejects(gateway.credential(runId, 'autoexec_1'), (error: unknown) => {
@@ -155,5 +162,5 @@ test('automation execution HTTP responses require a readable order identity and 
     await assert.rejects(gateway.execute(runId, 'autoexec_1', 'fixture-execution-token'), /incomplete/i);
   }
   order = { id: 'order_1', state: 'SETTLED', fundsCaptured: true };
-  assert.deepEqual(await gateway.execute(runId, 'autoexec_1', 'fixture-execution-token'), { id: 'order_1', state: 'SETTLED', fundsCaptured: true, failureCode: undefined });
+  assert.deepEqual(await gateway.execute(runId, 'autoexec_1', 'fixture-execution-token'), { id: 'order_1', state: 'SETTLED', fundsCaptured: true, failureCode: undefined, receipt: undefined });
 });

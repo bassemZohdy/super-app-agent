@@ -15,7 +15,7 @@ export type JobState = 'QUEUED' | 'PREPARING' | 'PREPARED' | 'CREDENTIALING' | '
 export const ACTIVE_STATES: readonly JobState[] = ['QUEUED', 'PREPARING', 'PREPARED', 'CREDENTIALING', 'EXECUTING'];
 export type Job = {
   id: string; mandateId: string; policyVersion: number; occurrenceKey: string; target: string;
-  state: JobState; runId?: string; executionId?: string; orderId?: string; reason?: string;
+  state: JobState; runId?: string; executionId?: string; orderId?: string; amountMinor?: number; reason?: string;
   leaseOwner?: string; leaseExpiresAt: number; fence: number; attempts: number; createdAt: number; updatedAt: number;
 };
 export type Claim = { job: Job; fence: number; workerId: string };
@@ -29,7 +29,7 @@ const token = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,100}$/;
 const row = (r: Record<string, unknown>): Job => ({
   id: String(r.id), mandateId: String(r.mandate_id), policyVersion: Number(r.policy_version), occurrenceKey: String(r.occurrence_key), target: String(r.target),
   state: String(r.state) as JobState, runId: r.run_id == null ? undefined : String(r.run_id), executionId: r.execution_id == null ? undefined : String(r.execution_id),
-  orderId: r.order_id == null ? undefined : String(r.order_id), reason: r.reason == null ? undefined : String(r.reason),
+  orderId: r.order_id == null ? undefined : String(r.order_id), amountMinor: r.amount_minor == null ? undefined : Number(r.amount_minor), reason: r.reason == null ? undefined : String(r.reason),
   leaseOwner: r.lease_owner == null ? undefined : String(r.lease_owner), leaseExpiresAt: Number(r.lease_expires_at), fence: Number(r.fence),
   attempts: Number(r.attempts), createdAt: Number(r.created_at), updatedAt: Number(r.updated_at),
 });
@@ -48,7 +48,7 @@ export class JobStore {
     this.db.exec(`PRAGMA journal_mode=WAL;PRAGMA busy_timeout=5000;PRAGMA foreign_keys=ON;
       CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY,mandate_id TEXT NOT NULL,policy_version INTEGER NOT NULL,occurrence_key TEXT NOT NULL,target TEXT NOT NULL,
         state TEXT NOT NULL CHECK(state IN ('QUEUED','PREPARING','PREPARED','CREDENTIALING','EXECUTING','SETTLED','SKIPPED','FAILED','HELD')),
-        run_id TEXT,execution_id TEXT,order_id TEXT,reason TEXT,lease_owner TEXT,lease_expires_at INTEGER NOT NULL DEFAULT 0,fence INTEGER NOT NULL DEFAULT 0,
+        run_id TEXT,execution_id TEXT,order_id TEXT,amount_minor INTEGER,reason TEXT,lease_owner TEXT,lease_expires_at INTEGER NOT NULL DEFAULT 0,fence INTEGER NOT NULL DEFAULT 0,
         attempts INTEGER NOT NULL DEFAULT 0,created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL,UNIQUE(mandate_id,policy_version,occurrence_key,target));
       CREATE TABLE IF NOT EXISTS job_attempts(seq INTEGER PRIMARY KEY AUTOINCREMENT,job_id TEXT NOT NULL REFERENCES jobs(id),fence INTEGER NOT NULL,worker_id TEXT NOT NULL,step TEXT NOT NULL,at INTEGER NOT NULL,outcome TEXT);
       CREATE TABLE IF NOT EXISTS job_outbox(seq INTEGER PRIMARY KEY AUTOINCREMENT,job_id TEXT NOT NULL REFERENCES jobs(id),kind TEXT NOT NULL,body TEXT NOT NULL,at INTEGER NOT NULL,delivered_at INTEGER,UNIQUE(job_id,kind));
@@ -60,7 +60,11 @@ export class JobStore {
     this.migrate();
   }
   close() { this.db.close(); }
-  private migrate() { try { this.db.exec('ALTER TABLE threshold_state ADD COLUMN debit_mark INTEGER'); } catch { /* already present */ } }
+  private migrate() {
+    try { this.db.exec('ALTER TABLE threshold_state ADD COLUMN debit_mark INTEGER'); } catch { /* already present */ }
+    const hasAmount = () => this.db.prepare('PRAGMA table_info(jobs)').all().some(column => column.name === 'amount_minor');
+    if (!hasAmount()) try { this.db.exec('ALTER TABLE jobs ADD COLUMN amount_minor INTEGER'); } catch (error) { if (!hasAmount()) throw error; }
+  }
   private atomic<T>(fn: () => T): T { this.db.exec('BEGIN IMMEDIATE'); try { const out = fn(); this.db.exec('COMMIT'); return out; } catch (e) { this.db.exec('ROLLBACK'); throw e; } }
 
   get(id: string): Job | undefined { const r = this.db.prepare('SELECT * FROM jobs WHERE id=?').get(id); return r ? row(r) : undefined; }
@@ -179,15 +183,15 @@ export class JobStore {
   }
   /** Move the job to a new state under the fence, optionally attaching facts and one outbox event.
    *  `parkMs` keeps a job held on a card challenge claimable again after that wait instead of making it final. */
-  transition(claim: Claim, state: JobState, patch: { runId?: string; executionId?: string; orderId?: string; reason?: string } = {}, event?: { kind: string; body?: Record<string, unknown> }, now = Date.now(), parkMs = 0): Job {
+  transition(claim: Claim, state: JobState, patch: { runId?: string; executionId?: string; orderId?: string; amountMinor?: number; reason?: string } = {}, event?: { kind: string; body?: Record<string, unknown> }, now = Date.now(), parkMs = 0): Job {
     return this.atomic(() => {
       const current = this.fenced(claim, now);
       const parkable = current.state === 'HELD' && current.reason === CHALLENGE_REASON;
       if (!ACTIVE_STATES.includes(current.state) && !parkable) throw new JobError('JOB_FINAL', 'This job already reached a final state.');
       const parked = state === 'HELD' && patch.reason === CHALLENGE_REASON && parkMs > 0;
       const final = !ACTIVE_STATES.includes(state) && !parked;
-      this.db.prepare('UPDATE jobs SET state=?,run_id=COALESCE(?,run_id),execution_id=COALESCE(?,execution_id),order_id=COALESCE(?,order_id),reason=?,lease_expires_at=CASE WHEN ? THEN 0 WHEN ? THEN ? ELSE lease_expires_at END,updated_at=? WHERE id=?')
-        .run(state, patch.runId ?? null, patch.executionId ?? null, patch.orderId ?? null, patch.reason ?? null, final ? 1 : 0, parked ? 1 : 0, now + parkMs, now, claim.job.id);
+      this.db.prepare('UPDATE jobs SET state=?,run_id=COALESCE(?,run_id),execution_id=COALESCE(?,execution_id),order_id=COALESCE(?,order_id),amount_minor=COALESCE(?,amount_minor),reason=?,lease_expires_at=CASE WHEN ? THEN 0 WHEN ? THEN ? ELSE lease_expires_at END,updated_at=? WHERE id=?')
+        .run(state, patch.runId ?? null, patch.executionId ?? null, patch.orderId ?? null, patch.amountMinor ?? null, patch.reason ?? null, final ? 1 : 0, parked ? 1 : 0, now + parkMs, now, claim.job.id);
       if (event) this.db.prepare('INSERT OR IGNORE INTO job_outbox(job_id,kind,body,at) VALUES(?,?,?,?)').run(claim.job.id, event.kind, JSON.stringify(event.body ?? {}), now);
       return this.get(claim.job.id)!;
     });

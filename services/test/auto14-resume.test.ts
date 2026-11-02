@@ -13,12 +13,12 @@ function gateway(answers: Array<ChallengeAnswer | Error>) {
   const calls = { credential: 0, execute: 0, resume: 0, tokens: [] as string[] };
   let executed = 0;
   const g: ExecutionGateway = {
-    prepare: async (): Promise<PrepareResult> => ({ id: 'autoexec_1', runId: 'autorn_1', orderId: 'order_1' }),
+    prepare: async (): Promise<PrepareResult> => ({ id: 'autoexec_1', runId: 'autorn_1', orderId: 'order_1', amountMinor: 10000 }),
     credential: async () => { calls.credential++; return { accessToken: `${SECRET}-first`, expiresAt: Date.now() + 600_000 }; },
     // The first execution is challenged; every later execution of the same order settles it.
     execute: async (_run, _exec, token): Promise<ExecutedOrder> => {
       calls.execute++; calls.tokens.push(token);
-      return executed++ === 0 ? { id: 'order_1', state: 'REQUIRES_ACTION', fundsCaptured: false } : { id: 'order_1', state: 'SETTLED', fundsCaptured: true };
+      return executed++ === 0 ? { id: 'order_1', state: 'REQUIRES_ACTION', fundsCaptured: false } : { id: 'order_1', state: 'SETTLED', fundsCaptured: true, receipt: { amountMinor: 10000, currency: 'AED', receiptNumber: 'receipt_1' } };
     },
     resume: async (): Promise<ChallengeAnswer> => {
       calls.resume++;

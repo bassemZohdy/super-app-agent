@@ -151,9 +151,9 @@ function loop(f: ReturnType<typeof fixture>, mandateId: string, store = new JobS
   const rule = () => runs.rules(w).find(r => r.mandateId === mandateId)! as unknown as ScheduledRule;
   const source: RuleSource = { rules: async () => [rule()], dueInvoices: async () => [], balanceMinor: async () => runs.balanceMinor(w, mandateId).balanceMinor, balance: async () => runs.balanceMinor(w, mandateId) };
   const gateway: ExecutionGateway = {
-    prepare: async input => { const r = f.prepare(input.mandateId, input.occurrenceKey); return 'skipped' in r ? { skipped: true, reason: r.reason } : { id: r.id, runId: r.runId, orderId: r.orderId! }; },
+    prepare: async input => { const r = f.prepare(input.mandateId, input.occurrenceKey); return 'skipped' in r ? { skipped: true, reason: r.reason } : { id: r.id, runId: r.runId, orderId: r.orderId!, amountMinor: r.amountMinor }; },
     credential: async () => ({ accessToken: 'in-process', expiresAt: Date.now() + 90_000 }),
-    execute: async (_run, executionId) => { const o = await f.run(executionId); return { id: o.id, state: o.state, fundsCaptured: o.fundsCaptured, failureCode: (o as { failureCode?: string }).failureCode }; },
+    execute: async (_run, executionId) => { const o = await f.run(executionId); return { id: o.id, state: o.state, fundsCaptured: o.fundsCaptured, failureCode: (o as { failureCode?: string }).failureCode, receipt: o.receipt }; },
   };
   const scheduler = new Scheduler(store, source), worker = new AutomationWorker(store, gateway, { workerId: 'w1', sleep: async () => {}, leaseMs: 30_000 });
   return { store, tick: (at = Date.now()) => scheduler.tick(at), drain: () => worker.drain(), jobs: () => store.list().map(j => [j.occurrenceKey, j.state]) };

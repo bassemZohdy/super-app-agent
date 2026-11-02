@@ -15,9 +15,9 @@ const cleanup = (dir: string) => { try { removeTemp(dir); } catch { /* Windows m
 function gateway(overrides: Partial<ExecutionGateway> = {}) {
   const calls = { prepare: 0, credential: 0, execute: 0, requestKeys: [] as string[], tokens: [] as string[] };
   const g: ExecutionGateway = {
-    prepare: async (input): Promise<PrepareResult> => { calls.prepare++; calls.requestKeys.push(input.requestKey); return { id: 'autoexec_1', runId: 'autorn_1', orderId: 'order_1' }; },
+    prepare: async (input): Promise<PrepareResult> => { calls.prepare++; calls.requestKeys.push(input.requestKey); return { id: 'autoexec_1', runId: 'autorn_1', orderId: 'order_1', amountMinor: 10000 }; },
     credential: async () => { calls.credential++; return { accessToken: SECRET, expiresAt: Date.now() + 90_000 }; },
-    execute: async (_run, _exec, token): Promise<ExecutedOrder> => { calls.execute++; calls.tokens.push(token); return { id: 'order_1', state: 'SETTLED', fundsCaptured: true }; },
+    execute: async (_run, _exec, token): Promise<ExecutedOrder> => { calls.execute++; calls.tokens.push(token); return { id: 'order_1', state: 'SETTLED', fundsCaptured: true, receipt: { amountMinor: 10000, currency: 'AED', receiptNumber: 'receipt_1' } }; },
     ...overrides,
   };
   return { g, calls };
@@ -136,15 +136,40 @@ test('AUTO-05: a restart after the credential was requested holds the job and ne
 });
 
 test('AUTO-05: a restart after the preparation was stored resumes at the credential without preparing again', async () => {
-  const store = new JobStore(':memory:');
-  store.enqueue(rule);
-  const t0 = 9_000_000, claim = store.claim('worker-a', 30_000, t0)!;
-  store.transition(claim, 'PREPARING', {}, undefined, t0);
-  store.transition(claim, 'PREPARED', { runId: 'autorn_1', executionId: 'autoexec_1', orderId: 'order_1' }, undefined, t0); // crash before any credential request
-  const { g, calls } = gateway();
-  const done = await worker(store, g, 'worker-b', () => t0 + 60_000).runOnce();
-  assert.equal(done!.state, 'SETTLED');
-  assert.deepEqual([calls.prepare, calls.credential, calls.execute], [0, 1, 1]);
+  const dir = mkdtempSync(join(tmpdir(), 'cityside-prepared-jobs-')), path = join(dir, 'jobs.sqlite');
+  const store = new JobStore(path), t0 = 9_000_000;
+  try {
+    store.enqueue(rule);
+    const claim = store.claim('worker-a', 30_000, t0)!;
+    store.transition(claim, 'PREPARING', {}, undefined, t0);
+    store.transition(claim, 'PREPARED', { runId: 'autorn_1', executionId: 'autoexec_1', orderId: 'order_1', amountMinor: 10000 }, undefined, t0);
+    store.close();
+    const reopened = new JobStore(path), { g, calls } = gateway();
+    try {
+      const done = await worker(reopened, g, 'worker-b', () => t0 + 60_000).runOnce();
+      assert.equal(done!.state, 'SETTLED'); assert.equal(done!.amountMinor, 10000);
+      assert.deepEqual([calls.prepare, calls.credential, calls.execute], [0, 1, 1]);
+    } finally { reopened.close(); }
+  } finally { cleanup(dir); }
+});
+
+test('older prepared jobs without a stored amount are held without requesting a credential', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'cityside-legacy-jobs-')), path = join(dir, 'jobs.sqlite');
+  const first = new JobStore(path), t0 = 9_000_000;
+  try {
+    const job = first.enqueue(rule), claim = first.claim('worker-a', 30_000, t0)!;
+    first.transition(claim, 'PREPARING', {}, undefined, t0);
+    first.transition(claim, 'PREPARED', { runId: 'autorn_1', executionId: 'autoexec_1', orderId: 'order_1' }, undefined, t0);
+    first.db.exec('ALTER TABLE jobs DROP COLUMN amount_minor');
+    first.close();
+    const reopened = new JobStore(path), { g, calls } = gateway();
+    try {
+      const done = await worker(reopened, g, 'worker-b', () => t0 + 60_000).runOnce();
+      assert.equal(done?.state, 'HELD'); assert.equal(done?.reason, 'PREPARATION_UNKNOWN');
+      assert.deepEqual([calls.prepare, calls.credential, calls.execute], [0, 0, 0]);
+      assert.deepEqual(reopened.outbox(job.id).map(event => event.kind), ['HELD']);
+    } finally { reopened.close(); }
+  } finally { cleanup(dir); }
 });
 
 test('AUTO-05: a lost execute response retries only the same credential, then holds as unknown', async () => {
@@ -241,7 +266,7 @@ test('AUTO-08: failures only the owner can fix are recorded as requiring action 
 test('AUTO-11: a cooldown is a wait, not a failure: the same occurrence is retried after it under the same identity', async () => {
   const store = new JobStore(':memory:'), keys: string[] = [];
   let cooling = true;
-  const { g, calls } = gateway({ prepare: async input => { keys.push(input.requestKey); if (cooling) throw fail(409, 'AUTOMATION_COOLDOWN'); return { id: 'autoexec_1', runId: 'autorn_1', orderId: 'order_1' }; } });
+  const { g, calls } = gateway({ prepare: async input => { keys.push(input.requestKey); if (cooling) throw fail(409, 'AUTOMATION_COOLDOWN'); return { id: 'autoexec_1', runId: 'autorn_1', orderId: 'order_1', amountMinor: 10000 }; } });
   const job = store.enqueue(rule);
   let now = 1_000_000;
   const w = new AutomationWorker(store, g, { workerId: 'w', clock: () => now, sleep: async () => {}, retryDelayMs: 1, leaseMs: 30_000, maxAttempts: 2 });
