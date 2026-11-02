@@ -7,7 +7,7 @@ export type RecoveryInspection=RecoveryCase&{id:string;ownerSub:string;accountId
   captureState:'COMMITTED'|'NOT_CAPTURED'|'INCONSISTENT';sourceState:string;reason:string;actions:RecoveryAction[];
   status:'OPEN'|'RUNNING'|'COMPLETED'|'UNKNOWN';action?:RecoveryAction;lease?:string;leaseUntil?:number;attempts:number;resultId?:string;resultKind?:RecoveryKind;resultState?:string};
 export type RecoveryAudit={id:string;kind:RecoveryKind;operationId:string;ownerSub:string;at:string;phase:string;inspectionId?:string;state?:string;code?:string;paymentId?:string;resultId?:string};
-export type RecoveryEvidenceIssue={kind:'UNREADABLE_CHARGE'|'UNREADABLE_TRANSACTION'|'ORPHANED_CHARGE_JOURNAL';id:string|null};
+export type RecoveryEvidenceIssue={kind:'UNREADABLE_CHARGE'|'UNREADABLE_TRANSACTION'|'ORPHANED_CHARGE_JOURNAL'|'UNBOUND_LEGACY_CAPTURE';id:string|null};
 const id={type:'string',minLength:1,maxLength:160,pattern:'^[A-Za-z0-9][A-Za-z0-9_.:-]*$'};
 export const recoverySchemas={
   inspect:paymentObject({kind:{enum:['PAYMENT','FUNDING','REFUND','LEGACY']},operationId:id}),
@@ -17,7 +17,7 @@ export const recoveryInspectionIdSchema=id;
 
 const text={type:'string',minLength:1,maxLength:400};
 const digest={type:'string',pattern:'^[a-f0-9]{64}$'};
-export const recoveryEvidenceIssueSchema=paymentObject({kind:{enum:['UNREADABLE_CHARGE','UNREADABLE_TRANSACTION','ORPHANED_CHARGE_JOURNAL']},id:{type:['string','null'],minLength:1,maxLength:160,pattern:'^[A-Za-z0-9][A-Za-z0-9_.:-]*$'}});
+export const recoveryEvidenceIssueSchema=paymentObject({kind:{enum:['UNREADABLE_CHARGE','UNREADABLE_TRANSACTION','ORPHANED_CHARGE_JOURNAL','UNBOUND_LEGACY_CAPTURE']},id:{type:['string','null'],minLength:1,maxLength:160,pattern:'^[A-Za-z0-9][A-Za-z0-9_.:-]*$'}});
 export const recoveryCaseSchema=paymentObject({kind:{enum:['PAYMENT','FUNDING','REFUND','LEGACY']},operationId:id,state:text,amountMinor:{type:'integer',minimum:1,maximum:100000000},sourceLabel:text,provider:text});
 export const recoveryInspectionSchema=paymentObject({...recoveryCaseSchema.properties,id,ownerSub:text,accountId:id,createdAt:text,expiresAt:text,decisionDigest:digest,termsDigest:digest,localDigest:digest,sourceDigest:digest,
   classification:{enum:['BEFORE_CAPTURE','CAPTURE_COMMITTED','PROVIDER_APPLIED','RETURN_PENDING','CONFIRMED','NOT_APPLIED','REVIEW_REQUIRED','BLOCKED','INCONSISTENT']},captureState:{enum:['COMMITTED','NOT_CAPTURED','INCONSISTENT']},sourceState:text,reason:text,

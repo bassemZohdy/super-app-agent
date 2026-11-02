@@ -190,6 +190,12 @@ test('legacy reference-only wallet payments hold ambiguous new operations', asyn
   await resident.getByRole('button', { name: 'Payment accounts', exact: true }).click();
   const panel = resident.getByRole('region', { name: 'Payment accounts', exact: true });
   await expect(panel.getByText('Some wallet payment records need review before new concierge wallet payments. Review your payment history; there is no automatic clearance.', { exact: true })).toBeVisible();
+  await panel.getByRole('button', { name: 'Load recovery cases', exact: true }).click();
+  const issues = panel.getByRole('region', { name: 'Records needing manual review', exact: true });
+  await expect(issues.getByText(`Older wallet payment without an operation binding · ${legacy.data.charge!.id}`, { exact: false })).toBeVisible();
+  await issues.getByRole('button', { name: `Inspect ${legacy.data.charge!.id}`, exact: true }).click();
+  const inspected = panel.getByRole('article', { name: 'Recovery evidence', exact: true });
+  await expect(inspected.getByRole('heading', { name: 'BLOCKED · AED 1.00', exact: true })).toBeVisible();
   const overviewRoute = '**/api/payments/overview?*';
   const incompleteOverview = structuredClone((await residentApi.call('overview')).data);
   delete incompleteOverview.wallet.walletPaymentReview;

@@ -12257,7 +12257,8 @@
                             "enum": [
                               "UNREADABLE_CHARGE",
                               "UNREADABLE_TRANSACTION",
-                              "ORPHANED_CHARGE_JOURNAL"
+                              "ORPHANED_CHARGE_JOURNAL",
+                              "UNBOUND_LEGACY_CAPTURE"
                             ]
                           },
                           "id": {
@@ -12431,7 +12432,8 @@
                             "enum": [
                               "UNREADABLE_CHARGE",
                               "UNREADABLE_TRANSACTION",
-                              "ORPHANED_CHARGE_JOURNAL"
+                              "ORPHANED_CHARGE_JOURNAL",
+                              "UNBOUND_LEGACY_CAPTURE"
                             ]
                           },
                           "id": {
@@ -12547,7 +12549,8 @@
                             "enum": [
                               "UNREADABLE_CHARGE",
                               "UNREADABLE_TRANSACTION",
-                              "ORPHANED_CHARGE_JOURNAL"
+                              "ORPHANED_CHARGE_JOURNAL",
+                              "UNBOUND_LEGACY_CAPTURE"
                             ]
                           },
                           "id": {

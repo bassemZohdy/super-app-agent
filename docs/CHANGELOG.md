@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Identify legacy wallet hold records (P1-12, step)
+
+The recovery workbench identifies reference-only wallet captures behind an account hold and opens their original inspection without authorizing another payment. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Page damaged payment evidence (P1-12, step)
 
 Residents can page through account-owned damaged payment records independently of the ordinary recovery-case list, without exposing raw bodies. Guide: [agent flow](agent-flow.md).

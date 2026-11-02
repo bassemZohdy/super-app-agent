@@ -125,6 +125,32 @@ test('recovery list isolates unreadable evidence without hiding other owned case
   assert.equal(f.gateway.ledger!.summary(f.actor.accountId).balanceMinor,149700);
 });
 
+test('recovery evidence identifies unbound legacy wallet captures across pages', async t => {
+  const f=fixture(t),other=actorFor({sub:'other-unbound-owner'});f.db.accounts(other.sub);f.gateway.seed(other);
+  const legacy=f.db.transaction(()=>f.gateway.execute(f.actor,'POST','/charges',{amountMinor:100,merchant:'superapp',reference:'legacy-private-reference',source:'wallet'})).data.charge;
+  f.db.transaction(()=>f.gateway.execute(other,'POST','/charges',{amountMinor:100,merchant:'superapp',reference:'bound-other',operationId:'bound-other',source:'wallet'}));
+  for(let n=0;n<30;n++)f.db.db.prepare("INSERT INTO resources(account_id,kind,id,body) VALUES(?,'transaction',?,'{')").run(f.actor.accountId,`old-page-${n}`);
+  const first=f.recovery.list(f.actor);assert.equal(first.evidenceIssues.length,25);assert.ok(first.evidenceIssuesCursor);
+  const next=f.recovery.evidencePage(f.actor,first.evidenceIssuesCursor!);
+  assert.ok(next.evidenceIssues.some(issue=>issue.kind==='UNBOUND_LEGACY_CAPTURE'&&issue.id===legacy.id));
+  assert.equal(new Ajv({strict:false}).compile(recoveryEvidenceIssueSchema)({kind:'UNBOUND_LEGACY_CAPTURE',id:legacy.id}),true);
+  assert.ok(!JSON.stringify(next).includes('legacy-private-reference'));
+  assert.ok(first.cases.some(item=>item.kind==='LEGACY'&&item.operationId===legacy.id));
+  const inspection=await f.inspect(legacy.id,'LEGACY'); assert.equal(inspection.classification,'BLOCKED'); assert.deepEqual(inspection.actions,[]);
+  assert.equal(f.recovery.list(other).evidenceIssues.length,0);
+  assert.equal(f.gateway.ledger!.summary(f.actor.accountId).balanceMinor,149900);
+});
+
+test('unbound legacy captures page beyond the first 25 without losing their identifiers', t => {
+  const f=fixture(t);
+  for(let n=0;n<30;n++)f.db.transaction(()=>f.gateway.execute(f.actor,'POST','/charges',{amountMinor:1,merchant:'superapp',reference:`old-op-${n}`,operationId:`old-op-${n}`,source:'wallet'}));
+  f.db.db.prepare("UPDATE resources SET body=json_remove(body,'$.operationId') WHERE account_id=? AND kind='charge'").run(f.actor.accountId);
+  const first=f.recovery.list(f.actor);assert.equal(first.evidenceIssues.length,25);assert.ok(first.evidenceIssuesCursor);
+  const second=f.recovery.evidencePage(f.actor,first.evidenceIssuesCursor!);assert.equal(second.evidenceIssues.length,5);assert.equal(second.evidenceIssuesCursor,null);
+  const items=[...first.evidenceIssues,...second.evidenceIssues];assert.ok(items.every(item=>item.kind==='UNBOUND_LEGACY_CAPTURE'));assert.equal(new Set(items.map(item=>item.id)).size,30);
+  assert.equal(f.gateway.ledger!.summary(f.actor.accountId).balanceMinor,149970);
+});
+
 test('journal mismatch and persisted decision tampering fail closed',async t=>{
   const f=fixture(t),o=f.create();f.fail('after');await f.checkout.execute(f.actor,o.id,decision(o));const i=await f.inspect(o.id);
   const row=f.db.db.prepare('SELECT body FROM payment_recovery_inspections WHERE id=?').get(i.id)!;const altered={...JSON.parse(String(row.body)),actions:['REFUND_UNAPPLIED_LEGACY']};f.db.db.prepare('UPDATE payment_recovery_inspections SET body=? WHERE id=?').run(JSON.stringify(altered),i.id);assert.throws(()=>f.recovery.get(f.actor,i.id),(e:any)=>e.code==='RECOVERY_INSPECTION_CORRUPT');
