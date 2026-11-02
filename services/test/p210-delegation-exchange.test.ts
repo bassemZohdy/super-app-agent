@@ -268,6 +268,43 @@ test('a contradictory identity token response cannot dispatch or expose its erro
   assert.equal((await execute(id, runnerToken, 'contradict-token-1'))?.data.code, 'RECONCILIATION_REQUIRED');
 });
 
+test('uncertain automation token refusals retain the original permit', async t => {
+  const worker = bearer(await serviceToken(issuer, automationWorkerClient, 'worker-secret', 'automation.execute'));
+  const runId = 'autorn_00000000-0000-4000-8000-000000000000', originalFetch = globalThis.fetch;
+  let status = 400, payload: Record<string, unknown> = {}, currentExecution = '';
+  t.mock.method(globalThis, 'fetch', async (input: string | URL | Request, init?: RequestInit) => {
+    const url = new URL(String(input));
+    if (url.pathname.includes('/internal/automation-runs/')) return Response.json({ success: true, execution: {
+      executionId: currentExecution, runId, accountId: 'acct_personal', ownerSub: 'alice-sub', eligibilityEpoch: '1:1',
+      mandate: { id: 'mandate_1', state: 'APPROVED', policyVersion: 1, skipNext: false },
+      source: { id: 'wallet', version: 1, current: true }, payable: { id: 'bill_1', revision: 'rev_1', amountMinor: 100, current: true },
+      boundDigest: 'a'.repeat(64), challenge: 'NONE', preparedAt: new Date(Date.now() - 1000).toISOString(), admissionExpiresAt: new Date(Date.now() + 60000).toISOString(), expired: false,
+    } });
+    if (String(input) === issuer.tokenUrl) return Response.json(payload, { status });
+    return originalFetch(input, init);
+  });
+  for (const [index, sample] of [
+    { status: 408, payload: { error: 'invalid_grant' }, expected: 'ISSUED' },
+    { status: 429, payload: { error: 'invalid_grant' }, expected: 'ISSUED' },
+    { status: 400, payload: { error: 'invalid_grant', access_token: 'private-token-marker' }, expected: 'ISSUED' },
+    { status: 400, payload: { error: 'private-token-marker' }, expected: 'ISSUED' },
+    { status: 400, payload: { error: 'invalid_grant' }, expected: 'CLOSED' },
+  ].entries()) {
+    currentExecution = `autoexec_exchange_${index}`; status = sample.status; payload = sample.payload;
+    const result = await handleDelegation('POST', `/api/delegation/automation/executions/${currentExecution}/credential`, { runId }, worker);
+    assert.equal(result?.status, 503); assert.equal(result?.data.code, 'AUTOMATION_EXCHANGE_FAILED');
+    const rows = grantStore().db.prepare('SELECT state,body FROM permits WHERE execution_id=?').all(currentExecution);
+    assert.equal(rows.length, 1); assert.equal(rows[0].state, sample.expected);
+    assert.ok(!JSON.stringify([result, rows]).includes('private-token-marker'));
+    if (sample.expected === 'ISSUED') {
+      const retry = await handleDelegation('POST', `/api/delegation/automation/executions/${currentExecution}/credential`, { runId }, worker);
+      assert.equal(retry?.data.code, 'AUTOMATION_EXCHANGE_FAILED');
+      const again = grantStore().db.prepare('SELECT state,body FROM permits WHERE execution_id=?').all(currentExecution);
+      assert.deepEqual(again, rows);
+    }
+  }
+});
+
 test('an oversized streaming identity reply stops before completion without a provider dispatch', { timeout: 4000 }, async () => {
   const owner = await user('alice'), runnerToken = await runner(), created = await createGrant(owner), id = created!.data.grant.id;
   const fake = http.createServer((_req, res) => { res.writeHead(200, { 'content-type': 'application/json' }); res.write(`{"padding":"${'x'.repeat(65537)}`); });

@@ -154,10 +154,18 @@ async function mintExecutionToken(permit: Permit) {
     body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', client_id: brokerClient, assertion, scope, client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer', client_assertion: clientAssertion }),
   });
   if (!response.ok) {
-    void response.body?.cancel().catch(() => {});
     logEvent('error', 'Automation credential exchange rejected', { status: response.status });
-    if (response.status >= 400 && response.status < 500) throw new MintRefused(`rejected ${response.status}`);
-    throw new Error(`exchange failed ${response.status}`);
+    if (response.status === 400) {
+      let refusal: unknown;
+      try { refusal = await boundedJsonResponse(response, 65536); } catch { /* An unreadable reply is not proof of refusal. */ }
+      if (refusal && typeof refusal === 'object' && !Array.isArray(refusal)) {
+        const body = refusal as Record<string, unknown>;
+        if (typeof body.error === 'string' && ['invalid_request', 'invalid_client', 'invalid_grant', 'unauthorized_client', 'unsupported_grant_type', 'invalid_scope'].includes(body.error) &&
+          Object.keys(body).every(key => ['error', 'error_description', 'error_uri'].includes(key)) &&
+          ['error_description', 'error_uri'].every(key => body[key] === undefined || typeof body[key] === 'string')) throw new MintRefused('The token exchange was refused.');
+      }
+    } else void response.body?.cancel().catch(() => {});
+    throw new Error('The token exchange outcome is unknown.');
   }
   const parsed = await boundedJsonResponse(response, 65536);
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Unexpected delegated response');

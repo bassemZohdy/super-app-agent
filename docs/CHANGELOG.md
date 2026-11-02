@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 - Preserve uncertain credential permits (P1-10, step)
+
+Automation token-exchange timeouts, rate limits and ambiguous error replies retain the original permit; only a recognized OAuth rejection closes it. Guide: [automation worker](development/automation-worker.md).
+
 ## 2 November 2026 - Validate automation authority views (P1-10, step)
 
 The broker rejects non-string digests, impossible timestamps and unexpected authority fields before issuing an automation permit. Guide: [automation worker](development/automation-worker.md).
