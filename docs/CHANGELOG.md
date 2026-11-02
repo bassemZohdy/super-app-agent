@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 3 November 2026 - Bind food replay to requested terms (P1-13, step)
+
+An integrated food-order replay is held when its stored receipt disagrees with the original requested resources or supplied prices. Guide: [agent flow](agent-flow.md).
+
 ## 3 November 2026 - Hold malformed original food evidence (P1-13, step)
 
 Food order inspection and replay require a confirmed, coherent receipt even when its stored digest matches. Guide: [agent flow](agent-flow.md).

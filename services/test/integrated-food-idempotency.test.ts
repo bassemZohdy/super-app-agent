@@ -85,6 +85,19 @@ test('integrated food order retries retain the original order across application
     assert.equal((await run({ ...actor, requestId: 'new-food-operation' })).status, 503, 'malformed evidence holds new orders');
     assert.deepEqual((await run(other)).data, secondAccount.data, 'another account can replay its own order');
   }
+  for (const mismatch of [
+    { ...original, restaurantId: 'rest_2' }, { ...original, deliveryAddress: 'Different destination' },
+    { ...original, items: [{ ...first.data.order.items[0], id: 'item_margherita' }] },
+    { ...original, totalAmount: 21.99 },
+    { ...original, items: [{ ...first.data.order.items[0], price: 18.01 }], totalAmount: 20.99 },
+  ]) {
+    inspector.put(actor.accountId, 'order', mismatch, first.data.order.orderId);
+    inspector.put(actor.accountId, 'food-order-operation', { ...saved, receiptDigest: digest(mismatch) }, row.id);
+    const outcome = await run();
+    assert.equal(outcome.status, 503, 'a coherent receipt for different requested terms cannot be replayed');
+    assert.equal(outcome.data.code, 'PROVIDER_OUTCOME_UNKNOWN');
+    assert.equal(inspector.list(actor.accountId, 'order').length, 1);
+  }
   inspector.put(actor.accountId, 'order', original, first.data.order.orderId);
   inspector.put(actor.accountId, 'food-order-operation', saved, row.id);
   const { receiptDigest: _receiptDigest, ...legacyRecord } = saved;

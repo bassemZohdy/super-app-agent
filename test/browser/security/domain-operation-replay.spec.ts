@@ -302,12 +302,16 @@ test('food operation replay returns the original order across trace IDs and refu
   const original = database.get<Record<string, unknown>>(residentApi.accountId, 'order', orderId)!;
   const row = database.db.prepare("SELECT id,body FROM resources WHERE account_id=? AND kind='food-order-operation'").get(residentApi.accountId) as { id: string; body: string };
   const binding = JSON.parse(row.body) as Record<string, unknown>, damaged = { ...original, status: 'PENDING' };
-  const digest = createHash('sha256').update(JSON.stringify(damaged, (_key, item: unknown) => item && typeof item === 'object' && !Array.isArray(item) ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) : item)).digest('hex');
+  const digest = (value: unknown) => createHash('sha256').update(JSON.stringify(value, (_key, item: unknown) => item && typeof item === 'object' && !Array.isArray(item) ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) : item)).digest('hex');
   try {
     database.put(residentApi.accountId, 'order', damaged, orderId);
-    database.put(residentApi.accountId, 'food-order-operation', { ...binding, receiptDigest: digest }, row.id);
+    database.put(residentApi.accountId, 'food-order-operation', { ...binding, receiptDigest: digest(damaged) }, row.id);
     expect((await inspect(operation)).status).toBe(503);
     expect((await request('trace-damaged', ['item_diavola'])).status).toBe(503);
+    const differentDestination = { ...original, deliveryAddress: 'Different destination' };
+    database.put(residentApi.accountId, 'order', differentDestination, orderId);
+    database.put(residentApi.accountId, 'food-order-operation', { ...binding, receiptDigest: digest(differentDestination) }, row.id);
+    expect((await request('trace-different-destination', ['item_diavola'])).status).toBe(503);
   } finally {
     database.put(residentApi.accountId, 'order', original, orderId);
     database.put(residentApi.accountId, 'food-order-operation', binding, row.id);

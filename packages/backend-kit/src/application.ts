@@ -30,6 +30,7 @@ type RequestBody = {
   lineId: string; expectedTag: string; targetReference: string; amountMinor: number; expectedTargetVersion: number; contractNumber: string; expectedPremiseId: string; mobility: Record<string, unknown>; ui: Record<string, unknown>;
 };
 type Result = { status: number; data: unknown };
+const defaultFoodAddress = '100 Market St, Apt 4B';
 function canonicalJson(value: unknown): string {
   return JSON.stringify(value, (_key, item: unknown) => item && typeof item === 'object' && !Array.isArray(item)
     ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) : item);
@@ -51,6 +52,26 @@ function validFoodReceipt(value: unknown, orderId: string): boolean {
     }
     const total = toMinor(receipt.totalAmount);
     return Number.isSafeInteger(itemTotal) && total > 0 && total >= itemTotal;
+  } catch { return false; }
+}
+function foodReceiptMatchesRequest(value: unknown, request: RequestBody): boolean {
+  if (!isPlainJsonObject(value)) return false;
+  const receipt = value as Record<string, unknown>;
+  if (receipt.restaurantId !== request.restaurantId || receipt.deliveryAddress !== (request.deliveryAddress || defaultFoodAddress) ||
+      !Array.isArray(receipt.items) || !Array.isArray(request.items) || receipt.items.length !== request.items.length || typeof receipt.totalAmount !== 'number') return false;
+  try {
+    let itemTotal = 0;
+    for (let index = 0; index < receipt.items.length; index++) {
+      const item: unknown = receipt.items[index];
+      if (!isPlainJsonObject(item)) return false;
+      const product = item as Record<string, unknown>;
+      if (product.id !== request.items[index] || typeof product.price !== 'number') return false;
+      itemTotal += toMinor(product.price);
+    }
+    const total = toMinor(receipt.totalAmount);
+    return (request.expectedAmountMinor === undefined || request.expectedAmountMinor === total) &&
+      (request.expectedItemPriceMinor === undefined || receipt.items.length === 1 && request.expectedItemPriceMinor === itemTotal) &&
+      (request.expectedDeliveryFeeMinor === undefined || request.expectedDeliveryFeeMinor === total - itemTotal);
   } catch { return false; }
 }
 function sameFineSelection(value: unknown, ids: string[]): boolean {
@@ -374,6 +395,7 @@ export async function integratedRequest(service: string, actor: Actor, method: s
           const saved = readFoodOperation(actor.requestId);
           if (saved) {
             if (saved.fingerprint !== fingerprint) throw new UpstreamError(409, 'IDEMPOTENCY_CONFLICT', 'The original food order has different terms.');
+            if (!foodReceiptMatchesRequest(saved.order, body)) throw new UpstreamError(503, 'PROVIDER_OUTCOME_UNKNOWN', 'The original food order could not be confirmed.');
             return successful({ order: saved.order });
           }
           const restaurant = restaurants.find(r => r.id === body.restaurantId);
@@ -382,7 +404,7 @@ export async function integratedRequest(service: string, actor: Actor, method: s
           const totalMinor = items.reduce((sum: number, item) => sum + toMinor(item!.price), 0) + toMinor(restaurant.deliveryFee);
           if (body.expectedItemPriceMinor !== undefined && (items.length !== 1 || body.expectedItemPriceMinor !== toMinor(items[0]!.price)) || body.expectedDeliveryFeeMinor !== undefined && body.expectedDeliveryFeeMinor !== toMinor(restaurant.deliveryFee)) throw new UpstreamError(409, 'PRICE_CHANGED', 'Order price changed.');
           if (body.expectedAmountMinor !== undefined && body.expectedAmountMinor !== totalMinor) throw new UpstreamError(409, 'PRICE_CHANGED', 'Order price changed.');
-          const order = { orderId: randomUUID(), restaurantId: restaurant.id, restaurantName: restaurant.name, items: structuredClone(items), deliveryAddress: body.deliveryAddress || '100 Market St, Apt 4B', totalAmount: totalMinor / 100, status: 'CONFIRMED', estimatedDeliveryTime: '25 min', timestamp: Date.now() };
+          const order = { orderId: randomUUID(), restaurantId: restaurant.id, restaurantName: restaurant.name, items: structuredClone(items), deliveryAddress: body.deliveryAddress || defaultFoodAddress, totalAmount: totalMinor / 100, status: 'CONFIRMED', estimatedDeliveryTime: '25 min', timestamp: Date.now() };
           db.put(actor.accountId, 'order', order, order.orderId);
           const receiptDigest = createHash('sha256').update(canonicalJson(order)).digest('hex');
           db.put(actor.accountId, 'food-order-operation', { fingerprint, orderId: order.orderId, receiptDigest }, operation);
