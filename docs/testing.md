@@ -41,6 +41,8 @@ Execution results for the implementation milestone belong in the dated [evidence
 
 `services/test/receipt-contracts.test.ts` also checks that already-paid utility and telecom bills reject mismatched reviewed amounts without issuing another payment, and retain the receipt for matching amounts. Provider calls in that test are mocked.
 
+`services/test/domain-redirect.test.ts` also checks that malformed domain paths cannot override the configured service origin, issue a request or record a mutation step; an ordinary root-relative path remains usable.
+
 `services/test/domain-redirect.test.ts` uses a loopback HTTP server to verify that redirected authenticated domain reads and writes never reach the redirect target, and that a redirected write remains unknown.
 
 `services/test/domain-telecom-receipt.test.ts` sends missing, malformed and wrong-bill receipts through the authenticated telecom adapter for both supported providers and verifies they remain unknown; a complete receipt for the selected bill is accepted. The same test compares receipts with a supplied reviewed amount in exact fils and rejects a one-fil difference and overflow-sized receipt. This checks the response boundary, not real provider settlement.

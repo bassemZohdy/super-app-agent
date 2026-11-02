@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Keep domain requests on their configured origin (P1-02, step)
+
+The authenticated HTTP domain adapter rejects absolute URLs, network paths, backslashes, control characters and embedded query or fragment delimiters before dispatch. It checks the resolved origin against its configured service and keeps query parameters in the separate query argument. A regression test verifies malformed paths send no request and create no mutation step, while a normal path still works. This is an origin boundary, not an operation-level allowlist or production transport qualification. Guide: [testing](testing.md).
+
 ## 2 November 2026 — Refuse redirects in authenticated domain calls (P1-02, step)
 
 The retained HTTP domain adapter no longer follows redirects to another route. A redirected read reports the domain unavailable; a redirected mutation remains unknown because the original service may already have acted. A loopback HTTP regression test checks that neither a read nor a write reaches the redirect target. This does not qualify external provider identity or transport security. Guide: [testing](testing.md).

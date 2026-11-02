@@ -34,3 +34,30 @@ test('authenticated domain reads and writes do not follow redirects', async t =>
   }
   assert.deepEqual(received, ['GET /wallet/balance', 'POST /wallet/pay']);
 });
+
+
+test('domain paths cannot override the configured service address', async t => {
+  const previousTransport = process.env.DOMAIN_TRANSPORT, previousUrl = process.env.SERVICE_WALLET_URL;
+  process.env.DOMAIN_TRANSPORT = 'http';
+  process.env.SERVICE_WALLET_URL = 'http://127.0.0.1:4011';
+  t.after(() => {
+    if (previousTransport === undefined) delete process.env.DOMAIN_TRANSPORT; else process.env.DOMAIN_TRANSPORT = previousTransport;
+    if (previousUrl === undefined) delete process.env.SERVICE_WALLET_URL; else process.env.SERVICE_WALLET_URL = previousUrl;
+  });
+  const dispatched: string[] = [];
+  t.mock.method(globalThis, 'fetch', async input => {
+    dispatched.push(String(input));
+    return Response.json({ success: true, balance: 10 });
+  });
+  for (const path of ['http://untrusted.example/wallet/balance', '//untrusted.example/wallet/balance', '/\\untrusted.example/wallet/balance', '/wallet/balance?override=1', '/wallet/balance#fragment']) {
+    const steps: Step[] = [];
+    const result = trackDomainOperations(steps, () => actorContext.run(actorFor({ sub: 'test-user' }, 'account', 'Bearer test'),
+      () => callDomainAsync('wallet', 'POST', path)));
+    await assert.rejects(result, (error: unknown) => error instanceof DomainOperationError && error.code === 'DOMAIN_PATH_INVALID');
+    assert.deepEqual(steps, []);
+  }
+  const result = await actorContext.run(actorFor({ sub: 'test-user' }, 'account', 'Bearer test'),
+    () => callDomainAsync('wallet', 'GET', '/wallet/balance'));
+  assert.equal(result.data.balance, 10);
+  assert.deepEqual(dispatched, ['http://127.0.0.1:4011/wallet/balance']);
+});

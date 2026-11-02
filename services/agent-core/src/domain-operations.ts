@@ -122,13 +122,19 @@ async function callDomainRequest(service: keyof typeof domainHandlers | 'telecom
   }
   const actor = actorContext.getStore();
   if (!actor?.authorization) throw new DomainOperationError(401, 'AUTHENTICATION_REQUIRED', service);
+  // Domain routes are root-relative; an absolute, network-path or backslash URL can replace the configured service origin.
+  if (!/^\/(?!\/)/.test(path) || /[\\?#\x00-\x1f\x7f]/.test(path)) throw new DomainOperationError(400, 'DOMAIN_PATH_INVALID', service);
+  const ports = SERVICE_PORTS;
+  const base = process.env[`SERVICE_${service.toUpperCase()}_URL`] || `http://localhost:${ports[service]}`;
+  let origin: URL, url: URL;
+  try { origin = new URL(base); url = new URL(path, origin); }
+  catch { throw new DomainOperationError(503, 'DOMAIN_TRANSPORT_MISCONFIGURED', service); }
+  if (url.origin !== origin.origin) throw new DomainOperationError(400, 'DOMAIN_PATH_INVALID', service);
+  for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value);
   const mutation = method.toUpperCase() !== 'GET';
   if (mutation) await actor.assertLease?.();
   const step: Step | undefined = mutation ? { service, method, path, state: 'PENDING' } : undefined;
   if (step) context.getStore()?.push(step);
-  const ports = SERVICE_PORTS;
-  const base = process.env[`SERVICE_${service.toUpperCase()}_URL`] || `http://localhost:${ports[service]}`;
-  const url = new URL(path, base); for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value);
   let result: Result;
   try {
     const response = await fetch(url, { method, redirect: 'error', signal: AbortSignal.timeout(60000),
