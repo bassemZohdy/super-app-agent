@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Verify civic recovery across agent processes (P1-13, step)
+
+A Redis/HTTP integration test kills the original agent while its wallet response is in flight, then uses fresh processes to observe the debit, continue the reviewed checkout and resolve it without repeating the debit. The synthetic fixture services remain running throughout. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Continue the original offline checkout (P1-13, step)
 
 The owner can continue a verified partial civic checkout one original step at a time. Each step is journaled before dispatch, fine terms include each reviewed amount, and uncertain outcomes stay fenced for observation. Redis/HTTP tests cover concurrency, changed evidence, refusal, lost responses, in-flight observation and final resolution. Guide: [integrations](integrations.md).
