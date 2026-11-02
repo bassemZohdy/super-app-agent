@@ -48,6 +48,8 @@ The shared browser event-stream client cancels rejected, oversized or interrupte
 
 The compatibility gateway admits at most five streams per session, 20 per authenticated resident and 1,000 per process. Slots are reserved before the asynchronous event subscription and released on closure, including when subscription completes after disconnect. These limits are process-local, not coordinated across replicas.
 
+The gateway applies token expiry and its five-minute connection limit during subscription and replay as well as live delivery. If authentication expires before streaming begins, setup receives a 401; delayed delivery checks the deadline again before writing an event.
+
 Within each compatibility gateway process, Redis subscription changes are ordered so concurrent listeners wait for connection and unsubscribe completes before a replacement subscribes. Closing the store invalidates pending subscription work; a failed channel subscription can be retried.
 
 For a cursor reconnect, the gateway subscribes before reading replay, buffers a bounded number of live events during replay and suppresses replay/live overlap by event ID. If the buffer overflows, the connection closes so the client can resume from its last handled event. Replay is delivered in order without filling the live delivery queue with the entire backlog.

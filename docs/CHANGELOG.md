@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 3 November 2026 - Enforce stream expiry during setup (P0-02, step)
+
+The compatibility gateway closes or refuses a stream when authentication expires during subscription, replay or delayed delivery. Guide: [security](security.md).
+
 ## 3 November 2026 - Repair civic toll recovery verification (P2-05, step)
 
 The Redis toll recovery test reads original wallet-operation evidence through the correct domain and route. Guide: [testing](testing.md).
