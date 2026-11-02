@@ -71,3 +71,17 @@ test('templated Arabic replies retain the exact count, amount and renewal warnin
   assert.equal(localizeFocusedReply(`${paid} Extra detail.`, 'ar'), `${paid} Extra detail.`);
   assert.equal(localizeFocusedReply('Simulated payment completed: AED 150.00. No real funds were used.', 'en'), paid);
 });
+
+test('renewal summaries preserve paid fines, exact vehicle and fee, and partial outcomes', () => {
+  const prefix = 'Simulated fines payment completed: AED 150.00. ';
+  const review = `${prefix}Review the simulated registration renewal for Demo Car, fee AED 400.00. Confirm using the approval action.`;
+  const result = localizeFocusedReply(review, 'ar');
+  assert.match(result, /AED 150\.00/); assert.match(result, /Demo Car/); assert.match(result, /AED 400\.00/);
+  assert.match(result, /اكتمل دفع المخالفات التجريبي/); assert.match(result, /إجراء الموافقة/);
+  const denied = localizeFocusedReply(`${prefix}The registration was not renewed.`, 'ar');
+  assert.match(denied, /AED 150\.00/); assert.match(denied, /لم يُجدّد التسجيل/);
+  const done = localizeFocusedReply(`${prefix}Simulated registration renewal completed: AED 400.00. No real funds were used.`, 'ar');
+  assert.match(done, /AED 150\.00/); assert.match(done, /AED 400\.00/); assert.match(done, /لم تُستخدم أموال حقيقية/);
+  const unknown = `${prefix}The registration was not renewed (UNKNOWN_CODE).`;
+  assert.equal(localizeFocusedReply(unknown, 'ar'), unknown);
+});

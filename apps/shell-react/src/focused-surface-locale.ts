@@ -29,6 +29,18 @@ export function localizeFocusedReply(text: string, locale: Locale): string {
   if (review) return translate(locale, review[3] ? 'fines.replyReviewBeforeRenewal' : 'fines.replyReviewTotal', { count: review[1], amount: `\u2068${review[2]}\u2069` });
   const paid = /^Simulated payment completed: (AED \d{1,16}\.\d{2})\. No real funds were used\.$/.exec(text);
   if (paid) return translate(locale, 'fines.replyPaidTotal', { amount: `\u2068${paid[1]}\u2069` });
+  const renewalReview = /^(?:Simulated fines payment completed: (AED \d{1,16}\.\d{2})\. )?Review the simulated registration renewal for ([^\r\n\u202a-\u202e\u2066-\u2069]{1,200}), fee (AED \d{1,16}\.\d{2})\. Confirm using the approval action\.$/.exec(text);
+  if (renewalReview) {
+    const prefix = renewalReview[1] ? translate(locale, 'fines.replyFinesPaid', { amount: `\u2068${renewalReview[1]}\u2069` }) : '';
+    return prefix + translate(locale, 'fines.replyRenewReview', { vehicle: `\u2068${renewalReview[2]}\u2069`, amount: `\u2068${renewalReview[3]}\u2069` });
+  }
+  const renewalDone = /^(?:Simulated fines payment completed: (AED \d{1,16}\.\d{2})\. )?Simulated registration renewal completed: (AED \d{1,16}\.\d{2})\. No real funds were used\.$/.exec(text);
+  if (renewalDone) {
+    const prefix = renewalDone[1] ? translate(locale, 'fines.replyFinesPaid', { amount: `\u2068${renewalDone[1]}\u2069` }) : '';
+    return prefix + translate(locale, 'fines.replyRenewDone', { amount: `\u2068${renewalDone[2]}\u2069` });
+  }
+  const renewalPartial = /^Simulated fines payment completed: (AED \d{1,16}\.\d{2})\. (The registration was not renewed\.|The renewal approval expired and the registration was not renewed\.)$/.exec(text);
+  if (renewalPartial) return translate(locale, 'fines.replyFinesPaid', { amount: `\u2068${renewalPartial[1]}\u2069` }) + translate(locale, renewalPartial[2] === 'The registration was not renewed.' ? 'fines.replyRenewDeclined' : 'fines.replyRenewExpired');
   return text;
 }
 

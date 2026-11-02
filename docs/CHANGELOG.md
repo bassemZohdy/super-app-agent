@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Localize focused renewal summaries (P2-01, step)
+
+The React focused journey translates known renewal review and outcome messages, retaining vehicle, fee and any completed fines payment. Browser checks verify both approval and declining renewal after fines were paid. Guide: [shell parity](development/shell-parity.md).
+
 ## 2 November 2026 — Localize focused payment summaries (P2-01, step)
 
 The React fines conversation and service panel translate known list, review and completed-payment templates in Arabic while retaining their exact counts and amounts. The renewal review keeps its separate-approval warning; unfamiliar responses remain unchanged. Guide: [shell parity](development/shell-parity.md).

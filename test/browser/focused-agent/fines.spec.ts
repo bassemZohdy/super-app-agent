@@ -110,6 +110,8 @@ test('Arabic fines and renewal reviews retain separate explicit approvals', asyn
   await page.getByRole('button', { name: 'تأكيد الدفع التجريبي', exact: true }).click();
   const paymentApproval = (await paymentRequest).postDataJSON().approvalId;
   await expect(page.getByRole('button', { name: 'تأكيد التجديد التجريبي', exact: true })).toBeVisible();
+  await expect(page.getByText('اكتمل دفع المخالفات التجريبي:', { exact: false }).first()).toBeVisible();
+  await expect(page.getByText('راجع تجديد التسجيل التجريبي للمركبة', { exact: false }).first()).toBeVisible();
   await expect(page.getByText('رسوم التجديد التجريبية:', { exact: false })).toBeVisible();
   await expect(page.getByRole('columnheader', { name: 'المركبة', exact: true })).toBeVisible();
   await expect(page.getByRole('columnheader', { name: 'رسوم التجديد (درهم)', exact: true })).toBeVisible();
@@ -118,7 +120,21 @@ test('Arabic fines and renewal reviews retain separate explicit approvals', asyn
   await page.getByRole('button', { name: 'تأكيد التجديد التجريبي', exact: true }).click();
   expect((await renewalRequest).postDataJSON().approvalId).not.toBe(paymentApproval);
   await expect.poll(() => focused.renewals()).toBe(1);
+  await expect(page.getByText('اكتمل تجديد التسجيل التجريبي:', { exact: false }).first()).toBeVisible();
   expect(focused.payments()).toBe(1);
+});
+
+test('rejecting Arabic renewal preserves and reports the completed fines payment', async ({ page, focused }) => {
+  await page.addInitScript(() => localStorage.setItem('cityside.locale', 'ar'));
+  await page.goto(focused.url);
+  await page.getByLabel('رمز الوصول', { exact: true }).fill(focused.renewalToken);
+  await page.getByRole('button', { name: 'فتح مخالفاتي' }).click();
+  await page.getByRole('button', { name: 'تجديد تسجيل المركبة' }).click();
+  await page.getByRole('button', { name: 'تأكيد الدفع التجريبي', exact: true }).click();
+  await page.getByRole('button', { name: 'رفض التجديد', exact: true }).click();
+  await expect(page.getByText('لم يُجدّد التسجيل.', { exact: false }).first()).toBeVisible();
+  await expect(page.getByText('اكتمل دفع المخالفات التجريبي:', { exact: false }).first()).toBeVisible();
+  expect(focused.payments()).toBe(1); expect(focused.renewals()).toBe(0);
 });
 
 test('a typed Arabic request lists fines without making a payment', async ({ page, focused }) => {
