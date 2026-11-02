@@ -103,6 +103,25 @@ test('P1-13: standalone food reviews include delivery and reject changed price c
   } finally { item.price = originalPrice; restaurant.deliveryFee = originalFee; }
 });
 
+test('P1-13: an internally inconsistent food review cannot dispatch an order', async () => {
+  for (const field of ['price', 'subtitle'] as const) {
+    const sid = `food_mismatched_review_${field}`;
+    assert.equal((await intent(sid, 'Find a restaurant for dinner')).status, 200);
+    const state = getOrCreateSession(sid), surface = state.currentSurface!;
+    const choices = surface.view.children!.find(node => node.id === 'food_choices')!.properties!.options as Array<{ id: string; price: string; subtitle: string }>;
+    const choice = choices.find(item => item.id === 'item_diavola')!;
+    if (field === 'price') choice.price = 'USD 1.00';
+    else choice.subtitle = choice.subtitle.replace('Delivery USD 2.99', 'Delivery USD 0.00');
+    issueApproval(state);
+    // Model an old or inconsistent review that is itself saved and approved.
+    state.metadata!.runtime = undefined;
+    const before = activeOrders.size;
+    const result = await core('POST', '/api/a2ui/action', {}, { sessionId: sid, surfaceRevision: surface.revision, action: 'order_food', payload: { selectedChoice: choice.id } });
+    assert.equal(result.status, 409, `${field} mismatch must fail before order creation`);
+    assert.equal(activeOrders.size, before);
+  }
+});
+
 test('P1-13: an approved review that differs from the saved graph cannot dispatch an order', async () => {
   for (const field of ['price', 'subtitle'] as const) {
     const sid = `food_inconsistent_display_${field}`;

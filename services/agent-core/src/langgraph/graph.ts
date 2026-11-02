@@ -817,7 +817,13 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
       const itemPrice = matches[0]?.metadata?.itemPriceMinor, deliveryFee = matches[0]?.metadata?.deliveryFeeMinor;
       const address = matches[0]?.metadata?.deliveryAddress;
       const addressText = state.currentSurface?.view.children?.find(node => node.id === 'food_delivery_address' && node.type === 'Text')?.properties?.text;
-      if (typeof restaurantId !== 'string' || !restaurantId.trim() || typeof address !== 'string' || !address.trim() || addressText !== `Delivery address: ${address}` || typeof itemPrice !== 'number' || !Number.isSafeInteger(itemPrice) || itemPrice <= 0 || typeof deliveryFee !== 'number' || !Number.isSafeInteger(deliveryFee) || deliveryFee < 0 || !Number.isSafeInteger(itemPrice + deliveryFee)) throw new HttpError(409, 'The selected dish, address or price is no longer available. Start a new review.');
+      if (typeof restaurantId !== 'string' || !restaurantId.trim() || typeof address !== 'string' || !address.trim() ||
+          addressText !== `Delivery address: ${address}` || typeof itemPrice !== 'number' || !Number.isSafeInteger(itemPrice) || itemPrice <= 0 ||
+          typeof deliveryFee !== 'number' || !Number.isSafeInteger(deliveryFee) || deliveryFee < 0 || !Number.isSafeInteger(itemPrice + deliveryFee) ||
+          matches[0].price !== formatWalletAmount((itemPrice + deliveryFee) / 100) || typeof matches[0].subtitle !== 'string' ||
+          !matches[0].subtitle.endsWith(` • Delivery ${formatWalletAmount(deliveryFee / 100)}`)) {
+        throw new HttpError(409, 'The selected dish, address or price is no longer available. Start a new review.');
+      }
       onProgress?.('🍕 Creating food order with kitchen...');
       const res = await executeFoodRequest('POST', '/orders/create', {}, {
         restaurantId,

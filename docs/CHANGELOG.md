@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 3 November 2026 - Verify displayed food prices (P1-13, step)
+
+Standalone food dispatch refuses reviews whose displayed total or delivery fee conflicts with the saved price components. Guide: [agent flow](agent-flow.md).
+
 ## 3 November 2026 - Verify saved compatibility reviews (P1-13, step)
 
 Compatibility actions refuse missing or divergent graph reviews before dispatch, preserving the terms of the approved surface. Guide: [agent flow](agent-flow.md).

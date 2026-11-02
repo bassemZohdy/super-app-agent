@@ -54,7 +54,7 @@ Compatibility food order confirmations require the selected restaurant, exact it
 
 Each standalone food choice carries its restaurant identity in the approved surface. Dispatch uses that reviewed binding and refuses an older or incomplete review without it; the food service still checks that the selected dish belongs to that restaurant.
 
-Standalone food reviews show the total including delivery and retain the separate item and delivery amounts. Order creation checks both components against the review, and the adapter verifies them in the receipt. A changed component requires a new review, even if the total is unchanged.
+Standalone food reviews show the total including delivery and retain the separate item and delivery amounts. Before dispatch, the displayed total and delivery fee must agree with those bound components. Order creation checks both components against the review, and the adapter verifies them in the receipt. A changed component requires a new review, even if the total is unchanged.
 
 The standalone demo review displays its fixed synthetic delivery address, and order dispatch uses the address bound to the selected choice and visible review. Older reviews without this binding must be reopened; choosing a different delivery address is not yet supported in this journey.
 
