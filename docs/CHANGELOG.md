@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Identify a lost offline fine response (P1-13, step)
+
+Separate-service civic checkout saves a fine operation ID before dispatch and compares lost responses with the exact fine operation, receipt and wallet ledger. Redis/HTTP and evidence tests cover uncertain responses, changed records and account isolation. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Bind offline fine settlement identities (P1-13, step)
 
 The synthetic fines fixture binds a supplied operation ID to the exact fine set and reviewed total, returns the original receipt on same-term repeats, and exposes the original settlement for later reconciliation. Integrated provider mode rejects this offline identity. Guide: [integrations](integrations.md).

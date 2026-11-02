@@ -84,3 +84,17 @@ test('a lost utility response can be observed only for the saved operation and r
   assert.deepEqual(await compareCivicEvidence(review, unknown, async source => source === 'utility-operation' ? changed : bill), [{ name: 'UTILITY', assessment: 'UNVERIFIABLE' }]);
   assert.deepEqual(await compareCivicEvidence(review, unknown, async source => source === 'utility-operation' ? operation : { bill: { ...bill.bill, receiptNumber: 'other' } }), [{ name: 'UTILITY', assessment: 'UNVERIFIABLE' }]);
 });
+
+test('a lost fine response requires the same operation, exact fine receipt and ledger identity', async () => {
+  const operationId = 'CIVIC-fine', unknown = [{ name: 'FINES', state: 'UNKNOWN', operationId }] as const;
+  const operation = { operation: { operationId, status: 'SETTLED', receiptReference: 'F1', fines: [{ fineId: 'F1', amountMinor: 300 }] } };
+  const ledger = { transactions: [{ ...wallet.transactions[1], operationId }] };
+  const read = (op: unknown, receipt: unknown, rows: unknown) => async (source: string) => source === 'fine-operation' ? op : source === 'fine-receipt' ? receipt : rows;
+  assert.deepEqual(await compareCivicEvidence(review, unknown, read(operation, fineReceipt, ledger)), [{ name: 'FINES', assessment: 'OBSERVED', observedReceiptReference: 'F1' }]);
+  for (const bad of [{ operation: null }, { operation: { ...operation.operation, operationId: 'other' } }, { operation: { ...operation.operation, fines: [{ fineId: 'other', amountMinor: 300 }] } }, { operation: { ...operation.operation, fines: [{ fineId: 'F1', amountMinor: 301 }] } }])
+    assert.deepEqual(await compareCivicEvidence(review, unknown, read(bad, fineReceipt, ledger)), [{ name: 'FINES', assessment: 'UNVERIFIABLE' }]);
+  assert.deepEqual(await compareCivicEvidence(review, unknown, read(operation, fineReceipt, wallet)), [{ name: 'FINES', assessment: 'UNVERIFIABLE' }]);
+  assert.deepEqual(await compareCivicEvidence(review, unknown, read(operation, { receipt: null }, ledger)), [{ name: 'FINES', assessment: 'UNVERIFIABLE' }]);
+  assert.deepEqual(await compareCivicEvidence(review, unknown, async source => { if (source === 'fine-operation') throw new Error('offline'); return ledger; }), [{ name: 'FINES', assessment: 'UNAVAILABLE' }]);
+  assert.deepEqual(await compareCivicEvidence(review, unknown, async source => { if (source === 'fine-receipt') throw new Error('offline'); return source === 'fine-operation' ? operation : ledger; }), [{ name: 'FINES', assessment: 'UNAVAILABLE' }]);
+});

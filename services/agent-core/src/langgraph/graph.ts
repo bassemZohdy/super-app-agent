@@ -615,7 +615,7 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
       ] }));
       walletConfirmed = true;
       if (review.billAmountMinor) await civicStep('UTILITY', operationId => executeFoodRequest('POST', '/utilities/pay', {}, { billId: review.billId, expectedAmountMinor: review.billAmountMinor, ...(operationId ? { operationId } : {}) }));
-      if (review.fines.length) await civicStep('FINES', () => executeWalletRequest('POST', '/fines/pay', {}, { fineIds: review.fines.map(fine => fine.fineId), expectedAmountMinor: fineMinor }));
+      if (review.fines.length) await civicStep('FINES', operationId => executeWalletRequest('POST', '/fines/pay', {}, { fineIds: review.fines.map(fine => fine.fineId), expectedAmountMinor: fineMinor, ...(operationId ? { operationId } : {}) }));
       await civicStep('TOLL', () => executeRideRequest('POST', '/mobility/salik/recharge', {}, { amount: 100, expectedTag: review.tagNumber }));
 
       state.currentSurface = {
