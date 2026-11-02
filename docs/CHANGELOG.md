@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Use isolated realm credentials in React E2E (P0-08, step)
+
+The React fixture reads client credentials from the selected stack and refuses missing credentials in qualification. The previously failing stale-action journey passed on desktop and mobile against disposable Compose, using revision `216d524` plus this change, Node 24.16.0, Docker 29.9.2 and Compose 5.6.1. Guide: [testing](testing.md).
+
 ## 2 November 2026 — Bind standalone approvals to reviewed amounts (P1-13, step)
 
 Standalone fine and utility approvals carry the displayed amount in offline and integrated modes. Offline fixtures reject stale terms before settlement; tests also reject client tampering with the bound amount. Guide: [integrations](integrations.md).

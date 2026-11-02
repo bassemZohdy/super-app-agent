@@ -1,4 +1,5 @@
-import { keycloakIssuerUrl, redisUrl } from '../endpoints.ts';
+import { demoPortOffset, keycloakIssuerUrl, redisUrl } from '../endpoints.ts';
+import { fixtureClientSecret } from './client-secrets.ts';
 /** Isolated local APIs/SQLite, with the existing local Keycloak and Redis only. */
 import assert from 'node:assert/strict';
 import http, { type Server } from 'node:http';
@@ -23,7 +24,7 @@ export async function startEnvironment(options:{authorizationClock?:()=>number;i
   const appUrl = `http://localhost:${appPort}`;
   const coreUrl = `http://localhost:${corePort}`;
   const realm = JSON.parse(await readFile('services/keycloak/realm-export.json', 'utf8'));
-  const secret = (id: string) => realm.clients.find((client: { clientId: string }) => client.clientId === id).secret as string;
+  const secret = (id: string) => fixtureClientSecret(id, realm, process.env, demoPortOffset);
   for(const provider of ['rta','dewa','etisalat','du','police'])process.env[`PROVIDER_${provider.toUpperCase()}_CLAIM_SECRET`]=secret(`provider-${provider}-settlement`);
   Object.assign(process.env, {
     ELIGIBILITY_ENFORCEMENT:'true',ELIGIBILITY_READER_SECRET:secret('provider-eligibility'),
