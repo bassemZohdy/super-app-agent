@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Verify compatibility food order receipts (P1-13, step)
+
+Food confirmations now match the selected restaurant, item quantities and supplied address; inconsistent responses remain unknown. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Verify compatibility ride booking receipts (P1-13, step)
 
 Ride confirmations now match the selected driver and supplied route, retaining inconsistent responses as unknown and stopping composite checkout. Guide: [agent flow](agent-flow.md).

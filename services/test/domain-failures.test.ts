@@ -169,6 +169,26 @@ test('P1-13: a mismatched ride receipt stops composite checkout and blocks repla
   assert.equal(activeRides.size, rides + 1);
 });
 
+test('P1-13: a mismatched food receipt after order creation blocks replacement checkout', async t => {
+  ensureFunds();
+  const sid = 'failure_food_receipt_mismatch';
+  assert.equal((await intent(sid)).status, 200);
+  const realFood = domainHandlers.food;
+  t.mock.method(domainHandlers, 'food', (method, path, query, body) => {
+    const result = realFood(method, path, query, body);
+    return method === 'POST' ? { ...result, data: { ...result.data, order: { ...result.data.order, restaurantId: 'other-restaurant' } } } : result;
+  });
+  const before = balance, rides = activeRides.size, orders = activeOrders.size;
+  const result = await action(sid);
+  assert.equal(result.data.outcome, 'UNKNOWN');
+  assert.deepEqual(result.data.steps.map((step: Step) => [step.service, step.state]), [['wallet', 'SUCCEEDED'], ['ride', 'SUCCEEDED'], ['food', 'UNKNOWN']]);
+  assert.equal(balance, Math.round((before - 40) * 100) / 100);
+  assert.equal(activeRides.size, rides + 1);
+  assert.equal(activeOrders.size, orders + 1);
+  assert.equal((await action(sid)).data.code, 'RECONCILIATION_REQUIRED');
+  assert.equal(activeOrders.size, orders + 1);
+});
+
 test('P0-12: unavailable read rejects the intent without fabricated surface or upstream details', async t => {
   t.mock.method(domainHandlers, 'profile', () => ({ status: 503, data: { error: 'private database connection string' } }));
   const result = await intent('failure_unavailable_session');

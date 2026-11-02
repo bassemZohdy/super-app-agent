@@ -130,7 +130,24 @@ function confirmedReceipt(service: string, path: string, data: any, body: unknow
     }
   }
   if (service === 'food') {
-    if (path === '/orders/create') return record(data.order) && named(data.order.orderId) && finite(data.order.totalAmount);
+    if (path === '/orders/create') {
+      if (!record(body) || !record(data.order)) return false;
+      const request = body as { restaurantId?: unknown; items?: unknown; deliveryAddress?: unknown }, order = data.order;
+      if (!named(request.restaurantId) || order.restaurantId !== request.restaurantId || !named(order.orderId) ||
+        order.status !== 'ACCEPTED_BY_KITCHEN' || !Array.isArray(request.items) || request.items.length === 0 ||
+        !request.items.every(named) || !Array.isArray(order.items) ||
+        (request.deliveryAddress !== undefined && (!named(request.deliveryAddress) || order.deliveryAddress !== request.deliveryAddress))) return false;
+      const counts = new Map<string, number>();
+      for (const id of request.items) counts.set(id, (counts.get(id) ?? 0) + 1);
+      for (const line of order.items) {
+        if (!record(line) || !record(line.item) || !named(line.item.id) || !Number.isSafeInteger(line.quantity) || line.quantity <= 0) return false;
+        const remaining = (counts.get(line.item.id) ?? 0) - line.quantity;
+        if (remaining < 0) return false;
+        counts.set(line.item.id, remaining);
+      }
+      try { return [...counts.values()].every(count => count === 0) && typeof order.totalAmount === 'number' && toMinor(order.totalAmount) >= 0; }
+      catch { return false; }
+    }
     if (path === '/utilities/pay') {
       if (!record(body) || !record(data.receipt)) return false;
       const request = body as { billId?: unknown; expectedAmountMinor?: unknown; operationId?: unknown }, receipt = data.receipt;
