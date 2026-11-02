@@ -9,7 +9,21 @@ import { mkdtemp, mkdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, extname, sep } from 'node:path';
 
-export async function startEnvironment(options:{authorizationClock?:()=>number;issuerOperatorSub?:string;automation?:{operatorSub:string;workerSub:string}}={}) {
+type EnvironmentOptions = { authorizationClock?: () => number; issuerOperatorSub?: string; automation?: { operatorSub: string; workerSub: string } };
+let environmentActive = false;
+
+/** The isolated stack changes process-wide settings and must have exclusive ownership until cleanup finishes. */
+export async function startEnvironment(options: EnvironmentOptions = {}) {
+  if (environmentActive) throw new Error('An isolated environment is already active in this process.');
+  environmentActive = true;
+  try {
+    const environment = await createEnvironment(options);
+    let cleanup: Promise<void> | undefined;
+    return { ...environment, cleanup: () => cleanup ??= Promise.resolve().then(() => environment.cleanup()).finally(() => { environmentActive = false; }) };
+  } catch (error) { environmentActive = false; throw error; }
+}
+
+async function createEnvironment(options: EnvironmentOptions) {
   const appPort = Number(process.env.E2E_APP_PORT || 3002);
   const corePort = Number(process.env.E2E_CORE_PORT || 14000);
   assert.ok([3000, 3001, 3002].includes(appPort), 'Use a free seeded Keycloak redirect port: 3000, 3001 or 3002');

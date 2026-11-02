@@ -13,11 +13,16 @@ test('isolated environment restores process settings after a successful start an
   try {
     const env = await startEnvironment();
     try {
+      await assert.rejects(startEnvironment(), /isolated environment is already active/i);
       assert.equal(process.env.NODE_ENV, 'development');
       assert.notEqual(process.env.SERVICE_RIDE_URL, 'http://original.invalid');
       assert.ok(process.env.PROVIDER_RTA_CLAIM_SECRET);
       process.env.E2E_UNRELATED_SENTINEL = 'after';
-    } finally { await env.cleanup(); }
+    } finally {
+      const closing = env.cleanup();
+      try { await assert.rejects(startEnvironment(), /isolated environment is already active/i); }
+      finally { await Promise.all([closing, env.cleanup()]); }
+    }
     assert.equal(process.env.NODE_ENV, 'e2e-lifecycle-original');
     assert.equal(process.env.SERVICE_RIDE_URL, 'http://original.invalid');
     assert.equal(process.env.PROVIDER_RTA_CLAIM_SECRET, undefined);

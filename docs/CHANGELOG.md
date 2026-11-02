@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 3 November 2026 - Guard isolated environment ownership (P2-06, step)
+
+An isolated environment has exclusive ownership of its process settings until cleanup finishes; overlapping starts fail clearly and concurrent cleanup requests share one operation. Guide: [testing](development/testing.md).
+
 ## 3 November 2026 - Reject contradictory provider reads (P1-02, step)
 
 Provider reads and composite recovery no longer accept success responses that also carry a failure code. Guide: [integrations](integrations.md).
