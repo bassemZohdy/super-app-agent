@@ -14,7 +14,7 @@ export const AUTOMATION_ORDER_STATES: ReadonlySet<string> = new Set(['AWAITING_A
 export type ChallengeAnswer = { state: 'PENDING' } | { state: 'REJECTED' } | { state: 'APPROVED'; accessToken: string; expiresAt: number };
 /** The worker's whole view of the world; HTTP in production, a fake in tests. */
 export interface ExecutionGateway {
-  prepare(input: { mandateId: string; occurrenceKey: string; requestKey: string }): Promise<PrepareResult>;
+  prepare(input: { mandateId: string; policyVersion: number; occurrenceKey: string; requestKey: string }): Promise<PrepareResult>;
   credential(runId: string, executionId: string): Promise<{ accessToken: string; expiresAt: number }>;
   execute(runId: string, executionId: string, accessToken: string): Promise<ExecutedOrder>;
   resume(runId: string, executionId: string): Promise<ChallengeAnswer>;
@@ -92,7 +92,7 @@ export class AutomationWorker {
     if (job.state === 'QUEUED') store.transition(claim, 'PREPARING', {}, undefined, this.now());
     store.begin(claim, 'prepare', this.now());
     try {
-      const result = await this.gateway.prepare({ mandateId: job.mandateId, occurrenceKey: job.occurrenceKey, requestKey: identity.requestKey });
+      const result = await this.gateway.prepare({ mandateId: job.mandateId, policyVersion: job.policyVersion, occurrenceKey: job.occurrenceKey, requestKey: identity.requestKey });
       if ('skipped' in result) {
         store.outcome(claim, `skipped:${result.reason}`);
         store.transition(claim, 'SKIPPED', { reason: result.reason }, { kind: REVIEW_SKIP_REASONS.has(result.reason) ? 'REQUIRES_ACTION' : 'SKIPPED', body: { reason: result.reason } }, this.now());

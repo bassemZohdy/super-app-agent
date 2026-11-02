@@ -13,7 +13,7 @@ test('automation HTTP errors remain sanitized and uncertain credential results a
     const path = new URL(String(input)).pathname;
     if (path === '/token') return Response.json({ access_token: 'fixture-service-token', expires_in: 300 });
     if (path.endsWith('/kill-switch')) return Response.json({ success: false, code: 'NO_DESIRED_STATE' }, { status: 404 });
-    if (path.endsWith('/prepare')) return Response.json({ success: true, id: 'autoexec_1', orderId: 'order_1' });
+    if (path.endsWith('/prepare')) return Response.json({ success: true, id: 'autoexec_1', orderId: 'order_1', runId: 'autorn_00000000-0000-4000-8000-000000000000', mandateId: 'mandate_1', occurrenceKey: 'occ_1', policyVersion: 1, state: 'PREPARED', amountMinor: 10000, currency: 'AED' });
     if (path.endsWith('/credential')) {
       credentialCalls++;
       if (phase === 'execute') return Response.json({ success: true, accessToken: 'fixture-execution-token', expiresAt: Date.now() + 60000 });
@@ -71,6 +71,60 @@ test('automation HTTP errors remain sanitized and uncertain credential results a
   });
   payload = { success: false, code: 'CHALLENGE_PENDING', error: 'private-token-marker' };
   assert.deepEqual(await gateway.resume(runId, 'autoexec_1'), { state: 'PENDING' });
+});
+
+test('automation preparation is bound to the queued rule, occurrence, version and run before credential issuance', async t => {
+  const previous = process.env.KEYCLOAK_TOKEN_URL;
+  process.env.KEYCLOAK_TOKEN_URL = 'http://127.0.0.1/token';
+  t.after(() => { if (previous === undefined) delete process.env.KEYCLOAK_TOKEN_URL; else process.env.KEYCLOAK_TOKEN_URL = previous; });
+  const runId = 'autorn_00000000-0000-4000-8000-000000000000';
+  const correct = { success: true, id: 'autoexec_1', orderId: 'order_1', runId, mandateId: 'mandate_1', occurrenceKey: 'occ_1', policyVersion: 1, state: 'PREPARED', amountMinor: 10000, currency: 'AED' };
+  let preparation: Record<string, unknown> = correct, credentialCalls = 0, posted: unknown;
+  t.mock.method(globalThis, 'fetch', async (input, init) => {
+    const path = new URL(String(input)).pathname;
+    if (path === '/token') return Response.json({ access_token: 'fixture-service-token', expires_in: 300 });
+    if (path.endsWith('/kill-switch')) return Response.json({ success: false }, { status: 404 });
+    if (path.endsWith('/prepare')) { posted = JSON.parse(String(init?.body)); return Response.json(preparation); }
+    credentialCalls++;
+    return Response.json({ success: false, code: 'PERMIT_ALREADY_ISSUED' }, { status: 409 });
+  });
+  const gateway = new HttpExecutionGateway({ runId, paymentsUrl: 'http://127.0.0.1/', brokerUrl: 'http://127.0.0.1/', clientSecret: 'fixture-secret' });
+  const rule = { mandateId: 'mandate_1', policyVersion: 1, occurrenceKey: 'occ_1', target: 'dewa:home' };
+  for (const changed of [
+    { runId: 'autorn_11111111-1111-4111-8111-111111111111' }, { mandateId: 'mandate_other' }, { occurrenceKey: 'occ_other' },
+    { policyVersion: 2 }, { state: 'SETTLED' }, { id: '' }, { orderId: '' }, { amountMinor: 0 }, { currency: 'USD' },
+    { skipped: true, reason: 'NO_DUE_INVOICE', mandateId: 'mandate_other' },
+  ]) {
+    preparation = { ...correct, ...changed }; credentialCalls = 0;
+    const store = new JobStore(':memory:');
+    try {
+      const job = store.enqueue(rule);
+      const worker = new AutomationWorker(store, gateway, { workerId: 'worker-a', maxAttempts: 1, sleep: async () => {} });
+      const result = await worker.runOnce();
+      assert.equal(result?.state, 'FAILED'); assert.equal(result?.reason, 'PREPARE_UNAVAILABLE');
+      assert.equal(credentialCalls, 0);
+      assert.ok(!store.outbox(job.id).some(event => event.kind === 'PREPARED'));
+      assert.deepEqual(posted, { mandateId: 'mandate_1', occurrenceKey: 'occ_1', requestKey: job.id.replace(/^job_/, 'req_') });
+    } finally { store.close(); }
+  }
+  for (const orderId of ['order_1', 'funding_1']) {
+    preparation = { ...correct, orderId };
+    const store = new JobStore(':memory:');
+    try {
+      store.enqueue(rule); credentialCalls = 0;
+      const result = await new AutomationWorker(store, gateway, { workerId: 'worker-a', stepRetries: 1, sleep: async () => {} }).runOnce();
+      assert.equal(result?.state, 'HELD'); assert.equal(result?.reason, 'CREDENTIAL_ALREADY_ISSUED');
+      assert.equal(credentialCalls, 1);
+    } finally { store.close(); }
+  }
+  preparation = { success: true, skipped: true, mandateId: 'mandate_1', occurrenceKey: 'occ_1', reason: 'NO_DUE_INVOICE' };
+  const skippedStore = new JobStore(':memory:');
+  try {
+    skippedStore.enqueue(rule); credentialCalls = 0;
+    const result = await new AutomationWorker(skippedStore, gateway, { workerId: 'worker-a', sleep: async () => {} }).runOnce();
+    assert.equal(result?.state, 'SKIPPED'); assert.equal(result?.reason, 'NO_DUE_INVOICE');
+    assert.equal(credentialCalls, 0);
+  } finally { skippedStore.close(); }
 });
 
 test('automation execution HTTP responses require a readable order identity and capture flag', async t => {

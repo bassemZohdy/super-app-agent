@@ -49,10 +49,11 @@ export class HttpExecutionGateway implements ExecutionGateway {
   }
   private run(path = '') { return `/internal/automation-runs/${this.config.runId}${path}`; }
 
-  async prepare(input: { mandateId: string; occurrenceKey: string; requestKey: string }): Promise<PrepareResult> {
-    const data = await this.call(this.config.paymentsUrl, this.run('/prepare'), await this.credentials.token(), input);
+  async prepare(input: { mandateId: string; policyVersion: number; occurrenceKey: string; requestKey: string }): Promise<PrepareResult> {
+    const data = await this.call(this.config.paymentsUrl, this.run('/prepare'), await this.credentials.token(), { mandateId: input.mandateId, occurrenceKey: input.occurrenceKey, requestKey: input.requestKey });
+    if (data.mandateId !== input.mandateId || data.occurrenceKey !== input.occurrenceKey) throw failure(502, 'PREPARATION_INVALID', 'The preparation response was incomplete.');
     if (data.skipped === true && typeof data.reason === 'string') return { skipped: true, reason: data.reason };
-    if (typeof data.id !== 'string' || typeof data.orderId !== 'string') throw failure(502, 'PREPARATION_INVALID', 'The preparation response was incomplete.');
+    if (data.runId !== this.config.runId || data.policyVersion !== input.policyVersion || data.state !== 'PREPARED' || typeof data.id !== 'string' || !/^autoexec_[A-Za-z0-9_-]{1,100}$/.test(data.id) || typeof data.orderId !== 'string' || !/^(?:order|funding)_[A-Za-z0-9_-]{1,100}$/.test(data.orderId) || typeof data.amountMinor !== 'number' || !Number.isSafeInteger(data.amountMinor) || data.amountMinor <= 0 || data.amountMinor > 100000000 || data.currency !== 'AED') throw failure(502, 'PREPARATION_INVALID', 'The preparation response was incomplete.');
     return { id: data.id, runId: this.config.runId, orderId: data.orderId };
   }
   async credential(runId: string, executionId: string) {
