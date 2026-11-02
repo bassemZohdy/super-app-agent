@@ -21,11 +21,11 @@ for (const [cursor, validJson] of [['x'.repeat(129), true], ['unicode-\u0645', t
     t.mock.method(globalThis, 'fetch', async (_url, init) => {
       requests.push(new Headers(init?.headers));
       if (requests.length > 1) return new Response('', { status: 401 });
-      const data = validJson ? '{"type":"test"}' : '{invalid';
-      return new Response(`id: previous-1\ndata: {"type":"test"}\n\nid: ${cursor}\ndata: ${data}\n\n`, { headers: { 'Content-Type': 'text/event-stream' } });
+      const data = validJson ? '{"sessionId":"test-session","type":"test"}' : '{invalid';
+      return new Response(`id: previous-1\ndata: {"sessionId":"test-session","type":"test"}\n\nid: ${cursor}\ndata: ${data}\n\n`, { headers: { 'Content-Type': 'text/event-stream' } });
     });
     const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 3000);
-    try { await connectEventStream({ url: 'http://localhost/stream', getToken: () => 'test', signal: controller.signal, onMessage: message => delivered.push(message), onError: error => errors.push(error.message) }); }
+    try { await connectEventStream({ url: 'http://localhost/stream', sessionId: 'test-session', getToken: () => 'test', signal: controller.signal, onMessage: message => delivered.push(message), onError: error => errors.push(error.message) }); }
     finally { clearTimeout(timer); }
     assert.equal(requests.length, 2);
     assert.equal(requests[1].get('Last-Event-ID'), null, 'reconnect requests a fresh snapshot without an unsafe or stale cursor');
@@ -40,14 +40,14 @@ test('real HTTP reconnect requests a fresh snapshot after an invalid event ID', 
   const server = http.createServer((request, response) => {
     cursors.push(request.headers['last-event-id'] as string | undefined);
     response.writeHead(200, { 'Content-Type': 'text/event-stream' });
-    if (cursors.length === 1) response.end(`id: good-1\ndata: {"n":1}\n\nid: ${'x'.repeat(129)}\ndata: {"n":2}\n\n`);
-    else response.end('data: {"n":3}\n\n');
+    if (cursors.length === 1) response.end(`id: good-1\ndata: {"sessionId":"test-session","n":1}\n\nid: ${'x'.repeat(129)}\ndata: {"sessionId":"test-session","n":2}\n\n`);
+    else response.end('data: {"sessionId":"test-session","n":3}\n\n');
   });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(() => { server.closeAllConnections(); server.close(); });
   const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 5000);
   try {
-    await connectEventStream({ url: `http://127.0.0.1:${(server.address() as AddressInfo).port}/stream`, getToken: () => 'test', signal: controller.signal, onMessage: message => {
+    await connectEventStream({ url: `http://127.0.0.1:${(server.address() as AddressInfo).port}/stream`, sessionId: 'test-session', getToken: () => 'test', signal: controller.signal, onMessage: message => {
       const n = (message as unknown as { n: number }).n; delivered.push(n); if (n === 3) controller.abort();
     } });
   } finally { clearTimeout(timer); }
@@ -60,9 +60,9 @@ test('a failed handler retains the last successfully handled cursor', async t =>
   t.mock.method(globalThis, 'fetch', async (_url, init) => {
     cursors.push(new Headers(init?.headers).get('Last-Event-ID'));
     if (cursors.length > 1) return new Response('', { status: 401 });
-    return new Response(`id: handled-1\ndata: {"n":1}\n\nid: ${'x'.repeat(129)}\ndata: {"n":2}\n\n`, { headers: { 'Content-Type': 'text/event-stream' } });
+    return new Response(`id: handled-1\ndata: {"sessionId":"test-session","n":1}\n\nid: ${'x'.repeat(129)}\ndata: {"sessionId":"test-session","n":2}\n\n`, { headers: { 'Content-Type': 'text/event-stream' } });
   });
-  await connectEventStream({ url: 'http://localhost/stream', getToken: () => 'test', signal: new AbortController().signal, onMessage: message => {
+  await connectEventStream({ url: 'http://localhost/stream', sessionId: 'test-session', getToken: () => 'test', signal: new AbortController().signal, onMessage: message => {
     if ((message as unknown as { n: number }).n === 2) throw new Error('handler failed');
   } });
   assert.deepEqual(cursors, [null, 'handled-1']);

@@ -231,7 +231,7 @@ function CompatibilityApp() {
     const controller = new AbortController();
     void connectEventStream({
       url: `${GATEWAY_URL}/api/a2ui/stream?sessionId=${sessionId}${accountId ? `&accountId=${encodeURIComponent(accountId)}` : ''}`,
-      getToken, signal: controller.signal,
+      sessionId, getToken, signal: controller.signal,
       onMessage: envelope => {
         if (envelope.type === 'A2UI_STREAM_DELTA') setProgress(envelope.data.text);
         if (envelope.type === 'A2UI_RENDER_SURFACE') {

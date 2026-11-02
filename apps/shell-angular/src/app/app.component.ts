@@ -324,7 +324,7 @@ export class AppComponent implements OnInit, OnDestroy {
   connectStream() {
     void connectEventStream({
       url: `${GATEWAY_URL}/api/a2ui/stream?sessionId=${this.sessionId}&accountId=${encodeURIComponent(this.accountId)}`,
-      getToken: () => this.auth?.token() || 'demo-local', signal: this.streamController.signal,
+      sessionId: this.sessionId, getToken: () => this.auth?.token() || 'demo-local', signal: this.streamController.signal,
       onMessage: data => {
         if (data.type === 'A2UI_STREAM_DELTA') this.delta.set(data.data.text);
         else if (data.type === 'A2UI_RENDER_SURFACE') { this.delta.set(null); try { this.applySurface(data.data.surface); } catch (error) { this.showError((error as Error).message); } }

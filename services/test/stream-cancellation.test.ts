@@ -41,7 +41,7 @@ test('terminal stream authorization responses are cancelled without consuming th
   const refused = uncooperativeResponse('private response', 401);
   t.mock.method(globalThis, 'fetch', async () => refused.response);
   const errors: string[] = [];
-  await within(connectEventStream({ url: 'http://localhost/stream', getToken: () => 'test', signal: new AbortController().signal, onMessage: () => {}, onError: error => errors.push(error.message) }));
+  await within(connectEventStream({ url: 'http://localhost/stream', sessionId: 'test-session', getToken: () => 'test', signal: new AbortController().signal, onMessage: () => {}, onError: error => errors.push(error.message) }));
   assert.deepEqual(errors, ['Stream authorization/request rejected (401)']);
   assert.equal(refused.wasCancelled(), true);
 });
@@ -72,10 +72,10 @@ test('stale cursor and terminal responses are cancelled before reconnect or stop
   const requests: Headers[] = [];
   t.mock.method(globalThis, 'fetch', async (_url, init) => {
     requests.push(new Headers(init?.headers));
-    if (requests.length === 1) return new Response('id: cursor-1\ndata: {"type":"test"}\n\n', { headers: { 'Content-Type': 'text/event-stream' } });
+    if (requests.length === 1) return new Response('id: cursor-1\ndata: {"sessionId":"test-session","type":"test"}\n\n', { headers: { 'Content-Type': 'text/event-stream' } });
     return requests.length === 2 ? stale.response : refused.response;
   });
-  await within(connectEventStream({ url: 'http://localhost/stream', getToken: () => 'test', signal: new AbortController().signal, onMessage: () => {} }));
+  await within(connectEventStream({ url: 'http://localhost/stream', sessionId: 'test-session', getToken: () => 'test', signal: new AbortController().signal, onMessage: () => {} }));
   assert.equal(requests[1].get('Last-Event-ID'), 'cursor-1');
   assert.equal(requests[2].get('Last-Event-ID'), null);
   assert.equal(stale.wasCancelled(), true); assert.equal(refused.wasCancelled(), true);
@@ -87,7 +87,7 @@ test('closing a stream while token acquisition is pending returns promptly and n
   let release!: (value: string) => void, fetches = 0, started = false;
   const token = new Promise<string>(resolve => { release = resolve; });
   t.mock.method(globalThis, 'fetch', async () => { fetches++; return new Response('', { status: 401 }); });
-  const run = connectEventStream({ url: 'http://localhost/stream', getToken: () => { started = true; return token; }, signal: controller.signal, onMessage: () => {} });
+  const run = connectEventStream({ url: 'http://localhost/stream', sessionId: 'test-session', getToken: () => { started = true; return token; }, signal: controller.signal, onMessage: () => {} });
   await Promise.resolve(); assert.equal(started, true);
   controller.abort();
   await within(run);
@@ -101,7 +101,7 @@ test('closing a stream tolerates a later rejected token request', async t => {
   let rejectToken!: (error: Error) => void, fetches = 0, started = false;
   const token = new Promise<string>((_resolve, reject) => { rejectToken = reject; });
   t.mock.method(globalThis, 'fetch', async () => { fetches++; return new Response('', { status: 401 }); });
-  const run = connectEventStream({ url: 'http://localhost/stream', getToken: () => { started = true; return token; }, signal: controller.signal, onMessage: () => {} });
+  const run = connectEventStream({ url: 'http://localhost/stream', sessionId: 'test-session', getToken: () => { started = true; return token; }, signal: controller.signal, onMessage: () => {} });
   await Promise.resolve(); assert.equal(started, true);
   controller.abort();
   await within(run);

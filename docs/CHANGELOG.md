@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 3 November 2026 - Bind browser stream events to their session (P1-12, step)
+
+React and Angular ignore foreign or malformed session envelopes and resume beyond them without displaying their contents. Guide: [security](security.md).
+
 ## 3 November 2026 - Reject malformed HTTP JSON encoding (P0-11, step)
 
 Focused and shared HTTP JSON readers reject invalid UTF-8 before parsing and dispatch, while preserving valid split multibyte text. Guide: [security](security.md).

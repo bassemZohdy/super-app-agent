@@ -27,7 +27,7 @@ test('P1-12: an unreadable event in the stream is skipped and the events after i
   const delivered: number[] = [], errors: string[] = [];
   const controller = new AbortController();
   const done = connectEventStream({
-    url: `http://127.0.0.1:${port}/stream`, getToken: () => 'token', signal: controller.signal,
+    url: `http://127.0.0.1:${port}/stream`, sessionId: 'session_1', getToken: () => 'token', signal: controller.signal,
     onMessage: envelope => delivered.push((envelope as unknown as { n: number }).n),
     onError: error => errors.push(error.message),
   });

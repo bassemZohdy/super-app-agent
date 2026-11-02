@@ -134,7 +134,7 @@ test('browser stream reconnects with bearer headers and cursor, resets stale rep
     return new Response('', { status: 401 });
   });
   await connectEventStream({ url: 'http://localhost/stream?sessionId=example',
-    getToken: () => 'refreshed-' + ++tokens, signal: new AbortController().signal,
+    sessionId: 'sid', getToken: () => 'refreshed-' + ++tokens, signal: new AbortController().signal,
     onMessage: () => delivered++, onError: error => errorMessages.push(error.message) });
   assert.equal(delivered, 1);
   assert.equal(requests[0].Authorization, 'Bearer refreshed-1');

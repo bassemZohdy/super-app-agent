@@ -60,6 +60,7 @@ async function tokenOrAbort(getToken: () => string | Promise<string>, signal: Ab
 /** Tokens stay in headers. Caller supplies an in-memory token getter (including refresh). */
 export async function connectEventStream(options: {
   url: string;
+  sessionId: string;
   getToken: () => string | Promise<string>;
   signal: AbortSignal;
   onMessage: (message: A2UIMessageEnvelope) => void;
@@ -94,6 +95,11 @@ export async function connectEventStream(options: {
           // reconnect would replay the same bad event and nothing after it would ever arrive.
           advanceCursor(event);
           options.onError?.(new Error('A stream event could not be read and was skipped'));
+          continue;
+        }
+        if (!message || typeof message !== 'object' || Array.isArray(message) || message.sessionId !== options.sessionId) {
+          advanceCursor(event);
+          options.onError?.(new Error('A stream event for another or invalid session was skipped'));
           continue;
         }
         options.onMessage(message);
