@@ -113,7 +113,18 @@ function confirmedReceipt(service: string, path: string, data: any, body: unknow
         (request.pickup === undefined || (named(request.pickup) && booking.pickup === request.pickup)) &&
         (request.dropoff === undefined || (named(request.dropoff) && booking.dropoff === request.dropoff));
     }
-    if (path.startsWith('/mobility/parking/')) return record(data.meter) && named(data.meter.ticketId) && finite(data.meter.durationHours) && finite(data.meter.totalFee);
+    if (path === '/mobility/parking/activate' || path === '/mobility/parking/extend') {
+      if (!record(body) || !record(data.meter)) return false;
+      const request = body as { zoneId?: unknown; plateNumber?: unknown; durationHours?: unknown; ticketId?: unknown; additionalHours?: unknown }, meter = data.meter;
+      if (!named(meter.ticketId) || !named(meter.zoneId) || !named(meter.zoneCode) || !named(meter.zoneName) || !named(meter.plateNumber) ||
+        meter.status !== 'ACTIVE' || !Number.isSafeInteger(meter.durationHours) || meter.durationHours <= 0 ||
+        !Number.isSafeInteger(meter.expiresAt) || meter.expiresAt < 0 || meter.expiresAt > 8640000000000000) return false;
+      try { if (typeof meter.totalFee !== 'number' || toMinor(meter.totalFee) < 0) return false; } catch { return false; }
+      if (path === '/mobility/parking/activate') return named(request.zoneId) && named(request.plateNumber) &&
+        Number.isSafeInteger(request.durationHours) && meter.zoneId === request.zoneId && meter.plateNumber === request.plateNumber && meter.durationHours === request.durationHours;
+      return named(request.ticketId) && Number.isSafeInteger(request.additionalHours) && (request.additionalHours as number) > 0 &&
+        meter.ticketId === request.ticketId && meter.durationHours >= (request.additionalHours as number);
+    }
     if (path === '/mobility/salik/recharge') {
       if (!named(data.transactionId) || !finite(data.newBalance)) return false;
       if (!record(body)) return true;

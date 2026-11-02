@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Verify compatibility parking receipts (P1-13, step)
+
+Parking activation receipts must match the zone, vehicle and duration; extension receipts must match the original ticket. Meter fields used by the display are validated. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Verify compatibility food order receipts (P1-13, step)
 
 Food confirmations now match the selected restaurant, item quantities and supplied address; inconsistent responses remain unknown. Guide: [agent flow](agent-flow.md).

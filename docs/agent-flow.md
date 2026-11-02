@@ -36,6 +36,8 @@ Compatibility ride booking confirmations require the selected driver, dispatched
 
 Compatibility food order confirmations require the selected restaurant, exact item quantities, accepted status and any supplied delivery address to match. A mismatched order remains unknown and blocks a replacement checkout.
 
+Compatibility parking activation confirmations match the selected zone, vehicle and duration; extension confirmations match the ticket. Both require an active meter with usable display fields. An extension receipt alone does not establish the prior meter duration or prove the exact increment.
+
 Before dispatching any consequential tool, the wrapper independently revalidates the caller, requires the same subject and workload, and checks the current tool permission. This second check is within the tool deadline; if it finishes after the deadline, the tool is not dispatched. Identity-check failures do not expose provider text. Read-only tools use the already authenticated request context.
 
 Fine references are bound at the graph boundary from the resident's current message, independently of which planner is used. For supported “pay them” or “pay it” follow-ups, only the immediately preceding user turn supplies a selection; an intervening user request does not revive an older one. The graph rejects planner-invented references, preserves named ones if the planner omits them, and refuses a payment review if a selected fine is unavailable. Without a selection, the ordinary payment review includes the outstanding fines.
