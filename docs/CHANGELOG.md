@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 - Inspect stored container payment effects (P2-05, step)
+
+Focused-container qualification reads the isolated simulator database to check the payment count before approval, after replay and after restarts. Guide: [local development](development/local-development.md).
+
 ## 2 November 2026 - Verify actual container replay evidence (P2-05, step)
 
 Container qualification requires a successful same-key replay containing the original receipt and a 409 refusal for a new approval key. Guide: [local development](development/local-development.md).

@@ -9,3 +9,8 @@ export function assertApprovalReplay(receipt: unknown, same: Response, fresh: Re
   assert.deepEqual((same.data as { receipt?: unknown }).receipt, receipt, 'the same key returns the actual original receipt');
   assert.equal(fresh.status, 409, 'a new key cannot approve an already-used decision');
 }
+
+/** Require a single unambiguous count from the isolated simulator database. */
+export function assertPaymentCount(output: string, expected: 0 | 1) {
+  assert.equal(output, String(expected), `the isolated simulator must contain exactly ${expected} payments`);
+}

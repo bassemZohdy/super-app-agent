@@ -7,12 +7,16 @@ import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { withQualificationCleanup } from './qualification-cleanup.ts';
-import { assertApprovalReplay } from './qualification-evidence.ts';
+import { assertApprovalReplay, assertPaymentCount } from './qualification-evidence.ts';
 
 // Its own compose project, so the data volume it starts from empty and removes at the end is never a developer's own agent data.
 const PROJECT = 'super-app-agent-qualify';
 const compose = (...args: string[]) => spawnSync('docker', ['compose', '-p', PROJECT, '-f', 'compose.agent.yml', ...args], { encoding: 'utf8' });
 const must = (result: ReturnType<typeof compose>, what: string) => { assert.equal(result.status, 0, `${what} failed: ${(result.stderr || result.stdout).slice(-400)}`); return result.stdout.trim(); };
+const checkPaymentCount = (expected: 0 | 1) => {
+  const query = "const {DatabaseSync}=require('node:sqlite');const db=new DatabaseSync('/app/.data/agent.sqlite',{readOnly:true});process.stdout.write(String(db.prepare('SELECT count(*) AS n FROM sa_sim_payments').get().n));db.close();";
+  assertPaymentCount(must(compose('exec', '-T', 'agent', 'node', '-e', query), 'read simulated payment count'), expected);
+};
 const env = Object.fromEntries(readFileSync('.env.agent', 'utf8').trim().split('\n').map(line => { const at = line.indexOf('='); return [line.slice(0, at), line.slice(at + 2, -1)]; }));
 const token = (JSON.parse(env.AGENT_TEST_IDENTITIES) as Array<{ token: string }>)[0].token;
 const base = 'http://127.0.0.1:4300';
@@ -43,6 +47,7 @@ const asked = await call(`${root}/messages`, { message: 'Retrieve my fines and p
 assert.equal(asked.data.status, 'awaiting_approval');
 const approval = asked.data.approval as { id: string; quote: { amountMinor: number } };
 assert.equal(approval.quote.amountMinor, 45000);
+checkPaymentCount(0);
 
 // A restart must neither lose the pending approval nor change it.
 must(compose('restart', 'agent'), 'restart');
@@ -61,10 +66,12 @@ assert.ok(receipt, 'a receipt exists after approval');
 const same = await call(`${root}/resume`, { approvalId: approval.id, decision: 'approve' }, key);
 const fresh = await call(`${root}/resume`, { approvalId: approval.id, decision: 'approve' }, randomUUID());
 assertApprovalReplay(receipt, same, fresh);
+checkPaymentCount(1);
 must(compose('restart', 'agent'), 'second restart');
 await ready();
 const after = await call(root);
 assert.deepEqual(after.data.receipt, receipt, 'the receipt is the same after another restart');
+checkPaymentCount(1);
 console.log(`PASS: one payment however often the approval is replayed (same key: HTTP ${same.status}, new key: HTTP ${fresh.status}), and the receipt survives a restart`);
 
 // A stop is clean and inside the grace period.
@@ -79,5 +86,6 @@ console.log(`PASS: clean stop in ${seconds.toFixed(1)}s with exit code 0`);
 must(compose('up', '-d', '--wait'), 'start again');
 await ready();
 assert.deepEqual((await call(root)).data.receipt, receipt, 'the volume kept the settled interaction');
+checkPaymentCount(1);
 console.log('PASS: restarted from the persistent volume with the interaction intact. No Redis, PostgreSQL, external simulator or model download was needed.');
 }, async () => { must(compose('down', '-v'), 'remove the qualification project and its volume'); });
