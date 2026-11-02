@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Align payment review records (P1-13, step)
+
+The structured focused response now matches the selected fine rows and quote during payment review, including when the interaction is restored. Guide: [shell parity](development/shell-parity.md).
+
 ## 2 November 2026 — Reset focused resource snapshots on a new request (P1-12, step)
 
 Focused requests no longer carry prior fine or vehicle data into clarification, unsupported-service or planning-error responses. Conversation history remains available for selected-fine follow-ups. Guide: [shell parity](development/shell-parity.md).

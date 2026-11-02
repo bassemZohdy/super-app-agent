@@ -20,6 +20,9 @@ test('the graph retains an explicitly named fine even if the planner omits it', 
     const root = `/api/agent/threads/${await h.thread()}`;
     const review = await h.req(`${root}/messages`, { message: 'pay fine-1' });
     assert.deepEqual(review.data.approval.quote.fineIds, ['fine-1']);
+    assert.deepEqual(review.data.fines.map((fine: { id: string }) => fine.id), ['fine-1']);
+    assert.deepEqual(review.data.surface.view.children.find((child: { id: string }) => child.id === 'fines').properties.rows.map((row: { id: string }) => row.id), ['fine-1']);
+    assert.deepEqual((await h.req(root)).data.fines.map((fine: { id: string }) => fine.id), ['fine-1']);
     assert.equal(review.data.approval.quote.amountMinor, 15000);
     assert.equal((h.store.db.prepare('SELECT count(*) AS n FROM sa_sim_payments').get() as { n: number }).n, 0);
     const paid = await h.req(`${root}/resume`, { approvalId: review.data.approval.id, decision: 'approve' });

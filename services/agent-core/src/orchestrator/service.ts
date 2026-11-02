@@ -27,7 +27,7 @@ export class AgentService {
         ...decisions(renewalApproval.id, { approve: 'Confirm simulated renewal', reject: 'Reject renewal', cancel: 'Cancel review' }));
     }
     const surface: AGUISurfacePayload = { version: '1.0.0', sessionId: id, revision: approval?.id ?? renewalApproval?.id, timestamp: Date.now(), view: { id: 'fines-service', type: 'SurfaceCard', children } };
-    return { threadId: id, status: thread.cancelled ? 'cancelled' : values.status || 'new', reply: values.reply || '', messages: values.messages || [], fines: values.fines || [], receipt: values.receipt || null, approval, vehicles: values.vehicles || [], renewal: values.renewal || null, renewalApproval: renewalApproval || null, next: state.next, uiContract: 'cityside-compat-v1', surface };
+    return { threadId: id, status: thread.cancelled ? 'cancelled' : values.status || 'new', reply: values.reply || '', messages: values.messages || [], fines: shownFines, receipt: values.receipt || null, approval, vehicles: values.vehicles || [], renewal: values.renewal || null, renewalApproval: renewalApproval || null, next: state.next, uiContract: 'cityside-compat-v1', surface };
   }
   async transition(id: string, requestId: string, action: 'message' | 'resume' | 'recover' | 'cancel', body: unknown) {
     return this.store.exclusive(id, async () => {
