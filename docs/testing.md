@@ -57,6 +57,8 @@ Execution results for the implementation milestone belong in the dated [evidence
 
 `services/test/domain-telecom-receipt.test.ts` sends missing, malformed and wrong-bill receipts through the authenticated telecom adapter for both supported providers and verifies they remain unknown; a complete receipt for the selected bill is accepted. The same test compares receipts with a supplied reviewed amount in exact fils and rejects a one-fil difference and overflow-sized receipt. This checks the response boundary, not real provider settlement.
 
+`services/agent-core/test/process-commit-recovery.test.ts` uses a local proxy to hold the simulator reply after a payment or renewal commits, kills the real agent process, and verifies that restart blocks a replacement and recovers the original operation once. It does not prove distributed failover or real-provider behavior.
+
 `services/agent-core/test/thread-expiry-recovery.test.ts` expires conversations after a simulated effect and lost response, reopens SQLite and verifies that only the owner’s linked unresolved conversation is extended. It also covers saved legacy approvals and refusal to guess when the evidence is absent.
 
 `services/agent-core/test/cross-thread-recovery.test.ts` covers pending and unknown writes across conversations, same and different quotes, renewal, read-only access, subject isolation, reopening SQLite, and unambiguous or ambiguous legacy ownership. This is local single-process evidence, not distributed failover proof.

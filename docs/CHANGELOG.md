@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Exercise process death after simulator commit (P0-06, step)
+
+A local proxy test now observes a simulated payment or renewal commit, holds its reply, kills the real focused-agent process and restarts it against the same SQLite file. It verifies the pending original blocks a second conversation, recovery uses the original key, and exactly one simulator effect exists. The subprocess helper also treats an already signalled process as stopped. This is local process-kill evidence, not distributed failover or real-provider qualification. Guide: [testing](testing.md).
+
 ## 2 November 2026 — Keep unresolved focused conversations inspectable (P0-05, step)
 
 A focused conversation now records the approval-to-operation link before execution. If its normal expiry passes while that exact owned operation remains pending or unknown, an authenticated owner access extends the conversation for another day; unrelated, competing and other-user conversations do not gain access. Older records are linked only when a saved approval response and operation owner agree; records without sufficient evidence are not guessed. Tests cover payment, renewal, SQLite reopen, authority loss and legacy links. This does not solve production retention or authority renewal. Guide: [agent flow](agent-flow.md).
