@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bind recharge orders to targets (P1-13, step)
+
+Integrated toll and prepaid recharges check their original quote, each order and the final receipt against the requested provider, target, amount and credited balance. Mismatches stop approval or remain unknown for inspection, including during original-order recovery. Tests cover all three simulated providers and lost-response recovery. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Check fine orders before execution (P1-13, step)
 
 Integrated compatibility fines payments compare the order's frozen selection, reference and total to the selected fines before approval, execution and recovery, retaining inconsistent outcomes as unknown. Tests cover substituted selections and changed totals before approval, changed orders after approval and mismatched settlement receipts. Guide: [integrations](integrations.md).

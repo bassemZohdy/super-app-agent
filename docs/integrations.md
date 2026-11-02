@@ -10,6 +10,8 @@ Compatibility utility receipts must identify the requested bill, report an AED a
 
 Integrated utility and telecom payments additionally compare each returned order's frozen payable and total with the selected bill before approval and execution, and verify the settled receipt's bill, amount and currency. An inconsistent original order or receipt remains unknown for inspection rather than reporting payment success.
 
+Integrated toll and prepaid recharges bind the saved quote and each payment order to the requested provider, target, version, balance and amount. The settled receipt must confirm that target and expected credited balance. Recovery uses the original quote and order; a mismatch is left unknown for inspection.
+
 MCP, A2A, SOAP and controlled browser execution are protocol values at the extension boundary, not implemented transports in this entry point. The existing integrated MCP server remains in its original path. Add a real protocol adapter only for a concrete service, with its own authority, schema, timeout and retry tests.
 
 ## HTTP API

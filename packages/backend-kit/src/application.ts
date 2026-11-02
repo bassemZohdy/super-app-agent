@@ -126,16 +126,31 @@ export async function integratedRequest(service: string, actor: Actor, method: s
     return {success:true,receiptNumber:receipt.receiptNumber,finesCleared:ids.length,fineIds:ids,amountPaid:receipt.amountMinor/100,remainingBalance:(await call('payments','GET','/wallet')).balance};
   };
   const rechargeTarget = async (provider:string,reference:string,amountMinor:number,expectedTargetVersion?:number) => {
-    const intentId=stableKey(`recharge-intent:${provider}:${actor.requestId}`);let payable;
+    const intentId=stableKey(`recharge-intent:${provider}:${actor.requestId}`);let payable, requiredVersion=expectedTargetVersion;
     try{payable=(await call(provider,'GET',`/recharge-intents/${intentId}`)).payable;}
     catch(e){if(!(e instanceof UpstreamError)||e.status!==404)throw e;}
-    if(payable){if(payable.reference!==reference||payable.amountMinor!==amountMinor||expectedTargetVersion!==undefined&&payable.recharge.targetVersion!==expectedTargetVersion)throw new UpstreamError(409,'RECHARGE_INTENT_CONFLICT','This request already has different recharge terms.');}
+    if(payable){if(payable.reference!==reference||payable.amountMinor!==amountMinor||expectedTargetVersion!==undefined&&payable.recharge?.targetVersion!==expectedTargetVersion)throw new UpstreamError(409,'RECHARGE_INTENT_CONFLICT','This request already has different recharge terms.');}
     else{
       const targets=(await call(provider,'GET','/recharge-targets')).targets,target=targets.find((t:RechargeTarget)=>t.reference===reference);
       if(!target)throw new UpstreamError(404,'RECHARGE_TARGET_NOT_FOUND','This provider target is not owned by the workspace.');
+      requiredVersion=expectedTargetVersion??target.version;
       payable=(await call(provider,'POST','/recharge-quotes',{targetReference:reference,amountMinor,expectedTargetVersion:expectedTargetVersion??target.version,intentId},stableKey(`recharge-quote:${intentId}`))).payable;
     }
-    const order=await executePayable(provider,payable);return {success:true,transactionId:order.paymentId,newBalance:order.receipt.providerBalanceMinor/100,amountRecharged:order.receipt.amountMinor/100};
+    const recharge=payable?.recharge;
+    if(!payable||payable.kind!=='RECHARGE'||payable.provider!==provider||payable.reference!==reference||payable.amountMinor!==amountMinor||payable.currency!=='AED'||
+      typeof payable.id!=='string'||!payable.id||typeof payable.revision!=='string'||!payable.revision||typeof payable.obligationId!=='string'||!payable.obligationId||
+      !recharge||recharge.kind!==(provider==='rta'?'TOLL':'PREPAID')||!Number.isSafeInteger(recharge.targetVersion)||recharge.targetVersion<1||requiredVersion!==undefined&&recharge.targetVersion!==requiredVersion||
+      !Number.isSafeInteger(recharge.balanceBeforeMinor)||recharge.balanceBeforeMinor<0||!Number.isSafeInteger(recharge.balanceBeforeMinor+amountMinor))
+      throw new UpstreamError(503,'PROVIDER_UNAVAILABLE','The recharge quote could not be confirmed.');
+    const sameOrder=(value:unknown)=>{
+      if(!value||typeof value!=='object'||Array.isArray(value))return false;
+      const order=value as {quote?:{totalMinor?:unknown;payable?:Payable & {recharge?:{kind?:unknown;targetVersion?:unknown;balanceBeforeMinor?:unknown};currency?:unknown}}}, quoted=order.quote?.payable;
+      return !!quoted&&quoted.kind==='RECHARGE'&&quoted.provider===provider&&quoted.id===payable.id&&quoted.revision===payable.revision&&quoted.obligationId===payable.obligationId&&quoted.reference===reference&&quoted.amountMinor===amountMinor&&quoted.currency==='AED'&&order.quote?.totalMinor===amountMinor&&quoted.recharge?.kind===recharge.kind&&quoted.recharge?.targetVersion===recharge.targetVersion&&quoted.recharge?.balanceBeforeMinor===recharge.balanceBeforeMinor;
+    };
+    const order=await executePayable(provider,payable,sameOrder), receipt=order?.receipt;
+    if(!receipt||typeof order.paymentId!=='string'||!order.paymentId||receipt.receiptNumber!==order.paymentId||receipt.obligationId!==payable.obligationId||receipt.amountMinor!==amountMinor||receipt.currency!=='AED'||receipt.targetReference!==reference||receipt.providerBalanceMinor!==recharge.balanceBeforeMinor+amountMinor)
+      throw new UpstreamError(503,'PROVIDER_OUTCOME_UNKNOWN','The recharge settlement could not be confirmed. Inspect the original payment order.');
+    return {success:true,transactionId:order.paymentId,newBalance:receipt.providerBalanceMinor/100,amountRecharged:receipt.amountMinor/100};
   };
   const recharge = async (amount: number) => rechargeTarget('rta',(await call('rta','GET','/salik')).tagNumber,Math.round(amount*100));
   try {
