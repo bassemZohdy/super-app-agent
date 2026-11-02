@@ -16,7 +16,7 @@ States: `QUEUED → PREPARING → PREPARED → CREDENTIALING → EXECUTING`, the
 
 ## Leases and fencing
 
-Contradictory automation responses, including refusals that carry credential or payment evidence and successful replies with a failure code, leave the original job held for inspection. Credentials are not persisted.
+Contradictory automation responses, including refusals that carry credential or payment evidence and successful replies with a failure code, leave the original job held for inspection. Scheduling and preparation-inspection reads also reject a success response that contains an error code, without changing scheduling history. Credentials are not persisted.
 
 On SIGTERM or SIGINT, the worker finishes an already-claimed job, skips new claims even if a scheduler or authority read was in progress, and wakes promptly from an idle poll. A scheduler tick already in progress may still enqueue work for a later start.
 

@@ -51,7 +51,7 @@ export class HttpRuleSource implements RuleSource {
     try { body = await boundedJsonResponse(response, 65536); } catch { throw new Error('Scheduling read could not be confirmed.'); }
     if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error('Scheduling read could not be confirmed.');
     const data = body as Record<string, unknown>;
-    if (data.success !== true || Object.hasOwn(data, 'error')) throw new Error('Scheduling read could not be confirmed.');
+    if (data.success !== true || Object.hasOwn(data, 'error') || Object.hasOwn(data, 'code')) throw new Error('Scheduling read could not be confirmed.');
     return data;
   }
   async rules(): Promise<ScheduledRule[]> {

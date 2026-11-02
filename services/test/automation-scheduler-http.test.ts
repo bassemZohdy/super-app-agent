@@ -29,6 +29,7 @@ test('scheduler rejects untrustworthy HTTP balance readings without changing thr
       { success: true, balanceMinor: -1, qualifyingDebits: 0 },
       { success: true, balanceMinor: 500, qualifyingDebits: 0.5 },
       { success: true, balanceMinor: 2000, qualifyingDebits: 0, error: 'private-marker' },
+      { success: true, balanceMinor: 2000, qualifyingDebits: 0, code: 'BALANCE_UNAVAILABLE' },
       { balanceMinor: 2000, qualifyingDebits: 0 },
       { success: true, balanceMinor: 2000, qualifyingDebits: 0, extra: 'x'.repeat(70000) },
     ]) {
@@ -122,4 +123,25 @@ test('scheduler validates the entire HTTP rule list before acting on any rule', 
     rules = [{ ...rule, trigger: supported }];
     assert.deepEqual(await source.rules(), rules);
   }
+});
+
+
+test('scheduler does not act on rules paired with a contradictory error code', async t => {
+  const previous = process.env.KEYCLOAK_TOKEN_URL;
+  process.env.KEYCLOAK_TOKEN_URL = 'http://127.0.0.1/token';
+  t.after(() => { if (previous === undefined) delete process.env.KEYCLOAK_TOKEN_URL; else process.env.KEYCLOAK_TOKEN_URL = previous; });
+  let balanceReads = 0;
+  t.mock.method(globalThis, 'fetch', async input => {
+    const path = new URL(String(input)).pathname;
+    if (path === '/token') return Response.json({ access_token: 'fixture-service-token', expires_in: 300 });
+    if (path.endsWith('/rules')) return Response.json({ success: true, rules: [rule], code: 'RULES_UNAVAILABLE' });
+    balanceReads++; return Response.json({ success: true, balanceMinor: 500, qualifyingDebits: 0 });
+  });
+  const store = new JobStore(':memory:');
+  try {
+    const source = new HttpRuleSource({ runId: 'autorn_00000000-0000-4000-8000-000000000000', paymentsUrl: 'http://127.0.0.1', clientSecret: 'fixture-secret' });
+    await assert.rejects(new Scheduler(store, source).tick(Date.parse('2026-11-01T00:00:00Z')));
+    assert.equal(balanceReads, 0); assert.deepEqual(store.list(), []);
+    assert.deepEqual(store.thresholdState(rule.mandateId, 1), { armed: true, seq: 0 });
+  } finally { store.close(); }
 });

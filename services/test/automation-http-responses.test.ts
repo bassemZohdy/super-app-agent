@@ -211,7 +211,7 @@ test('preparation inspection reads the original identity without dispatching or 
   assert.deepEqual(await gateway.inspectPreparation(input), { id: 'autoexec_1', runId, orderId: 'order_1', amountMinor: 10000 });
   body = { success: true, found: true, preparation: { mandateId: input.mandateId, occurrenceKey: input.occurrenceKey, skipped: true, reason: 'NO_DUE_INVOICE' } };
   assert.deepEqual(await gateway.inspectPreparation(input), { skipped: true, reason: 'NO_DUE_INVOICE' });
-  for (const invalid of [{ success: true, found: false, preparation: prepared }, { success: true, found: true, preparation: { ...prepared, occurrenceKey: 'other' } }, { success: true, found: true, preparation: { ...prepared, runId: 'other' } }, { success: false, found: true, preparation: prepared }, { success: true, error: 'private-token-marker', found: true, preparation: prepared }]) {
+  for (const invalid of [{ success: true, found: false, preparation: prepared }, { success: true, found: true, preparation: { ...prepared, occurrenceKey: 'other' } }, { success: true, found: true, preparation: { ...prepared, runId: 'other' } }, { success: false, found: true, preparation: prepared }, { success: true, error: 'private-token-marker', found: true, preparation: prepared }, { success: true, code: 'INSPECTION_UNAVAILABLE', found: true, preparation: prepared }, { success: true, code: 'INSPECTION_UNAVAILABLE', found: false }]) {
     body = invalid; await assert.rejects(gateway.inspectPreparation(input));
   }
 });

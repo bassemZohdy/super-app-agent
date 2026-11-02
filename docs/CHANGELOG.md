@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 - Reject contradictory automation reads (P1-10, step)
+
+Scheduling and original-preparation inspection reject success responses that also contain an error code. Invalid rule and balance replies cannot enqueue work or change threshold history. Guide: [automation worker](development/automation-worker.md).
+
 ## 2 November 2026 - Reject contradictory kill-switch replies (P1-10, step)
 
 The automation worker rejects unexpected fields in broker kill-switch responses, retaining the current stop when a reply also signals an error or contradictory state. Guide: [automation worker](development/automation-worker.md).

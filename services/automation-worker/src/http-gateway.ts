@@ -81,7 +81,7 @@ export class HttpExecutionGateway implements ExecutionGateway {
     try { body = await boundedJsonResponse(response, 65536); } catch { throw failure(502, 'PREPARATION_INVALID', 'The preparation could not be inspected.'); }
     if (!body || typeof body !== 'object' || Array.isArray(body)) throw failure(502, 'PREPARATION_INVALID', 'The preparation could not be inspected.');
     const data = body as Record<string, unknown>;
-    if (data.success !== true || Object.hasOwn(data, 'error') || typeof data.found !== 'boolean') throw failure(502, 'PREPARATION_INVALID', 'The preparation could not be inspected.');
+    if (data.success !== true || Object.hasOwn(data, 'error') || Object.hasOwn(data, 'code') || typeof data.found !== 'boolean') throw failure(502, 'PREPARATION_INVALID', 'The preparation could not be inspected.');
     if (!data.found) {
       if (Object.hasOwn(data, 'preparation')) throw failure(502, 'PREPARATION_INVALID', 'The preparation could not be inspected.');
       return undefined;
