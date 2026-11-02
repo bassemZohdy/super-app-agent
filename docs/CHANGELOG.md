@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 - Continue isolated environment cleanup after errors (P2-06, step)
+
+Isolated test cleanup attempts remaining servers, session connections, databases and temporary data when one cleanup step fails, and preserves startup and cleanup errors together. Guide: [testing](development/testing.md).
+
 ## 2 November 2026 - Report container qualification source state (P2-03, step)
 
 Focused-container qualification distinguishes a clean checkout from uncommitted changes or a revision that changes during the build, instead of attributing a modified image to a commit alone. Guide: [local development](development/local-development.md).

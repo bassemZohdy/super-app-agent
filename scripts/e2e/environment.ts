@@ -1,5 +1,6 @@
 import { demoPortOffset, keycloakIssuerUrl, redisUrl } from '../endpoints.ts';
 import { fixtureClientSecret } from './client-secrets.ts';
+import { cleanupAll, rethrowWithCleanup } from './cleanup.ts';
 /** Isolated local APIs/SQLite, with the existing local Keycloak and Redis only. */
 import assert from 'node:assert/strict';
 import http, { type Server } from 'node:http';
@@ -23,6 +24,7 @@ export async function startEnvironment(options:{authorizationClock?:()=>number;i
   const secret = (id: string) => { const value = secrets.get(id); if (!value) throw new Error('No E2E client credential mapping exists.'); return value; };
   const dir = await mkdtemp(join(tmpdir(), options.automation ? 'cityside-auto-' : 'cityside-e2e-'));
   const servers: Server[] = [];
+  let sessionWasConnected = false;
   const databases: Array<{ close(): void }> = [];
   const providerServers=new Map<string,Server>();
   const providerStores = new Map<string, import('../../services/provider-simulator/src/database.ts').AccountDatabase>();
@@ -60,21 +62,29 @@ export async function startEnvironment(options:{authorizationClock?:()=>number;i
     await new Promise<void>((done, fail) => { server.once('error', fail); server.listen(port, options.automation && port === corePort + 107 ? '0.0.0.0' : '127.0.0.1', () => { server.off('error', fail); done(); }); });
   }
   const cleanup = async () => {
-    await Promise.all(servers.map(server => new Promise<void>(done => {
-      server.closeAllConnections(); server.close(() => done());
-    })));
-    const { redisSessions } = await import('../../services/agent-core/src/session-store.ts');
-    const sessionStore = redisSessions();
-    if (sessionStore?.client.isReady) {
-      const isolatedKeys: string[] = [];
-      for await (const batch of sessionStore.client.scanIterator({ MATCH: `${sessionPrefix}*`, COUNT: 100 })) {
-        isolatedKeys.push(...(Array.isArray(batch) ? batch : [batch]).filter(key => key.startsWith(sessionPrefix)));
-      }
-      for (let offset = 0; offset < isolatedKeys.length; offset += 100) await sessionStore.client.del(isolatedKeys.slice(offset, offset + 100));
-    }
-    await sessionStore?.close();
-    for (const database of databases) database.close();
-    await rm(dir, { recursive: true, force: true });
+    let sessionStore: ReturnType<typeof import('../../services/agent-core/src/session-store.ts').redisSessions>;
+    await cleanupAll([
+      ...servers.map(server => () => new Promise<void>((done, fail) => {
+        server.closeAllConnections();
+        server.close(error => error && (error as NodeJS.ErrnoException).code !== 'ERR_SERVER_NOT_RUNNING' ? fail(error) : done());
+      })),
+      async () => {
+        const { redisSessions } = await import('../../services/agent-core/src/session-store.ts');
+        sessionStore = redisSessions();
+        if (sessionStore?.client.isReady) {
+          const isolatedKeys: string[] = [];
+          for await (const batch of sessionStore.client.scanIterator({ MATCH: `${sessionPrefix}*`, COUNT: 100 })) {
+            isolatedKeys.push(...(Array.isArray(batch) ? batch : [batch]).filter(key => key.startsWith(sessionPrefix)));
+          }
+          for (let offset = 0; offset < isolatedKeys.length; offset += 100) await sessionStore.client.del(isolatedKeys.slice(offset, offset + 100));
+        } else if (sessionStore && (sessionStore.client.isOpen || sessionWasConnected)) {
+          throw new Error('The isolated session store is unavailable; its keys could not be removed.');
+        }
+      },
+      async () => { await sessionStore?.close(); },
+      ...databases.map(database => () => { database.close(); }),
+      async () => { await rm(dir, { recursive: true, force: true }); },
+    ]);
   };
   try {
     const lostSettlementResponses=new Set<string>(),heldAcknowledgements=new Set<string>(),failedPreparations=new Set<string>(),lostReversals=new Set<string>(),blockedSourceReads=new Set<string>();
@@ -118,6 +128,7 @@ export async function startEnvironment(options:{authorizationClock?:()=>number;i
     await listen(server, corePort);
     const { redisSessions } = await import('../../services/agent-core/src/session-store.ts');
     await redisSessions()!.connect();
+    sessionWasConnected = true;
     // Provider/broker proofs need no browser bundle; building one is skipped for armed automation runs.
     if (!options.automation) {
     const web = join(dir, 'web'); await mkdir(web);
@@ -166,5 +177,5 @@ export async function startEnvironment(options:{authorizationClock?:()=>number;i
       // Trusted isolated lifecycle driver. Ordinary API clients cannot issue/amend obligations.
       payableBook: (provider: import('../../services/provider-simulator/src/payables.ts').PayableProvider) => new ProviderPayables(providerStores.get(provider)!,provider),
     };
-  } catch (error) { await cleanup(); throw error; }
+  } catch (error) { return rethrowWithCleanup(error, cleanup); }
 }
