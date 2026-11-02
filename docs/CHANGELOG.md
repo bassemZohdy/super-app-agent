@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Localize focused review decisions (P2-01, step)
+
+The React focused fines and renewal reviews translate matching totals and decision controls while preserving their original approval payloads. Browser checks exercise separate approvals on desktop and phone; unexpected surface content is left unchanged. Guide: [shell parity](development/shell-parity.md).
+
 ## 2 November 2026 — Localize fines status and errors (P2-01, step)
 
 The React focused fines workspace presents progress and safe recovery guidance in Arabic, with a separate message for unavailable account access. Browser checks exercise access refusal and recovery after a lost payment response. Guide: [shell parity](development/shell-parity.md).

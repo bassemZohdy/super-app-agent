@@ -5,6 +5,7 @@ import { WorkspacePanes } from './components/WorkspacePanes.tsx';
 import { A2UIRenderer } from './components/A2UIRenderer.tsx';
 import { useLocale } from './locale.ts';
 import { formatMoney, formatTime, type CatalogKey } from '../../../packages/protocol-core/src/i18n.ts';
+import { localizeFocusedSurface } from './focused-surface-locale.ts';
 import './focused-fines.css';
 
 const savedThread = 'cityside.fines.thread.v1';
@@ -136,7 +137,7 @@ export default function FocusedFinesWorkspace() {
         </section></>} details={<>
         <section className="focused-review" aria-labelledby="review-heading">
           <h2 id="review-heading" ref={review} tabIndex={-1} data-pane-focus>{t(renewing ? 'fines.reviewRenew' : data?.approval ? 'fines.reviewPay' : data?.renewal ? 'fines.renewalDone' : data?.receipt ? 'fines.receipt' : 'fines.yourFines')}</h2>
-          {data && <A2UIRenderer key={`${data.threadId}-${data.status}-${active?.id || 'view'}`} node={data.surface.view} onDispatchAction={dispatch} isPending={pending || !!needsRecovery || data.status === 'cancelled'} />}
+          {data && <A2UIRenderer key={`${data.threadId}-${data.status}-${active?.id || 'view'}`} node={localizeFocusedSurface(data.surface.view, active, renewing, locale)} onDispatchAction={dispatch} isPending={pending || !!needsRecovery || data.status === 'cancelled'} />}
           {active && <p>{expiryText[0]}<time dateTime={new Date(active.expiresAt).toISOString()}>{locale === 'ar' ? formatTime(locale, active.expiresAt) : new Date(active.expiresAt).toLocaleTimeString()}</time>{expiryText[1]}</p>}
           {data?.receipt && <dl className="focused-receipt"><dt>{t('fines.totalPaid')}</dt><dd>{locale === 'ar' ? formatMoney(locale, data.receipt.quote.amountMinor) : amount(data.receipt.quote.amountMinor)}</dd><dt>{t('fines.receiptLabel')}</dt><dd>{data.receipt.id}</dd></dl>}
           {data?.renewal && <dl className="focused-receipt"><dt>{t('fines.renewalPaid')}</dt><dd>{locale === 'ar' ? formatMoney(locale, data.renewal.quote.amountMinor) : amount(data.renewal.quote.amountMinor)}</dd><dt>{t('fines.renewalReceipt')}</dt><dd>{data.renewal.id}</dd></dl>}

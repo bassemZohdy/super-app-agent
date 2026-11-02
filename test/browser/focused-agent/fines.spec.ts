@@ -20,6 +20,8 @@ test('the React fines sign-in and navigation follow the saved Arabic language', 
   await expect(page.getByRole('textbox', { name: 'رسالة عن المخالفات' })).toBeVisible();
   await page.getByRole('button', { name: 'مراجعة الدفع', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'راجع قبل الدفع' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'تأكيد الدفع التجريبي' })).toBeVisible();
+  await expect(page.getByText('الإجمالي التجريبي:', { exact: false })).toBeVisible();
   await expect(page.getByText('كتابة «نعم» لا تؤكد الدفع.', { exact: false })).toBeVisible();
   expect(focused.payments()).toBe(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -39,12 +41,33 @@ test('Arabic guidance distinguishes unavailable access from an unconfirmed payme
   await page.getByRole('button', { name: 'مراجعة الدفع', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'راجع قبل الدفع' })).toBeVisible();
   await page.route('**/api/agent/threads/*/resume', async route => { await safeRouteFetch(route); await route.abort('connectionfailed'); });
-  await page.getByRole('button', { name: 'Confirm simulated payment', exact: true }).click();
+  await page.getByRole('button', { name: 'تأكيد الدفع التجريبي', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('لم تتأكد النتيجة');
   await expect(page.getByRole('textbox', { name: 'رسالة عن المخالفات' })).toBeDisabled();
   expect(focused.payments()).toBe(1);
   await page.getByRole('button', { name: 'استرداد العملية المحفوظة' }).click();
   await expect(page.getByRole('heading', { name: 'إيصالك التجريبي' })).toBeVisible();
+  expect(focused.payments()).toBe(1);
+});
+
+test('Arabic fines and renewal reviews retain separate explicit approvals', async ({ page, focused }) => {
+  await page.addInitScript(() => localStorage.setItem('cityside.locale', 'ar'));
+  await page.goto(focused.url);
+  await page.getByLabel('رمز الوصول', { exact: true }).fill(focused.renewalToken);
+  await page.getByRole('button', { name: 'فتح مخالفاتي' }).click();
+  await page.getByRole('button', { name: 'تجديد تسجيل المركبة' }).click();
+  await expect(page.getByRole('button', { name: 'تأكيد الدفع التجريبي', exact: true })).toBeVisible();
+  expect(focused.payments()).toBe(0); expect(focused.renewals()).toBe(0);
+  const paymentRequest = page.waitForRequest(req => req.url().endsWith('/resume') && req.method() === 'POST');
+  await page.getByRole('button', { name: 'تأكيد الدفع التجريبي', exact: true }).click();
+  const paymentApproval = (await paymentRequest).postDataJSON().approvalId;
+  await expect(page.getByRole('button', { name: 'تأكيد التجديد التجريبي', exact: true })).toBeVisible();
+  await expect(page.getByText('رسوم التجديد التجريبية:', { exact: false })).toBeVisible();
+  expect(focused.payments()).toBe(1); expect(focused.renewals()).toBe(0);
+  const renewalRequest = page.waitForRequest(req => req.url().endsWith('/resume') && req.method() === 'POST');
+  await page.getByRole('button', { name: 'تأكيد التجديد التجريبي', exact: true }).click();
+  expect((await renewalRequest).postDataJSON().approvalId).not.toBe(paymentApproval);
+  await expect.poll(() => focused.renewals()).toBe(1);
   expect(focused.payments()).toBe(1);
 });
 
