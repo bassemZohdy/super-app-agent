@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Refuse browser token-exchange redirects (P0-14, step)
+
+The shared browser OIDC client rejects token-endpoint redirects during authorization-code exchange and refresh, and the Flutter bridge is regenerated from it. Loopback and real browser tests check both clients, a vulnerable control and direct successful login. This does not remove browser token storage or qualify production identity. Guide: [security](security.md).
+
 ## 2 November 2026 — Fence invalidated service-token refreshes (P0-13, step)
 
 Invalidating the local service-token cache now fences requests already in flight: their late results cannot be returned or cached, and later callers share a new refresh. Tests control both completion orders and verify an older request cannot clear the newer pending refresh. This does not revoke tokens already issued to callers or establish real-provider revocation. Guide: [security](security.md).

@@ -13,7 +13,7 @@ export class BrowserAuth {
   get signedIn() { try { return Boolean(JSON.parse(sessionStorage.getItem(tokenKey) || 'null')?.access_token); } catch { return false; } }
           read()                { try { return JSON.parse(sessionStorage.getItem(tokenKey) || 'null'); } catch { return null; } }
           async exchange(body                 ) {
-    const response = await fetch(`${this.config.issuer}/protocol/openid-connect/token`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body, signal: AbortSignal.timeout(10000) });
+    const response = await fetch(`${this.config.issuer}/protocol/openid-connect/token`, { method: 'POST', redirect: 'error', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body, signal: AbortSignal.timeout(10000) });
     if (!response.ok) throw new Error('Sign-in expired or could not be completed. Sign in again.');
     const data = await response.json();
     if (typeof data.access_token !== 'string' || typeof data.expires_in !== 'number') throw new Error('Invalid sign-in response.');
