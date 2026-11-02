@@ -79,6 +79,7 @@ The contract is `packages/backend-kit/openapi/application-apis.openapi.json` (Op
 - Validated routes take their request schema from `requestSchema` in [request-validation.ts](../../packages/protocol-core/src/request-validation.ts), so the request contract cannot drift from the validator.
 - Every operation declares `bearerAuth` and lists `X-Account-Id` and `X-Request-Id` headers. Each operation's `servers` entry points at its service port on `localhost`.
 - Food order creation and original-operation inspection describe the confirmed order identity, items, total, status and delivery details. The inspection response also names the original operation identity. These schemas describe the response shape; they do not replace the server’s stored-evidence and ownership checks.
+- Ride booking and original-operation inspection describe the confirmed booking, selected driver, fare, route and arrival information. Inspection also identifies the original operation. The schema describes field shapes; it does not prove ownership or match the booking to an approved request.
 - Integrated wallet payment and top-up, fine-payment, utility and telecom bill-payment, and toll and prepaid recharge receipts specify field types. Bill receipts require a nonblank reference; the schema alone does not establish that a payment was verified or that transaction and charge values match the request.
 
 ### What the contract test enforces
@@ -96,7 +97,7 @@ If test 1 fails, run `npm run openapi:generate:apps` and commit the regenerated 
 
 - **agent-core `/api` routes are not in the contract.** Only the six application services are documented.
 - **Legacy fixture mode has no auth.** The contract describes only `PROVIDER_INTEGRATION=true`.
-- **Most response schemas are shallow.** Apart from the payment receipts described above, success responses list top-level keys only (`additionalProperties: true`). Many operations are documented as passthrough of provider data, and their shape is not described.
+- **Most response schemas are shallow.** Outside the typed responses described above, success responses list top-level keys only (`additionalProperties: true`). Many operations are documented as passthrough of provider data, and their shape is not described.
 - **Probes and `/health` are not documented** in the contract.
 - **Path aliases:** `POST /pay/multi-agency` is an alias of `POST /pay/unified` and is listed in the contract as its own operation, not excluded.
 - **Telecom bodies** for passthrough operations use manual schemas rather than the validator.

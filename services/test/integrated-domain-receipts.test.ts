@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { actorContext, actorFor } from '../../packages/backend-kit/src/context.ts';
 import { integratedRequest } from '../../packages/backend-kit/src/application.ts';
-import { ProviderClient } from '../../packages/backend-kit/src/provider-client.ts';
+import { ProviderClient, providerOperationKey } from '../../packages/backend-kit/src/provider-client.ts';
 import { AccountDatabase } from '../provider-simulator/src/database.ts';
 import { ProviderEngine } from '../provider-simulator/src/engine.ts';
 import { callDomainAsync, trackDomainOperations, type Step } from '../agent-core/src/domain-operations.ts';
@@ -33,9 +33,27 @@ test('integrated ride and food responses pass the compatibility adapter with the
     return Response.json(result.data, { status: result.status });
   });
   const steps: Step[] = [];
+  const document = buildApplicationOpenApi(), ajv = new Ajv({ strict: false });
+  const schema = (path: string, method: 'get' | 'post') => {
+    const operation = document.paths[path][method] as { responses: { '200': { content: { 'application/json': { schema: object } } } } };
+    return ajv.compile(operation.responses['200'].content['application/json'].schema);
+  };
   const run = () => actorContext.run(actor, async () => {
     const ride = await callDomainAsync('ride', 'POST', '/rides/book', {}, { driverId: 'drv_1', pickup: 'Origin', dropoff: 'Destination' });
     assert.equal(ride.data.booking.driver.id, 'drv_1');
+    const booking = schema('/rides/book', 'post');
+    assert.equal(booking(ride.data), true);
+    assert.equal(booking({ ...ride.data, booking: { ...ride.data.booking, fare: '22' } }), false);
+    assert.equal(booking({ ...ride.data, booking: { ...ride.data.booking, driver: {} } }), false);
+    const operationId = 'ride-operation-1';
+    store.db.prepare('INSERT INTO idempotency(account_id,key,fingerprint,status,body) VALUES(?,?,?,?,?)')
+      .run(actor.accountId, providerOperationKey(operationId, 'rta', '/rides/bookings'), 'a'.repeat(64), 200, JSON.stringify(ride.data));
+    const recovered = await integratedRequest('service-ride', actor, 'GET', `/rides/operations/${operationId}`, {}, {}, () => ({ status: 404, data: {} }));
+    assert.equal(recovered.status, 200);
+    const inspect = schema('/rides/operations/{operationId}', 'get');
+    assert.equal(inspect(recovered.data), true);
+    assert.equal(inspect({ ...recovered.data, operationId: '' }), false);
+    assert.equal(inspect({ ...recovered.data, booking: { ...ride.data.booking, status: 'PENDING' } }), false);
     const food = await callDomainAsync('food', 'POST', '/orders/create', {}, { restaurantId: 'rest_1', items: ['item_diavola'], deliveryAddress: 'Address' });
     assert.equal(food.data.order.restaurantId, 'rest_1');
     assert.equal(food.data.order.deliveryAddress, 'Address');

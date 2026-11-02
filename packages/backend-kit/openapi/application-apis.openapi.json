@@ -240,12 +240,81 @@
         },
         "responses": {
           "200": {
-            "description": "Provider data passed through unchanged. Shape is defined by the provider simulator contract.",
+            "description": "Confirmed ride booking.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": {},
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "booking": {
+                      "type": "object",
+                      "required": [
+                        "bookingId",
+                        "driver",
+                        "status",
+                        "pickup",
+                        "dropoff",
+                        "fare",
+                        "etaMinutes",
+                        "estimatedArrival",
+                        "timestamp"
+                      ],
+                      "properties": {
+                        "bookingId": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "driver": {
+                          "type": "object",
+                          "required": [
+                            "id"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "minLength": 1
+                            }
+                          },
+                          "additionalProperties": true
+                        },
+                        "status": {
+                          "const": "CONFIRMED"
+                        },
+                        "pickup": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "dropoff": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "fare": {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        },
+                        "etaMinutes": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "estimatedArrival": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "timestamp": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      },
+                      "additionalProperties": true
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "booking"
+                  ],
                   "additionalProperties": true
                 }
               }
@@ -376,10 +445,75 @@
                   "type": "object",
                   "properties": {
                     "success": {
-                      "type": "boolean"
+                      "const": true
                     },
-                    "operationId": {},
-                    "booking": {}
+                    "operationId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200,
+                      "pattern": "^[A-Za-z0-9_.:-]+$"
+                    },
+                    "booking": {
+                      "type": "object",
+                      "required": [
+                        "bookingId",
+                        "driver",
+                        "status",
+                        "pickup",
+                        "dropoff",
+                        "fare",
+                        "etaMinutes",
+                        "estimatedArrival",
+                        "timestamp"
+                      ],
+                      "properties": {
+                        "bookingId": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "driver": {
+                          "type": "object",
+                          "required": [
+                            "id"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "minLength": 1
+                            }
+                          },
+                          "additionalProperties": true
+                        },
+                        "status": {
+                          "const": "CONFIRMED"
+                        },
+                        "pickup": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "dropoff": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "fare": {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        },
+                        "etaMinutes": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "estimatedArrival": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "timestamp": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      },
+                      "additionalProperties": true
+                    }
                   },
                   "required": [
                     "success",

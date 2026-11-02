@@ -45,10 +45,18 @@ const ENVELOPE = (description: string, keys: string[], properties?: Record<strin
 const money = { type: 'number', minimum: 0 };
 const walletTransaction = (type: 'PAYMENT' | 'TOPUP') => ({ type: 'object', required: ['id', 'type', 'amount', 'currency', 'status'], properties: { id: { type: 'string', minLength: 1 }, type: { const: type }, amount: { type: 'number', exclusiveMinimum: 0 }, currency: { const: 'AED' }, status: { const: 'SETTLED' }, operationId: { type: 'string', minLength: 1 } }, additionalProperties: true });
 const walletCharge = { type: 'object', required: ['id', 'accountId', 'amountMinor', 'merchant', 'reference', 'source', 'currency', 'status', 'refunded'], properties: { id: { type: 'string', minLength: 1 }, accountId: { type: 'string', minLength: 1 }, amountMinor: { type: 'integer', minimum: 1 }, merchant: { const: 'superapp' }, reference: { type: 'string', minLength: 1 }, source: { const: 'wallet' }, currency: { const: 'AED' }, status: { const: 'CAPTURED' }, refunded: { const: false }, operationId: { type: 'string', minLength: 1 } }, additionalProperties: true };
-const walletOperationId = { type: 'string', minLength: 1, maxLength: 200, pattern: '^[A-Za-z0-9_.:-]+$' };
-const walletRecoveryTransaction = { ...walletTransaction('PAYMENT'), required: ['id', 'type', 'amount', 'currency', 'status', 'referenceId', 'purpose'], properties: { ...walletTransaction('PAYMENT').properties, referenceId: { type: 'string', minLength: 1 }, purpose: { type: 'string', minLength: 1 }, operationId: walletOperationId } };
+const operationId = { type: 'string', minLength: 1, maxLength: 200, pattern: '^[A-Za-z0-9_.:-]+$' };
+const walletRecoveryTransaction = { ...walletTransaction('PAYMENT'), required: ['id', 'type', 'amount', 'currency', 'status', 'referenceId', 'purpose'], properties: { ...walletTransaction('PAYMENT').properties, referenceId: { type: 'string', minLength: 1 }, purpose: { type: 'string', minLength: 1 }, operationId } };
 const rechargeReceipt = { success: { const: true }, transactionId: { type: 'string', minLength: 1 }, newBalance: money, amountRecharged: money };
 const fineReceipt = { success: { const: true }, receiptNumber: { type: 'string', minLength: 1 }, finesCleared: { type: 'integer', minimum: 0 }, fineIds: { type: 'array', items: { type: 'string', minLength: 1 } }, amountPaid: money, remainingBalance: { type: 'number' } };
+const rideBooking = {
+  type: 'object', required: ['bookingId', 'driver', 'status', 'pickup', 'dropoff', 'fare', 'etaMinutes', 'estimatedArrival', 'timestamp'],
+  properties: {
+    bookingId: { type: 'string', minLength: 1 }, driver: { type: 'object', required: ['id'], properties: { id: { type: 'string', minLength: 1 } }, additionalProperties: true },
+    status: { const: 'CONFIRMED' }, pickup: { type: 'string', minLength: 1 }, dropoff: { type: 'string', minLength: 1 },
+    fare: { type: 'number', exclusiveMinimum: 0 }, etaMinutes: { type: 'number', minimum: 0 }, estimatedArrival: { type: 'string', minLength: 1 }, timestamp: { type: 'integer', minimum: 0 },
+  }, additionalProperties: true,
+};
 const foodOrder = {
   type: 'object', required: ['orderId', 'restaurantId', 'restaurantName', 'items', 'deliveryAddress', 'totalAmount', 'status', 'estimatedDeliveryTime', 'timestamp'],
   properties: {
@@ -68,8 +76,8 @@ const PAYMENT_ERRORS: ErrorStatuses = { '409': 'Payable or checkout terms change
 export const APPLICATION_OPERATIONS: ApplicationOperation[] = [
   // service-ride (RTA, Salik, EV)
   { service: 'service-ride', method: 'GET', path: '/rides/options', operationId: 'getRideOptions', summary: 'List ride options', response: ok(RAW) },
-  { service: 'service-ride', method: 'POST', path: '/rides/book', operationId: 'bookRide', summary: 'Book a ride', bodyRequired: true, response: ok(RAW) },
-  { service: 'service-ride', method: 'GET', path: '/rides/operations/{operationId}', operationId: 'inspectRideOperation', summary: 'Inspect the original ride operation', response: ENVELOPE('Original confirmed ride.', ['operationId', 'booking']), errors: { '404': 'Operation not found for this account; absence does not establish non-application.', '503': 'Original ride evidence is unconfirmed, or a provider or eligibility service is unavailable.' } },
+  { service: 'service-ride', method: 'POST', path: '/rides/book', operationId: 'bookRide', summary: 'Book a ride', bodyRequired: true, response: ENVELOPE('Confirmed ride booking.', ['booking'], { success: { const: true }, booking: rideBooking }) },
+  { service: 'service-ride', method: 'GET', path: '/rides/operations/{operationId}', operationId: 'inspectRideOperation', summary: 'Inspect the original ride operation', response: ENVELOPE('Original confirmed ride.', ['operationId', 'booking'], { success: { const: true }, operationId, booking: rideBooking }), errors: { '404': 'Operation not found for this account; absence does not establish non-application.', '503': 'Original ride evidence is unconfirmed, or a provider or eligibility service is unavailable.' } },
   { service: 'service-ride', method: 'GET', path: '/rides/track/{bookingId}', operationId: 'trackRide', summary: 'Track a ride booking', response: ok(RAW) },
   { service: 'service-ride', method: 'GET', path: '/mobility/parking/zones', operationId: 'getParkingZones', summary: 'List parking zones', response: ok(RAW) },
   { service: 'service-ride', method: 'GET', path: '/mobility/parking/active', operationId: 'getActiveParking', summary: 'List active parking sessions', response: ok(RAW) },
@@ -96,7 +104,7 @@ export const APPLICATION_OPERATIONS: ApplicationOperation[] = [
 
   // service-wallet (payments gateway, fines, checkout)
   { service: 'service-wallet', method: 'GET', path: '/wallet/balance', operationId: 'getWalletBalance', summary: 'Get wallet balance', response: ok(RAW) },
-  { service: 'service-wallet', method: 'GET', path: '/wallet/operations/{operationId}', operationId: 'inspectWalletOperation', summary: 'Inspect the original wallet operation', response: ENVELOPE('Original verified wallet payment.', ['operationId', 'charge', 'transaction'], { success: { const: true }, operationId: walletOperationId, charge: walletCharge, transaction: walletRecoveryTransaction }), errors: { '404': 'Operation not found for this account; absence does not establish non-application.', '503': 'Original payment evidence is unconfirmed, or a provider or eligibility service is unavailable.' } },
+  { service: 'service-wallet', method: 'GET', path: '/wallet/operations/{operationId}', operationId: 'inspectWalletOperation', summary: 'Inspect the original wallet operation', response: ENVELOPE('Original verified wallet payment.', ['operationId', 'charge', 'transaction'], { success: { const: true }, operationId, charge: walletCharge, transaction: walletRecoveryTransaction }), errors: { '404': 'Operation not found for this account; absence does not establish non-application.', '503': 'Original payment evidence is unconfirmed, or a provider or eligibility service is unavailable.' } },
   { service: 'service-wallet', method: 'GET', path: '/wallet/transactions', operationId: 'getWalletTransactions', summary: 'List wallet transactions', response: ok(RAW) },
   { service: 'service-wallet', method: 'GET', path: '/fines/check', operationId: 'checkFines', summary: 'Check traffic fines',
     response: ENVELOPE('Fines report for the account plate.', ['plateNumber', 'earlyDiscountAED', 'discountLabel']), errors: { '404': 'The selected plate is not available in this account.' } },

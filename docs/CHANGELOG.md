@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 3 November 2026 - Describe integrated ride evidence (P2-04, step)
+
+The application OpenAPI describes confirmed ride bookings and original-operation inspection evidence, checked against integrated responses. Guide: [application API](development/application-api.md).
+
 ## 3 November 2026 - Validate browser stream envelopes (P1-12, step)
 
 The shared client validates event envelopes before delivering them and skips malformed events without blocking later messages. Guide: [security](security.md).
