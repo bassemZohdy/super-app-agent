@@ -123,7 +123,8 @@ function confirmedReceipt(service: string, path: string, data: any, body: unknow
       if (path === '/mobility/parking/activate') return named(request.zoneId) && named(request.plateNumber) &&
         Number.isSafeInteger(request.durationHours) && meter.zoneId === request.zoneId && meter.plateNumber === request.plateNumber && meter.durationHours === request.durationHours;
       return named(request.ticketId) && Number.isSafeInteger(request.additionalHours) && (request.additionalHours as number) > 0 &&
-        meter.ticketId === request.ticketId && meter.durationHours >= (request.additionalHours as number);
+        meter.ticketId === request.ticketId && Number.isSafeInteger(data.previousDurationHours) && data.previousDurationHours > 0 &&
+        meter.durationHours === data.previousDurationHours + (request.additionalHours as number);
     }
     if (path === '/mobility/salik/recharge') {
       if (!named(data.transactionId) || !finite(data.newBalance)) return false;

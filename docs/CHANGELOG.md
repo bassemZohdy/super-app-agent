@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Check parking extension increments (P1-13, step)
+
+The parking fixture reports the previous duration and compatibility adapters require the resulting duration to match the requested increment. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Verify compatibility parking receipts (P1-13, step)
 
 Parking activation receipts must match the zone, vehicle and duration; extension receipts must match the original ticket. Meter fields used by the display are validated. Guide: [agent flow](agent-flow.md).

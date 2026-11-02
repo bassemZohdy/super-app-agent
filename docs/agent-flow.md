@@ -36,7 +36,7 @@ Compatibility ride booking confirmations require the selected driver, dispatched
 
 Compatibility food order confirmations require the selected restaurant, exact item quantities, accepted status and any supplied delivery address to match. A mismatched order remains unknown and blocks a replacement checkout.
 
-Compatibility parking activation confirmations match the selected zone, vehicle and duration; extension confirmations match the ticket. Both require an active meter with usable display fields. An extension receipt alone does not establish the prior meter duration or prove the exact increment.
+Compatibility parking activation confirmations match the selected zone, vehicle and duration; extension confirmations match the ticket and require the reported prior and resulting durations to differ by the requested increment. Both require an active meter with usable display fields. The prior duration is reported by the same fixture and is not independent evidence of the earlier state.
 
 Before dispatching any consequential tool, the wrapper independently revalidates the caller, requires the same subject and workload, and checks the current tool permission. This second check is within the tool deadline; if it finishes after the deadline, the tool is not dispatched. Identity-check failures do not expose provider text. Read-only tools use the already authenticated request context.
 

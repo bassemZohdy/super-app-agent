@@ -260,6 +260,7 @@ function handleRideRequest(
       const zone = parkingZones.find(zone => zone.id === meter.zoneId)!;
       const nextFee = toMinor(meter.totalFee) + toMinor(zone.tariffPerHour) * additionalHours;
       if (nextFee > MAX_MONEY * 100) return invalidInput('Parking fee exceeds demo limit');
+      const previousDurationHours = meter.durationHours;
       meter.durationHours += additionalHours;
       meter.totalFee = fromMinor(nextFee);
       meter.expiresAt += additionalHours * 3600 * 1000;
@@ -268,6 +269,7 @@ function handleRideRequest(
         data: {
           success: true,
           message: `Parking extended by ${additionalHours} hour(s)`,
+          previousDurationHours,
           meter,
         },
       };
