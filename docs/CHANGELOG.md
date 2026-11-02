@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 - Preflight isolated test credentials (P2-06, step)
+
+The isolated test environment validates all required client credentials before allocating temporary data or changing process settings. Guide: [testing](development/testing.md).
+
 ## 2 November 2026 - Enforce automation mandate windows (P1-10, step)
 
 Automatic preparations cannot outlive their mandate window, and existing preparations are rechecked against the current window before credential issuance, admission and pending authorization. Guide: [automation worker](development/automation-worker.md).

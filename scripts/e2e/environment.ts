@@ -16,6 +16,11 @@ export async function startEnvironment(options:{authorizationClock?:()=>number;i
   const issuer = keycloakIssuerUrl;
   const discovery = await fetch(`${issuer}/.well-known/openid-configuration`, { signal: AbortSignal.timeout(5000) });
   assert.equal(discovery.status, 200, 'Start local Keycloak/Redis with npm run demo:up first');
+  // Validate every selected realm credential before creating temporary data or mutating process settings.
+  const realm = JSON.parse(await readFile('services/keycloak/realm-export.json', 'utf8'));
+  const clientIds = ['provider-rta-settlement', 'provider-dewa-settlement', 'provider-etisalat-settlement', 'provider-du-settlement', 'provider-police-settlement', 'provider-eligibility', 'cityside-verifier', 'provider-settlements', 'service-ride', 'service-food', 'service-wallet', 'service-catalog', 'service-profile', 'service-telecom'];
+  const secrets = new Map(clientIds.map(id => [id, fixtureClientSecret(id, realm, process.env, demoPortOffset)]));
+  const secret = (id: string) => { const value = secrets.get(id); if (!value) throw new Error('No E2E client credential mapping exists.'); return value; };
   const dir = await mkdtemp(join(tmpdir(), options.automation ? 'cityside-auto-' : 'cityside-e2e-'));
   const servers: Server[] = [];
   const databases: Array<{ close(): void }> = [];
@@ -24,8 +29,6 @@ export async function startEnvironment(options:{authorizationClock?:()=>number;i
   const appUrl = `http://localhost:${appPort}`;
   const coreUrl = `http://localhost:${corePort}`;
   const sessionPrefix = `cityside-e2e:${crypto.randomUUID()}:`;
-  const realm = JSON.parse(await readFile('services/keycloak/realm-export.json', 'utf8'));
-  const secret = (id: string) => fixtureClientSecret(id, realm, process.env, demoPortOffset);
   for(const provider of ['rta','dewa','etisalat','du','police'])process.env[`PROVIDER_${provider.toUpperCase()}_CLAIM_SECRET`]=secret(`provider-${provider}-settlement`);
   Object.assign(process.env, {
     ELIGIBILITY_ENFORCEMENT:'true',ELIGIBILITY_READER_SECRET:secret('provider-eligibility'),
