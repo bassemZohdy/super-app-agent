@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Preserve rate-limited domain write outcomes (P1-02, step)
+
+Local and HTTP domain adapters retain rate-limited writes as unknown, preserving reconciliation when the response follows an applied effect. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Preserve uncertain domain write outcomes (P1-02, step)
 
 Local and HTTP domain adapters retain an unknown outcome for authentication failures and responses indicating a prior effect or conflicting operation identity. Guide: [agent flow](agent-flow.md).

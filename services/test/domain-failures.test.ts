@@ -108,6 +108,27 @@ test('P1-02: an unknown settlement after a wallet effect blocks later effects an
   assert.equal(balance, Math.round((before - 40) * 100) / 100);
 });
 
+test('P1-02: a rate-limit response after a wallet effect blocks later effects and a replacement', async t => {
+  ensureFunds();
+  const sid = 'failure_rate_limit_after_effect';
+  assert.equal((await intent(sid)).status, 200);
+  const realWallet = domainHandlers.wallet;
+  t.mock.method(domainHandlers, 'wallet', (method, path, query, body) => {
+    const result = realWallet(method, path, query, body);
+    return method === 'POST' ? { status: 429, data: { code: 'RATE_LIMITED', error: 'rate limit exceeded' } } : result;
+  });
+  const before = balance, rides = activeRides.size, orders = activeOrders.size;
+  const result = await action(sid);
+  assert.equal(result.data.outcome, 'UNKNOWN');
+  assert.equal(result.data.steps[0].state, 'UNKNOWN');
+  assert.deepEqual(result.data.retry, { allowed: false, next: 'reconcile' });
+  assert.equal(balance, Math.round((before - 40) * 100) / 100);
+  assert.equal(activeRides.size, rides);
+  assert.equal(activeOrders.size, orders);
+  assert.equal((await action(sid)).data.code, 'RECONCILIATION_REQUIRED');
+  assert.equal(balance, Math.round((before - 40) * 100) / 100);
+});
+
 test('P0-12: unavailable read rejects the intent without fabricated surface or upstream details', async t => {
   t.mock.method(domainHandlers, 'profile', () => ({ status: 503, data: { error: 'private database connection string' } }));
   const result = await intent('failure_unavailable_session');

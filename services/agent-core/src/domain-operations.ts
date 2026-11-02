@@ -43,7 +43,7 @@ const finite = (value: any) => typeof value === 'number' && Number.isFinite(valu
 function definiteRejection(status: number, data: unknown, mutation: boolean): boolean {
   if (status < 400 || status >= 500) return false;
   if (!mutation) return true;
-  if (status === 401 || status === 408 || !data || typeof data !== 'object' || Array.isArray(data)) return false;
+  if (status === 401 || status === 408 || status === 429 || !data || typeof data !== 'object' || Array.isArray(data)) return false;
   const payload = data as Record<string, unknown>;
   if (payload.success === true) return false;
   if (isUncertainOutcomeCode(payload.code) || isPriorEffectCode(payload.code)) return false;

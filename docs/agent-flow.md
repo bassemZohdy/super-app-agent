@@ -28,7 +28,7 @@ The plan selects only `list_fines`, `pay_fines`, `renew_registration`, `clarify`
 
 The focused tool wrapper stops waiting at its deadline and signals cancellation to the adapter. A dispatched write whose result is not confirmed remains unknown and can be recovered only with its original operation identity. The deadline cannot forcibly stop in-process work that ignores the signal; adapters must cooperate with cancellation and preserve idempotency.
 
-For compatibility domain writes, both local and HTTP adapters treat authentication failures and responses indicating a prior effect or conflicting operation identity as unknown outcomes. These responses do not establish that the original write was absent.
+For compatibility domain writes, both local and HTTP adapters treat authentication failures, rate limits, and responses indicating a prior effect or conflicting operation identity as unknown outcomes. These responses do not establish that the original write was absent.
 
 Before dispatching any consequential tool, the wrapper independently revalidates the caller, requires the same subject and workload, and checks the current tool permission. This second check is within the tool deadline; if it finishes after the deadline, the tool is not dispatched. Identity-check failures do not expose provider text. Read-only tools use the already authenticated request context.
 
