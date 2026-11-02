@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bound service-token responses (P0-11, step)
+
+The shared service-credential client bounds token responses, rejects malformed token values and lifetimes, and never caches invalid responses. Oversized and rejected bodies are cancelled without waiting for an uncooperative stream; provider response bounds retain their existing limit. Tests cover recovery after invalid responses, bounded reads, cancellation and direct local issuer compatibility. The explicit `any` in the token response was removed and its baseline lowered. Guide: [security](security.md).
+
 ## 2 November 2026 — Refuse service-token redirects (P0-14, step)
 
 The shared service-credential client refuses redirects from the configured token endpoint rather than forwarding its request elsewhere. Loopback tests cover common redirect statuses and confirm that another server receives no request, while direct token issuance still succeeds. Production egress policy and credential lifecycle remain separate. Guide: [security](security.md).

@@ -1,4 +1,5 @@
 import { tracedFetch as fetch } from './observability.ts';
+import { boundedJsonResponse } from './bounded-json.ts';
 /** Per-process service token cache; never stores an end-user bearer token. */
 export class ClientCredentials {
   private cached?: { value: string; until: number };
@@ -23,10 +24,15 @@ export class ClientCredentials {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({ grant_type: 'client_credentials', client_id: this.clientId, client_secret: this.secret, ...(this.scope ? { scope: this.scope } : {}) }),
     });
-    if (!response.ok) throw new Error(`Service authentication failed (${response.status})`);
-    const data = await response.json() as any;
-    if (typeof data.access_token !== 'string' || typeof data.expires_in !== 'number' || data.expires_in <= 0) throw new Error('Invalid service token response');
-    this.cached = { value: data.access_token, until: Date.now() + Math.max(0, data.expires_in - 30) * 1000 };
-    return data.access_token;
+    if (!response.ok) { void response.body?.cancel().catch(() => {}); throw new Error(`Service authentication failed (${response.status})`); }
+    let data: unknown;
+    try { data = await boundedJsonResponse(response, 65536); }
+    catch { throw new Error('Invalid service token response'); }
+    if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Invalid service token response');
+    const { access_token: token, expires_in: lifetime } = data as Record<string, unknown>;
+    if (typeof token !== 'string' || !/^[\x21-\x7e]{1,16384}$/.test(token) ||
+        typeof lifetime !== 'number' || !Number.isSafeInteger(lifetime) || lifetime <= 0 || lifetime > 86400) throw new Error('Invalid service token response');
+    this.cached = { value: token, until: Date.now() + Math.max(0, lifetime - 30) * 1000 };
+    return token;
   }
 }

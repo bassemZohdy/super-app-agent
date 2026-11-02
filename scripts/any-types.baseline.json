@@ -11,7 +11,6 @@
   "mini-apps/miniapp-ride/src/index.tsx": 1,
   "mini-apps/miniapp-wallet/src/index.tsx": 1,
   "packages/backend-kit/src/jwt.ts": 2,
-  "packages/backend-kit/src/oauth.ts": 1,
   "packages/backend-kit/src/provider-client.ts": 1,
   "packages/protocol-core/src/a2-ui.ts": 5,
   "packages/protocol-core/src/request-validation.ts": 3,

@@ -87,6 +87,8 @@ The same suite signs tokens with separate 1,024-bit and 2,048-bit RSA keys from 
 
 `services/test/oauth-redirect.test.ts` runs two loopback servers and verifies that common token-endpoint redirects are rejected without contacting the second server. A direct token response remains accepted; this does not test production egress policy.
 
+`services/test/oauth-response.test.ts` exercises oversized and malformed token responses, invalid token values and lifetimes, cache recovery and uncooperative body cancellation. The local test issuer still exercises successful service-token issuance; production identity-provider compatibility requires separate verification.
+
 `services/agent-core/test/thread-expiry-recovery.test.ts` expires conversations after a simulated effect and lost response, reopens SQLite and verifies that only the owner’s linked unresolved conversation is extended. It also covers saved legacy approvals and refusal to guess when the evidence is absent.
 
 `services/agent-core/test/cross-thread-recovery.test.ts` covers pending and unknown writes across conversations, same and different quotes, renewal, read-only access, subject isolation, reopening SQLite, and unambiguous or ambiguous legacy ownership. This is local single-process evidence, not distributed failover proof.
