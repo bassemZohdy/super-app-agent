@@ -100,11 +100,15 @@ test('scheduler validates the entire HTTP rule list before acting on any rule', 
     { ...rule, trigger: { type: 'CALENDAR', dayOfMonth: 32, hour: 9, minute: 0, monthEnd: 'LAST_DAY' } },
     { ...rule, trigger: { type: 'INVOICE_DUE', daysBefore: -1 } },
     { ...rule, trigger: { type: 'LOW_BALANCE', belowMinor: '1000', reloadMinor: 5000, targetBalanceMinor: 10000 } },
+    { ...rule, trigger: { type: 'LOW_BALANCE', belowMinor: 10000, reloadMinor: 5000, targetBalanceMinor: 10000 } },
+    { ...rule, trigger: { type: 'LOW_BALANCE', belowMinor: 10001, reloadMinor: 5000, targetBalanceMinor: 10000 } },
+    { ...rule, trigger: { type: 'LOW_BALANCE', belowMinor: 1000, reloadMinor: 10001, targetBalanceMinor: 10000 } },
     { ...rule, trigger: { type: 'PARKING_ENDING', minutesBefore: 0 } },
     { ...rule, trigger: { type: 'UNKNOWN' } },
   ];
   for (const candidate of invalid) {
-    rules = [rule, candidate];
+    const second = candidate && typeof candidate === 'object' && candidate.mandateId === rule.mandateId ? { ...candidate, mandateId: 'mandate_2' } : candidate;
+    rules = [rule, second];
     const store = new JobStore(':memory:');
     try {
       await assert.rejects(new Scheduler(store, source).tick(Date.parse('2026-11-01T00:00:00Z')));
@@ -119,6 +123,7 @@ test('scheduler validates the entire HTTP rule list before acting on any rule', 
   for (const supported of [
     { type: 'CALENDAR', dayOfMonth: 31, hour: 9, minute: 0, monthEnd: 'SKIP' },
     { type: 'INVOICE_DUE', daysBefore: 3 }, { type: 'NEW_FINE' }, { type: 'PARKING_ENDING', minutesBefore: 10 },
+    { type: 'LOW_BALANCE', belowMinor: 9999, reloadMinor: 10000, targetBalanceMinor: 10000 },
   ]) {
     rules = [{ ...rule, trigger: supported }];
     assert.deepEqual(await source.rules(), rules);

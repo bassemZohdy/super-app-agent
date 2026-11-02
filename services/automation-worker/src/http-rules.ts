@@ -20,7 +20,7 @@ const trigger = (value: unknown): boolean => {
   switch (value.type) {
     case 'INVOICE_DUE': return integer(value.daysBefore, 0, 14);
     case 'CALENDAR': return integer(value.dayOfMonth, 1, 31) && integer(value.hour, 0, 23) && integer(value.minute, 0, 59) && (value.monthEnd === 'LAST_DAY' || value.monthEnd === 'SKIP');
-    case 'LOW_BALANCE': return integer(value.belowMinor, 1, MAX_PAYMENT_MINOR) && integer(value.reloadMinor, 1, MAX_PAYMENT_MINOR) && integer(value.targetBalanceMinor, 1, MAX_PAYMENT_MINOR);
+    case 'LOW_BALANCE': return integer(value.belowMinor, 1, MAX_PAYMENT_MINOR) && integer(value.reloadMinor, 1, MAX_PAYMENT_MINOR) && integer(value.targetBalanceMinor, 1, MAX_PAYMENT_MINOR) && value.belowMinor < value.targetBalanceMinor && value.reloadMinor <= value.targetBalanceMinor;
     case 'NEW_FINE': return true;
     case 'PARKING_ENDING': return integer(value.minutesBefore, 1, 60);
     default: return false;

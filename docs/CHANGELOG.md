@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 - Validate scheduling threshold relationships (P1-10, step)
+
+The scheduler rejects low-balance rules whose threshold or reload conflicts with the target before processing the rule list. The invalid-list test now uses distinct rule IDs so it tests validation independently of duplicate detection. Guide: [automation worker](development/automation-worker.md).
+
 ## 2 November 2026 - Reject contradictory OAuth tokens (P1-10, step)
 
 Service and delegation token exchanges reject responses containing OAuth error fields before caching, binding or using credentials. Guide: [delegation](development/delegation.md).
