@@ -1,0 +1,65 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { HttpExecutionGateway } from '../automation-worker/src/http-gateway.ts';
+import { AutomationWorker } from '../automation-worker/src/worker.ts';
+import { JobStore } from '../automation-worker/src/jobs.ts';
+
+test('automation HTTP errors remain sanitized and uncertain credential results are held', async t => {
+  const previous = process.env.KEYCLOAK_TOKEN_URL;
+  process.env.KEYCLOAK_TOKEN_URL = 'http://127.0.0.1/token';
+  t.after(() => { if (previous === undefined) delete process.env.KEYCLOAK_TOKEN_URL; else process.env.KEYCLOAK_TOKEN_URL = previous; });
+  let status = 403, payload: unknown = {}, credentialCalls = 0, executeCalls = 0, phase: 'credential' | 'execute' = 'credential';
+  t.mock.method(globalThis, 'fetch', async input => {
+    const path = new URL(String(input)).pathname;
+    if (path === '/token') return Response.json({ access_token: 'fixture-service-token', expires_in: 300 });
+    if (path.endsWith('/kill-switch')) return Response.json({ success: false, code: 'NO_DESIRED_STATE' }, { status: 404 });
+    if (path.endsWith('/prepare')) return Response.json({ success: true, id: 'autoexec_1', orderId: 'order_1' });
+    if (path.endsWith('/credential')) {
+      credentialCalls++;
+      if (phase === 'execute') return Response.json({ success: true, accessToken: 'fixture-execution-token', expiresAt: Date.now() + 60000 });
+    }
+    if (path.endsWith('/execute')) executeCalls++;
+    return Response.json(payload, { status });
+  });
+  const runId = 'autorn_00000000-0000-4000-8000-000000000000';
+  const gateway = new HttpExecutionGateway({ runId, paymentsUrl: 'http://127.0.0.1/', brokerUrl: 'http://127.0.0.1/', clientSecret: 'fixture-secret' });
+  const rule = { mandateId: 'mandate_1', policyVersion: 1, occurrenceKey: 'occ_1', target: 'dewa:home' };
+  for (const example of [
+    { status: 403, body: { success: false, code: 'PRIVATE_TOKEN_MARKER', error: 'private-token-marker' } },
+    { status: 403, body: { success: false, code: 'PRIVATE_TOKEN_MARKER', error: 'x'.repeat(70000) } },
+    { status: 200, body: { success: false, code: 'PERMIT_EXPIRED', error: 'private-token-marker' } },
+    { status: 403, body: null },
+  ]) {
+    status = example.status; payload = example.body; credentialCalls = 0;
+    const store = new JobStore(':memory:');
+    try {
+      const job = store.enqueue(rule);
+      const worker = new AutomationWorker(store, gateway, { workerId: 'worker-a', stepRetries: 1, sleep: async () => {} });
+      const result = await worker.runOnce();
+      assert.equal(result?.state, 'HELD');
+      assert.equal(result?.reason, 'CREDENTIAL_UNKNOWN');
+      assert.equal(credentialCalls, 1);
+      assert.doesNotMatch(JSON.stringify([store.get(job.id), store.outbox(job.id), store.attempts(job.id)]), /private.token.marker/i);
+    } finally { store.close(); }
+  }
+  phase = 'execute'; status = 403; payload = { success: false, code: 'PRIVATE_TOKEN_MARKER', error: 'private-token-marker' };
+  const store = new JobStore(':memory:');
+  try {
+    const job = store.enqueue(rule);
+    const worker = new AutomationWorker(store, gateway, { workerId: 'worker-a', stepRetries: 1, sleep: async () => {} });
+    const result = await worker.runOnce();
+    assert.equal(result?.state, 'HELD'); assert.equal(result?.reason, 'OUTCOME_UNKNOWN');
+    assert.equal(executeCalls, 1);
+    assert.doesNotMatch(JSON.stringify([store.get(job.id), store.outbox(job.id), store.attempts(job.id)]), /private.token.marker|fixture-execution-token/i);
+  } finally { store.close(); }
+  phase = 'credential';
+  status = 409; payload = { success: false, code: 'PERMIT_ALREADY_ISSUED', error: 'private-token-marker' };
+  await assert.rejects(gateway.credential(runId, 'autoexec_1'), (error: unknown) => {
+    assert.ok(error instanceof Error);
+    assert.equal((error as { code?: string }).code, 'PERMIT_ALREADY_ISSUED');
+    assert.doesNotMatch(error.message, /private-token-marker/);
+    return true;
+  });
+  payload = { success: false, code: 'CHALLENGE_PENDING', error: 'private-token-marker' };
+  assert.deepEqual(await gateway.resume(runId, 'autoexec_1'), { state: 'PENDING' });
+});

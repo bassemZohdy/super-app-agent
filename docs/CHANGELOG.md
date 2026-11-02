@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bound and sanitize automation HTTP outcomes (P1-02, step)
+
+The worker bounds automation responses, keeps documented refusal codes without provider error text, and treats malformed, contradictory or unrecognized replies as uncertain. Credential and execution uncertainty stays held under the original identity. Guide: [automation worker](development/automation-worker.md).
+
 ## 2 November 2026 — Validate automation kill-switch responses (P1-10, step)
 
 The worker bounds and validates the broker's desired-state response before applying it. Contradictory, malformed or oversized responses leave the current switch unchanged. Guide: [automation worker](development/automation-worker.md).

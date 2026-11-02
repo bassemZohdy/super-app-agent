@@ -99,6 +99,8 @@ The broker and worker stores advance their recorded change times even when the l
 
 The worker bounds the broker's switch response and requires a successful, well-formed state with a positive integer change time and a bounded reason. A contradictory, malformed, oversized or unavailable response leaves the current switch unchanged; a missing desired state also changes nothing.
 
+The worker's preparation, credential and execution HTTP responses are bounded. Only documented refusal codes are retained, and provider error text is not used in worker errors or job history. Malformed, oversized, contradictory or unrecognized replies are uncertain: credential or execution uncertainty remains held under the original identity rather than being reported as a definitive refusal.
+
 An owner's pause-all (`POST /api/payments/mandates/pause-all`, with `requestKey`) pauses each approved rule at its current version, under a key derived from the request and the rule. A rule that cannot be paused is reported with its reason and left as it is; retrying with the same key does not repeat the pauses that succeeded. Pausing stops new runs only. It does not reverse a payment that was already committed.
 
 Signing out and pausing are different things. Signing out ends one browser session; it does not stop a rule, because a run is not tied to that session. A pause or a revoke takes effect where the run is admitted: the provider re-reads the rule, its source and its payable before any money moves, and a run that is no longer approved is closed with nothing moved. Pausing never reverses a payment that was already committed.
