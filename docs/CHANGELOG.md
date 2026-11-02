@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Validate composite fine summaries (P1-13, step)
+
+Reject composite reviews whose fine count, distinct IDs or summed amounts disagree, and recheck the offline action before dispatch. Tests cover inconsistent reads before review and payment, with no fixture changes. Guide: [grouped checkout](development/checkout-groups.md).
+
 ## 2 November 2026 — Compare offline checkout reviews by value (P1-13, step)
 
 Equivalent checkout confirmations no longer fail solely because a client reordered JSON object fields. The existing tampering, stale-review, replay and exact-debit tests remain in place. Guide: [grouped checkout](development/checkout-groups.md).

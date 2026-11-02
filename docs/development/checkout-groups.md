@@ -6,6 +6,8 @@ The separate offline legacy composite review binds the displayed bill, current f
 
 The confirmation compares review objects by their values, so clients can serialize object fields in a different order without changing the approval. Fine selections remain ordered and exact; changed values still require a fresh review.
 
+The compatibility composite summary must agree with its distinct fine IDs, count and exact individual amounts before the review is shown. The offline action checks the summary again before payment, so a contradictory read cannot produce a misleading total or a debit.
+
 Within one agent process, only one offline composite checkout may run at a time; another session must wait and review again. The guard is released on success or failure. It does not coordinate separate processes or other manual payment routes, and it is not a durable distributed lock.
 
 ## Use the React demo

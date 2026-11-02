@@ -54,6 +54,15 @@ interface SalikAccount { balance: number; tagNumber: string; status: string; ver
 interface WalletBalance { balance: number }
 // The offline fixtures are shared within this process, including across residents and sessions.
 let offlineCheckoutRunning = false;
+function requireConsistentFineSummary(data: FinesData): void {
+  try {
+    if (!Array.isArray(data.fines) || data.fines.length > 20 || data.count !== data.fines.length ||
+        data.fines.some(fine => typeof fine.fineId !== 'string' || !fine.fineId.trim()) ||
+        new Set(data.fines.map(fine => fine.fineId)).size !== data.fines.length) throw new Error('Invalid fine list');
+    const amounts = data.fines.map(fine => toMinor(fine.payableAmount));
+    if (amounts.some(amount => amount <= 0) || amounts.reduce((sum, amount) => sum + amount, 0) !== toMinor(data.totalPayable)) throw new Error('Invalid fine total');
+  } catch { throw new DomainOperationError(503, 'DOMAIN_UNAVAILABLE', 'wallet'); }
+}
 function offlineCheckoutReview(bill: UtilityBill, fines: FinesData, salik: SalikAccount) {
   return { billId: bill.billId, billAmountMinor: bill.status === 'PAID' ? 0 : toMinor(bill.totalAmount),
     fines: fines.fines.map(fine => ({ fineId: fine.fineId, amountMinor: toMinor(fine.payableAmount) })).sort((a, b) => a.fineId.localeCompare(b.fineId)),
@@ -552,6 +561,7 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
       try {
       const bill = (await executeFoodRequest('GET', '/utilities/bill')).data.bill as UtilityBill;
       const fines = (await executeWalletRequest('GET', '/fines/check')).data as FinesData;
+      requireConsistentFineSummary(fines);
       const salik = (await executeRideRequest('GET', '/mobility/salik/balance')).data as SalikAccount;
       const review = offlineCheckoutReview(bill, fines, salik);
       if (!isDeepStrictEqual(payload.offlineReview, review)) throw new HttpError(409, 'The checkout changed. Review it again.');
@@ -1510,6 +1520,7 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
     walletData: WalletBalance,
     profile?: UserProfile
   ): AGUISurfacePayload {
+    requireConsistentFineSummary(finesData);
     const salikTopup = 100.0;
     const utilityPayable = bill.status === 'PAID' ? 0 : bill.totalAmount;
     const grandTotal = Math.round((utilityPayable + finesData.totalPayable + salikTopup) * 100) / 100;
