@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 - Reject ambiguous integrated fine reports (P1-13, step)
+
+Fine lookups reject missing or duplicated provider fine identities before displaying the selected plate and totals. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 - Inspect stored container payment effects (P2-05, step)
 
 Focused-container qualification reads the isolated simulator database to check the payment count before approval, after replay and after restarts. Guide: [local development](development/local-development.md).

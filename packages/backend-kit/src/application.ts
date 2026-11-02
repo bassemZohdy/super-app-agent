@@ -378,8 +378,13 @@ export async function integratedRequest(service: string, actor: Actor, method: s
       if (method === 'GET' && (path === '/fines/check' || path === '/fines')) {
         if (query.plateNumber !== undefined && query.plateNumber !== asset.plate) throw new UpstreamError(404, 'NOT_FOUND', 'The selected plate is not available in this account.');
         const report = await call('police', method, '/fines');
-        type PlateFine = { plateNumber: string; originalAmount: number; payableAmount: number; discountAmount: number };
-        if (!Array.isArray(report.fines) || report.fines.some((fine: PlateFine) => !fine || typeof fine.plateNumber !== 'string' || !fine.plateNumber)) throw new UpstreamError(503, 'PROVIDER_UNAVAILABLE', 'The selected plate report could not be confirmed.');
+        type PlateFine = { fineId: string; plateNumber: string; originalAmount: number; payableAmount: number; discountAmount: number };
+        const identities = new Set<string>();
+        if (!Array.isArray(report.fines) || report.fines.some((fine: PlateFine) => {
+          if (!fine || typeof fine.fineId !== 'string' || !fine.fineId.trim() || fine.fineId.length > 200 || identities.has(fine.fineId) || typeof fine.plateNumber !== 'string' || !fine.plateNumber.trim()) return true;
+          identities.add(fine.fineId);
+          return false;
+        })) throw new UpstreamError(503, 'PROVIDER_UNAVAILABLE', 'The selected plate report could not be confirmed.');
         const fines: PlateFine[] = report.fines.filter((fine: PlateFine) => fine.plateNumber === asset.plate);
         let original = 0, payable = 0, discount = 0;
         try {

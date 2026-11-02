@@ -52,3 +52,31 @@ test('integrated fine lookup refuses another plate without calling the provider'
     malformed = false;
   }
 });
+
+
+test('integrated fine reports reject missing or duplicate resource identities before showing totals', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'fines-identity-')), previous = process.env.APP_DATA_DIR;
+  process.env.APP_DATA_DIR = directory;
+  t.after(() => { if (previous === undefined) delete process.env.APP_DATA_DIR; else process.env.APP_DATA_DIR = previous; removeTemp(directory); });
+  const actor = actorFor({ sub: 'fine-report-identity' }), plate = assetsFor(actor.accountId).plate;
+  const fine = { fineId: 'fine-1', plateNumber: plate, originalAmount: 15, payableAmount: 12, discountAmount: 3 };
+  let fines: unknown[] = [];
+  t.mock.method(ProviderClient.prototype, 'call', async () => ({ fines }));
+  for (const path of ['/fines/check', '/fines']) {
+    for (const malformed of [
+      [{ ...fine, fineId: '' }], [{ ...fine, fineId: '   ' }], [{ ...fine, fineId: 1 }],
+      [fine, { ...fine }], [fine, { ...fine, plateNumber: 'Dubai C-99999' }],
+    ]) {
+      fines = malformed;
+      const result = await integratedRequest('service-wallet', actor, 'GET', path, {}, {}, () => ({ status: 404, data: {} }));
+      assert.equal(result.status, 503);
+      assert.equal(result.data.code, 'PROVIDER_UNAVAILABLE');
+      assert.equal(result.data.fines, undefined);
+    }
+    fines = [fine, { ...fine, fineId: 'fine-2' }];
+    const valid = await integratedRequest('service-wallet', actor, 'GET', path, {}, {}, () => ({ status: 404, data: {} }));
+    assert.equal(valid.status, 200);
+    assert.equal(valid.data.count, 2);
+    assert.equal(valid.data.totalPayable, 24);
+  }
+});
