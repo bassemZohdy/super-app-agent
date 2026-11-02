@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 3 November 2026 - Bound oversized response rejection (P0-11, step)
+
+The focused agent rejects oversized simulator and model responses without waiting for stream cancellation, while preserving payment recovery and releasing model concurrency slots. Guide: [security](security.md).
+
 ## 3 November 2026 - Keep operation keys out of simulator errors (P1-02, step)
 
 Focused payment and renewal refusals use a fresh request nonce for correlation instead of returning the operation key. Guide: [security](security.md).

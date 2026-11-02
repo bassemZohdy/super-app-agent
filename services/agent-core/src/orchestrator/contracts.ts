@@ -75,7 +75,7 @@ export async function boundedJson(response: Response, limit = 65536): Promise<un
     for (;;) {
       const { done, value } = await reader.read(); if (done) break;
       size += value.length;
-      if (size > limit) { await reader.cancel(); throw new AgentError('RESPONSE_TOO_LARGE', 502); }
+      if (size > limit) { void reader.cancel().catch(() => {}); throw new AgentError('RESPONSE_TOO_LARGE', 502); }
       chunks.push(value);
     }
     return JSON.parse(Buffer.concat(chunks).toString('utf8'));

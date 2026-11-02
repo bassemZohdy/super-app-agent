@@ -68,6 +68,33 @@ test('a contradictory simulator refusal after payment stays unknown across conve
   } finally { await h.close(); }
 });
 
+test('an oversized payment response with stalled cancellation preserves the original operation', async t => {
+  const h = await harness();
+  try {
+    const firstRoot = `/api/agent/threads/${await h.thread()}`, secondRoot = `/api/agent/threads/${await h.thread()}`;
+    const first = await h.req(`${firstRoot}/messages`, { message: 'pay fines' });
+    const second = await h.req(`${secondRoot}/messages`, { message: 'pay fines' });
+    const realFetch = globalThis.fetch;
+    let cancelled = false;
+    const mocked = t.mock.method(globalThis, 'fetch', async (input: string | URL | Request, init?: RequestInit) => {
+      const response = await realFetch(input, init);
+      if (new URL(String(input)).pathname !== '/simulator/v1/payments') return response;
+      await response.body?.cancel();
+      return new Response(new ReadableStream<Uint8Array>({
+        start(controller) { controller.enqueue(new Uint8Array(65537)); },
+        cancel() { cancelled = true; return new Promise<void>(() => {}); },
+      }));
+    });
+    const result = await h.req(`${firstRoot}/resume`, { approvalId: first.data.approval.id, decision: 'approve' });
+    assert.equal(result.data.status, 'unknown'); assert.equal(cancelled, true);
+    assert.equal((h.store.db.prepare('SELECT count(*) AS n FROM sa_sim_payments').get() as { n: number }).n, 1);
+    mocked.mock.restore();
+    assert.equal((await h.req(`${secondRoot}/resume`, { approvalId: second.data.approval.id, decision: 'approve' })).data.status, 'reconciliation_required');
+    assert.equal((await h.req(`${firstRoot}/recover`, {})).data.status, 'complete');
+    assert.equal((h.store.db.prepare('SELECT count(*) AS n FROM sa_sim_payments').get() as { n: number }).n, 1);
+  } finally { await h.close(); }
+});
+
 test('an unbound refusal after payment stays unknown until the original is recovered', async t => {
   const h = await harness();
   try {
