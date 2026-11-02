@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Verify authority-loss recovery after reopening SQLite (P0-06, step)
+
+The focused payment and renewal recovery tests now close and reopen the SQLite-backed harness after a simulated effect and lost response, before testing expired consent and revoked permission. Both remain unknown and block replacement; after test authority is restored, recovery returns the original operation without a second effect. This is an in-process reopen, not a crash, real identity or distributed failover test. Guide: [testing](testing.md).
+
 ## 2 November 2026 — Preserve unknown outcomes when recovery loses authority (P0-06, step)
 
 The focused fines and renewal graphs now retain an unknown outcome if a previously recorded operation cannot be reauthorized during recovery. Expired consent or revoked permission no longer turns a potentially committed effect into a definitive denial or permits a replacement. Tests simulate a lost response after commit, then expire consent and revoke permission; both remain blocked until the fixture restores authority and recovers the original operation. Real identity, durable production reconciliation and authority renewal remain separate. Guide: [testing](testing.md).

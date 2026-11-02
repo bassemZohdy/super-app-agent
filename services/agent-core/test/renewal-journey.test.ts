@@ -184,33 +184,40 @@ for (const status of [403, 409]) test(`renewal journey: unrecognized ${status} a
   } finally { await h.close(); }
 });
 
-test('renewal recovery remains unknown if the original consent expires after commit', async () => {
-  const { h, alice, say, decide, payFinesDirectly, root } = await journey();
+test('renewal recovery remains unknown across reopen when consent expires after commit', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'renewal-expired-recovery-')), file = join(dir, 'agent.sqlite');
+  const alice = identity('alice');
+  let h = await harness({ file, identities: [alice] });
   try {
-    payFinesDirectly();
-    const review = await say('renew my vehicle');
+    const principal: Principal = { subject: 'alice', workload: 'super-app-agent', permissions: [...all], expiresAt: alice.expiresAt };
+    const quote = quoteFor(h.store.fines('alice')), key = digest({ subject: 'alice', operation: 'fines.pay.v1', quote }), consentId = randomUUID();
+    h.store.consent(consentId, principal, key, quote, Date.now() + 60000);
+    h.store.simulatePayment(principal, key, quote, consentId);
+    const root = `/api/agent/threads/${await h.thread()}`;
+    const review = await h.req(`${root}/messages`, { message: 'renew my vehicle' });
     const original = h.vehicles.renew.invoke;
     h.vehicles.renew.invoke = async (...args) => { await original(...args); throw new Error('response lost after commit'); };
-    const unknown = await decide(review.data.renewalApproval.id, 'approve');
-    h.vehicles.renew.invoke = original;
+    const unknown = await h.req(`${root}/resume`, { approvalId: review.data.renewalApproval.id, decision: 'approve' });
     assert.equal(unknown.data.status, 'unknown');
     assert.equal(count(h, 'sa_sim_renewals'), 1);
     h.store.db.prepare('UPDATE sa_consents SET expires_at=? WHERE id=?').run(0, review.data.renewalApproval.id);
+    await h.close();
+    h = await harness({ file, identities: [alice] });
     const deniedRecovery = await h.req(`${root}/recover`, {});
     assert.equal(deniedRecovery.data.status, 'unknown');
-    assert.equal((await say('renew my vehicle')).status, 409);
+    assert.equal((await h.req(`${root}/messages`, { message: 'renew my vehicle' })).status, 409);
     assert.equal((await h.req(`${root}/cancel`, {})).status, 409);
     assert.equal(count(h, 'sa_sim_renewals'), 1);
     h.store.db.prepare('UPDATE sa_consents SET expires_at=? WHERE id=?').run(review.data.renewalApproval.expiresAt, review.data.renewalApproval.id);
     alice.permissions = ['fines:read', 'fines:pay', 'vehicles:read'];
     assert.equal((await h.req(`${root}/recover`, {})).data.status, 'unknown');
-    assert.equal((await say('renew my vehicle')).status, 409);
+    assert.equal((await h.req(`${root}/messages`, { message: 'renew my vehicle' })).status, 409);
     alice.permissions = [...all];
     const recovered = await h.req(`${root}/recover`, {});
     assert.equal(recovered.data.status, 'complete');
     assert.equal(recovered.data.renewal.idempotencyKey, review.data.renewalApproval.key);
     assert.equal(count(h, 'sa_sim_renewals'), 1);
-  } finally { await h.close(); }
+  } finally { await h.close(); rmSync(dir, { recursive: true, force: true }); }
 });
 
 test('renewal journey: the surface shows the vehicle and the fee, binds its buttons to the renewal approval and drops the paid fines', async () => {

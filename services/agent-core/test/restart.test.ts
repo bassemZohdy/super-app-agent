@@ -71,8 +71,9 @@ test('lost payment response reconciles original operation after reopening SQLite
 });
 
 
-test('payment recovery remains unknown if consent expires after the effect', async () => {
-  const h = await harness();
+test('payment recovery remains unknown across reopen if consent expires after the effect', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'agent-expired-recovery-')), file = join(dir, 'agent.sqlite');
+  let h = await harness({ file });
   try {
     const id = await h.thread(), root = `/api/agent/threads/${id}`;
     const review = await h.req(`${root}/messages`, { message: 'pay fines' });
@@ -82,6 +83,9 @@ test('payment recovery remains unknown if consent expires after the effect', asy
     h.tools.pay.invoke = original;
     assert.equal(unknown.data.status, 'unknown');
     h.store.db.prepare('UPDATE sa_consents SET expires_at=? WHERE id=?').run(0, review.data.approval.id);
+    const identities = h.identities;
+    await h.close();
+    h = await harness({ file, identities });
     const deniedRecovery = await h.req(`${root}/recover`, {});
     assert.equal(deniedRecovery.data.status, 'unknown');
     assert.equal((await h.req(`${root}/messages`, { message: 'pay fines' })).status, 409);
@@ -96,5 +100,5 @@ test('payment recovery remains unknown if consent expires after the effect', asy
     assert.equal(recovered.data.status, 'complete');
     assert.equal(recovered.data.receipt.idempotencyKey, review.data.approval.key);
     assert.equal((h.store.db.prepare('SELECT count(*) AS n FROM sa_sim_payments').get() as { n: number }).n, 1);
-  } finally { await h.close(); }
+  } finally { await h.close(); rmSync(dir, { recursive: true, force: true }); }
 });
