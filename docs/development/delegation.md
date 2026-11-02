@@ -16,6 +16,8 @@ Sign in at localhost:3000 with a seeded demo account. Open **Delegated access**,
 
 The user interface presets expire after five minutes. API grants can last 60–3600 seconds; reads allow 1–10 executions. The only delegated write is `payments POST /topups` with the exact body `{amountMinor, source:"demo_approved"}`, AED 1–10, and `maxOperations:1`. With an explicit `budgetMinor` (fils, at least one operation's amount, at most AED 100) the consent may repeat that credit up to `maxOperations` times: authorization refuses the operation that would pass the budget (`GRANT_BUDGET_REACHED`) and tracks `spentMinor` on the grant, and narrowing may lower the budget but never below what was spent and never upward. The UI approves exactly AED 1. A grant is not a promise that money can be spent generally. Other mutations are denied.
 
+Before recording a delegated credit as complete, the broker requires a settled AED top-up transaction with a bounded ID, the exact approved amount in fils, and a valid nonnegative balance. A contradictory or mismatched success response is retained as unknown; the same execution key remains subject to reconciliation and cannot create a replacement credit.
+
 ## Components and identity
 
 | Component | Role |

@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Verify delegated credit receipts (P1-02, step)
+
+The delegation broker verifies that a successful synthetic wallet-credit response contains a settled AED top-up for the approved amount and a valid balance. Contradictory or mismatched receipts remain unknown and cannot be repeated blindly. Guide: [delegation](development/delegation.md).
+
 ## 2 November 2026 — Verify confirmed wallet payment terms (P1-13, step)
 
 Composite checkout recovery checks the original wallet operation and each reviewed payment item as well as the ledger before accepting a confirmed debit. Missing, unavailable or changed operation evidence blocks continuation and resolution. Guide: [integrations](integrations.md).

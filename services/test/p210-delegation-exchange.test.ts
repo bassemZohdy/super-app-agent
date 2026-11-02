@@ -40,11 +40,17 @@ Object.assign(process.env, { KEYCLOAK_ISSUER: issuer.issuer, KEYCLOAK_JWKS_URL: 
 
 // A provider that asks the broker, as the real provider does, whether the bearer may do this exact operation.
 const seen: string[] = [];
+let topupReply: Record<string, unknown> | undefined;
 const provider = http.createServer((req, res) => {
   void (async () => {
     const authorization = String(req.headers.authorization || ''), accountId = decodeURIComponent((req.url || '').split('/')[3] || '');
     seen.push(authorization);
     try {
+      if (req.method === 'POST') {
+        const chunks: Buffer[] = []; for await (const chunk of req) chunks.push(Buffer.from(chunk));
+        await delegatedAuthorization(authorization, { provider: 'payments', accountId, method: 'POST', path: '/topups', body: JSON.parse(Buffer.concat(chunks).toString()) });
+        res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(topupReply)); return;
+      }
       await delegatedAuthorization(authorization, { provider: 'payments', accountId, method: 'GET', path: '/wallet', body: {} });
       res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ success: true, wallet: { balanceMinor: 150000 } }));
     } catch { res.writeHead(403, { 'Content-Type': 'application/json' }).end(JSON.stringify({ success: false })); }
@@ -66,6 +72,34 @@ const runner = async () => bearer(await serviceToken(issuer, runnerClient, 'runn
 const grantBody = (sub = 'alice-sub') => ({ accountId: accountIdFor(sub, 'personal'), provider: 'payments', method: 'GET', path: '/wallet', body: {}, purpose: 'Read my exact owned demo wallet', expiresInSeconds: 300, maxOperations: 1 });
 const createGrant = async (authorization: string, body = grantBody()) => handleDelegation('POST', '/api/delegation/grants', body, authorization);
 const execute = (id: string, authorization: string, requestKey = `exec-${Math.random().toString(36).slice(2, 12)}`) => handleDelegation('POST', `/api/delegation/grants/${id}/execute`, { requestKey }, authorization);
+
+test('delegated credit verifies the approved amount and receipt before completion', async () => {
+  const owner = await user('alice'), runnerToken = await runner();
+  const body = { ...grantBody(), method: 'POST', path: '/topups', body: { amountMinor: 100, source: 'demo_approved' } };
+  const receipt = { id: 'funding-123', type: 'TOPUP', status: 'SETTLED', currency: 'AED', amount: 1 };
+  const replies = [
+    { success: true, transaction: receipt, newBalance: 1501 },
+    { success: true, transaction: { ...receipt, amount: 2 }, newBalance: 1501 },
+    { success: true, transaction: { ...receipt, currency: 'USD' }, newBalance: 1501 },
+    { success: true, transaction: { ...receipt, status: 'PENDING' }, newBalance: 1501 },
+    { success: true, transaction: { ...receipt, id: '' }, newBalance: 1501 },
+    { success: true, transaction: receipt, newBalance: -1 },
+    { success: true, transaction: receipt, newBalance: 1501, error: 'contradictory reply' },
+    { success: true },
+  ];
+  for (const [index, reply] of replies.entries()) {
+    topupReply = reply;
+    const created = await createGrant(owner, body), id = created!.data.grant.id, key = 'credit-receipt-1';
+    const result = await execute(id, runnerToken, key), valid = index === 0;
+    assert.equal(result?.status, valid ? 200 : 503);
+    if (!valid) {
+      const again = await execute(id, runnerToken, key);
+      assert.equal(again?.data.code, 'RECONCILIATION_REQUIRED');
+      assert.equal(grantStore().jobs(id, 'alice-sub')[0].state, 'unknown');
+    }
+  }
+  topupReply = undefined;
+});
 
 test('P2-10: an owner grants consent, the runner executes it, and the provider sees exactly the owner as the broker client', async () => {
   const created = await createGrant(await user('alice'));

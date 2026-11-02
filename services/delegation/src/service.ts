@@ -11,6 +11,7 @@ import { DesiredKillSwitchStore, authorizeKillSwitchRead, authorizeKillSwitchWri
 import { assertionTimes, keyMaterial, signedJwt } from './keys.ts';
 import { EligibilityClient,EligibilityReadError,eligibilityEnforced } from '../../../packages/backend-kit/src/eligibility-client.ts';
 import { actorFor } from '../../../packages/backend-kit/src/context.ts';
+import { toMinor } from '../../../packages/protocol-core/src/request-validation.ts';
 const eligibilityReader=new EligibilityClient();
 async function currentEligibility(owner:string,accountId:string,epoch?:string,authorization?:string){
   if(!eligibilityEnforced())return undefined;
@@ -89,7 +90,18 @@ async function execute(id: string, requestKey: unknown, authorization?: string):
     const target = new URL(`/v1/accounts/${encodeURIComponent(g.accountId)}${g.path}`, checkedEndpoint(process.env[`PROVIDER_${g.provider.toUpperCase()}_URL`] || `http://localhost:${ports[g.provider]}`));
     const response = await fetch(target, { method: g.method, redirect: 'error', signal: AbortSignal.timeout(8000), headers: { Authorization: bearer, 'Content-Type': 'application/json', 'Idempotency-Key': `delegation-${job.id}` }, ...(g.method === 'POST' ? { body: JSON.stringify(g.body) } : {}) });
     const result = await response.json() as { success?: boolean };
-    const success = response.ok && result.success === true;
+    let success = response.ok && result.success === true;
+    if (success && g.method === 'POST' && g.provider === 'payments' && g.path === '/topups') {
+      const data = result as { transaction?: { id?: unknown; type?: unknown; status?: unknown; currency?: unknown; amount?: unknown }; newBalance?: unknown };
+      const tx = data.transaction;
+      try {
+        success = !Object.hasOwn(result, 'error') && !!tx && typeof tx.id === 'string' && /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(tx.id) && tx.type === 'TOPUP' && tx.status === 'SETTLED' && tx.currency === 'AED' && typeof tx.amount === 'number' && toMinor(tx.amount) === g.body.amountMinor && typeof data.newBalance === 'number' && toMinor(data.newBalance) >= 0;
+      } catch { success = false; }
+      if (!success) {
+        store.finish(job, { code: 'EXECUTION_OUTCOME_UNKNOWN' }, false);
+        return { status: 503, data: { success: false, operationId: job.id, code: 'EXECUTION_OUTCOME_UNKNOWN', error: 'The provider response could not confirm the approved credit. Inspect the original operation before retrying.' } };
+      }
+    }
     store.finish(job, result, success);
     return { status: success ? 200 : response.status, data: { success, operationId: job.id, result,
       ...(!success ? { code: 'DELEGATED_PROVIDER_REJECTED', error: 'The provider could not authorize or complete this operation. Inspect its status before retrying.' } : {}) } };
