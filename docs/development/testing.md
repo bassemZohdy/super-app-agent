@@ -83,7 +83,7 @@ QA-01–QA-08 in [the new backlog](../../TODO.md) specify future security, ledge
 
 The isolated test environment validates its full set of required client credentials before it creates temporary data or changes process settings. Its cleanup attempts each server, session connection, database and temporary directory even when an earlier cleanup step fails; failures are reported together. If Redis is unavailable, isolated session keys may remain and must be inspected separately. Qualification stacks with a nonzero port offset require explicitly supplied credentials; they do not fall back to the seeded demo realm.
 
-The production lockfile is checked for Zod versions affected by [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5). The earlier dependency triage report is historical; run `npm audit --omit=dev` for current registry findings, and separately evaluate the remaining Angular advisories and other release risks.
+The production lockfile is checked for Zod versions affected by [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5). The earlier dependency triage report is historical; run `npm audit --omit=dev` for current registry findings, and separately evaluate development-dependency findings and other release risks.
 
 `npm run demo:verify:payment-accounts` builds an isolated React/provider environment using real local Keycloak/Redis and verifies the new setup workspace without moving funds. Eight payment-account regressions cover strict contracts, persistence, ownership forwarding, non-executable snapshot binding and owned inventory upgrades. [Usage and required ports](payment-accounts.md) · [Executed results](../reports/2026-10-24-payment-accounts.md).
 

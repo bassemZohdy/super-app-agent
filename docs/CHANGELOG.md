@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 3 November 2026 - Bind focused write refusals to their operation (P1-02, step)
+
+Simulator payment and renewal refusals identify the dispatched operation; missing or mismatched identities leave the original outcome unresolved. Guide: [security](security.md).
+
 ## 3 November 2026 - Upgrade the Angular reference shell (P2-03, step)
 
 The shell and its build tools now use Angular 20, resolving the Angular production dependency findings. Guide: [shell journey parity](development/shell-parity.md).

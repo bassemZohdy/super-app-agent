@@ -34,6 +34,7 @@ export function createServer(service: AgentService, auth: Authenticator, workloa
     const correlationId = randomUUID();
     res.setHeader('X-Correlation-ID', correlationId); res.setHeader('Cache-Control', 'no-store');
     const send = (status: number, value: unknown) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(value)); };
+    let requestPath = '';
     const run = async () => {
       const origin = req.headers.origin;
       const allowed = corsOrigins();
@@ -45,6 +46,7 @@ export function createServer(service: AgentService, auth: Authenticator, workloa
         if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
       }
       const path = new URL(req.url || '/', 'http://localhost').pathname;
+      requestPath = path;
       if (req.method === 'GET' && path === '/live') return send(200, { live: true });
       if (req.method === 'GET' && path === '/ready') { service.store.ready(); return send(200, { ready: true, dependencies: ['sqlite'], plannerConfigured: true }); }
       const trustedSimulator = path.startsWith('/simulator/') && equalSecret(String(req.headers['x-agent-key'] || ''), workloadKey);
@@ -125,7 +127,12 @@ export function createServer(service: AgentService, auth: Authenticator, workloa
         if (res.hasHeader('Access-Control-Allow-Origin')) res.setHeader('Access-Control-Expose-Headers', 'Retry-After');
       }
       if (res.headersSent) res.end(`event: error\ndata: ${JSON.stringify({ code, correlationId })}\n\n`);
-      else send(status, { code, correlationId });
+      else {
+        const key = req.headers['idempotency-key'];
+        const writeRefusal = status === 409 && req.method === 'POST' && ['/simulator/v1/payments', '/simulator/v1/renewals'].includes(requestPath)
+          && equalSecret(String(req.headers['x-agent-key'] || ''), workloadKey) && typeof key === 'string' && /^[a-f0-9]{64}$/.test(key);
+        send(status, { code, correlationId, ...(writeRefusal ? { operationId: key } : {}) });
+      }
     });
   });
 }

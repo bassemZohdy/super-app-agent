@@ -12,9 +12,9 @@ test('focused write refusals require the exact simulator error envelope', async 
   for (const [status, code] of [[409, 'QUOTE_STALE'], [403, 'PERMISSION_DENIED']] as const) {
     const correlationId = randomUUID();
     for (const [body, expected] of [
-      [{ code, correlationId }, status === 409 ? code : 'PROVIDER_FAILURE'],
-      [{ code, correlationId, success: true }, 'PROVIDER_FAILURE'],
-      [{ code, correlationId, receipt: { id: 'existing-effect' } }, 'PROVIDER_FAILURE'],
+      [{ code, correlationId, ...(status === 409 ? { operationId: 'a'.repeat(64) } : {}) }, status === 409 ? code : 'PROVIDER_FAILURE'],
+      [{ code, correlationId, operationId: 'a'.repeat(64), success: true }, 'PROVIDER_FAILURE'],
+      [{ code, correlationId, operationId: 'a'.repeat(64), receipt: { id: 'existing-effect' } }, 'PROVIDER_FAILURE'],
       [{ code, correlationId: 'not-a-uuid' }, 'PROVIDER_FAILURE'],
       [{ code }, 'PROVIDER_FAILURE'],
     ] as const) {
@@ -29,4 +29,13 @@ test('focused write refusals require the exact simulator error envelope', async 
 test('focused reads preserve an explicit simulator authority denial', async t => {
   t.mock.method(globalThis, 'fetch', async () => Response.json({ code: 'PERMISSION_DENIED', correlationId: randomUUID() }, { status: 403 }));
   await assert.rejects(simulatorRequest(new URL('http://127.0.0.1/'), 'fixture-key', 'simulator/v1/fines', ctx, new AbortController().signal), (error: unknown) => error instanceof AgentError && error.code === 'PROVIDER_DENIED');
+});
+
+
+test('a write refusal must identify the dispatched operation', async t => {
+  for (const [operationId, expected] of [['a'.repeat(64), 'QUOTE_STALE'], ['b'.repeat(64), 'PROVIDER_FAILURE'], [undefined, 'PROVIDER_FAILURE']] as const) {
+    const mock = t.mock.method(globalThis, 'fetch', async () => Response.json({ code: 'QUOTE_STALE', correlationId: randomUUID(), ...(operationId ? { operationId } : {}) }, { status: 409 }));
+    try { await assert.rejects(request(), (error: unknown) => error instanceof AgentError && error.code === expected); }
+    finally { mock.mock.restore(); }
+  }
 });
