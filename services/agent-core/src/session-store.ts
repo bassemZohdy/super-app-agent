@@ -21,7 +21,7 @@ function decodeRecord(raw: string): Record {
 const claimScript = `local existing=redis.call('GET',KEYS[1]); if existing then
  local r=cjson.decode(existing); if r.owner~=ARGV[1] then return {'FORBIDDEN'} end
  if r.accountId~=ARGV[2] then return {'ACCOUNT_MISMATCH'} end
- if redis.call('EXISTS',KEYS[3])==1 then redis.call('PERSIST',KEYS[1]) else redis.call('EXPIRE',KEYS[1],ARGV[4]) end; redis.call('SADD',KEYS[2],KEYS[1]); redis.call('EXPIRE',KEYS[2],ARGV[4]); return {'OK',existing} end
+ if redis.call('EXISTS',KEYS[3])==1 then redis.call('PERSIST',KEYS[1]); redis.call('SADD',KEYS[4],KEYS[1]) else redis.call('EXPIRE',KEYS[1],ARGV[4]) end; redis.call('SADD',KEYS[2],KEYS[1]); redis.call('EXPIRE',KEYS[2],ARGV[4]); return {'OK',existing} end
  if ARGV[5]~='1' or redis.call('EXISTS',KEYS[3])==1 then return {'NOT_FOUND'} end
  redis.call('SET',KEYS[1],ARGV[3],'EX',ARGV[4]); redis.call('SADD',KEYS[2],KEYS[1]); redis.call('EXPIRE',KEYS[2],ARGV[4]); return {'OK',ARGV[3]}`;
 type CivicAction = 'confirm_smartcity_checkout' | 'pay_utilities_bill' | 'pay_dewa_bill' | 'pay_police_fines';
@@ -72,6 +72,7 @@ export class RedisSessionStore {
   }
   private key(sid: string) { return `${this.prefix}session:${sid}`; }
   private userKey(owner: string) { return `${this.prefix}user:${createHash('sha256').update(owner).digest('hex')}`; }
+  private pendingCompositeUserKey(owner: string) { return `${this.userKey(owner)}:composite-pending`; }
   private compositeFenceKey(owner: string, accountId: string) { return `${this.prefix}integrated-composite:${civicOwnerDigest(owner, accountId)}`; }
   private compositeMarkerKey(sid: string) { return `${this.key(sid)}:composite-pending`; }
   async inspectCompositeFence(owner: string, accountId: string): Promise<{ status: 'CLEAR' | 'BLOCKED'; sessionId?: string; operationId?: string }> {
@@ -88,7 +89,7 @@ export class RedisSessionStore {
     await this.connect();
     const state: SuperAppAgentState = { sessionId: sid, messages: [], activeDomain: 'concierge', metadata: { accountId } };
     const record: Record = { owner, accountId, state, updatedAt: Date.now() };
-    const result = await this.client.eval(claimScript, { keys: [this.key(sid), this.userKey(owner), this.compositeMarkerKey(sid)], arguments: [owner, accountId, JSON.stringify(record), String(this.ttl), create ? '1' : '0'] }) as string[];
+    const result = await this.client.eval(claimScript, { keys: [this.key(sid), this.userKey(owner), this.compositeMarkerKey(sid), this.pendingCompositeUserKey(owner)], arguments: [owner, accountId, JSON.stringify(record), String(this.ttl), create ? '1' : '0'] }) as string[];
     if (result[0] === 'FORBIDDEN') throw new SessionError(403, 'SESSION_FORBIDDEN', 'Session belongs to a different user.');
     if (result[0] === 'ACCOUNT_MISMATCH') throw new SessionError(409, 'SESSION_ACCOUNT_MISMATCH', 'Start a new conversation when switching accounts.');
     if (result[0] === 'NOT_FOUND') throw new SessionError(404, 'SESSION_NOT_FOUND', 'Session not found or expired.');
@@ -352,8 +353,8 @@ export class RedisSessionStore {
         const fence = JSON.stringify({ owner: civicOwnerDigest(record.owner, record.accountId), sessionId: sid, operationId: attempt.operationId });
         const saved = await this.client.eval(`if redis.call('GET',KEYS[2])~=ARGV[1] or redis.call('EXISTS',KEYS[1])==0 then return 0 end
           if redis.call('EXISTS',KEYS[3])==1 or redis.call('EXISTS',KEYS[4])==1 then return -1 end
-          redis.call('SET',KEYS[1],ARGV[2]); redis.call('SET',KEYS[3],ARGV[3]); redis.call('SET',KEYS[4],ARGV[3]); return 1`, {
-          keys: [this.key(sid), key, this.compositeMarkerKey(sid), this.compositeFenceKey(record.owner, record.accountId)], arguments: [token, JSON.stringify(record), fence],
+          redis.call('SET',KEYS[1],ARGV[2]); redis.call('SET',KEYS[3],ARGV[3]); redis.call('SET',KEYS[4],ARGV[3]); redis.call('SADD',KEYS[5],KEYS[1]); return 1`, {
+          keys: [this.key(sid), key, this.compositeMarkerKey(sid), this.compositeFenceKey(record.owner, record.accountId), this.pendingCompositeUserKey(record.owner)], arguments: [token, JSON.stringify(record), fence],
         });
         if (saved === -1) throw new SessionError(409, 'COMPOSITE_RECONCILIATION_REQUIRED', 'An earlier composite checkout is in progress or needs reconciliation.');
         if (saved !== 1) throw new SessionError(503, 'SESSION_LOCK_LOST', 'The original checkout could not be saved.');
@@ -366,8 +367,8 @@ export class RedisSessionStore {
         const fence = JSON.stringify({ owner: civicOwnerDigest(record.owner, record.accountId), sessionId: sid, operationId });
         const saved = await this.client.eval(`if redis.call('GET',KEYS[2])~=ARGV[1] or redis.call('EXISTS',KEYS[1])==0 then return 0 end
           local marker=redis.call('GET',KEYS[3]); local active=redis.call('GET',KEYS[4]); if marker and (marker~=ARGV[4] or active~=ARGV[4]) then return -1 end; if not marker and active==ARGV[4] then return -1 end
-          if marker then redis.call('DEL',KEYS[3],KEYS[4]) end; redis.call('SET',KEYS[1],ARGV[2],'EX',ARGV[3]); return 1`, {
-          keys: [this.key(sid), key, this.compositeMarkerKey(sid), this.compositeFenceKey(record.owner, record.accountId)], arguments: [token, JSON.stringify(record), String(this.ttl), fence],
+          if marker then redis.call('DEL',KEYS[3],KEYS[4]) end; redis.call('SET',KEYS[1],ARGV[2],'EX',ARGV[3]); redis.call('SADD',KEYS[6],KEYS[1]); redis.call('EXPIRE',KEYS[6],ARGV[3]); redis.call('SREM',KEYS[5],KEYS[1]); return 1`, {
+          keys: [this.key(sid), key, this.compositeMarkerKey(sid), this.compositeFenceKey(record.owner, record.accountId), this.pendingCompositeUserKey(record.owner), this.userKey(record.owner)], arguments: [token, JSON.stringify(record), String(this.ttl), fence],
         });
         if (saved === -1) throw new SessionError(409, 'COMPOSITE_FENCE_CHANGED', 'The original checkout fence changed.');
         if (saved !== 1) throw new SessionError(503, 'SESSION_LOCK_LOST', 'The original checkout could not be saved.');
@@ -385,9 +386,11 @@ export class RedisSessionStore {
     };
   }
   async list(owner: string) {
-    await this.connect(); const keys = await this.client.sMembers(this.userKey(owner)); if (!keys.length) return [];
+    await this.connect(); const [ordinary, pending] = await Promise.all([this.client.sMembers(this.userKey(owner)), this.client.sMembers(this.pendingCompositeUserKey(owner))]);
+    const keys = [...new Set([...ordinary, ...pending])]; if (!keys.length) return [];
     const records = await this.client.mGet(keys);
-    const expired = keys.filter((_, i) => records[i] === null); if (expired.length) await this.client.sRem(this.userKey(owner), expired);
+    const ordinaryKeys = new Set(ordinary);
+    const expired = keys.filter((key, i) => records[i] === null && ordinaryKeys.has(key)); if (expired.length) await this.client.sRem(this.userKey(owner), expired);
     return records.filter((r): r is string => r !== null).map(raw => decodeRecord(raw)).filter(r => r.owner === owner)
       .map(r => ({ sessionId: r.state.sessionId, accountId: r.accountId, updatedAt: r.updatedAt, title: r.state.messages.find(m => m.role === 'user')?.content.slice(0, 80) || 'New conversation' })).sort((a,b) => b.updatedAt-a.updatedAt);
   }

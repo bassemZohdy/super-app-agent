@@ -3,6 +3,7 @@ import { ProviderClient, UpstreamError } from '../../../packages/backend-kit/src
 import { accountIdFor } from '../../../packages/backend-kit/src/context.ts';
 import { EligibilityClient, EligibilityReadError } from '../../../packages/backend-kit/src/eligibility-client.ts';
 import { RedisSessionStore, redisSessions } from '../../../services/agent-core/src/session-store.ts';
+import { createHash } from 'node:crypto';
 
 test('the reviewed composite identity is saved before dispatch and survives a lost wallet response', async ({ residentApi, stack }) => {
   const sessionId = `composite_${crypto.randomUUID()}`;
@@ -57,8 +58,17 @@ test('the reviewed composite identity is saved before dispatch and survives a lo
     const fence = await fenceResponse.json() as { status: string; sessionId: string; operationId: string };
     expect(fenceResponse.status).toBe(200);
     expect(fence).toMatchObject({ status: 'BLOCKED', sessionId, operationId: expectedOperation });
+    const userIndex = `${redisSessions()!.prefix}user:${createHash('sha256').update(claims.sub).digest('hex')}`;
+    await redisSessions()!.client.del(userIndex); // Simulate the ordinary history index expiring.
+    const listed = await fetch(`${endpoint}/api/sessions`, { headers: { Authorization: `Bearer ${residentApi.token}` } });
+    expect(listed.status).toBe(200);
+    expect((await listed.json()).sessions.filter((session: { sessionId: string }) => session.sessionId === sessionId)).toHaveLength(1);
     expect(await redisSessions()!.client.ttl(`${redisSessions()!.prefix}session:${sessionId}`)).toBe(-1);
+    // An attempt fenced before the pending-history index existed is indexed when claimed.
+    await redisSessions()!.client.del(`${userIndex}:composite-pending`);
     await redisSessions()!.claim(sessionId, claims.sub, residentApi.accountId, false);
+    await redisSessions()!.client.del(userIndex);
+    expect((await redisSessions()!.list(claims.sub)).some(session => session.sessionId === sessionId)).toBe(true);
     const sessionLock = await redisSessions()!.acquire(sessionId);
     await sessionLock.release();
     expect(await redisSessions()!.client.ttl(`${redisSessions()!.prefix}session:${sessionId}`)).toBe(-1);
@@ -94,6 +104,8 @@ test('the reviewed composite identity is saved before dispatch and survives a lo
     expect(stack.stores.get('rta')!.list(residentApi.accountId, 'ride')).toHaveLength(ridesBefore);
     const otherToken = await login('bassem');
     const otherClaims = JSON.parse(Buffer.from(otherToken.split('.')[1], 'base64url').toString()) as { sub: string };
+    const otherHistory = await fetch(`${endpoint}/api/sessions`, { headers: { Authorization: `Bearer ${otherToken}` } });
+    expect((await otherHistory.json()).sessions.some((session: { sessionId: string }) => session.sessionId === sessionId)).toBe(false);
     const other = await fetch(`${endpoint}/api/composite/reconciliation?${new URLSearchParams({ sessionId, accountId: accountIdFor(otherClaims.sub) })}`, { headers: { Authorization: `Bearer ${otherToken}` } });
     expect(other.status).toBe(403);
     const otherResolve = await fetch(`${endpoint}/api/composite/reconciliation/resolve`, { method: 'POST', headers: { Authorization: `Bearer ${otherToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId, accountId: accountIdFor(otherClaims.sub), operationId: expectedOperation }) });
@@ -188,6 +200,8 @@ test('a pre-dispatch composite refusal clears the saved attempt without moving f
     const saved = await redisSessions()!.read(sessionId, claims.sub);
     expect(saved.state.compositeAttempt).toBeUndefined();
     expect(saved.state.reconciliation).toBeUndefined();
+    const userIndex = `${redisSessions()!.prefix}user:${createHash('sha256').update(claims.sub).digest('hex')}`;
+    expect(await redisSessions()!.client.sIsMember(`${userIndex}:composite-pending`, `${redisSessions()!.prefix}session:${sessionId}`)).toBeFalsy();
     const fence = await fetch(`${endpoint}/api/composite/fence?${new URLSearchParams({ accountId: residentApi.accountId })}`, { headers: { Authorization: `Bearer ${residentApi.token}` } });
     expect((await fence.json()).status).toBe('CLEAR');
   } finally { ProviderClient.prototype.call = original; }
@@ -251,6 +265,10 @@ test('composite inspection matches all original effects after the food response 
     expect(revoked.status).toBe(403);
     expect(revoked.data.code).toBe('ELIGIBILITY_DENIED');
   } finally { EligibilityClient.prototype.require = originalEligibility; }
+  const claims = JSON.parse(Buffer.from(residentApi.token.split('.')[1], 'base64url').toString()) as { sub: string };
+  const userIndex = `${redisSessions()!.prefix}user:${createHash('sha256').update(claims.sub).digest('hex')}`;
+  expect(await redisSessions()!.client.sIsMember(`${userIndex}:composite-pending`, `${redisSessions()!.prefix}session:${sessionId}`)).toBeTruthy();
+  await redisSessions()!.client.del(userIndex);
   const competing = await Promise.all([send('/api/composite/reconciliation/resolve', { operationId }), send('/api/composite/reconciliation/resolve', { operationId })]);
   expect(competing.filter(result => result.status === 200 && result.data.resolution === 'RESOLVED')).toHaveLength(1);
   expect(competing.every(result => result.status === 200 || result.status === 409 && result.data.code === 'SESSION_BUSY')).toBe(true);
@@ -269,5 +287,7 @@ test('composite inspection matches all original effects after the food response 
   const fenceResponse = await fetch(`${endpoint}/api/composite/fence?${new URLSearchParams({ accountId: residentApi.accountId })}`, { headers: { Authorization: `Bearer ${residentApi.token}` } });
   expect((await fenceResponse.json()).status).toBe('CLEAR');
   expect(await redisSessions()!.client.ttl(`${redisSessions()!.prefix}session:${sessionId}`)).toBeGreaterThan(0);
+  expect(await redisSessions()!.client.sIsMember(`${userIndex}:composite-pending`, `${redisSessions()!.prefix}session:${sessionId}`)).toBeFalsy();
+  expect((await redisSessions()!.list(claims.sub)).some(session => session.sessionId === sessionId)).toBe(true);
   expect((await send('/api/a2ui/intent', { text: 'Show my wallet balance' })).status).toBe(200);
 });

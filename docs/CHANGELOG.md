@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Keep pending checkout conversations discoverable (P1-13, step)
+
+Retained integrated composite attempts remain in their owner's conversation list even after ordinary history expires, returning to normal retention after completion or verified resolution. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Fence integrated composite attempts (P1-13, step)
 
 New integrated composite attempts retain their original session and prevent another composite approval for the same owner and account until completion or verified resolution. Guide: [agent flow](agent-flow.md).
