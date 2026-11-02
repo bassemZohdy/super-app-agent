@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Keep unresolved focused conversations inspectable (P0-05, step)
+
+A focused conversation now records the approval-to-operation link before execution. If its normal expiry passes while that exact owned operation remains pending or unknown, an authenticated owner access extends the conversation for another day; unrelated, competing and other-user conversations do not gain access. Older records are linked only when a saved approval response and operation owner agree; records without sufficient evidence are not guessed. Tests cover payment, renewal, SQLite reopen, authority loss and legacy links. This does not solve production retention or authority renewal. Guide: [agent flow](agent-flow.md).
+
 ## 2 November 2026 — Fence unresolved operations across conversations (P0-06, step)
 
 The focused agent now reserves one pending or unknown operation per resident in SQLite and binds its retry to the original consent. New payment and renewal reviews, including approvals opened before the reservation, cannot dispatch while another operation is unresolved; read-only requests and other residents remain available. Explicit initial refusals release their reservation. On upgrade, an older unresolved operation is bound only when its consent is unambiguous; ambiguous records remain blocked for inspection. Tests cover concurrent and separate conversations, both journeys, reopen, legacy records and subject isolation. This is a single-process local-demo guard, not distributed locking or production reconciliation. Guide: [agent flow](agent-flow.md).

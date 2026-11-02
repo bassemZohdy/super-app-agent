@@ -52,6 +52,10 @@ export class AgentService {
         const answersFines = values.pending?.id === decision.approvalId && state.next.includes('approval');
         const answersRenewal = values.renewalPending?.id === decision.approvalId && state.next.includes('renewApproval');
         if (!answersFines && !answersRenewal) throw new AgentError('APPROVAL_MISMATCH', 409);
+        if (decision.decision === 'approve') {
+          const approval = answersFines ? values.pending! : values.renewalPending!;
+          this.store.linkThreadOperation(id, approval.key, approval.id);
+        }
         await this.graph.invoke(new Command({ resume: decision }), this.options(id));
       } else if (action === 'cancel') {
         if (values.status === 'unknown' || values.status === 'approved') throw new AgentError('RECONCILIATION_REQUIRED', 409);

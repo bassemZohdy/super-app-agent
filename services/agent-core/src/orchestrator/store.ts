@@ -30,6 +30,9 @@ export class Store {
         status TEXT NOT NULL CHECK(status IN ('pending','unknown','complete')), receipt TEXT);
       CREATE TABLE IF NOT EXISTS sa_operation_owners (
         operation_key TEXT PRIMARY KEY REFERENCES sa_operations(key) ON DELETE CASCADE, consent_id TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS sa_thread_operations (
+        thread_id TEXT NOT NULL REFERENCES sa_threads(id), operation_key TEXT NOT NULL, consent_id TEXT NOT NULL,
+        PRIMARY KEY(thread_id,operation_key,consent_id));
       CREATE INDEX IF NOT EXISTS sa_operations_subject_status ON sa_operations(subject,status);
       CREATE TABLE IF NOT EXISTS sa_sim_accounts (subject TEXT PRIMARY KEY);
       CREATE TABLE IF NOT EXISTS sa_sim_fines (
@@ -47,6 +50,16 @@ export class Store {
       INSERT OR IGNORE INTO sa_operation_owners(operation_key, consent_id)
         SELECT o.key, MIN(c.id) FROM sa_operations o JOIN sa_consents c ON c.operation_key=o.key AND c.subject=o.subject
         WHERE o.status IN ('pending','unknown') GROUP BY o.key HAVING COUNT(*)=1;
+      -- Recover legacy links only from a saved approval response belonging to the same subject.
+      INSERT OR IGNORE INTO sa_thread_operations(thread_id,operation_key,consent_id)
+        SELECT r.thread_id, o.key, own.consent_id FROM sa_requests r
+        JOIN sa_threads t ON t.id=r.thread_id
+        JOIN sa_operations o ON o.subject=t.subject AND o.status IN ('pending','unknown')
+        JOIN sa_operation_owners own ON own.operation_key=o.key
+        WHERE (json_extract(CASE WHEN json_valid(r.response) THEN r.response ELSE '{}' END,'$.approval.id')=own.consent_id
+          AND json_extract(CASE WHEN json_valid(r.response) THEN r.response ELSE '{}' END,'$.approval.key')=o.key)
+        OR (json_extract(CASE WHEN json_valid(r.response) THEN r.response ELSE '{}' END,'$.renewalApproval.id')=own.consent_id
+          AND json_extract(CASE WHEN json_valid(r.response) THEN r.response ELSE '{}' END,'$.renewalApproval.key')=o.key);
     `);
   }
   ready() { this.db.prepare('SELECT 1').get(); }
@@ -58,7 +71,15 @@ export class Store {
   checkThread(id: string, principal: Principal, allowCancelled = false) {
     const row = this.db.prepare('SELECT * FROM sa_threads WHERE id=? AND subject=? AND workload=?').get(id, principal.subject, principal.workload) as Thread | undefined;
     if (!row) throw new AgentError('THREAD_NOT_FOUND', 404);
-    if (row.expires_at <= Date.now()) throw new AgentError('THREAD_EXPIRED', 410);
+    if (row.expires_at <= Date.now()) {
+      const unresolved = !row.cancelled && this.db.prepare(`SELECT 1 FROM sa_thread_operations link
+        JOIN sa_operations op ON op.key=link.operation_key AND op.subject=? AND op.status IN ('pending','unknown')
+        JOIN sa_operation_owners owner ON owner.operation_key=op.key AND owner.consent_id=link.consent_id
+        WHERE link.thread_id=? LIMIT 1`).get(principal.subject, id);
+      if (!unresolved) throw new AgentError('THREAD_EXPIRED', 410);
+      row.expires_at = Date.now() + 86400000;
+      this.db.prepare('UPDATE sa_threads SET expires_at=? WHERE id=?').run(row.expires_at, id);
+    }
     if (row.cancelled && !allowCancelled) throw new AgentError('THREAD_CANCELLED', 409);
     return row;
   }
@@ -74,6 +95,9 @@ export class Store {
   }
   saveRequest(id: string, requestId: string, fingerprint: string, response?: unknown) {
     this.db.prepare('INSERT INTO sa_requests VALUES(?,?,?,?) ON CONFLICT(thread_id,request_id) DO UPDATE SET response=excluded.response').run(id, requestId, fingerprint, response ? JSON.stringify(response) : null);
+  }
+  linkThreadOperation(threadId: string, operationKey: string, consentId: string) {
+    this.db.prepare('INSERT OR IGNORE INTO sa_thread_operations VALUES(?,?,?)').run(threadId, operationKey, consentId);
   }
   cancelThread(id: string) { this.db.prepare('UPDATE sa_threads SET cancelled=1 WHERE id=?').run(id); }
   consent(id: string, principal: Principal, key: string, quote: Quote, expiresAt: number) {
