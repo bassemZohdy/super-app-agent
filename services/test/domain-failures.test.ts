@@ -4,7 +4,7 @@ import { executeCoreRequest as core, getOrCreateSession, sseClients, server } fr
 import { domainHandlers, callDomain, trackDomainOperations, type Step } from '../agent-core/src/domain-operations.ts';
 import { executeWalletRequest as wallet, balance, transactions, policeFines } from '../service-wallet/src/index.ts';
 import { activeOrders, executeFoodRequest as food, restaurants } from '../service-food/src/index.ts';
-import { activeRides, activeParkingMeters, executeRideRequest as ride } from '../service-ride/src/index.ts';
+import { activeRides, activeParkingMeters, drivers, executeRideRequest as ride } from '../service-ride/src/index.ts';
 import { readEventStream } from '../../packages/protocol-core/src/sse-client.ts';
 
 const composite = 'Book a ride downtown and order pizza, pay with my wallet';
@@ -17,6 +17,33 @@ const action = (sid: string, action = 'confirm_composite_checkout') => {
   return core('POST', '/api/a2ui/action', {}, { sessionId: sid, surfaceRevision: getOrCreateSession(sid).currentSurface?.revision, action, payload: originalBindings.get(key) || binding });
 };
 function ensureFunds() { if (balance < 50) assert.equal(wallet('POST', '/wallet/topup', {}, { amount: 100 }).status, 200); }
+
+test('P1-13: standalone ride review binds its displayed route and fare to the booking', async () => {
+  const sid = 'ride_reviewed_route_and_fare';
+  assert.equal((await intent(sid, 'Find a cab ride to Downtown')).status, 200);
+  const surface = getOrCreateSession(sid).currentSurface!;
+  assert.equal(surface.view.children!.find(node => node.id === 'ride_pickup')?.properties?.text, 'Pickup: 100 Market St');
+  assert.equal(surface.view.children!.find(node => node.id === 'ride_destination')?.properties?.text, 'Destination: Downtown Restaurant');
+  const options = surface.view.children!.find(node => node.id === 'ride_choices')!.properties!.options as Array<{ id: string; price: string }>;
+  assert.equal(options.find(option => option.id === 'drv_1')?.price, 'USD 22.00');
+  const before = new Set(activeRides.keys());
+  const result = await core('POST', '/api/a2ui/action', {}, { sessionId: sid, surfaceRevision: surface.revision, action: 'book_ride', payload: { selectedChoice: 'drv_1' } });
+  assert.equal(result.status, 200);
+  const booking = [...activeRides.entries()].find(([id]) => !before.has(id))?.[1];
+  assert.equal(booking?.pickup, '100 Market St'); assert.equal(booking?.dropoff, 'Downtown Restaurant'); assert.equal(booking?.fare, 22);
+});
+
+test('P1-13: changed standalone ride fare is refused before booking', async () => {
+  const sid = 'ride_reviewed_fare_changed';
+  assert.equal((await intent(sid, 'Find a cab ride to Downtown')).status, 200);
+  const surface = getOrCreateSession(sid).currentSurface!, driver = drivers.find(item => item.id === 'drv_1')!, fare = driver.fare, before = activeRides.size;
+  try {
+    driver.fare = fare + 1;
+    const result = await core('POST', '/api/a2ui/action', {}, { sessionId: sid, surfaceRevision: surface.revision, action: 'book_ride', payload: { selectedChoice: driver.id } });
+    assert.equal(result.status, 409);
+    assert.equal(activeRides.size, before);
+  } finally { driver.fare = fare; }
+});
 
 test('P1-13: standalone food orders use the restaurant of the selected reviewed dish', async t => {
   const realFood = domainHandlers.food;

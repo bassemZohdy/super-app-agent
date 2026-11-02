@@ -10,6 +10,8 @@ const walletCurrency = () => process.env.PROVIDER_INTEGRATION === 'true' ? 'AED'
 const formatWalletAmount = (amount: number) => `${walletCurrency()} ${amount.toFixed(2)}`;
 const demoFoodAddress = '100 Market St, Apt 4B';
 const demoCompositeDestination = 'Downtown Dining';
+const demoRidePickup = '100 Market St';
+const demoRideDestination = 'Downtown Restaurant';
 import { formatStatementAED } from '../../../../packages/protocol-core/src/payment-history.ts';
 import { toMinor, fromMinor } from '../../../../packages/protocol-core/src/request-validation.ts';
 import { handlePaymentSurfaceAction } from '../payment-surfaces.ts';
@@ -735,11 +737,21 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
         timestamp: Date.now(),
       });
     } else if (action === 'book_ride') {
+      const driverId = explicitSelection(payload.selectedChoice || payload.driverId, 'driver');
+      const children = state.currentSurface?.view.children;
+      const options = children?.find(node => node.id === 'ride_choices' && node.type === 'ChoiceGroup')?.properties?.options;
+      const matches = Array.isArray(options) ? options.filter(option => option.id === driverId) : [];
+      const metadata = matches[0]?.metadata;
+      const pickup = metadata?.pickup, dropoff = metadata?.dropoff, fareMinor = metadata?.fareMinor;
+      const shownPickup = children?.find(node => node.id === 'ride_pickup' && node.type === 'Text')?.properties?.text;
+      const shownDestination = children?.find(node => node.id === 'ride_destination' && node.type === 'Text')?.properties?.text;
+      if (matches.length !== 1 || typeof pickup !== 'string' || !pickup.trim() || typeof dropoff !== 'string' || !dropoff.trim() ||
+          typeof fareMinor !== 'number' || !Number.isSafeInteger(fareMinor) || fareMinor <= 0 ||
+          shownPickup !== `Pickup: ${pickup}` || shownDestination !== `Destination: ${dropoff}` || matches[0].price !== formatWalletAmount(fareMinor / 100))
+        throw new HttpError(409, 'The selected ride, route or fare is no longer available. Start a new review.');
       onProgress?.('🚖 Dispatching driver via Ride Microservice...');
       const res = await executeRideRequest('POST', '/rides/book', {}, {
-        driverId: explicitSelection(payload.selectedChoice || payload.driverId, 'driver'),
-        pickup: '100 Market St',
-        dropoff: 'Downtown Restaurant',
+        driverId, pickup, dropoff, expectedFareMinor: fareMinor,
       });
 
       const booking = res.data.booking;
@@ -1015,7 +1027,8 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
         id: d.id,
         title: `${d.car}`,
         subtitle: `${d.name} • ${d.etaMinutes} mins away • ${d.rating} ★`,
-        price: `$${d.fare.toFixed(2)}`,
+        price: formatWalletAmount(d.fare),
+        metadata: { pickup: demoRidePickup, dropoff: demoRideDestination, fareMinor: toMinor(d.fare) },
         badge,
       };
     });
@@ -1045,6 +1058,8 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
               muted: true,
             },
           },
+          { type: 'Text', id: 'ride_pickup', properties: { text: `Pickup: ${demoRidePickup}` } },
+          { type: 'Text', id: 'ride_destination', properties: { text: `Destination: ${demoRideDestination}` } },
           {
             type: 'MapViewer',
             id: 'ride_overview_map',
