@@ -235,6 +235,11 @@ function handleFoodRequest(
 
   if (normMethod === 'POST' && (pathname === '/utilities/pay' || pathname === '/bill/pay')) {
     if (body.billId !== activeUtilityBill.billId) return { status: 404, data: { error: 'Utility bill not found' } };
+    if (body.expectedPayableRevision !== undefined) return invalidInput('Reviewed payable revisions require integrated provider mode');
+    if (activeUtilityBill.status !== 'UNPAID') return { status: 409, data: { error: 'Utility bill is already paid', code: 'ALREADY_PAID' } };
+    if (body.expectedAmountMinor !== undefined && body.expectedAmountMinor !== toMinor(activeUtilityBill.totalAmount)) {
+      return { status: 409, data: { error: 'The reviewed utility amount changed', code: 'PAYABLE_CHANGED' } };
+    }
     activeUtilityBill.status = 'PAID';
     activeUtilityBill.receiptNumber = `REC-DEWA-${Date.now()}`;
     activeUtilityBill.paidAt = new Date().toISOString();

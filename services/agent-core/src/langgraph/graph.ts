@@ -471,7 +471,7 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
       };
     } else if (action === 'pay_utilities_bill' || action === 'pay_dewa_bill') {
       onProgress?.('⚡ Settling DEWA electricity & water bill via DubaiPay...');
-      const res = await executeFoodRequest('POST', '/utilities/pay', {}, { billId: payload.billId,...(payload.expectedPayableRevision?{expectedPayableRevision:payload.expectedPayableRevision,expectedAmountMinor:payload.expectedAmountMinor}:{}) });
+      const res = await executeFoodRequest('POST', '/utilities/pay', {}, { billId: payload.billId,...(payload.expectedPayableRevision?{expectedPayableRevision:payload.expectedPayableRevision}:{}),...(payload.expectedAmountMinor!==undefined?{expectedAmountMinor:payload.expectedAmountMinor}:{}) });
       const rcpt = res.data.receipt;
 
       state.currentSurface = {
@@ -575,7 +575,7 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
         ...(review.billAmountMinor ? [{ agency: 'DEWA', purpose: 'Demo utility settlement', amount: fromMinor(review.billAmountMinor) }] : []),
         { agency: 'RTA Salik', purpose: 'Demo toll recharge', amount: 100 },
       ] });
-      if (review.billAmountMinor) await executeFoodRequest('POST', '/utilities/pay', {}, { billId: review.billId });
+      if (review.billAmountMinor) await executeFoodRequest('POST', '/utilities/pay', {}, { billId: review.billId, expectedAmountMinor: review.billAmountMinor });
       if (review.fines.length) await executeWalletRequest('POST', '/fines/pay', {}, { fineIds: review.fines.map(fine => fine.fineId), expectedAmountMinor: fineMinor });
       await executeRideRequest('POST', '/mobility/salik/recharge', {}, { amount: 100 });
 

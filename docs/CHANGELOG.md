@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Guard offline utility settlement terms (P1-13, step)
+
+The offline utility fixture refuses changed reviewed amounts, unsupported revisions and repeated settlement of an already-paid bill. Composite checkout passes its reviewed utility amount; a post-debit change stops the journey for reconciliation. Guide: [grouped checkout](development/checkout-groups.md).
+
 ## 2 November 2026 — Exercise offline composite failure outcomes (P1-13, step)
 
 Test an inconsistent wallet response after debit and a refused utility settlement after debit. Both stop later steps and fence the current session for reconciliation. Cross-session and durable recovery remain open. Guide: [grouped checkout](development/checkout-groups.md).

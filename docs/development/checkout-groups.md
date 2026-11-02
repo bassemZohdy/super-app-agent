@@ -12,6 +12,8 @@ Within one agent process, offline composite checkout and the agent's standalone 
 
 If the offline wallet response is inconsistent after debit, or the utility step refuses after that debit, the action stops and the current session requires reconciliation. These fixture tests do not establish a durable recovery record or a fence against replacement in another session; do not treat a fresh session as recovery of the original checkout.
 
+Offline utility settlement checks a supplied reviewed amount in fils before changing the bill, refuses provider revisions it cannot validate, and rejects already-paid bills without replacing their receipt. Composite checkout supplies its reviewed utility amount, so a change after its initial debit stops the later settlement as a partial outcome.
+
 ## Use the React demo
 
 1. Open **Payment accounts**, link the billers and save a synthetic card if desired.
