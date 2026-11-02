@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Preserve uncertain settlement claims (P1-02, step)
+
+The source settlement coordinator keeps uncertain or prior-effect errors fenced and returns generic text for confirmed refusals, avoiding provider text in saved attempts. Guide: [payment reconciliation](development/payment-reconciliation.md).
+
 ## 2 November 2026 — Constrain settlement identities (P1-02, step)
 
 The settlement transport rejects path-changing account, payment and attempt identifiers before obtaining credentials or dispatching, and validates returned claim identities. Guide: [payment reconciliation](development/payment-reconciliation.md).

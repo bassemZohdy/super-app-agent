@@ -139,3 +139,27 @@ test('legacy captures gain conservative unknown claims and backup without alteri
   const transport:ClaimTransport={call:async(account,id,action,body:any)=>action==='claim'?claims.claim(account,id,'dewa',body):action==='ack'?claims.acknowledge(account,id,'dewa',body):claims.release(account,id,'dewa',body)};
   const coordinator=new ProviderSettlements(source,'dewa',transport);assert.equal((await coordinator.inspect(actor,charge.id,charge)).state,'APPLIED');assert.equal(claims.get(actor.accountId,charge.id)!.state,'APPLIED');assert.throws(()=>claims.assertRefundable(actor.accountId,charge.id),code('SETTLEMENT_IN_USE'));assert.equal(ledger.summary(actor.accountId).balanceMinor,107960);
 });
+
+test('uncertain settlement errors keep the original claim fenced without exposing provider text', async t => {
+  for (const incoming of ['SETTLEMENT_STATUS_UNKNOWN', 'ALREADY_PAID', 'IDEMPOTENCY_CONFLICT', 'PRIVATE_MARKER']) {
+    const f = fixture(t);
+    await assert.rejects(f.coordinator.execute(f.actor, `request-${incoming}`, fp(incoming), f.charge, () => {
+      throw new ApiError(409, incoming, 'private-marker');
+    }), (error: unknown) => error instanceof SettlementError && error.code === 'SETTLEMENT_OUTCOME_UNKNOWN' && !error.message.includes('private-marker'));
+    assert.equal((await f.coordinator.inspect(f.actor, f.charge.id)).state, 'PENDING');
+    assert.equal(f.gateway.claims!.get(f.actor.accountId, f.charge.id)?.state, 'CLAIMED');
+    assert.throws(f.refund, code('SETTLEMENT_IN_USE'));
+    assert.doesNotMatch(JSON.stringify(f.source.db.prepare('SELECT body FROM provider_settlement_attempts').all()), /private-marker/i);
+  }
+});
+
+test('definitive settlement refusals do not persist or return provider error text', async t => {
+  const f = fixture(t);
+  const result = await f.coordinator.execute(f.actor, 'request-secret', fp('refused-secret'), f.charge, () => {
+    throw new ApiError(409, 'PAYABLE_CHANGED', 'private-marker');
+  });
+  assert.equal(result.data.code, 'PAYABLE_CHANGED');
+  assert.doesNotMatch(JSON.stringify(result), /private-marker/i);
+  assert.doesNotMatch(JSON.stringify(f.source.db.prepare('SELECT body FROM provider_settlement_attempts').all()), /private-marker/i);
+  assert.equal(f.gateway.claims!.get(f.actor.accountId, f.charge.id)?.state, 'RELEASED');
+});

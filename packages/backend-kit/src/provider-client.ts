@@ -1,4 +1,4 @@
-import { isUncertainOutcomeCode } from './outcome.ts';
+import { isPriorEffectCode, isUncertainOutcomeCode } from './outcome.ts';
 import { PROVIDER_REJECTION_CODES } from './provider-rejection-codes.ts';
 import { boundedJsonResponse } from './bounded-json.ts';
 import { tracedFetch as fetch } from './observability.ts';
@@ -11,8 +11,6 @@ export class UpstreamError extends Error {
   constructor(status: number, code: string, message: string) { super(message); this.status = status; this.code = code; }
 }
 const ports: Record<string, number> = PROVIDER_PORTS;
-// These refusals can refer to an earlier committed effect or an occupied operation identity.
-const PRIOR_EFFECT_CODES: ReadonlySet<string> = new Set(['ALREADY_APPLIED', 'ALREADY_CAPTURED', 'ALREADY_DECIDED', 'ALREADY_PAID', 'PAYMENT_ALREADY_USED', 'AUTOMATION_ALREADY_DISPATCHED', 'IDEMPOTENCY_CONFLICT']);
 export class ProviderClient {
   readonly credentials: ClientCredentials;
   constructor(clientId: string, secret: string) { this.credentials = new ClientCredentials(clientId, secret); }
@@ -66,7 +64,7 @@ export class ProviderClient {
     const unknownCode = isUncertainOutcomeCode(upstreamCode);
     const rejection = response.status >= 400 && response.status < 500 && response.status !== 408 &&
       data.success !== true && !unknownCode && (data.success === false || typeof data.error === 'string' && data.error.length > 0) &&
-      (method !== 'POST' || (data.success === false && PROVIDER_REJECTION_CODES.has(upstreamCode) && !PRIOR_EFFECT_CODES.has(upstreamCode)));
+      (method !== 'POST' || (data.success === false && PROVIDER_REJECTION_CODES.has(upstreamCode) && !isPriorEffectCode(upstreamCode)));
     if (!rejection) {
       const code = method === 'POST' ? 'PROVIDER_OUTCOME_UNKNOWN' : 'PROVIDER_UNAVAILABLE';
       record(503, code);
