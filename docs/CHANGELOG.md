@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 3 November 2026 - Verify repeated isolated runs (P2-06, step)
+
+The isolated environment lifecycle test starts the stack again in the same process and checks fresh Redis and provider state. Guide: [testing](development/testing.md).
+
 ## 3 November 2026 - Restore isolated environment settings (P2-06, step)
 
 Isolated test runs restore the process settings they changed after normal shutdown or failed startup, even if another cleanup operation fails. Guide: [testing](development/testing.md).
