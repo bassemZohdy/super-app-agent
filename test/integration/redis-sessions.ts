@@ -5,6 +5,25 @@ import { RedisSessionStore } from '../../services/agent-core/src/session-store.t
 import { accountIdFor } from '../../packages/backend-kit/src/context.ts';
 import { createA2UIMessage } from '../../packages/protocol-core/src/index.ts';
 
+test('concurrent Redis listeners receive events and can resubscribe after cleanup', { timeout: 15000 }, async t => {
+  const prefix = `cityside-stream-race:${randomUUID()}:`, url = process.env.TEST_REDIS_URL || 'redis://127.0.0.1:6379';
+  const store = new RedisSessionStore(url, 60, prefix), first = `redis_${randomUUID()}`, second = `redis_${randomUUID()}`;
+  t.after(async () => { await store.connect(); const keys = await store.client.keys(`${prefix}*`); if (keys.length) await store.client.del(keys); await store.close(); });
+  const received: number[] = [];
+  const offs = await Promise.all(Array.from({ length: 10 }, (_, index) => store.subscribe(index < 5 ? first : second, () => { received.push(index); })));
+  await store.publish(first, createA2UIMessage('A2UI_STREAM_DELTA', first, { text: 'first' }));
+  await store.publish(second, createA2UIMessage('A2UI_STREAM_DELTA', second, { text: 'second' }));
+  const deadline = Date.now() + 5000;
+  while (received.length < 10 && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 10));
+  assert.deepEqual(received.sort((a, b) => a - b), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  await Promise.all(offs.map(off => off()));
+  const off = await store.subscribe(first, () => { received.push(10); });
+  await store.publish(first, createA2UIMessage('A2UI_STREAM_DELTA', first, { text: 'again' }));
+  while (received.length < 11 && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(received.at(-1), 10);
+  await off();
+});
+
 test('Redis persists empty arrays, isolates owners/accounts, fences locks and replays across clients', async t => {
   const prefix=`cityside-test:${randomUUID()}:`, url=process.env.TEST_REDIS_URL || 'redis://127.0.0.1:6379';
   const a=new RedisSessionStore(url,60,prefix), b=new RedisSessionStore(url,60,prefix);

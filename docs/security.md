@@ -48,6 +48,8 @@ The shared browser event-stream client cancels rejected, oversized or interrupte
 
 The compatibility gateway admits at most five streams per session, 20 per authenticated resident and 1,000 per process. Slots are reserved before the asynchronous event subscription and released on closure, including when subscription completes after disconnect. These limits are process-local, not coordinated across replicas.
 
+Within each compatibility gateway process, Redis subscription changes are ordered so concurrent listeners wait for connection and unsubscribe completes before a replacement subscribes. Closing the store invalidates pending subscription work; a failed channel subscription can be retried.
+
 Focused React and Angular conversation creation and inspection accept at most 4 MiB of streamed JSON, including restored history and the service panel. They count bytes instead of trusting response headers, reject invalid UTF-8 and request cancellation without waiting for an uncooperative sender. A malformed or oversized result is reported as unavailable for inspection.
 
 The focused simulator and compatible planner bound JSON response size. On overflow, they request cancellation but do not wait for an uncooperative response stream to finish cancelling. A write remains unknown for original-operation recovery; a model failure releases its active concurrency slot.

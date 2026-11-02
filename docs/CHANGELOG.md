@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 3 November 2026 - Order Redis stream subscription changes (P0-02, step)
+
+Concurrent Redis listeners wait for connection and channel changes, and closed or failed subscriptions cannot leave stale listeners. Guide: [security](security.md).
+
 ## 3 November 2026 - Bound retained gateway stream admission (P0-02, step)
 
 The compatibility gateway reserves per-session, resident and process stream capacity before asynchronous subscription and releases it on disconnect. Guide: [security](security.md).

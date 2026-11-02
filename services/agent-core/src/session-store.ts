@@ -60,6 +60,8 @@ export class RedisSessionStore {
   private ready?: Promise<void>;
   private subscriber?: RedisClientType;
   private subscriptions = new Map<string, Set<(event: A2UIMessageEnvelope) => void>>();
+  private subscriptionWork: Promise<void> = Promise.resolve();
+  private subscriptionGeneration = 0;
   constructor(url: string, ttl = 3600, prefix = 'superapp:') {
     this.ttl = ttl; this.prefix = prefix;
     this.client = createClient({ url, socket: { connectTimeout: 3000, reconnectStrategy: false }, disableOfflineQueue: true });
@@ -474,19 +476,48 @@ export class RedisSessionStore {
     await this.connect(); const events = (await this.client.lRange(`${this.key(sid)}:events`, 0, -1)).map(raw => JSON.parse(raw) as A2UIMessageEnvelope);
     const index = events.findIndex(e => e.id === cursor); return index < 0 ? undefined : events.slice(index + 1);
   }
+  private serialSubscription<T>(operation: () => Promise<T>): Promise<T> {
+    const result = this.subscriptionWork.then(operation);
+    this.subscriptionWork = result.then(() => {}, () => {});
+    return result;
+  }
   async subscribe(sid: string, callback: (event: A2UIMessageEnvelope) => void) {
-    await this.connect();
-    if (!this.subscriber) { this.subscriber = this.client.duplicate({ socket: { connectTimeout: 3000, reconnectStrategy: retries => Math.min(1000, 100 * retries) } }); this.subscriber.on('error', () => {}); await this.subscriber.connect(); }
-    let callbacks = this.subscriptions.get(sid);
-    if (!callbacks) {
-      callbacks = new Set(); this.subscriptions.set(sid, callbacks);
-      await this.subscriber.subscribe(`${this.key(sid)}:channel`, raw => { try { const event = JSON.parse(raw); for (const fn of this.subscriptions.get(sid) || []) fn(event); } catch {} });
-    }
-    callbacks.add(callback);
-    return async () => { if (this.subscriptions.get(sid) !== callbacks) return; callbacks!.delete(callback); if (!callbacks!.size) { this.subscriptions.delete(sid); await this.subscriber?.unsubscribe(`${this.key(sid)}:channel`); } };
+    const generation = this.subscriptionGeneration;
+    const ensureCurrent = () => { if (generation !== this.subscriptionGeneration) throw new Error('Session subscription was closed'); };
+    return this.serialSubscription(async () => {
+      ensureCurrent();
+      await this.connect(); ensureCurrent();
+      if (!this.subscriber) {
+        const subscriber = this.client.duplicate({ socket: { connectTimeout: 3000, reconnectStrategy: retries => Math.min(1000, 100 * retries) } });
+        this.subscriber = subscriber; subscriber.on('error', () => {});
+        try { await subscriber.connect(); ensureCurrent(); }
+        catch (error) {
+          if (this.subscriber === subscriber) this.subscriber = undefined;
+          try { if (subscriber.isOpen) subscriber.destroy(); } catch { /* Preserve the subscription failure. */ }
+          throw error;
+        }
+      }
+      let callbacks = this.subscriptions.get(sid);
+      if (!callbacks) {
+        callbacks = new Set(); this.subscriptions.set(sid, callbacks);
+        try {
+          await this.subscriber.subscribe(`${this.key(sid)}:channel`, raw => { try { const event = JSON.parse(raw); for (const fn of this.subscriptions.get(sid) || []) fn(event); } catch {} });
+          ensureCurrent();
+        } catch (error) { if (this.subscriptions.get(sid) === callbacks) this.subscriptions.delete(sid); throw error; }
+      }
+      callbacks.add(callback);
+      const owned = callbacks;
+      return () => this.serialSubscription(async () => {
+        if (generation !== this.subscriptionGeneration || this.subscriptions.get(sid) !== owned) return;
+        owned.delete(callback);
+        if (!owned.size) { this.subscriptions.delete(sid); await this.subscriber?.unsubscribe(`${this.key(sid)}:channel`); }
+      });
+    });
   }
   async close() {
     const subscriber = this.subscriber;
+    this.subscriptionGeneration++;
+    this.subscriptionWork = Promise.resolve();
     this.subscriber = undefined; this.subscriptions.clear();
     await closeRedisConnections([subscriber, this.client]);
   }
