@@ -149,7 +149,7 @@ route('service-ride', 'GET', '/mobility/salik/passings', object(), ['/salik/pass
 route('service-ride', 'GET', '/mobility/ev/chargers', object(), ['/ev/chargers'], 'mobility_getEVChargers');
 route('service-ride', 'POST', '/mobility/ev/start', object({ chargerId: id, plateNumber: text(128) }, ['chargerId', 'plateNumber']), ['/ev/start'], 'mobility_startEVSession');
 route('service-food', 'GET', '/restaurants/search', object({ query: text() }), [], 'food_searchRestaurants');
-route('service-food', 'POST', '/orders/create', object({ restaurantId: id, items: list(id), deliveryAddress: { ...text(), description: 'Required for a new integrated order; an exact retry of an older order may omit it.' }, expectedAmountMinor: { type: 'integer', minimum: 1, maximum: 100000000 }, expectedItemPriceMinor: { type: 'integer', minimum: 1, maximum: 100000000 }, expectedDeliveryFeeMinor: { type: 'integer', minimum: 0, maximum: 100000000 } }, ['restaurantId', 'items']), [], 'food_createOrder');
+route('service-food', 'POST', '/orders/create', object({ restaurantId: id, items: list(id), deliveryAddress: { ...text(), description: 'Required for a new order; an exact retry of an older integrated order may omit it.' }, expectedAmountMinor: { type: 'integer', minimum: 1, maximum: 100000000 }, expectedItemPriceMinor: { type: 'integer', minimum: 1, maximum: 100000000 }, expectedDeliveryFeeMinor: { type: 'integer', minimum: 0, maximum: 100000000 } }, ['restaurantId', 'items']), [], 'food_createOrder');
 route('service-food', 'GET', '/orders/track/{orderId}', object({ orderId: id }, ['orderId']), [], 'food_trackOrder');
 route('service-food', 'GET', '/orders/operations/{operationId}', object({ operationId: { type: 'string', minLength: 1, maxLength: 200, pattern: '^[A-Za-z0-9_.:-]+$' } }, ['operationId']));
 route('service-food', 'GET', '/utilities/consumption', object(), ['/consumption'], 'utilities_getConsumption');
@@ -255,7 +255,10 @@ export function requestSchema(owner: string, method: string, path: string): Sche
   return found.schema;
 }
 export function toolSchema(owner: string, tool: string): Schema | undefined {
-  return routes.find(route => route.owner === owner && route.tool === tool)?.schema;
+  const schema = routes.find(route => route.owner === owner && route.tool === tool)?.schema;
+  // Tool calls start new orders; the HTTP route also serves exact retries of legacy addressless orders.
+  if (schema && owner === 'service-food' && tool === 'food_createOrder') return { ...schema, required: [...schema.required, 'deliveryAddress'] };
+  return schema;
 }
 export function validateRequest(owner: string, method: string, path: string, query: unknown, body: unknown): ApiResult | undefined {
   if (!jsonShape(body) || !jsonShape(query) || !body || !query || Array.isArray(body) || Array.isArray(query) ||

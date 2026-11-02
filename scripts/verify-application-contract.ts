@@ -125,7 +125,7 @@ if (WRITES) {
   check('/housing/move-in', await call('service-catalog', 'POST', '/housing/move-in', { contractNumber: ejari.data.contract?.contractNumber }));
   const restaurants = await call('service-food', 'GET', '/restaurants/search');
   const restaurant = restaurants.data.restaurants?.[0];
-  check('/orders/create', await call('service-food', 'POST', '/orders/create', { restaurantId: restaurant?.id, items: [restaurant?.items?.[0]?.id] }));
+  check('/orders/create', await call('service-food', 'POST', '/orders/create', { restaurantId: restaurant?.id, items: [restaurant?.items?.[0]?.id], deliveryAddress: 'Test delivery address' }));
   const bill = await call('service-food', 'GET', '/utilities/bill');
   check('/utilities/pay', await call('service-food', 'POST', '/utilities/pay', { billId: bill.data.bill?.billId, expectedPayableRevision: bill.data.bill?.payableRevision }));
   const fines = await call('service-wallet', 'GET', '/fines/check');

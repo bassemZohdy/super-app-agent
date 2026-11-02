@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 3 November 2026 - Require offline food delivery addresses (P1-13, step)
+
+The offline food service refuses addressless new orders, and its advertised food-order tool requires a destination. Guide: [agent flow](agent-flow.md).
+
 ## 3 November 2026 - Require a delivery address for new integrated orders (P1-13, step)
 
 New integrated food orders require an explicit destination; exact retries of earlier addressless orders retain their original receipt. Guide: [agent flow](agent-flow.md).

@@ -295,7 +295,7 @@
   {
     "id": "dining.order.create",
     "name": "food_createOrder",
-    "version": "2.0.0",
+    "version": "3.0.0",
     "owner": "service-food",
     "description": "food createOrder (simulated domain contract)",
     "availability": "simulation-only",
@@ -355,7 +355,8 @@
       "restaurantId": "rest_1",
       "items": [
         "item_diavola"
-      ]
+      ],
+      "deliveryAddress": "Test delivery address"
     }
   },
   {

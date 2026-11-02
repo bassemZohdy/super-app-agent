@@ -67,6 +67,9 @@ test('all capability JSON Schemas compile and accept the corresponding simulator
     assert.equal(validateInput({ ...capability.exampleInput, undeclaredField: 'unsafe' }), false);
   }
   const pay = capabilities.find(c => c.id === 'citizenpay.wallet.pay')!;
+  const food = capabilities.find(c => c.id === 'dining.order.create')!;
+  assert.equal(food.version, '3.0.0');
+  assert.equal(ajv.compile(food.inputSchema)({ restaurantId: 'rest_1', items: ['item_diavola'] }), false, 'new food orders require a delivery address');
   const validate = ajv.compile(pay.inputSchema);
   assert.equal(validate({ amount: -1, purpose: 'invalid' }), false);
   assert.equal(validate({ amount: 1 }), false);

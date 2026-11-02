@@ -331,6 +331,7 @@ function handleFoodRequest(
     if (body.expectedItemPriceMinor !== undefined && (orderItems.length !== 1 || body.expectedItemPriceMinor !== toMinor(orderItems[0].item.price)) || body.expectedDeliveryFeeMinor !== undefined && body.expectedDeliveryFeeMinor !== toMinor(targetRestaurant.deliveryFee)) return { status: 409, data: { error: 'Order price changed', code: 'PRICE_CHANGED' } };
     if (body.expectedAmountMinor !== undefined && body.expectedAmountMinor !== totalMinor) return { status: 409, data: { error: 'Order price changed', code: 'PRICE_CHANGED' } };
     if (totalMinor > MAX_MONEY * 100) return invalidInput('Order total exceeds demo limit');
+    if (typeof body.deliveryAddress !== 'string' || !body.deliveryAddress.trim()) return invalidInput('A delivery address is required for a new food order');
     const orderId = `ord_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
 
     const order: FoodOrder = {
@@ -339,7 +340,7 @@ function handleFoodRequest(
       restaurantName: targetRestaurant.name,
       items: orderItems,
       totalAmount: fromMinor(totalMinor),
-      deliveryAddress: body.deliveryAddress || '100 Market St, Apt 4B',
+      deliveryAddress: body.deliveryAddress,
       status: 'ACCEPTED_BY_KITCHEN',
       estimatedDeliveryTime: '25 mins',
       createdAt: Date.now(),

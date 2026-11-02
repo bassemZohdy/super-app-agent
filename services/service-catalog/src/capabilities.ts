@@ -1,4 +1,4 @@
-import { requestSchema } from '../../../packages/protocol-core/src/request-validation.ts';
+import { requestSchema, toolSchema } from '../../../packages/protocol-core/src/request-validation.ts';
 import definitions from './capabilities.json' with { type: 'json' };
 
 export interface Capability {
@@ -19,5 +19,5 @@ export interface Capability {
 
 // Metadata is a contract for future adapters, not permission to execute a tool.
 export const capabilities: Capability[] = (definitions as Omit<Capability, 'inputSchema'>[]).map(definition => ({
-  ...definition, inputSchema: requestSchema(definition.owner, definition.execution.method, definition.execution.path),
+  ...definition, inputSchema: toolSchema(definition.owner, definition.name) || requestSchema(definition.owner, definition.execution.method, definition.execution.path),
 }));

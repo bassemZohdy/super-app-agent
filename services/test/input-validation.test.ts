@@ -153,7 +153,8 @@ test('P0-09: real HTTP handlers reject invalid JSON bodies, nested inputs and co
     await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
     t.after(async () => { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); });
     const url = `http://127.0.0.1:${(server.address() as any).port}${path}`;
-    for (const input of [body, null]) {
+    const inputs = server === foodServer ? [body, null, { restaurantId: 'rest_1', items: ['item_diavola'] }] : [body, null];
+    for (const input of inputs) {
       const before = snapshot();
       const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
       assert.equal(response.status, 400);

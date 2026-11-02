@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { executeRideRequest } from '../service-ride/src/index.ts';
-import { executeFoodRequest } from '../service-food/src/index.ts';
+import { activeOrders, executeFoodRequest } from '../service-food/src/index.ts';
 import { executeWalletRequest } from '../service-wallet/src/index.ts';
 import { executeCatalogRequest } from '../service-catalog/src/index.ts';
 
@@ -47,9 +47,14 @@ test('service-food: health, restaurant search, create order and tracking', () =>
   assert.ok(search.data.restaurants.length > 0);
 
   const rest = search.data.restaurants[0];
+  const before = activeOrders.size;
+  const missingAddress = executeFoodRequest('POST', '/orders/create', {}, { restaurantId: rest.id, items: [rest.items[0].id] });
+  assert.strictEqual(missingAddress.status, 400);
+  assert.strictEqual(activeOrders.size, before, 'an addressless order must not be created');
   const order = executeFoodRequest('POST', '/orders/create', {}, {
     restaurantId: rest.id,
     items: [rest.items[0].id],
+    deliveryAddress: 'Test delivery address',
   });
   assert.strictEqual(order.status, 200);
   assert.strictEqual(order.data.success, true);
@@ -63,6 +68,8 @@ test('service-food: health, restaurant search, create order and tracking', () =>
   const mcp = executeFoodRequest('GET', '/mcp');
   assert.strictEqual(mcp.status, 200);
   assert.ok(mcp.data.tools.some((t: any) => t.name === 'food_searchRestaurants'));
+  const createTool = mcp.data.tools.find((tool: { name: string }) => tool.name === 'food_createOrder');
+  assert.ok(createTool.parameters.required.includes('deliveryAddress'));
 });
 
 test('service-wallet: health, balance, payment and topup', () => {
