@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Replay an unhandled Flutter stream event (P1-12, step)
+
+The Flutter live-update client now advances its resume cursor after its envelope handler returns successfully. If that handler throws, reconnection resumes after the preceding handled event and retries the failed event before later ones. Unreadable and foreign events still advance the cursor when skipped. A regression test exercises the failure and ordered replay. Guide: [testing](testing.md).
+
 ## 2 November 2026 — Type browser verification token responses (P2-05, step)
 
 The browser verification scripts now describe the `access_token` field they read from identity responses instead of casting those responses to `any`. This narrows the static type without changing the request or adding runtime validation. Guide: [testing](development/testing.md).

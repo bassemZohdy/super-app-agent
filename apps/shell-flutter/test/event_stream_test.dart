@@ -136,4 +136,48 @@ void main() {
       reason: 'a bad event does not make the stream replay it forever',
     );
   });
+
+  test('a handler failure replays the unhandled event after reconnect', () async {
+    final resumedFrom = <String?>[];
+    final attempts = <int>[];
+    late CitizenEventStream stream;
+    var failed = false;
+    final client = MockClient((request) async {
+      final from = request.headers['Last-Event-ID'];
+      resumedFrom.add(from);
+      final body = StringBuffer();
+      for (var id = 1; id <= 3; id++) {
+        if (from == null || id > int.parse(from)) {
+          body.write('id: $id\ndata: {"sessionId":"session1","n":$id}\n\n');
+        }
+      }
+      return http.Response(
+        body.toString(),
+        200,
+        headers: {'content-type': 'text/event-stream'},
+      );
+    });
+    stream = CitizenEventStream(
+      url: Uri.parse('http://localhost/stream'),
+      sessionId: 'session1',
+      authorization: () async => 'Bearer token',
+      onStatus: (_) {},
+      onAuthRequired: () => fail('Unexpected auth rejection'),
+      onEnvelope: (envelope) {
+        final n = envelope['n'] as int;
+        attempts.add(n);
+        if (n == 2 && !failed) {
+          failed = true;
+          throw StateError('handler failed');
+        }
+        if (n == 3) stream.close();
+      },
+    );
+    await http.runWithClient(
+      () => stream.run().timeout(const Duration(seconds: 8)),
+      () => client,
+    );
+    expect(resumedFrom, [null, '1']);
+    expect(attempts, [1, 2, 2, 3]);
+  });
 }

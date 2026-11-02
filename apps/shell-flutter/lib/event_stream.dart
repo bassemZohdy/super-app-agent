@@ -104,8 +104,8 @@ class CitizenEventStream {
               if (frame.id != null) _cursor = frame.id;
               continue;
             }
-            if (frame.id != null) _cursor = frame.id;
             onEnvelope(frame.envelope);
+            if (frame.id != null) _cursor = frame.id;
           }
         }
       } catch (_) {
