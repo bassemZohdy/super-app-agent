@@ -87,6 +87,27 @@ test('P0-12: effect applied then exception yields UNKNOWN; no later effect or un
   assert.equal(balance, Math.round((before - 40) * 100) / 100);
 });
 
+test('P1-02: an uncertain 409 after a wallet effect blocks later effects and a replacement', async t => {
+  ensureFunds();
+  const sid = 'failure_uncertain_409_session';
+  assert.equal((await intent(sid)).status, 200);
+  const realWallet = domainHandlers.wallet;
+  t.mock.method(domainHandlers, 'wallet', (method, path, query, body) => {
+    const result = realWallet(method, path, query, body);
+    return method === 'POST' ? { status: 409, data: { code: 'PROVIDER_OUTCOME_UNKNOWN', error: 'outcome not confirmed' } } : result;
+  });
+  const before = balance, rides = activeRides.size, orders = activeOrders.size;
+  const result = await action(sid);
+  assert.equal(result.data.outcome, 'UNKNOWN');
+  assert.equal(result.data.steps[0].state, 'UNKNOWN');
+  assert.deepEqual(result.data.retry, { allowed: false, next: 'reconcile' });
+  assert.equal(balance, Math.round((before - 40) * 100) / 100);
+  assert.equal(activeRides.size, rides);
+  assert.equal(activeOrders.size, orders);
+  assert.equal((await action(sid)).data.code, 'RECONCILIATION_REQUIRED');
+  assert.equal(balance, Math.round((before - 40) * 100) / 100);
+});
+
 test('P0-12: unavailable read rejects the intent without fabricated surface or upstream details', async t => {
   t.mock.method(domainHandlers, 'profile', () => ({ status: 503, data: { error: 'private database connection string' } }));
   const result = await intent('failure_unavailable_session');

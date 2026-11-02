@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Preserve uncertain domain mutation outcomes (P1-02, step)
+
+The local and authenticated HTTP domain adapters now treat mutation timeouts, unknown-outcome codes, contradictory success claims and responses without an explicit rejection as unknown rather than definitive failures. Confirmed rejections still fail normally. HTTP success also refuses a response containing an error field, matching the local adapter. Tests exercise both transports and show that an uncertain response after a wallet effect stops the composite and blocks replacement. This does not provide durable reconciliation or production provider guarantees. Guide: [testing](testing.md).
+
 ## 2 November 2026 — Replay an unhandled Flutter stream event (P1-12, step)
 
 The Flutter live-update client now advances its resume cursor after its envelope handler returns successfully. If that handler throws, reconnection resumes after the preceding handled event and retries the failed event before later ones. Unreadable and foreign events still advance the cursor when skipped. A regression test exercises the failure and ordered replay. Guide: [testing](testing.md).

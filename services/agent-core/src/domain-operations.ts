@@ -35,6 +35,17 @@ export class DomainOperationError extends Error {
 const record = (value: any) => value && typeof value === 'object' && !Array.isArray(value);
 const named = (value: any) => typeof value === 'string' && value.length > 0;
 const finite = (value: any) => typeof value === 'number' && Number.isFinite(value);
+// A mutation is only a definite rejection when the response actually says so. A timeout, an explicitly unknown outcome,
+// contradictory success, or an empty/malformed body cannot prove that the provider did not apply the effect.
+function definiteRejection(status: number, data: unknown, mutation: boolean): boolean {
+  if (status < 400 || status >= 500) return false;
+  if (!mutation) return true;
+  if (status === 408 || !data || typeof data !== 'object' || Array.isArray(data)) return false;
+  const payload = data as Record<string, unknown>;
+  if (payload.success === true) return false;
+  if (typeof payload.code === 'string' && (payload.code === 'OUTCOME_UNKNOWN' || payload.code.endsWith('_OUTCOME_UNKNOWN'))) return false;
+  return payload.success === false || named(payload.error);
+}
 function confirmedReceipt(service: string, path: string, data: any): boolean {
   if (service === 'wallet') {
     if (path === '/wallet/pay') return record(data.transaction) && named(data.transaction.id) && finite(data.remainingBalance);
@@ -74,7 +85,7 @@ export function callDomain(service: keyof typeof domainHandlers, method: string,
     if (step) step.state = 'SUCCEEDED';
     return result;
   }
-  const rejected = valid && result.status >= 400 && result.status < 500;
+  const rejected = valid && definiteRejection(result.status, result.data, mutation);
   if (step) step.state = rejected ? 'FAILED' : 'UNKNOWN';
   const code = rejected ? (['VALIDATION_ERROR', 'PROFILE_REVISION_CHANGED'].includes(result.data.code) ? result.data.code : 'DOMAIN_REJECTED')
     : mutation ? 'DOMAIN_OUTCOME_UNKNOWN' : 'DOMAIN_UNAVAILABLE';
@@ -114,10 +125,10 @@ async function callDomainRequest(service: keyof typeof domainHandlers | 'telecom
     if (step) step.state = 'UNKNOWN';
     throw new DomainOperationError(503, mutation ? 'DOMAIN_OUTCOME_UNKNOWN' : 'DOMAIN_UNAVAILABLE', service);
   }
-  const succeeded = result.status >= 200 && result.status < 300 && result.data?.success === true && !result.data.error &&
+  const succeeded = result.status >= 200 && result.status < 300 && result.data?.success === true && !Object.hasOwn(result.data, 'error') &&
     (!mutation || confirmedReceipt(service, path, result.data));
   if (succeeded) { if (step) step.state = 'SUCCEEDED'; return result; }
-  const rejected = result.status >= 400 && result.status < 500 && result.data?.code !== 'PROVIDER_OUTCOME_UNKNOWN';
+  const rejected = definiteRejection(result.status, result.data, mutation);
   if (step) step.state = rejected ? 'FAILED' : 'UNKNOWN';
   throw new DomainOperationError(rejected ? result.status : 503, rejected ? (result.data?.code === 'PROFILE_REVISION_CHANGED' ? 'PROFILE_REVISION_CHANGED' : 'DOMAIN_REJECTED') : mutation ? 'DOMAIN_OUTCOME_UNKNOWN' : 'DOMAIN_UNAVAILABLE', service);
 }
