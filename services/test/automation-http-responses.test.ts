@@ -25,6 +25,7 @@ test('automation HTTP errors remain sanitized and uncertain credential results a
   const gateway = new HttpExecutionGateway({ runId, paymentsUrl: 'http://127.0.0.1/', brokerUrl: 'http://127.0.0.1/', clientSecret: 'fixture-secret' });
   const rule = { mandateId: 'mandate_1', policyVersion: 1, occurrenceKey: 'occ_1', target: 'dewa:home' };
   for (const example of [
+    ...[408, 429].map(status => ({ status, body: { success: false, code: 'PERMIT_MANDATE_INACTIVE' } })),
     { status: 403, body: { success: false, code: 'PRIVATE_TOKEN_MARKER', error: 'private-token-marker' } },
     { status: 403, body: { success: false, code: 'PERMIT_MANDATE_INACTIVE', accessToken: 'fixture-execution-token', expiresAt: Date.now() + 60000 } },
     { status: 200, body: { success: true, code: 'PERMIT_MANDATE_INACTIVE', accessToken: 'fixture-execution-token', expiresAt: Date.now() + 60000 } },

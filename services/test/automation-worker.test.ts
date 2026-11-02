@@ -409,3 +409,33 @@ test('competing stores cannot claim two versions of the same occurrence', () => 
     assert.equal(b.get(duplicate.id)?.reason, 'DUPLICATE_OCCURRENCE');
   } finally { a.close(); b.close(); cleanup(dir); }
 });
+
+
+test('later credential or execution refusals cannot erase an earlier uncertain response', async () => {
+  for (const status of [undefined, 408, 429, 503]) {
+    for (const step of ['credential', 'execute'] as const) {
+      const store = new JobStore(':memory:');
+      let attempts = 0, executions = 0;
+      const base = gateway();
+      const g: ExecutionGateway = { ...base.g,
+        credential: async (...args) => {
+          if (step === 'credential' && ++attempts <= 2) throw attempts === 1 ? fail(status, 'LOST') : fail(403, 'PERMIT_MANDATE_INACTIVE');
+          return base.g.credential(...args);
+        },
+        execute: async (...args) => {
+          executions++;
+          if (step === 'execute' && ++attempts <= 2) throw attempts === 1 ? fail(status, 'LOST') : fail(409, 'AUTOMATION_ALREADY_DISPATCHED');
+          return base.g.execute(...args);
+        },
+      };
+      try {
+        const job = store.enqueue(rule), result = await worker(store, g).runOnce();
+        assert.equal(result?.state, 'HELD', `${step} ${status}`);
+        assert.equal(result?.reason, step === 'credential' ? 'CREDENTIAL_UNKNOWN' : 'OUTCOME_UNKNOWN');
+        assert.equal(executions, step === 'credential' ? 0 : 2);
+        assert.equal(await worker(store, g).runOnce(), undefined);
+        assert.doesNotMatch(JSON.stringify([store.get(job.id), store.outbox(job.id), store.attempts(job.id)]), /secret-bearer-do-not-store/);
+      } finally { store.close(); }
+    }
+  }
+});

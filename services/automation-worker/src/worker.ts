@@ -32,7 +32,7 @@ export const REVIEW_SKIP_REASONS: ReadonlySet<string> = new Set(['FINE_TYPE_NOT_
 /** Only known provider reason codes may enter durable job history. Unknown codes require reconciliation. */
 const SKIP_REASONS: ReadonlySet<string> = new Set([...REVIEW_SKIP_REASONS, 'AUTHORITY_CHANGED', 'BALANCE_ABOVE_THRESHOLD', 'CAPABILITY_REVIEW_REQUIRED', 'DENOMINATION_UNAVAILABLE', 'DURATION_LIMIT', 'EXTENSION_CHANGED', 'EXTENSION_IN_PROGRESS', 'EXTENSION_INTENT_CONFLICT', 'EXTENSION_INVALID', 'EXTENSION_SESSION_CHANGED', 'FINE_NOT_FOUND', 'FINE_NOT_PAYABLE', 'INVALID_RECHARGE_TARGET', 'MANDATE_NOT_ACTIVE', 'MANDATE_WINDOW_CLOSED', 'NO_DUE_INVOICE', 'NOTHING_TO_RELOAD', 'OPERATOR_SKIP_NEXT', 'OVER_LIFETIME_BUDGET', 'OVER_PERIOD_BUDGET', 'PAYABLE_CHANGED', 'PAYABLE_NOT_FOUND', 'RECHARGE_BALANCE_LIMIT', 'RECHARGE_DENOMINATION', 'RECHARGE_HISTORY_LIMIT', 'RECHARGE_INTENT_CONFLICT', 'RECHARGE_INTENT_NOT_FOUND', 'RECHARGE_TARGET_CHANGED', 'RECHARGE_TARGET_NOT_FOUND', 'RENEWAL_PERIOD_INVALID', 'RENEWAL_ALREADY_PAID', 'RENEWAL_NOT_PAYABLE', 'SESSION_CHANGED', 'SESSION_ENDED', 'SESSION_EXPIRED', 'SESSION_MISMATCH', 'SESSION_NOT_ENDING', 'SESSION_NOT_FOUND', 'SOURCE_CHANGED', 'SOURCE_EXPIRED', 'SOURCE_NOT_A_CARD', 'TARGET_UNAVAILABLE', 'VERSION_LIMIT', 'WALLET_BALANCE_LIMIT', 'WOULD_EXCEED_TARGET_BALANCE', 'ZONE_TARIFF_UNAVAILABLE']);
 const FAILURE_REASONS: ReadonlySet<string> = new Set([...OWNER_ACTION_CODES, 'APPROVAL_EXPIRED', 'AUTHORIZATION_EXPIRED', 'AUTOMATION_RELEASED', 'CAPTURE_REJECTED', 'CHALLENGE_REJECTED', 'PAYMENT_DECLINED']);
-const transient = (e: unknown) => { const status = (e as GatewayFailure).status; return status === undefined || status >= 500; };
+const transient = (e: unknown) => { const status = (e as GatewayFailure).status; return status === undefined || status === 408 || status === 429 || status >= 500; };
 const codeOf = (e: unknown) => String((e as GatewayFailure).code || 'REJECTED').slice(0, 80);
 
 export class AutomationWorker {
@@ -151,6 +151,7 @@ export class AutomationWorker {
     const { store } = this;
     // Persisted before the request: a crash after this point is a held job, never a second credential.
     store.transition(claim, 'CREDENTIALING', {}, undefined, this.now());
+    let uncertain = false;
     for (let attempt = 1; attempt <= this.opts.stepRetries; attempt++) {
       store.renew(claim, this.opts.leaseMs, this.now());
       store.begin(claim, 'credential', this.now());
@@ -161,7 +162,12 @@ export class AutomationWorker {
       } catch (e) {
         const code = codeOf(e);
         if (!transient(e) && code !== 'PERMIT_ALREADY_ISSUED') {
-          // Definitive: authority said no, so no credential exists.
+          if (uncertain) {
+            store.outcome(claim, 'refused_after_uncertainty');
+            store.transition(claim, 'HELD', { reason: 'CREDENTIAL_UNKNOWN' }, { kind: 'HELD', body: { reason: 'CREDENTIAL_UNKNOWN', executionId } }, this.now());
+            return undefined;
+          }
+          // A first, definitive refusal establishes that this attempt issued no credential.
           store.outcome(claim, `refused:${code}`);
           store.transition(claim, 'FAILED', { reason: code }, { kind: 'FAILED', body: { reason: code } }, this.now());
           return undefined;
@@ -171,6 +177,7 @@ export class AutomationWorker {
           store.transition(claim, 'HELD', { reason: 'CREDENTIAL_ALREADY_ISSUED' }, { kind: 'HELD', body: { reason: 'CREDENTIAL_ALREADY_ISSUED', executionId } }, this.now());
           return undefined;
         }
+        uncertain = true;
         store.outcome(claim, 'unavailable');
         if (attempt < this.opts.stepRetries) await this.opts.sleep(this.opts.retryDelayMs * attempt);
       }
@@ -215,7 +222,7 @@ export class AutomationWorker {
       return;
     }
     store.transition(claim, 'EXECUTING', {}, event, this.now());
-    let last = 'OUTCOME_UNKNOWN';
+    let last = 'OUTCOME_UNKNOWN', uncertain = false;
     for (let attempt = 1; attempt <= this.opts.stepRetries; attempt++) {
       // The same credential is the only thing ever retried, and only while it is alive.
       if (this.now() >= credential.expiresAt - 5000) break;
@@ -243,11 +250,15 @@ export class AutomationWorker {
         return;
       } catch (e) {
         const code = codeOf(e);
-        last = transient(e) ? 'OUTCOME_UNKNOWN' : code;
+        if (transient(e)) uncertain = true;
+        last = uncertain ? 'OUTCOME_UNKNOWN' : code;
         store.outcome(claim, `error:${code}`);
         if (['AUTOMATION_ADMISSION_REJECTED', 'AUTOMATION_ALREADY_DISPATCHED', 'AUTOMATION_EXECUTION_RELEASED', 'AUTOMATION_OWNER_MISMATCH'].includes(code)) {
-          // The provider decided before any funds moved, and it released the reservation itself.
-          store.transition(claim, 'FAILED', { reason: code }, { kind: 'FAILED', body: { reason: code } }, this.now());
+          if (uncertain) {
+            store.transition(claim, 'HELD', { reason: 'OUTCOME_UNKNOWN' }, { kind: 'HELD', body: { reason: 'OUTCOME_UNKNOWN', executionId } }, this.now());
+          } else {
+            store.transition(claim, 'FAILED', { reason: code }, { kind: 'FAILED', body: { reason: code } }, this.now());
+          }
           return;
         }
         if (attempt < this.opts.stepRetries) await this.opts.sleep(this.opts.retryDelayMs * attempt);

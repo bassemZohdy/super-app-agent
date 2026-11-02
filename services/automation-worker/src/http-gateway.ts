@@ -48,7 +48,7 @@ export class HttpExecutionGateway implements ExecutionGateway {
     const data = bodyData as Record<string, unknown>;
     if (!response.ok || data.success !== true || Object.hasOwn(data, 'error') || Object.hasOwn(data, 'code')) {
       const contradictory = hasEffectEvidence(data) || ['accessToken', 'expiresAt', 'id', 'orderId', 'runId', 'state', 'amountMinor'].some(key => Object.hasOwn(data, key));
-      if (response.status >= 400 && response.status < 500 && data.success === false && !contradictory && typeof data.code === 'string' && REFUSALS.has(data.code)) throw failure(response.status, data.code, 'The automation request was refused.');
+      if (response.status >= 400 && response.status < 500 && response.status !== 408 && response.status !== 429 && data.success === false && !contradictory && typeof data.code === 'string' && REFUSALS.has(data.code)) throw failure(response.status, data.code, 'The automation request was refused.');
       throw failure(502, 'AUTOMATION_RESPONSE_UNCERTAIN', 'The automation response could not be confirmed.');
     }
     return data;
