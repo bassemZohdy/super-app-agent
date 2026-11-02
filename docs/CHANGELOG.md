@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Preserve effects across controlled gateway errors (P1-02, step)
+
+When a controlled request, eligibility or session error follows a tracked effect, report the partial or unknown outcome and fence the current session for reconciliation. Tests inject these errors after local simulated effects; real distributed lease-loss recovery remains open. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Validate grouped-payment response totals (P1-02, step)
 
 The compatibility domain adapter checks grouped-payment responses against requested item amounts in integer fils for both route aliases and both transports. Malformed balances and mismatched or imprecise totals remain unknown after dispatch. Guide: [integrations](integrations.md).

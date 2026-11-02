@@ -355,11 +355,11 @@ export async function executeGatewayRequest(method: string, pathname: string,
     return result.data.success === true ? { ...result, data: { ...result.data, outcome: 'SUCCEEDED', steps } } : result;
   }
   catch (error) {
-    if(error instanceof EligibilityReadError)return {status:[403,409].includes(error.status)?error.status:503,data:{success:false,code:'ELIGIBILITY_DENIED',error:'Current owner or workspace membership prevents access. History is retained.'}};
-    if (error instanceof SessionError) return { status: error.status, data: { success: false, code: error.code, error: error.message } };
-    // A deliberately raised HttpError is our own controlled user-facing rejection, not an upstream detail.
-    if (error instanceof HttpError) return { status: error.status, data: { success: false, code: 'REQUEST_REJECTED', error: error.message } };
     const outcome = executionOutcome(steps);
+    if(outcome === 'FAILED' && error instanceof EligibilityReadError)return {status:[403,409].includes(error.status)?error.status:503,data:{success:false,code:'ELIGIBILITY_DENIED',error:'Current owner or workspace membership prevents access. History is retained.'}};
+    if (outcome === 'FAILED' && error instanceof SessionError) return { status: error.status, data: { success: false, code: error.code, error: error.message } };
+    // A deliberately raised HttpError is our own controlled user-facing rejection, not an upstream detail.
+    if (outcome === 'FAILED' && error instanceof HttpError) return { status: error.status, data: { success: false, code: 'REQUEST_REJECTED', error: error.message } };
     const domainError = error instanceof DomainOperationError;
     const code = outcome === 'UNKNOWN' ? 'DOMAIN_OUTCOME_UNKNOWN'
       : outcome === 'PARTIALLY_COMPLETED' ? 'PARTIAL_EXECUTION'

@@ -22,6 +22,8 @@ For the integrated manual grouped-checkout API, the sum of the caller's reviewed
 
 The compatibility agent also compares a grouped-payment response's total with its requested item amounts in integer fils, and requires a valid nonnegative wallet balance. A missing, malformed or mismatched response after dispatch remains unknown for reconciliation in both local and HTTP transports; a total match alone does not authenticate a provider receipt.
 
+The compatibility gateway gives previously recorded domain effects precedence over a later controlled request, eligibility or session error. Completed effects produce a partial outcome and uncertain effects remain unknown; the current session is fenced for reconciliation. This in-memory regression does not establish recovery after an actual lost distributed session lease or failed session-store save.
+
 The integrated manual grouped-checkout API accepts a toll `targetReference` together with its `expectedTargetVersion`; it checks the owned target and returned quote before planning. If omitted, it proceeds only when exactly one target is available. The offline wallet fixture refuses these target-specific fields instead of claiming to settle that target.
 
 Integrated `/pay/unified` and `/pay/multi-agency` callers must also supply `expectedPayables`: the reviewed DEWA bill and police fine payable IDs with their revisions, or an empty array for recharge only. The application selects only those current unpaid payables, rejects duplicates or stale and unknown IDs, and checks any resulting fine selection. The utility bill read exposes its payable ID and revision. The offline fixture rejects this selection field; callers using the integrated API must update requests that omitted it.
