@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Localize React fines conversation controls (P2-01, step)
+
+The React focused fines workspace translates conversation controls, review headings, confirmation warning and receipt labels, with Arabic-aware receipt amounts and expiry times. Browser checks cover the Arabic review without making a payment. Guide: [shell parity](development/shell-parity.md).
+
 ## 2 November 2026 — Localize React fines sign-in (P2-01, step)
 
 The React focused fines sign-in and navigation follow the saved English or Arabic language and page direction. Browser checks cover Arabic sign-in and navigation at desktop and phone widths. Guide: [shell parity](development/shell-parity.md).

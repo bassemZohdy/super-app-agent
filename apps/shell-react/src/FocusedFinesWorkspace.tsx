@@ -4,6 +4,7 @@ import { FocusedAgentClient, FOCUSED_REQUEST_TIMEOUT_MS, AgentClientError, type 
 import { WorkspacePanes } from './components/WorkspacePanes.tsx';
 import { A2UIRenderer } from './components/A2UIRenderer.tsx';
 import { useLocale } from './locale.ts';
+import { formatMoney, formatTime } from '../../../packages/protocol-core/src/i18n.ts';
 import './focused-fines.css';
 
 const savedThread = 'cityside.fines.thread.v1';
@@ -16,7 +17,7 @@ const amount = (minor: number) => new Intl.NumberFormat('en-AE', { style: 'curre
 
 /** The fines route shares Cityside's renderer and visual shell; other journeys retain their existing entry point. */
 export default function FocusedFinesWorkspace() {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const [client, setClient] = useState<FocusedAgentClient | null>(null);
   const [data, setData] = useState<AgentResult | null>(null);
   const [draft, setDraft] = useState('');
@@ -90,6 +91,7 @@ export default function FocusedFinesWorkspace() {
     });
   }
   const needsRecovery = uncertain || data?.status === 'unknown' || (!!data?.next.length && !active);
+  const expiryText = t(renewing ? 'fines.expiresRenewal' : 'fines.expiresPayment', { time: '__TIME__' }).split('__TIME__');
   const canMessage = !!client && !pending && !needsRecovery && !active && data?.status !== 'cancelled';
   const transcript = data ? [...data.messages, ...(data.reply && data.messages.at(-1)?.content !== data.reply ? [{ role: 'assistant' as const, content: data.reply }] : [])] : [];
 
@@ -119,25 +121,25 @@ export default function FocusedFinesWorkspace() {
         </form>
       </section> : <WorkspacePanes revealDetailsKey={active?.id} conversation={<>
         <section className="focused-conversation" aria-labelledby="conversation-heading">
-          <h1 id="conversation-heading">Let’s take care of your fines.</h1>
+          <h1 id="conversation-heading">{t('fines.chatTitle')}</h1>
           <div className="focused-transcript" aria-live="polite" aria-relevant="additions text">
-            {transcript.length ? transcript.map((message, index) => <article key={`${index}-${message.role}`} className={`message ${message.role}`}><div className="message-body"><span className="message-author">{message.role === 'user' ? 'You' : 'Rashid'}</span><p dir="auto">{message.content}</p></div></article>) : <p>Ask to see your outstanding fines. Nothing is paid until you use the confirmation button.</p>}
+            {transcript.length ? transcript.map((message, index) => <article key={`${index}-${message.role}`} className={`message ${message.role}`}><div className="message-body"><span className="message-author">{t(message.role === 'user' ? 'fines.you' : 'fines.assistant')}</span><p dir="auto">{message.content}</p></div></article>) : <p>{t('fines.emptyChat')}</p>}
           </div>
-          {needsRecovery && <p role="status">The last outcome needs checking. Inspect the saved conversation, then recover the original operation.</p>}
-          {data?.status === 'cancelled' && <p role="status">This conversation is cancelled. Start a new conversation to continue.</p>}
+          {needsRecovery && <p role="status">{t('fines.recoveryNotice')}</p>}
+          {data?.status === 'cancelled' && <p role="status">{t('fines.cancelledNotice')}</p>}
           <form className="composer" onSubmit={event => { event.preventDefault(); if (canMessage && draft.trim()) transition('messages', { message: draft.trim() }); }}>
-            <textarea ref={composer} aria-label="Message about fines" placeholder="Show outstanding fines" maxLength={2000} rows={3} value={draft} disabled={!canMessage} onChange={event => setDraft(event.target.value)} />
-            <button type="submit" className="text-button" disabled={!canMessage || !draft.trim()}>Send message</button>
+            <textarea ref={composer} aria-label={t('fines.messageLabel')} placeholder={t('fines.showOutstanding')} maxLength={2000} rows={3} value={draft} disabled={!canMessage} onChange={event => setDraft(event.target.value)} />
+            <button type="submit" className="text-button" disabled={!canMessage || !draft.trim()}>{t('fines.send')}</button>
           </form>
-          <div className="focused-suggestions"><button className="text-button" disabled={!canMessage} onClick={() => transition('messages', { message: 'Show outstanding fines' })}>Show outstanding fines</button><button className="text-button" disabled={!canMessage} onClick={() => transition('messages', { message: 'Pay my outstanding fines' })}>Review payment</button><button className="text-button" disabled={!canMessage} onClick={() => transition('messages', { message: 'Renew my car registration' })}>Renew vehicle registration</button></div>
-          <button className="text-button" disabled={pending || !!needsRecovery || data?.status === 'cancelled'} onClick={() => transition('cancel', {})}>Cancel conversation</button>
+          <div className="focused-suggestions"><button className="text-button" disabled={!canMessage} onClick={() => transition('messages', { message: 'Show outstanding fines' })}>{t('fines.showOutstanding')}</button><button className="text-button" disabled={!canMessage} onClick={() => transition('messages', { message: 'Pay my outstanding fines' })}>{t('fines.reviewPayment')}</button><button className="text-button" disabled={!canMessage} onClick={() => transition('messages', { message: 'Renew my car registration' })}>{t('fines.renew')}</button></div>
+          <button className="text-button" disabled={pending || !!needsRecovery || data?.status === 'cancelled'} onClick={() => transition('cancel', {})}>{t('fines.cancelConversation')}</button>
         </section></>} details={<>
         <section className="focused-review" aria-labelledby="review-heading">
-          <h2 id="review-heading" ref={review} tabIndex={-1} data-pane-focus>{renewing ? 'Review before you renew' : data?.approval ? 'Review before you pay' : data?.renewal ? 'Your simulated renewal' : data?.receipt ? 'Your simulated receipt' : 'Your fines'}</h2>
+          <h2 id="review-heading" ref={review} tabIndex={-1} data-pane-focus>{t(renewing ? 'fines.reviewRenew' : data?.approval ? 'fines.reviewPay' : data?.renewal ? 'fines.renewalDone' : data?.receipt ? 'fines.receipt' : 'fines.yourFines')}</h2>
           {data && <A2UIRenderer key={`${data.threadId}-${data.status}-${active?.id || 'view'}`} node={data.surface.view} onDispatchAction={dispatch} isPending={pending || !!needsRecovery || data.status === 'cancelled'} />}
-          {active && <p>Review expires at <time dateTime={new Date(active.expiresAt).toISOString()}>{new Date(active.expiresAt).toLocaleTimeString()}</time>. Typed “yes” does not confirm {renewing ? 'a renewal' : 'a payment'}.</p>}
-          {data?.receipt && <dl className="focused-receipt"><dt>Total paid (simulated)</dt><dd>{amount(data.receipt.quote.amountMinor)}</dd><dt>Receipt</dt><dd>{data.receipt.id}</dd></dl>}
-          {data?.renewal && <dl className="focused-receipt"><dt>Renewal fee paid (simulated)</dt><dd>{amount(data.renewal.quote.amountMinor)}</dd><dt>Renewal receipt</dt><dd>{data.renewal.id}</dd></dl>}
+          {active && <p>{expiryText[0]}<time dateTime={new Date(active.expiresAt).toISOString()}>{locale === 'ar' ? formatTime(locale, active.expiresAt) : new Date(active.expiresAt).toLocaleTimeString()}</time>{expiryText[1]}</p>}
+          {data?.receipt && <dl className="focused-receipt"><dt>{t('fines.totalPaid')}</dt><dd>{locale === 'ar' ? formatMoney(locale, data.receipt.quote.amountMinor) : amount(data.receipt.quote.amountMinor)}</dd><dt>{t('fines.receiptLabel')}</dt><dd>{data.receipt.id}</dd></dl>}
+          {data?.renewal && <dl className="focused-receipt"><dt>{t('fines.renewalPaid')}</dt><dd>{locale === 'ar' ? formatMoney(locale, data.renewal.quote.amountMinor) : amount(data.renewal.quote.amountMinor)}</dd><dt>{t('fines.renewalReceipt')}</dt><dd>{data.renewal.id}</dd></dl>}
         </section></>} />}
     </main>
   </div>;

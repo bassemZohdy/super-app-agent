@@ -16,6 +16,12 @@ test('the React fines sign-in and navigation follow the saved Arabic language', 
   await expect(page.getByRole('button', { name: 'تسجيل الخروج' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'فحص المحادثة المحفوظة' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'استرداد العملية المحفوظة' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'لنتولَّ أمر مخالفاتك.' })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'رسالة عن المخالفات' })).toBeVisible();
+  await page.getByRole('button', { name: 'مراجعة الدفع', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'راجع قبل الدفع' })).toBeVisible();
+  await expect(page.getByText('كتابة «نعم» لا تؤكد الدفع.', { exact: false })).toBeVisible();
+  expect(focused.payments()).toBe(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   expect(await controlsBelowTarget(page)).toEqual([]);
 });
