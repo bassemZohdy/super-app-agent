@@ -69,8 +69,10 @@ export async function integratedRequest(service: string, actor: Actor, method: s
       catch(e){if(!(e instanceof UpstreamError)||e.code!=='BILLER_ALREADY_LINKED')throw e;}
     }
     const created=await call('payments','POST','/payment-orders',{provider,payableId:payable.id,expectedPayableRevision:payable.revision,methodId:'wallet',expectedMethodVersion:1},stableKey(`${prefix}-order:${provider}:${payable.obligationId}:${payable.revision}:${actor.requestId}`));
-    let order=(await call('payments','GET',`/payment-orders/${created.order.id}`)).order;
-    const verify = () => { if (verifyOrder && !verifyOrder(order)) throw new UpstreamError(503,'PROVIDER_OUTCOME_UNKNOWN','The original payment order could not be confirmed. Inspect the original payment order.'); };
+    const originalId=created?.order?.id;
+    if(typeof originalId!=='string'||!/^[A-Za-z0-9_-]{1,128}$/.test(originalId))throw new UpstreamError(503,'PROVIDER_OUTCOME_UNKNOWN','The original payment order could not be confirmed. Inspect the original payment order.');
+    let order=(await call('payments','GET',`/payment-orders/${originalId}`)).order;
+    const verify = () => { if (!order||order.id!==originalId||order.ownerSub!==actor.sub||order.accountId!==actor.accountId||order.quote?.currency!=='AED'||order.quote?.source?.id!=='wallet'||order.quote?.source?.accountId!==actor.accountId||order.quote?.source?.kind!=='wallet'||order.quote?.source?.version!==1||verifyOrder&&!verifyOrder(order)) throw new UpstreamError(503,'PROVIDER_OUTCOME_UNKNOWN','The original payment order could not be confirmed. Inspect the original payment order.'); };
     verify();
     if(order.state==='AWAITING_APPROVAL')order=(await call('payments','POST',`/payment-orders/${order.id}/approve`,{expectedVersion:order.version,approvalDigest:order.approvalDigest},stableKey(`${prefix}-authorize:${order.id}`))).order;
     verify();

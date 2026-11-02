@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bind compatibility payment order ownership (P0-04, step)
+
+Compatibility bill, fine and recharge transitions now require the original safe order ID, subject, workspace and requested wallet source on every returned order before approval, execution or recovery. Substituted identities and funding sources remain unknown. Provider-signed quotes and production delegated consent remain separate. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Bind recharge orders to targets (P1-13, step)
 
 Integrated toll and prepaid recharges check their original quote, each order and the final receipt against the requested provider, target, amount and credited balance. Mismatches stop approval or remain unknown for inspection, including during original-order recovery. Tests cover all three simulated providers and lost-response recovery. Guide: [integrations](integrations.md).

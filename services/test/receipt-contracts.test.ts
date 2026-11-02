@@ -18,7 +18,7 @@ test('integrated receipt mappings preserve utility premise, owned fine plate/dis
   const bill = { billId: 'dewa_contract_bill', premiseId: 'DEWA-CONTRACT-PREMISE', status, totalAmount: 420.4 };
   const payable = { id:'dewa:bill:dewa_contract_bill', obligationId:bill.billId, kind:'BILL', provider:'dewa', reference:'owned-dewa', amountMinor:42040, status:'UNPAID', revision:'a'.repeat(64) };
   let orderState='AWAITING_APPROVAL';
-  const mappingOrder=()=>({id:'mapping-order',state:orderState,version:orderState==='AWAITING_APPROVAL'?1:2,approvalDigest:'a'.repeat(64),fundsCaptured:orderState==='SETTLED',quote:{totalMinor:42040,payable},receipt:{receiptNumber:'receipt_contract_capture',obligationId:bill.billId,amountMinor:42040,currency:'AED'}});
+  const mappingOrder=()=>({id:'mapping-order',ownerSub:actor.sub,accountId:actor.accountId,state:orderState,version:orderState==='AWAITING_APPROVAL'?1:2,approvalDigest:'a'.repeat(64),fundsCaptured:orderState==='SETTLED',quote:{currency:'AED',source:{id:'wallet',kind:'wallet',accountId:actor.accountId,version:1},totalMinor:42040,payable},receipt:{receiptNumber:'receipt_contract_capture',obligationId:bill.billId,amountMinor:42040,currency:'AED'}});
   t.mock.method(ProviderClient.prototype, 'call', async (provider, _actor, method, route) => {
     if (provider === 'police' && method === 'GET') return { fines: [], count: 0, totalOriginal: 450, totalDiscount: 30, totalPayable: 420 };
     if (provider === 'dewa' && method === 'GET' && route === '/bills') return { bills: [{ ...bill, status }] };

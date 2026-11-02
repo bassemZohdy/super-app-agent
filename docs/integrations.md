@@ -12,6 +12,8 @@ Integrated utility and telecom payments additionally compare each returned order
 
 Integrated toll and prepaid recharges bind the saved quote and each payment order to the requested provider, target, version, balance and amount. The settled receipt must confirm that target and expected credited balance. Recovery uses the original quote and order; a mismatch is left unknown for inspection.
 
+For compatibility bill, fine and recharge orders, each payment transition also checks the original order ID, subject, workspace and the requested wallet's account, version and currency. An inconsistent order remains unknown before any further transition. Provider-signed quotes and production delegated consent remain separate requirements.
+
 MCP, A2A, SOAP and controlled browser execution are protocol values at the extension boundary, not implemented transports in this entry point. The existing integrated MCP server remains in its original path. Add a real protocol adapter only for a concrete service, with its own authority, schema, timeout and retry tests.
 
 ## HTTP API

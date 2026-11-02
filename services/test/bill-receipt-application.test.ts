@@ -14,12 +14,12 @@ test('integrated bill settlement refuses a different frozen quote or provider re
   t.after(() => { if (previous === undefined) delete process.env.APP_DATA_DIR; else process.env.APP_DATA_DIR = previous; removeTemp(dir); });
   let scenario = 'valid', provider = 'dewa', approvals = 0, executions = 0;
   const payable = () => ({ id: `${provider}:bill:bill123`, kind: 'BILL', provider, obligationId: 'bill123', reference: 'owned', revision: 'a'.repeat(64), status: 'UNPAID', amountMinor: 115 });
-  const order = (state: string) => ({ id: 'original', state, version: 1, approvalDigest: 'digest', quote: { totalMinor: 115, payable: scenario === 'wrong-quote' || scenario === 'wrong-authorized' && state === 'AUTHORIZED' || scenario === 'wrong-settled' && state === 'SETTLED' ? { ...payable(), obligationId: 'other' } : payable() }, receipt: { receiptNumber: 'receipt', obligationId: scenario === 'wrong-receipt' ? 'other' : 'bill123', amountMinor: scenario === 'wrong-amount' ? 116 : 115, currency: 'AED' } });
+  const order = (state: string) => ({ id: scenario === 'wrong-id' || scenario === 'changed-id' && state === 'AUTHORIZED' ? 'other' : 'original', ownerSub: scenario === 'wrong-owner' ? 'other' : actor.sub, accountId: scenario === 'wrong-account' ? 'other' : actor.accountId, state, version: 1, approvalDigest: 'digest', quote: { currency:scenario === 'wrong-currency' ? 'USD' : 'AED', source:{ id: scenario === 'wrong-source' ? 'other' : 'wallet', kind:'wallet', accountId:scenario === 'wrong-source-account' ? 'other' : actor.accountId, version:scenario === 'wrong-source-version' ? 2 : 1 }, totalMinor: 115, payable: scenario === 'wrong-quote' || scenario === 'wrong-authorized' && state === 'AUTHORIZED' || scenario === 'wrong-settled' && state === 'SETTLED' ? { ...payable(), obligationId: 'other' } : payable() }, receipt: { receiptNumber: 'receipt', obligationId: scenario === 'wrong-receipt' ? 'other' : 'bill123', amountMinor: scenario === 'wrong-amount' ? 116 : 115, currency: 'AED' } });
   t.mock.method(ProviderClient.prototype, 'call', async (name, _actor, _method, route) => {
     if (name === provider && route === '/bills') return { bills: [{ billId: 'bill123', status: 'UNPAID', totalAmount: 1.15 }] };
     if (name === provider && route === '/payables') return { payables: [payable()] };
     if (route === '/billing-accounts') return { billingAccounts: [{ status: 'ACTIVE', provider, reference: 'owned' }] };
-    if (route === '/payment-orders') return { order: { id: 'original' } };
+    if (route === '/payment-orders') return { order: { id: scenario === 'bad-created-id' ? '../other' : 'original' } };
     if (route === '/payment-orders/original') return { order: order('AWAITING_APPROVAL') };
     if (route.endsWith('/approve')) { approvals++; return { order: order('AUTHORIZED') }; }
     if (route.endsWith('/execute')) { executions++; return { order: order('SETTLED') }; }
@@ -32,9 +32,10 @@ test('integrated bill settlement refuses a different frozen quote or provider re
       ? integratedRequest('service-food', actor, 'POST', '/utilities/pay', {}, { billId: 'bill123', expectedAmountMinor: 115 }, legacy)
       : integratedRequest('service-telecom', actor, 'POST', `/telecom/${provider}/bills/bill123/payments`, {}, { expectedAmountMinor: 115 }, legacy);
     scenario = 'valid'; const good = await run(); assert.equal(good.status, 200); assert.equal(good.data.receipt.billId, 'bill123');
-    scenario = 'wrong-quote'; const beforeApprovals = approvals, beforeExecutions = executions;
-    const wrong = await run(); assert.equal(wrong.status, 503); assert.equal(wrong.data.code, 'PROVIDER_OUTCOME_UNKNOWN'); assert.equal(approvals, beforeApprovals); assert.equal(executions, beforeExecutions);
+    for (scenario of ['wrong-quote', 'wrong-id', 'wrong-owner', 'wrong-account', 'wrong-source', 'wrong-source-account', 'wrong-source-version', 'wrong-currency', 'bad-created-id']) { const beforeApprovals = approvals, beforeExecutions = executions;
+      const wrong = await run(); assert.equal(wrong.status, 503); assert.equal(wrong.data.code, 'PROVIDER_OUTCOME_UNKNOWN'); assert.equal(approvals, beforeApprovals); assert.equal(executions, beforeExecutions); }
     scenario = 'wrong-authorized'; const priorExecutions = executions; const authorized = await run(); assert.equal(authorized.status, 503); assert.equal(authorized.data.code, 'PROVIDER_OUTCOME_UNKNOWN'); assert.equal(executions, priorExecutions);
+    scenario = 'changed-id'; const beforeChanged = executions; const changed = await run(); assert.equal(changed.status, 503); assert.equal(changed.data.code, 'PROVIDER_OUTCOME_UNKNOWN'); assert.equal(executions, beforeChanged);
     for (scenario of ['wrong-settled', 'wrong-receipt', 'wrong-amount']) { const bad = await run(); assert.equal(bad.status, 503); assert.equal(bad.data.code, 'PROVIDER_OUTCOME_UNKNOWN'); }
   }
 });
