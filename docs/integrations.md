@@ -22,6 +22,8 @@ For the integrated manual grouped-checkout API, the sum of the caller's reviewed
 
 The compatibility agent also compares a grouped-payment response's total with its requested item amounts in integer fils, and requires a valid nonnegative wallet balance. A missing, malformed or mismatched response after dispatch remains unknown for reconciliation in both local and HTTP transports; a total match alone does not authenticate a provider receipt.
 
+When an offline composite checkout has an uncertain wallet result or stops after its wallet debit, the compatibility agent fences later composite, utility-payment and fine-payment actions across sessions in that process. A definite wallet refusal before a debit does not create this fence. The fence is in memory, does not cover direct calls to domain services or survive an agent restart, and has no recovery interface; durable cross-service reconciliation remains necessary, especially when fixture services run separately.
+
 The compatibility gateway gives previously recorded domain effects precedence over a later controlled request, eligibility or session error. Completed effects produce a partial outcome and uncertain effects remain unknown; the current session is fenced for reconciliation. This in-memory regression does not establish recovery after an actual lost distributed session lease or failed session-store save.
 
 The integrated manual grouped-checkout API accepts a toll `targetReference` together with its `expectedTargetVersion`; it checks the owned target and returned quote before planning. If omitted, it proceeds only when exactly one target is available. The offline wallet fixture refuses these target-specific fields instead of claiming to settle that target.

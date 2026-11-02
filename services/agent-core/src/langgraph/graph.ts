@@ -54,6 +54,7 @@ interface SalikAccount { balance: number; tagNumber: string; status: string; ver
 interface WalletBalance { balance: number }
 // The offline fixtures are shared within this process, including across residents and sessions.
 let offlineCivicPaymentRunning = false;
+let offlineCivicReconciliationRequired = false;
 function requireConsistentFineSummary(data: FinesData): void {
   try {
     if (!Array.isArray(data.fines) || data.fines.length > 20 || data.count !== data.fines.length ||
@@ -365,6 +366,7 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
 
     const guardedOfflineCivicAction = process.env.PROVIDER_INTEGRATION !== 'true' &&
       ['confirm_smartcity_checkout', 'pay_utilities_bill', 'pay_dewa_bill', 'pay_police_fines'].includes(action);
+    if (guardedOfflineCivicAction && offlineCivicReconciliationRequired) throw new HttpError(409, 'An earlier offline civic payment needs reconciliation before another can start.');
     if (guardedOfflineCivicAction && offlineCivicPaymentRunning) throw new HttpError(409, 'Another offline civic payment is in progress. Review it again afterwards.');
     if (guardedOfflineCivicAction) offlineCivicPaymentRunning = true;
     try {
@@ -571,10 +573,13 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
       const totalMinor = review.billAmountMinor + fineMinor + 10000;
       const wallet = (await executeWalletRequest('GET', '/wallet/balance')).data as WalletBalance;
       if (toMinor(wallet.balance) < totalMinor) throw new HttpError(400, 'Insufficient wallet balance for this checkout.');
+      let walletConfirmed = false;
+      try {
       const res = await executeWalletRequest('POST', '/pay/unified', {}, { items: [
         ...(review.billAmountMinor ? [{ agency: 'DEWA', purpose: 'Demo utility settlement', amount: fromMinor(review.billAmountMinor) }] : []),
         { agency: 'RTA Salik', purpose: 'Demo toll recharge', amount: 100 },
       ] });
+      walletConfirmed = true;
       if (review.billAmountMinor) await executeFoodRequest('POST', '/utilities/pay', {}, { billId: review.billId, expectedAmountMinor: review.billAmountMinor });
       if (review.fines.length) await executeWalletRequest('POST', '/fines/pay', {}, { fineIds: review.fines.map(fine => fine.fineId), expectedAmountMinor: fineMinor });
       await executeRideRequest('POST', '/mobility/salik/recharge', {}, { amount: 100 });
@@ -629,6 +634,10 @@ Service summary: ${minimiseText(state.messages.at(-1)?.content || '', modelConse
         content: `Unified municipal settlement completed via DubaiPay. DEWA, Dubai Police, and Salik balances are now up to date.`,
         timestamp: Date.now(),
       });
+      } catch (error) {
+        if (walletConfirmed || !(error instanceof DomainOperationError && error.code === 'DOMAIN_REJECTED')) offlineCivicReconciliationRequired = true;
+        throw error;
+      }
     } else if (action === 'confirm_movein') {
       onProgress?.('🏠 Finalizing Move-In Golden Path with Dubai Land Department...');
       const res = await executeCatalogRequest('POST', '/housing/move-in', {}, { contractNumber: (await executeCatalogRequest('GET', '/housing/ejari')).data.contract.contractNumber });

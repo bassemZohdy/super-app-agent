@@ -1,22 +1,39 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { executeCoreRequest, getOrCreateSession } from '../agent-core/src/index.ts';
 import { domainHandlers } from '../agent-core/src/domain-operations.ts';
 import { balance, policeFines, transactions, executeWalletRequest } from '../service-wallet/src/index.ts';
 import { activeUtilityBill } from '../service-food/src/index.ts';
 import { salikBalance } from '../service-ride/src/index.ts';
 
-async function review(sessionId: string) {
-  const response = await executeCoreRequest('POST', '/api/a2ui/intent', {}, { sessionId, text: 'Pay my DEWA electricity bill, settle my police radar fines, and recharge my Salik tag' });
+async function review(sessionId: string, text = 'Pay my DEWA electricity bill, settle my police radar fines, and recharge my Salik tag', action = 'confirm_smartcity_checkout') {
+  const response = await executeCoreRequest('POST', '/api/a2ui/intent', {}, { sessionId, text });
   assert.equal(response.status, 200);
-  const button = response.data.surface.view.children.find((node: { id: string }) => node.id === 'btn_confirm_smartcity_checkout');
-  return { sessionId, surfaceRevision: getOrCreateSession(sessionId).currentSurface!.revision, action: 'confirm_smartcity_checkout', payload: button.onEvents[0].payload };
+  const button = response.data.surface.view.children.find((node: { onEvents?: Array<{ payload?: { action?: string } }> }) => node.onEvents?.some(event => event.payload?.action === action));
+  assert.ok(button);
+  return { sessionId, surfaceRevision: getOrCreateSession(sessionId).currentSurface!.revision, action, payload: button.onEvents[0].payload };
 }
 
-test('offline composite records unknown and partial outcomes without executing later steps or retrying the session', async t => {
+const selectedScenario = process.env.CITYSIDE_COMPOSITE_RECOVERY_SCENARIO;
+if (!selectedScenario) {
+  test('offline composite recovery fences other sessions after uncertain and partial outcomes', () => {
+    for (const scenario of ['unknown-wallet', 'refused-utility', 'changed-utility']) {
+      const childEnv = { ...process.env, CITYSIDE_COMPOSITE_RECOVERY_SCENARIO: scenario };
+      delete childEnv.NODE_TEST_CONTEXT;
+      const child = spawnSync(process.execPath, ['--experimental-strip-types', '--import', './scripts/test-env.ts', '--test', fileURLToPath(import.meta.url)], {
+        cwd: process.cwd(), env: childEnv, encoding: 'utf8', timeout: 30000,
+      });
+      assert.equal(child.status, 0, `${scenario}: ${child.stdout} ${child.stderr}`);
+    }
+  });
+} else test('offline composite records unknown and partial outcomes without executing later steps or retrying the session', async t => {
   assert.equal(executeWalletRequest('POST', '/wallet/topup', {}, { amount: 5000 }).status, 200);
-  for (const scenario of ['unknown-wallet', 'refused-utility', 'changed-utility']) {
+  for (const scenario of [selectedScenario]) {
     const request = await review(`composite_recovery_${scenario}`);
+    const utility = await review(`utility_${scenario}`, 'Show my DEWA utility bill', 'pay_utilities_bill');
+    const fines = await review(`fines_${scenario}`, 'Check my police fines', 'pay_police_fines');
     const wallet = domainHandlers.wallet, food = domainHandlers.food, originalBillAmount = activeUtilityBill.totalAmount;
     const walletMock = t.mock.method(domainHandlers, 'wallet', (method, path, query, body) => {
       const result = wallet(method, path, query, body);
@@ -41,6 +58,14 @@ test('offline composite records unknown and partial outcomes without executing l
       assert.equal(result.data.retry.allowed, false);
       const retry = await executeCoreRequest('POST', '/api/a2ui/intent', {}, { sessionId: request.sessionId, text: 'show my wallet' });
       assert.equal(retry.data.code, 'RECONCILIATION_REQUIRED');
+      const other = await review(`other_session_${scenario}`);
+      const afterFailure = balance, ledgerAfterFailure = transactions.length;
+      for (const pending of [other, utility, fines]) {
+        const blocked = await executeCoreRequest('POST', '/api/a2ui/action', {}, pending);
+        assert.equal(blocked.status, 409);
+      }
+      assert.equal(balance, afterFailure);
+      assert.equal(transactions.length, ledgerAfterFailure);
     } finally { activeUtilityBill.totalAmount = originalBillAmount; walletMock.mock.restore(); foodMock.mock.restore(); }
   }
 });

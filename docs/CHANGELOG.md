@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Fence uncertain offline checkout across sessions (P1-13, step)
+
+An uncertain or partially completed offline civic checkout now blocks overlapping civic payment actions in other agent sessions for the lifetime of the process. Tests cover uncertain wallet results, refused or changed utility settlement, and a definite pre-debit refusal. Durable cross-service recovery remains open. Guide: [integrations](integrations.md).
+
 ## 2 November 2026 — Scope utility reads to the account (P1-13, step)
 
 Utility bill and consumption reads and implicit bill settlement select the account's synthetic utility account; bill payable metadata must name that account too. Mixed-account, missing and malformed provider responses are covered by focused tests; the application contract passed on a disposable synthetic stack using revision `c08973d` plus this change, Node 24.16.0, Docker 29.9.2 and Compose 5.6.1. Guide: [integrations](integrations.md).
