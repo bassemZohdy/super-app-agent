@@ -1,3 +1,4 @@
+import { boundedJsonResponse } from './bounded-json.ts';
 import { tracedFetch as fetch } from './observability.ts';
 import { PROVIDER_PORTS } from './local-endpoints.ts';
 import { ClientCredentials } from './oauth.ts';
@@ -30,7 +31,16 @@ export class ProviderClient {
       response = await send();
       if (response.status === 401 && !actor.authorization) { this.credentials.invalidate(); response = await send(); }
     } catch { record(503, method === 'POST' ? 'PROVIDER_OUTCOME_UNKNOWN' : 'PROVIDER_UNAVAILABLE'); throw new UpstreamError(503, method === 'POST' ? 'PROVIDER_OUTCOME_UNKNOWN' : 'PROVIDER_UNAVAILABLE', `The ${provider} simulator is unavailable.`); }
-    const data = await response.json() as any;
+    let data: Record<string, unknown>;
+    try {
+      const parsed = await boundedJsonResponse(response);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Invalid provider response');
+      data = parsed as Record<string, unknown>;
+    } catch {
+      const code = method === 'POST' ? 'PROVIDER_OUTCOME_UNKNOWN' : 'PROVIDER_UNAVAILABLE';
+      record(503, code);
+      throw new UpstreamError(503, code, `The ${provider} simulator response could not be read.`);
+    }
     record(response.status, !response.ok || data.success !== true ? (typeof data.code === 'string' ? data.code : 'PROVIDER_REJECTED') : undefined);
     if (!response.ok || data.success !== true) throw new UpstreamError(response.status, typeof data.code === 'string' ? data.code : 'PROVIDER_REJECTED', typeof data.error === 'string' ? data.error : `The ${provider} request was rejected.`);
     return data;

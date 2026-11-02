@@ -1,5 +1,9 @@
 # Documentation changelog
 
+## 2 November 2026 — Bound application provider responses (P1-02, step)
+
+The application provider client now shares the agent adapter’s one-MiB response reader. Oversized bodies are cancelled, and oversized, malformed or non-object responses become provider-unavailable reads or unknown writes without exposing response details. Tests cover these cases and ordinary responses. Other outbound clients and global quotas remain separate work. Guide: [testing](testing.md).
+
 ## 2 November 2026 — Refuse application provider redirects (P1-02, step)
 
 The retained application provider client now refuses HTTP redirects instead of forwarding authenticated requests to another route. A redirect leaves a read unavailable and a write outcome unknown, because the original provider may have acted. A loopback HTTP test verifies the target receives neither request. Provider identity and production transport qualification remain separate. Guide: [testing](testing.md).

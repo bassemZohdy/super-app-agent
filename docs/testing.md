@@ -43,7 +43,7 @@ Execution results for the implementation milestone belong in the dated [evidence
 
 `services/test/provider-redirect.test.ts` uses a loopback provider to verify that application-client reads and writes refuse redirects and that a redirected write remains unknown.
 
-`services/test/domain-response-limit.test.ts` sends oversized streamed HTTP domain responses and checks that the client cancels them early, reports a read failure and keeps a write outcome unknown. The limit applies to the retained agent adapter, not every provider client.
+`services/test/domain-response-limit.test.ts` sends oversized streamed HTTP domain responses and checks that the client cancels them early, reports a read failure and keeps a write outcome unknown. The application provider client uses the same limit; `services/test/provider-response-limit.test.ts` covers oversized, malformed and non-object replies, including unknown write outcomes. Other outbound clients are not covered.
 
 `services/test/domain-redirect.test.ts` also checks that malformed domain paths cannot override the configured service origin, issue a request or record a mutation step; an ordinary root-relative path remains usable.
 
